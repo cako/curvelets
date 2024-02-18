@@ -8,7 +8,7 @@ import curvelets.reference as udct_ref
 
 
 @pytest.mark.parametrize("dim", list(range(2, 5)))
-def test_uniform(dim):
+def test_compare_with_reference(dim):
     rng = np.random.default_rng()
 
     opts = [32, 64, 128, 256]
@@ -71,3 +71,48 @@ def test_uniform(dim):
         coeffs_ref, param_udct=param_ref, udctwin=udctwin_ref
     )
     np.testing.assert_allclose(im2, im2_ref, rtol=1e-14)
+
+
+@pytest.mark.parametrize("dim", list(range(2, 4)))
+def test_round_trip(dim):
+    rng = np.random.default_rng()
+
+    if dim == 2:
+        size = (256, 256)
+    elif dim == 3:
+        size = tuple(4 * np.array([32, 32, 32]))
+    cfg = (
+        np.array([[3, 3], [6, 6], [12, 6]])
+        if dim == 2
+        else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
+    )
+    alpha = 0.15
+    r = tuple(np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3)
+    winthresh = 1e-5
+
+    my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+    im = rng.normal(size=size)
+    coeffs = my_udct.forward(im)
+    im2 = my_udct.backward(coeffs)
+    np.testing.assert_allclose(im2, im, atol=1e-4)
+
+    # try:
+    #     import matplotlib.pyplot as plt
+
+    #     idx = [np.random.choice(s) for s in im.shape]
+    #     for i in np.random.choice(im.ndim, 2, replace=False):
+    #         idx[i] = slice(None)
+    #     idx = tuple(idx)
+
+    #     fig, axs = plt.subplots(1, 3, figsize=(12, 3))
+    #     img = axs[0].imshow(im[idx])
+    #     fig.colorbar(img)
+    #     img = axs[1].imshow(im2[idx])
+    #     fig.colorbar(img)
+    #     img = axs[2].imshow((im - im2)[idx])
+    #     fig.colorbar(img)
+    #     fig.suptitle(f"Error: {np.abs(im - im2).max()}")
+    #     fig.tight_layout()
+    #     plt.show()
+    # except ImportError:
+    #     pass
