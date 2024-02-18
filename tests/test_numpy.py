@@ -25,14 +25,13 @@ def test_uniform(dim):
     alpha = 0.3 * rng.uniform(size=1)
     r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
     winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1))
-    param = udct.ParamUDCT(
-        dim=dim, size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh
-    )
+
+    my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
     param_ref = udct_ref.ParamUDCT(
         dim=dim, size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh
     )
 
-    udctwin = udct.udctmdwin(param)
+    udctwin = my_udct.windows
     udctwin_ref, _ = udct_ref.udctmdwin(param_ref)
 
     assert udctwin.keys() == udctwin_ref.keys()
@@ -51,7 +50,7 @@ def test_uniform(dim):
                     )
 
     im = rng.normal(size=size)
-    coeffs = udct.udctmddec(im, param_udct=param, udctwin=udctwin)
+    coeffs = my_udct.forward(im)
     coeffs_ref, _ = udct_ref.udctmddec(im, param_udct=param_ref, udctwin=udctwin_ref)
 
     for res in coeffs:
@@ -67,7 +66,7 @@ def test_uniform(dim):
                     np.testing.assert_allclose(
                         coeffs[res][dir][ang], coeffs_ref[res][dir][ang], rtol=1e-14
                     )
-    im2 = udct.udctmdrec(coeffs, param_udct=param, udctwin=udctwin)
+    im2 = my_udct.backward(coeffs)
     im2_ref, _ = udct_ref.udctmdrec(
         coeffs_ref, param_udct=param_ref, udctwin=udctwin_ref
     )

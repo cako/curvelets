@@ -1,36 +1,14 @@
-"""Main module."""
 from __future__ import annotations
-
-import sys
-from dataclasses import dataclass, field
-from math import prod
 
 import numpy as np
 
-from .utils import downsamp, upsamp
+from .udctmdwin import udctmdwin
+from .utils import ParamUDCT, downsamp, upsamp
 
 
-@dataclass(**(dict(kw_only=True) if sys.version_info >= (3, 10) else {}))
-class ParamUDCT:
-    dim: int
-    size: tuple[int, int] | tuple[int, int, int]
-    cfg: tuple | np.ndarray  # last dimension  == dim
-    alpha: float
-    r: tuple[float, float, float, float]
-    winthresh: float
-    len: int = field(init=False)
-    res: int = field(init=False)
-    decim: np.ndarray = field(init=False)
-    ind: dict[int, dict[int, np.ndarray]] | None = None
-    dec: dict[int, np.ndarray] | None = None
-
-    def __post_init__(self) -> None:
-        self.len = prod(self.size)
-        self.res = len(self.cfg)
-        self.decim = 2 * (np.asarray(self.cfg, dtype=int) // 3)
-
-
-def udctmddec(im, param_udct, udctwin):
+def udctmddec(
+    im: np.ndarray, param_udct: ParamUDCT, udctwin: dict[dict[np.ndarray | dict]]
+) -> dict[dict[np.ndarray | dict]]:
     imf = np.fft.fftn(im)
 
     fband = np.zeros_like(imf)
@@ -67,7 +45,11 @@ def udctmddec(im, param_udct, udctwin):
     return coeff
 
 
-def udctmdrec(coeff, param_udct, udctwin) -> np.ndarray:
+def udctmdrec(
+    coeff: dict[dict[np.ndarray | dict]],
+    param_udct: ParamUDCT,
+    udctwin: dict[dict[np.ndarray | dict]],
+) -> np.ndarray:
     imf = np.zeros(param_udct.size, dtype=np.complex128)
 
     for res in range(1, 1 + param_udct.res):
@@ -96,5 +78,26 @@ def udctmdrec(coeff, param_udct, udctwin) -> np.ndarray:
 
 
 class UDCT:
-    def __init__(shape: tuple[int, ...]) -> None:
-        pass
+    def __init__(
+        self,
+        size: tuple[int, ...],
+        cfg: np.ndarray | None = None,
+        alpha: float = 0.15,
+        r: tuple[float, float, float, float] | None = None,
+        winthresh: float = 1e-5,
+    ) -> None:
+        dim = len(size)
+        cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
+        one = np.pi / 3
+        r1 = (one, 2 * one, 2 * one, 4 * one) if r is None else r
+        self.params = ParamUDCT(
+            dim=dim, size=size, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
+        )
+
+        self.windows = udctmdwin(self.params)
+
+    def forward(self, x: np.ndarray) -> dict[dict[np.ndarray | dict]]:
+        return udctmddec(x, self.params, self.windows)
+
+    def backward(self, c: dict[dict[np.ndarray | dict]]) -> np.ndarray:
+        return udctmdrec(c, self.params, self.windows)

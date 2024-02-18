@@ -1,8 +1,30 @@
 from __future__ import annotations
 
-from math import ceil
+import sys
+from dataclasses import dataclass, field
+from math import ceil, prod
 
 import numpy as np
+
+
+@dataclass(**(dict(kw_only=True) if sys.version_info >= (3, 10) else {}))
+class ParamUDCT:
+    dim: int
+    size: tuple[int, ...]
+    cfg: tuple | np.ndarray  # last dimension  == dim
+    alpha: float
+    r: tuple[float, float, float, float]
+    winthresh: float
+    len: int = field(init=False)
+    res: int = field(init=False)
+    decim: np.ndarray = field(init=False)
+    ind: dict[int, dict[int, np.ndarray]] | None = None
+    dec: dict[int, np.ndarray] | None = None
+
+    def __post_init__(self) -> None:
+        self.len = prod(self.size)
+        self.res = len(self.cfg)
+        self.decim = 2 * (np.asarray(self.cfg, dtype=int) // 3)
 
 
 def circshift(arr, shape: tuple[int, ...]):
@@ -119,6 +141,11 @@ def fun_meyer(x, p1, p2, p3, p4):
 
 def travel(arr):
     return arr.T.ravel()
+
+
+def to_sparse(arr, thresh):
+    idx = np.argwhere(travel(arr) > thresh)
+    return np.c_[idx + 1, travel(arr)[idx]]
 
 
 def upsamp(F, decim):

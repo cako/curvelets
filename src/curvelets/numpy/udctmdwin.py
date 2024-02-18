@@ -6,21 +6,16 @@ from itertools import combinations
 
 import numpy as np
 
-from .udct import ParamUDCT
 from .utils import (
+    ParamUDCT,
     adapt_grid,
     angle_fun,
     angle_kron,
     circshift,
     fftflip,
     fun_meyer,
-    travel,
+    to_sparse,
 )
-
-
-def _to_sparse(arr, thresh):
-    idx = np.argwhere(travel(arr) > thresh)
-    return np.c_[idx + 1, travel(arr)[idx]]
 
 
 def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
@@ -65,7 +60,7 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
     # convert to sparse format
     udctwin = {}
     udctwin[1] = {}
-    udctwin[1][1] = _to_sparse(Winlow, param_udct.winthresh)
+    udctwin[1][1] = to_sparse(Winlow, param_udct.winthresh)
 
     param_udct.ind = {}
     param_udct.ind[1] = {}
@@ -191,7 +186,7 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
                     ang_ind = ang_in2
                     for in7 in range(1, ang_ind.shape[0] + 1):
                         # convert to sparse format
-                        udctwin[res + 1][in1][in7] = _to_sparse(
+                        udctwin[res + 1][in1][in7] = to_sparse(
                             aafun[in7 - 1], param_udct.winthresh
                         )
                 else:
@@ -200,7 +195,7 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
                     innew = ang_ind.shape[0]
                     for in7 in range(inold + 1, innew + 1):
                         in8 = in7 - inold
-                        udctwin[res + 1][in1][in7] = _to_sparse(
+                        udctwin[res + 1][in1][in7] = to_sparse(
                             aafun[in8 - 1], param_udct.winthresh
                         )
                     param_udct.ind[res + 1][in1] = ang_ind.copy()
