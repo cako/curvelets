@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 
 [project]
-name = "Curvelet"
+name = "curvelets"
 authors = [
   { name = "Carlos Alberto da Costa Filho", email = "c.dacostaf@gmail.com" },
 ]
