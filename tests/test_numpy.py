@@ -77,6 +77,8 @@ def test_compare_with_reference(dim):
 def test_round_trip_absolute(dim):
     rng = np.random.default_rng()
 
+    # For these specific parameters, we can guarantee an absolute precision of
+    # approximately 1e-4
     if dim == 2:
         size = (256, 256)
     elif dim == 3:
@@ -123,6 +125,8 @@ def test_round_trip_absolute(dim):
 def test_round_trip_rel(dim):
     rng = np.random.default_rng()
 
+    # For random parameters in the range below, we can guarantee an relative precision of
+    # approximately 0.5% of the maximum amplitude in the original image.
     opts = [32, 64, 128, 256]
     if dim == 3:
         opts = opts[:2]
