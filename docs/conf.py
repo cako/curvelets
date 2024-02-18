@@ -15,6 +15,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
+    "sphinx_gallery.gen_gallery",
 ]
 
 source_suffix = [".rst", ".md"]
@@ -43,3 +44,8 @@ nitpick_ignore = [
 ]
 
 always_document_param_types = True
+
+sphinx_gallery_conf = {
+    "examples_dirs": "../examples",  # path to your example scripts
+    "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
+}
