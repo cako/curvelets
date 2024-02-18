@@ -119,7 +119,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
     # dimension (column)
     for res in range(1, param_udct.res + 1):
         # for each resolution
-        subband = {}
         udctwin[res + 1] = {}
         param_udct.ind[res + 1] = {}
         for in1 in range(1, param_udct.dim + 1):
@@ -185,14 +184,11 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
                             b = Mdir[res][in1 - 1, in5 - 1]
                             end = max(aafun.keys())
                             aafun[end + 1] = fftflip(a, b - 1)
-                #    Mwin[tmp[in3-1,:]] = afun
-                # subband[ang]
                 aafun = np.concatenate(
                     [aafun[k][None, ...] for k in sorted(aafun.keys())], axis=0
                 )
                 if isinstance(ang_ind, int) and ang_ind == 0:
                     ang_ind = ang_in2
-                    # subband[in1] = aafun.copy()
                     for in7 in range(1, ang_ind.shape[0] + 1):
                         # convert to sparse format
                         udctwin[res + 1][in1][in7] = _to_sparse(
@@ -202,11 +198,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
                     inold = ang_ind.shape[0]
                     ang_ind = np.concatenate((ang_ind, ang_in2), axis=0)
                     innew = ang_ind.shape[0]
-                    # note:
-                    # subband has to be expanded to accomodate new indices
-                    # matlab does that automatically, but numpy does not
-                    # the following line DOES NOT WORK
-                    # subband[in1][inold + 1 - 1 : innew] = aafun
                     for in7 in range(inold + 1, innew + 1):
                         in8 = in7 - inold
                         udctwin[res + 1][in1][in7] = _to_sparse(

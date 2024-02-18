@@ -67,7 +67,7 @@ def udctmddec(im, param_udct, udctwin):
     return coeff
 
 
-def udctmdrec(coeff, param_udct, udctwin):
+def udctmdrec(coeff, param_udct, udctwin) -> np.ndarray:
     imf = np.zeros(param_udct.size, dtype=np.complex128)
 
     for res in range(1, 1 + param_udct.res):
@@ -93,3 +93,8 @@ def udctmdrec(coeff, param_udct, udctwin):
     imf = 2 * imf + imfl
     im2 = np.fft.ifftn(imf).real
     return im2
+
+
+class UDCT:
+    def __init__(shape: tuple[int, ...]) -> None:
+        pass

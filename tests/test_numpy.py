@@ -1,17 +1,27 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 import curvelets.numpy as udct
 import curvelets.reference as udct_ref
 
 
-def test_uniform_2d():
+@pytest.mark.parametrize("dim", list(range(2, 5)))
+def test_uniform(dim):
     rng = np.random.default_rng()
 
-    dim = 2
-    size = rng.choice([32, 64, 128, 256], size=dim, replace=True)
-    cfg = np.array([[3, 3], [6, 6], [12, 6]])
+    opts = [32, 64, 128, 256]
+    if dim == 3:
+        opts = opts[:2]
+    elif dim >= 4:
+        opts = opts[:1]
+    size = rng.choice(opts, size=dim, replace=True)
+    cfg = (
+        np.array([[3, 3], [6, 6], [12, 6]])
+        if dim == 2
+        else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
+    )
     alpha = 0.3 * rng.uniform(size=1)
     r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
     winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1))
@@ -57,3 +67,8 @@ def test_uniform_2d():
                     np.testing.assert_allclose(
                         coeffs[res][dir][ang], coeffs_ref[res][dir][ang], rtol=1e-14
                     )
+    im2 = udct.udctmdrec(coeffs, param_udct=param, udctwin=udctwin)
+    im2_ref, _ = udct_ref.udctmdrec(
+        coeffs_ref, param_udct=param_ref, udctwin=udctwin_ref
+    )
+    np.testing.assert_allclose(im2, im2_ref, rtol=1e-14)
