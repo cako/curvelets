@@ -74,7 +74,7 @@ def test_compare_with_reference(dim):
 
 
 @pytest.mark.parametrize("dim", list(range(2, 4)))
-def test_round_trip(dim):
+def test_round_trip_absolute(dim):
     rng = np.random.default_rng()
 
     if dim == 2:
@@ -94,7 +94,6 @@ def test_round_trip(dim):
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
     im2 = my_udct.backward(coeffs)
-    np.testing.assert_allclose(im2, im, atol=1e-4)
 
     # try:
     #     import matplotlib.pyplot as plt
@@ -116,3 +115,53 @@ def test_round_trip(dim):
     #     plt.show()
     # except ImportError:
     #     pass
+
+    np.testing.assert_allclose(im, im2, atol=1e-4)
+
+
+@pytest.mark.parametrize("dim", list(range(2, 4)))
+def test_round_trip_rel(dim):
+    rng = np.random.default_rng()
+
+    opts = [32, 64, 128, 256]
+    if dim == 3:
+        opts = opts[:2]
+    elif dim >= 4:
+        opts = opts[:1]
+    size = rng.choice(opts, size=dim, replace=True)
+    cfg = (
+        np.array([[3, 3], [6, 6], [12, 6]])
+        if dim == 2
+        else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
+    )
+    alpha = 0.3 * rng.uniform(size=1)
+    r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
+    winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1))
+
+    my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+    im = rng.normal(size=size)
+    coeffs = my_udct.forward(im)
+    im2 = my_udct.backward(coeffs)
+
+    # try:
+    #     import matplotlib.pyplot as plt
+
+    #     idx = [np.random.choice(s) for s in im.shape]
+    #     for i in np.random.choice(im.ndim, 2, replace=False):
+    #         idx[i] = slice(None)
+    #     idx = tuple(idx)
+
+    #     fig, axs = plt.subplots(1, 3, figsize=(12, 3))
+    #     img = axs[0].imshow(im[idx])
+    #     fig.colorbar(img)
+    #     img = axs[1].imshow(im2[idx])
+    #     fig.colorbar(img)
+    #     img = axs[2].imshow((im - im2)[idx])
+    #     fig.colorbar(img)
+    #     fig.suptitle(f"Error: {np.abs(im - im2).max()}")
+    #     fig.tight_layout()
+    #     plt.show()
+    # except ImportError:
+    #     pass
+
+    np.testing.assert_allclose(im, im2, atol=0.005 * im.max())
