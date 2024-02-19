@@ -17,4 +17,3 @@ auto_examples/index.rst
 - {ref}`genindex`
 - {ref}`modindex`
 - {ref}`search`
-

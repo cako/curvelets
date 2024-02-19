@@ -6,8 +6,8 @@ from __future__ import annotations
 
 # %%
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
+from matplotlib import ticker
 
 from curvelets.numpy.udct import UDCT
 from curvelets.plot import create_colorbar, despine

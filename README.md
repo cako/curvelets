@@ -29,9 +29,9 @@
 ## Frequently Asked Questions
 
 ### 1. What even are curvelets?
-   
+
    Curvelets are like wavelets, but in 2D (3D, 4D, etc.). But so are steerable wavelets, Gabor wavelets, wedgelets, beamlets, bandlets, contourlets, shearlets, wave atoms, platelets, surfacelets, ... you get the idea. Like wavelets, these "X-lets" allow us to separate a signal into different "scales" (analog to frequency in 1D, that is, how fast the signal is varying), "location" (equivalent to time in 1D) and the direction in which the signal is varying (which does not have 1D analog).
-   
+
    What separates curvelets from the other X-lets are their interesting properties, including:
    * The curvelet transform has an exact inverse
    * The discrete curvelet transform has efficient decomposition ("analysis") and reconstruction ("synthesis") implementations [1, 2]
@@ -72,5 +72,3 @@ Another aspected to consider is the availability of high-performance, GPU-accele
 [5] Luan, S., C. Chen, B. Zhang, J. Han, and J. Liu, 2018, Gabor Convolutional Networks: IEEE Transactions on Image Processing, 27, 4357–4366.
 
 [6] Bruna, J., and S. Mallat, 2013, Invariant Scattering Convolution Networks: IEEE Transactions on Pattern Analysis and Machine Intelligence, 35, 1872–1886.
-
-
