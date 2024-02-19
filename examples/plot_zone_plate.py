@@ -13,16 +13,18 @@ from curvelets.numpy.udct import UDCT
 from curvelets.plot import create_colorbar, despine
 
 
-def make_r(shape: tuple[int, int], exponent: float = 1, origin: tuple[int, int] = None):
-    origin = (np.asarray(shape).astype(float) - 1) / 2
-    xramp, yramp = np.meshgrid(
-        np.arange(shape[0], dtype=float) - origin[0],
-        np.arange(shape[1], dtype=float) - origin[1],
+def make_r(
+    shape: tuple[int, ...], exponent: float = 1, origin: tuple[int, ...] | None = None
+):
+    orig = (
+        tuple((np.asarray(shape).astype(float) - 1) / 2) if origin is None else origin
     )
-    return (xramp**2 + yramp**2) ** (exponent / 2)
+
+    ramps = np.meshgrid(*[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)])
+    return sum(x**2 for x in ramps) ** (exponent / 2)
 
 
-def make_zone_plate(shape: tuple[int, int], amplitude=1, phase=0):
+def make_zone_plate(shape: tuple[int, ...], amplitude: float = 1.0, phase: float = 0.0):
     mxsz = max(*shape)
 
     return amplitude * np.cos((np.pi / mxsz) * make_r(shape, 2) + phase)
@@ -77,8 +79,8 @@ ax.set(title=f"Error (max = {opts['vmax']:.2g})")
 print(f"Max Error: {opts['vmax']:.2g}")  # noqa: T201
 
 # %%
-# Curvelet Coefficients
-# #####################
+# Curvelet Coefficients: Amplitude and Phase
+# ##########################################
 z = coeffs[1][1]
 opts["vmax"] = np.abs(z).max()
 opts["vmin"] = 0
@@ -126,8 +128,8 @@ for i in range(2, max(coeffs.keys())):
 
 
 # %%
-# Curvelet Coefficients
-# #####################
+# Curvelet Coefficients: Real and Imaginary
+# #########################################
 z = coeffs[1][1]
 opts["vmax"] = np.abs(z).max()
 opts["vmin"] = -opts["vmax"]
