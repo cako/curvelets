@@ -72,20 +72,20 @@ def udctmdwin(
 
     # convert to sparse format
     udctwin = {}
-    udctwin[1] = {}
-    udctwin[1][1] = {}
-    udctwin[1][1][1] = to_sparse(Winlow, param_udct.winthresh)
+    udctwin[0] = {}
+    udctwin[0][0] = {}
+    udctwin[0][0][0] = to_sparse(Winlow, param_udct.winthresh)
 
     # `indices` gets stored as `param_udct.ind` in the original.
     indices = {}
-    indices[1] = {}
-    indices[1][1] = {}
-    indices[1][1][1] = np.zeros((1, 1), dtype=int)
+    indices[0] = {}
+    indices[0][0] = {}
+    indices[0][0][0] = np.zeros((1, 1), dtype=int)
     # every combination of 2 dimension out of 1:dim
     mperms = np.asarray(list(combinations(np.arange(1, param_udct.dim + 1), 2)))
     M = {}
     for ind in range(len(mperms)):
-        M[(ind + 1, 1)], M[ind + 1, 2] = adapt_grid(
+        M[(ind, 0)], M[ind, 1] = adapt_grid(
             Sgrid[mperms[ind, 0] - 1], Sgrid[mperms[ind, 1] - 1]
         )
 
@@ -94,48 +94,44 @@ def udctmdwin(
     Mang = {}
     Mang_in = {}
     for res in range(param_udct.res):
-        Mang[res + 1] = {}
-        Mang_in[res + 1] = {}
+        Mang[res] = {}
+        Mang_in[res] = {}
 
-        Mdir[res + 1] = np.zeros((param_udct.dim, param_udct.dim - 1), dtype=int)
+        Mdir[res] = np.zeros((param_udct.dim, param_udct.dim - 1), dtype=int)
         # for each resolution
         for ind in range(param_udct.dim):
             # for each pyramid in resolution res
-            cnt = 1
+            cnt = 0
             # cnt is number of angle function required for each pyramid
             # now loop through mperms
-            Mdir[res + 1][ind, :] = (
-                1 + np.r_[range(ind), range(ind + 1, param_udct.dim)]
-            )
+            Mdir[res][ind, :] = 1 + np.r_[range(ind), range(ind + 1, param_udct.dim)]
             # Mdir is dimension of need to calculate angle function on each
             # hyperpyramid
             for hp in range(mperms.shape[0]):
                 for ndir in range(2):
-                    # Fill with zeros, will be replaced
-                    # Mang[res+1][(ind+1, cnt)] = np.zeros(param_udct.size)
                     if mperms[hp, ndir] == ind + 1:
                         tmp = angle_fun(
-                            M[(hp + 1, ndir + 1)],
+                            M[(hp, ndir)],
                             ndir + 1,
                             param_udct.cfg[res, mperms[hp, 1 - ndir] - 1],
                             param_udct.alpha,
                         )
-                        Mang[res + 1][(ind + 1, cnt)] = tmp
-                        Mang_in[res + 1][(ind + 1, cnt)] = mperms[hp, :2]
+                        Mang[res][(ind, cnt)] = tmp
+                        Mang_in[res][(ind, cnt)] = mperms[hp, :2]
                         cnt += 1
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
     # dimension (column)
     for res in range(1, param_udct.res + 1):
         # for each resolution
-        udctwin[res + 1] = {}
-        indices[res + 1] = {}
+        udctwin[res] = {}
+        indices[res] = {}
         for in1 in range(param_udct.dim):
-            udctwin[res + 1][in1 + 1] = {}
+            udctwin[res][in1] = {}
             # for each hyperpyramid
             ang_in: int | np.ndarray = 1
             for in2 in range(1, param_udct.dim - 1 + 1):
-                ln = len(Mang[res][(in1 + 1, in2)])
+                ln = len(Mang[res - 1][(in1, in2 - 1)])
                 tmp2 = np.arange(ln, dtype=int)[:, None] + 1
                 if in2 == 1:
                     ang_in = tmp2
@@ -144,7 +140,7 @@ def udctmdwin(
                     tmp4 = np.kron(np.ones((ang_in.shape[0], 1), dtype=int), tmp2)
                     ang_in = np.c_[tmp3, tmp4]
             lent = ang_in.shape[0]
-            ang_inmax = param_udct.cfg[res - 1, Mdir[res][in1, :] - 1]
+            ang_inmax = param_udct.cfg[res - 1, Mdir[res - 1][in1, :] - 1]
             # lent is the smallest number of windows need to calculated on each
             # pyramid
             # ang_inmax is M-1 vector contain number of angle function per each
@@ -158,9 +154,9 @@ def udctmdwin(
                 afunin = 1
                 for in4 in range(param_udct.dim - 1):
                     idx = ang_in.reshape(len(ang_in), -1)[in3, in4]
-                    tmp = Mang[res][(in1 + 1, in4 + 1)][idx - 1]
+                    tmp = Mang[res - 1][(in1, in4)][idx - 1]
                     # print(f"{tmp.shape}")
-                    tmp2 = Mang_in[res][(in1 + 1, in4 + 1)]
+                    tmp2 = Mang_in[res - 1][(in1, in4)]
                     afun2 = angle_kron(tmp, tmp2, param_udct)
                     afun *= afun2
                 aafun = {}
@@ -183,7 +179,7 @@ def udctmdwin(
                             ang_in2tmp[0, in5] = ang_inmax[in5] + 1 - ang_in2[in6, in5]
                             ang_in2 = np.concatenate((ang_in2, ang_in2tmp), axis=0)
                             a = aafun[in6 + 1]
-                            b = Mdir[res][in1, in5]
+                            b = Mdir[res - 1][in1, in5]
                             end = max(aafun.keys())
                             aafun[end + 1] = fftflip(a, b - 1)
                 aafun = np.concatenate(
@@ -193,7 +189,7 @@ def udctmdwin(
                     ang_ind = ang_in2
                     for in7 in range(ang_ind.shape[0]):
                         # convert to sparse format
-                        udctwin[res + 1][in1 + 1][in7 + 1] = to_sparse(
+                        udctwin[res][in1][in7] = to_sparse(
                             aafun[in7], param_udct.winthresh
                         )
                 else:
@@ -202,35 +198,35 @@ def udctmdwin(
                     innew = ang_ind.shape[0]
                     for in7 in range(inold, innew):
                         in8 = in7 - inold
-                        udctwin[res + 1][in1 + 1][in7 + 1] = to_sparse(
+                        udctwin[res][in1][in7] = to_sparse(
                             aafun[in8], param_udct.winthresh
                         )
-                    indices[res + 1][in1 + 1] = ang_ind.copy()
+                    indices[res][in1] = ang_ind.copy()
 
     sumw2 = np.zeros(param_udct.size)
-    idx = udctwin[1][1][1][:, 0].astype(int) - 1
-    val = udctwin[1][1][1][:, 1]
+    idx = udctwin[0][0][0][:, 0].astype(int) - 1
+    val = udctwin[0][0][0][:, 1]
     sumw2.T.flat[idx] += val.T.ravel() ** 2
     for res in range(1, param_udct.res + 1):
         for dir in range(1, param_udct.dim + 1):
-            for ang in range(1, len(udctwin[res + 1][dir]) + 1):
+            for ang in range(1, len(udctwin[res][dir - 1]) + 1):
                 tmpw = np.zeros(param_udct.size)
-                idx = udctwin[res + 1][dir][ang][:, 0].astype(int) - 1
-                val = udctwin[res + 1][dir][ang][:, 1]
+                idx = udctwin[res][dir - 1][ang - 1][:, 0].astype(int) - 1
+                val = udctwin[res][dir - 1][ang - 1][:, 1]
                 tmpw.T.flat[idx] += val.T.ravel() ** 2
                 sumw2 += tmpw
                 tmpw = fftflip(tmpw, dir - 1)
                 sumw2 += tmpw
 
     sumw2 = np.sqrt(sumw2)
-    idx = udctwin[1][1][1][:, 0].astype(int) - 1
-    udctwin[1][1][1][:, 1] /= sumw2.T.ravel()[idx]
+    idx = udctwin[0][0][0][:, 0].astype(int) - 1
+    udctwin[0][0][0][:, 1] /= sumw2.T.ravel()[idx]
     for res in range(1, param_udct.res + 1):
         for dir in range(1, param_udct.dim + 1):
-            for ang in range(1, len(udctwin[res + 1][dir]) + 1):
-                idx = udctwin[res + 1][dir][ang][:, 0].astype(int) - 1
-                val = udctwin[res + 1][dir][ang][:, 1]
-                udctwin[res + 1][dir][ang][:, 1] /= sumw2.T.ravel()[idx]
+            for ang in range(1, len(udctwin[res][dir - 1]) + 1):
+                idx = udctwin[res][dir - 1][ang - 1][:, 0].astype(int) - 1
+                val = udctwin[res][dir - 1][ang - 1][:, 1]
+                udctwin[res][dir - 1][ang - 1][:, 1] /= sumw2.T.ravel()[idx]
 
     # decimation ratio for each band
     param_udct.dec = {}
@@ -238,8 +234,8 @@ def udctmdwin(
         tmp = np.ones((param_udct.dim, param_udct.dim))
         param_udct.dec[res] = 2.0 ** (param_udct.res - res + 1) * tmp
         for ind in range(1, param_udct.dim + 1):
-            ind2 = Mdir[res][ind - 1, :] - 1
-            ind3 = Mdir[res][ind - 1, :] - 1
+            ind2 = Mdir[res - 1][ind - 1, :] - 1
+            ind3 = Mdir[res - 1][ind - 1, :] - 1
             param_udct.dec[res][ind - 1, ind2] = (
                 2.0 ** (param_udct.res - res) * 2 * param_udct.cfg[res - 1, ind3] / 3
             )
@@ -249,7 +245,7 @@ def udctmdwin(
     for res in range(2, param_udct.res + 1 + 1):
         for pyr in range(1, param_udct.dim + 1):
             # take out the angle index list
-            mlist = indices[res][pyr].copy()
+            mlist = indices[res - 1][pyr - 1].copy()
 
             # map it to a number
             mult = 1
@@ -264,9 +260,18 @@ def udctmdwin(
             newind = mlist.copy()
             for b in range(1, mlist.shape[0] + 1):
                 newind[b - 1, :] = mlist[ix[b - 1] - 1, :].copy()
-                newwin[b] = udctwin[res][pyr][ix[b - 1].item()].copy()
+                newwin[b - 1] = udctwin[res - 1][pyr - 1][ix[b - 1].item() - 1].copy()
 
-            indices[res][pyr] = newind.copy()
-            udctwin[res][pyr] = newwin.copy()
+            indices[res - 1][pyr - 1] = newind.copy()
+            udctwin[res - 1][pyr - 1] = newwin.copy()
 
-    return udctwin
+    # Store with keys starting at 1 and in order
+    udctwin2 = {}
+    for res in udctwin:
+        udctwin2[res + 1] = {}
+        for dir in udctwin[res]:
+            udctwin2[res + 1][dir + 1] = {}
+            for ang in udctwin[res][dir]:
+                udctwin2[res + 1][dir + 1][ang + 1] = udctwin[res][dir][ang]
+
+    return udctwin2
