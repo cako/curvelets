@@ -10,6 +10,7 @@ def udctmddec(
     im: np.ndarray,
     param_udct: ParamUDCT,
     udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    decimation_ratio: dict[int, np.ndarray],
 ) -> dict[int, dict[int, dict[int, np.ndarray]]]:
     imf = np.fft.fftn(im)
 
@@ -40,10 +41,10 @@ def udctmddec(
                 fband.T.flat[idx] = imf.T.flat[idx] * val
 
                 cband = np.fft.ifftn(fband)
-                decim = param_udct.dec[res][dir - 1, :].astype(int)
+                decim = decimation_ratio[res][dir - 1, :].astype(int)
                 coeff[res + 1][dir][ang] = downsamp(cband, decim)
                 coeff[res + 1][dir][ang] *= np.sqrt(
-                    2 * np.prod(param_udct.dec[res][dir - 1, :])
+                    2 * np.prod(decimation_ratio[res][dir - 1, :])
                 )
     return coeff
 
@@ -52,16 +53,17 @@ def udctmdrec(
     coeff: dict[int, dict[int, dict[int, np.ndarray]]],
     param_udct: ParamUDCT,
     udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    decimation_ratio: dict[int, np.ndarray],
 ) -> np.ndarray:
     imf = np.zeros(param_udct.size, dtype=np.complex128)
 
     for res in range(1, 1 + param_udct.res):
         for dir in range(1, 1 + param_udct.dim):
             for ang in range(1, 1 + len(udctwin[res + 1][dir])):
-                decim = param_udct.dec[res][dir - 1, :].astype(int)
+                decim = decimation_ratio[res][dir - 1, :].astype(int)
                 cband = upsamp(coeff[res + 1][dir][ang], decim)
-                cband /= np.sqrt(2 * np.prod(param_udct.dec[res][dir - 1, :]))
-                cband = np.prod(param_udct.dec[res][dir - 1, :]) * np.fft.fftn(cband)
+                cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir - 1, :]))
+                cband = np.prod(decimation_ratio[res][dir - 1, :]) * np.fft.fftn(cband)
                 idx = udctwin[res + 1][dir][ang][:, 0].astype(int) - 1
                 val = udctwin[res + 1][dir][ang][:, 1]
                 imf.T.flat[idx] += cband.T.flat[idx] * val
@@ -96,10 +98,10 @@ class UDCT:
             dim=dim, size=size, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
 
-        self.windows = udctmdwin(self.params)
+        self.windows, self.decimation_ratio = udctmdwin(self.params)
 
     def forward(self, x: np.ndarray) -> dict[dict[np.ndarray | dict]]:
-        return udctmddec(x, self.params, self.windows)
+        return udctmddec(x, self.params, self.windows, self.decimation_ratio)
 
     def backward(self, c: dict[dict[np.ndarray | dict]]) -> np.ndarray:
-        return udctmdrec(c, self.params, self.windows)
+        return udctmdrec(c, self.params, self.windows, self.decimation_ratio)
