@@ -57,7 +57,7 @@ This is another facet of the "data-centric" vs "model-centric" debate in machine
 
 My suggestion is to use curvelets and other transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data. It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks [5, 6] in some cases.
 
-Another aspected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. If you need a high-performance transform, I would consider using [Kymatio](https://www.kymat.io/) which has a GPU-accelerated PyTorch implementation.
+Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. If you need a high-performance transform, I would consider using [Kymatio](https://www.kymat.io/) which has a GPU-accelerated PyTorch implementation.
 
 ## References
 [1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, Fast Discrete Curvelet Transforms: Multiscale Modeling & Simulation, 5, 861–899.

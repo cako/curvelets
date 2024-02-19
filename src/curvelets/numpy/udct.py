@@ -73,8 +73,7 @@ def udctmdrec(
     val = udctwin[1][1][:, 1]
     imfl.T.flat[idx] += cband.T.flat[idx] * val
     imf = 2 * imf + imfl
-    im2 = np.fft.ifftn(imf).real
-    return im2
+    return np.fft.ifftn(imf).real
 
 
 class UDCT:

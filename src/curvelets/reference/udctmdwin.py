@@ -103,8 +103,8 @@ def udctmdwin(param_udct: ParamUDCT):
         for ind in range(1, param_udct.dim + 1):
             # for each pyramid in resolution res
             cnt = 1
-            # cnt is number of angle funtion rquired for each pyramid
-            # now loop throgh mperms
+            # cnt is number of angle function required for each pyramid
+            # now loop through mperms
             Mdir[res][ind - 1, :] = np.array(
                 list(range(1, ind)) + list(range(ind + 1, param_udct.dim + 1)),
                 dtype=int,
@@ -218,7 +218,7 @@ def udctmdwin(param_udct: ParamUDCT):
                     ang_ind = np.concatenate((ang_ind, ang_in2), axis=0)
                     innew = ang_ind.shape[0]
                     # note:
-                    # subband has to be expanded to accomodate new indices
+                    # subband has to be expanded to accommodate new indices
                     # matlab does that automatically, but numpy does not
                     # the following line DOES NOT WORK
                     # subband[in1][inold + 1 - 1 : innew] = aafun

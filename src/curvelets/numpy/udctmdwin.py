@@ -87,8 +87,8 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
         for ind in range(1, param_udct.dim + 1):
             # for each pyramid in resolution res
             cnt = 1
-            # cnt is number of angle funtion rquired for each pyramid
-            # now loop throgh mperms
+            # cnt is number of angle function required for each pyramid
+            # now loop through mperms
             Mdir[res][ind - 1, :] = np.array(
                 list(range(1, ind)) + list(range(ind + 1, param_udct.dim + 1)),
                 dtype=int,
@@ -126,7 +126,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
                 if in2 == 1:
                     ang_in = tmp2
                 else:
-                    ln2 = ln * len(ang_in)
                     tmp3 = np.kron(ang_in, np.ones((ln, 1), dtype=int))
                     tmp4 = np.kron(np.ones((ang_in.shape[0], 1), dtype=int), tmp2)
                     ang_in = np.c_[tmp3, tmp4]

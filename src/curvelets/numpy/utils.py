@@ -7,7 +7,7 @@ from math import ceil, prod
 import numpy as np
 
 
-@dataclass(**(dict(kw_only=True) if sys.version_info >= (3, 10) else {}))
+@dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
 class ParamUDCT:
     dim: int
     size: tuple[int, ...]
@@ -87,7 +87,8 @@ def angle_fun(Mgrid, direction, n, alpha):
             fang = fun_meyer(Mgrid, *ang2)
             Mang.append(fang[None, :])
     else:
-        raise ValueError("unrecognized direction")
+        msg = "Unrecognized direction"
+        raise ValueError(msg)
     return np.concatenate(Mang, axis=0)
 
 

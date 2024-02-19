@@ -53,7 +53,7 @@ opts = {"aspect": "equal", "cmap": "gray", "vmin": -vmax, "vmax": vmax}
 fig, ax = plt.subplots(figsize=(4, 3))
 im = ax.imshow(zone_plate.T, **opts)
 _, cb = create_colorbar(im=im, ax=ax)
-fmt = ticker.FuncFormatter(lambda x, pos: f"{x:.0e}")
+fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
 cb.ax.yaxis.set_major_formatter(fmt)
 despine(ax)
 ax.set(title="Input")
@@ -88,7 +88,7 @@ opts["cmap"] = "gray"
 fig, axs = plt.subplots(1, 2, figsize=(8, 3))
 im = axs[0].imshow(np.abs(z).T, **opts)
 _, cb = create_colorbar(im=im, ax=axs[0])
-fmt = ticker.FuncFormatter(lambda x, pos: f"{x:.0e}")
+fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
 cb.ax.yaxis.set_major_formatter(fmt)
 opts["vmax"] = 180
 opts["vmin"] = -opts["vmax"]
@@ -96,7 +96,7 @@ opts["cmap"] = "hsv"
 im = axs[1].imshow(np.angle(z, deg=True).T, **opts)
 _, cb = create_colorbar(im=im, ax=axs[1])
 cb.ax.yaxis.set_major_locator(ticker.MultipleLocator(45))
-cb.ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}°")
+cb.ax.yaxis.set_major_formatter(lambda x, _: f"{x:.0f}°")
 axs[0].set(title="Amplitude")
 axs[1].set(title="Phase")
 fig.suptitle("Scale 1")
@@ -112,7 +112,7 @@ for i in range(2, max(coeffs.keys())):
             fig, axs = plt.subplots(1, 2, figsize=(8, 3))
             im = axs[0].imshow(np.abs(z).T, **opts)
             _, cb = create_colorbar(im=im, ax=axs[0])
-            fmt = ticker.FuncFormatter(lambda x, pos: f"{x:.0e}")
+            fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
             cb.ax.yaxis.set_major_formatter(fmt)
             opts["vmax"] = 180
             opts["vmin"] = -opts["vmax"]
@@ -120,7 +120,7 @@ for i in range(2, max(coeffs.keys())):
             im = axs[1].imshow(np.angle(z, deg=True).T, **opts)
             _, cb = create_colorbar(im=im, ax=axs[1])
             cb.ax.yaxis.set_major_locator(ticker.MultipleLocator(45))
-            cb.ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}°")
+            cb.ax.yaxis.set_major_formatter(lambda x, _: f"{x:.0f}°")
             axs[0].set(title="Amplitude")
             axs[1].set(title="Phase")
             fig.suptitle(f"Scale {i} | Direction {j} | Angle {a}")
@@ -138,7 +138,7 @@ fig, axs = plt.subplots(1, 2, figsize=(8, 3))
 for ax, img in zip(axs.ravel(), [z.real, z.imag]):
     im = ax.imshow(img.T, **opts)
     _, cb = create_colorbar(im=im, ax=ax)
-    fmt = ticker.FuncFormatter(lambda x, pos: f"{x:.0e}")
+    fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
     cb.ax.yaxis.set_major_formatter(fmt)
 axs[0].set(title="Real")
 axs[1].set(title="Imaginary")
@@ -155,7 +155,7 @@ for i in range(2, max(coeffs.keys())):
             for ax, img in zip(axs.ravel(), [z.real, z.imag]):
                 im = ax.imshow(img.T, **opts)
                 _, cb = create_colorbar(im=im, ax=ax)
-                fmt = ticker.FuncFormatter(lambda x, pos: f"{x:.0e}")
+                fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
                 cb.ax.yaxis.set_major_formatter(fmt)
             axs[0].set(title="Real")
             axs[1].set(title="Imaginary")
