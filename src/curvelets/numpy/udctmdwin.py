@@ -62,11 +62,13 @@ def udctmdwin(
     # convert to sparse format
     udctwin = {}
     udctwin[1] = {}
-    udctwin[1][1] = to_sparse(Winlow, param_udct.winthresh)
+    udctwin[1][1] = {}
+    udctwin[1][1][1] = to_sparse(Winlow, param_udct.winthresh)
 
     param_udct.ind = {}
     param_udct.ind[1] = {}
-    param_udct.ind[1][1] = np.zeros((1, 1), dtype=int)
+    param_udct.ind[1][1] = {}
+    param_udct.ind[1][1][1] = np.zeros((1, 1), dtype=int)
     # every combination of 2 dimension out of 1:dim
     mperms = np.asarray(list(combinations(np.arange(1, param_udct.dim + 1), 2)))
     M = {}
@@ -202,8 +204,8 @@ def udctmdwin(
                     param_udct.ind[res + 1][in1] = ang_ind.copy()
 
     sumw2 = np.zeros(param_udct.size)
-    idx = udctwin[1][1][:, 0].astype(int) - 1
-    val = udctwin[1][1][:, 1]
+    idx = udctwin[1][1][1][:, 0].astype(int) - 1
+    val = udctwin[1][1][1][:, 1]
     sumw2.T.flat[idx] += val.T.ravel() ** 2
     for res in range(1, param_udct.res + 1):
         for dir in range(1, param_udct.dim + 1):
@@ -217,8 +219,8 @@ def udctmdwin(
                 sumw2 += tmpw
 
     sumw2 = np.sqrt(sumw2)
-    idx = udctwin[1][1][:, 0].astype(int) - 1
-    udctwin[1][1][:, 1] /= sumw2.T.ravel()[idx]
+    idx = udctwin[1][1][1][:, 0].astype(int) - 1
+    udctwin[1][1][1][:, 1] /= sumw2.T.ravel()[idx]
     for res in range(1, param_udct.res + 1):
         for dir in range(1, param_udct.dim + 1):
             for ang in range(1, len(udctwin[res + 1][dir]) + 1):

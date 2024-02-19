@@ -12,19 +12,20 @@ def udctmddec(
     imf = np.fft.fftn(im)
 
     fband = np.zeros_like(imf)
-    idx = udctwin[1][1][:, 0].astype(int) - 1
-    val = udctwin[1][1][:, 1]
+    idx = udctwin[1][1][1][:, 0].astype(int) - 1
+    val = udctwin[1][1][1][:, 1]
     fband.T.flat[idx] = imf.T.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
     coeff = {}
     coeff[1] = {}
+    coeff[1][1] = {}
     decim = np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int)
-    coeff[1][1] = downsamp(cband, decim)
+    coeff[1][1][1] = downsamp(cband, decim)
     norm = np.sqrt(
         np.prod(np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1)))
     )
-    coeff[1][1] *= norm
+    coeff[1][1][1] *= norm
 
     for res in range(1, 1 + param_udct.res):
         coeff[res + 1] = {}
@@ -67,10 +68,10 @@ def udctmdrec(
     decimlow = np.full(
         (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
     )
-    cband = upsamp(coeff[1][1], decimlow)
+    cband = upsamp(coeff[1][1][1], decimlow)
     cband = np.sqrt(np.prod(decimlow)) * np.fft.fftn(cband)
-    idx = udctwin[1][1][:, 0].astype(int) - 1
-    val = udctwin[1][1][:, 1]
+    idx = udctwin[1][1][1][:, 0].astype(int) - 1
+    val = udctwin[1][1][1][:, 1]
     imfl.T.flat[idx] += cband.T.flat[idx] * val
     imf = 2 * imf + imfl
     return np.fft.ifftn(imf).real

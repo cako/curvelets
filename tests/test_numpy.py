@@ -40,7 +40,7 @@ def test_compare_with_reference(dim):
         for dir in udctwin[res]:
             if res == 1 and dir == 1:
                 np.testing.assert_allclose(
-                    udctwin[res][dir], udctwin_ref[res][dir], rtol=1e-14
+                    udctwin[res][dir][1], udctwin_ref[res][dir], rtol=1e-14
                 )
             else:
                 assert udctwin[res][dir].keys() == udctwin_ref[res][dir].keys()
@@ -58,7 +58,7 @@ def test_compare_with_reference(dim):
         for dir in coeffs[res]:
             if res == 1 and dir == 1:
                 np.testing.assert_allclose(
-                    coeffs[res][dir], coeffs_ref[res][dir], rtol=1e-14
+                    coeffs[res][dir][1], coeffs_ref[res][dir], rtol=1e-14
                 )
             else:
                 assert coeffs[res][dir].keys() == coeffs_ref[res][dir].keys()

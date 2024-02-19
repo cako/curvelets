@@ -81,28 +81,7 @@ print(f"Max Error: {opts['vmax']:.2g}")  # noqa: T201
 # %%
 # Curvelet Coefficients: Amplitude and Phase
 # ##########################################
-z = coeffs[1][1]
-opts["vmax"] = np.abs(z).max()
-opts["vmin"] = 0
-opts["cmap"] = "gray"
-fig, axs = plt.subplots(1, 2, figsize=(8, 3))
-im = axs[0].imshow(np.abs(z).T, **opts)
-_, cb = create_colorbar(im=im, ax=axs[0])
-fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
-cb.ax.yaxis.set_major_formatter(fmt)
-opts["vmax"] = 180
-opts["vmin"] = -opts["vmax"]
-opts["cmap"] = "hsv"
-im = axs[1].imshow(np.angle(z, deg=True).T, **opts)
-_, cb = create_colorbar(im=im, ax=axs[1])
-cb.ax.yaxis.set_major_locator(ticker.MultipleLocator(45))
-cb.ax.yaxis.set_major_formatter(lambda x, _: f"{x:.0f}°")
-axs[0].set(title="Amplitude")
-axs[1].set(title="Phase")
-fig.suptitle("Scale 1")
-fig.tight_layout()
-
-for i in range(2, max(coeffs.keys())):
+for i in range(1, max(coeffs.keys())):
     for j in coeffs[i]:
         for a in coeffs[i][j]:
             z = coeffs[i][j][a]
@@ -130,22 +109,8 @@ for i in range(2, max(coeffs.keys())):
 # %%
 # Curvelet Coefficients: Real and Imaginary
 # #########################################
-z = coeffs[1][1]
-opts["vmax"] = np.abs(z).max()
-opts["vmin"] = -opts["vmax"]
 opts["cmap"] = "gray"
-fig, axs = plt.subplots(1, 2, figsize=(8, 3))
-for ax, img in zip(axs.ravel(), [z.real, z.imag]):
-    im = ax.imshow(img.T, **opts)
-    _, cb = create_colorbar(im=im, ax=ax)
-    fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
-    cb.ax.yaxis.set_major_formatter(fmt)
-axs[0].set(title="Real")
-axs[1].set(title="Imaginary")
-fig.suptitle("Scale 1")
-fig.tight_layout()
-
-for i in range(2, max(coeffs.keys())):
+for i in range(1, max(coeffs.keys())):
     for j in coeffs[i]:
         for a in coeffs[i][j]:
             z = coeffs[i][j][a]
