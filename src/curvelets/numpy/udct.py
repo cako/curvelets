@@ -7,8 +7,10 @@ from .utils import ParamUDCT, downsamp, upsamp
 
 
 def udctmddec(
-    im: np.ndarray, param_udct: ParamUDCT, udctwin: dict[dict[np.ndarray | dict]]
-) -> dict[dict[np.ndarray | dict]]:
+    im: np.ndarray,
+    param_udct: ParamUDCT,
+    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+) -> dict[int, dict[int, dict[int, np.ndarray]]]:
     imf = np.fft.fftn(im)
 
     fband = np.zeros_like(imf)
@@ -47,9 +49,9 @@ def udctmddec(
 
 
 def udctmdrec(
-    coeff: dict[dict[np.ndarray | dict]],
+    coeff: dict[int, dict[int, dict[int, np.ndarray]]],
     param_udct: ParamUDCT,
-    udctwin: dict[dict[np.ndarray | dict]],
+    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
 ) -> np.ndarray:
     imf = np.zeros(param_udct.size, dtype=np.complex128)
 

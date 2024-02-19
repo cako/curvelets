@@ -20,7 +20,7 @@ from .utils import (
 
 def udctmdwin(
     param_udct: ParamUDCT,
-) -> dict[int, dict[int, np.ndarray | dict[int, np.ndarray]]]:
+) -> dict[int, dict[int, dict[int, np.ndarray]]]:
     Sgrid = {}
     f1d = {}
     for ind in range(1, param_udct.dim + 1):
@@ -78,7 +78,6 @@ def udctmdwin(
         )
 
     # gather angle function for each pyramid
-
     Mdir = {}
     Mang = {}
     Mang_in = {}
@@ -123,7 +122,7 @@ def udctmdwin(
         for in1 in range(1, param_udct.dim + 1):
             udctwin[res + 1][in1] = {}
             # for each hyperpyramid
-            ang_in = 1
+            ang_in: int | np.ndarray = 1
             for in2 in range(1, param_udct.dim - 1 + 1):
                 ln = len(Mang[res][(in1, in2)])
                 tmp2 = np.arange(ln, dtype=int)[:, None] + 1
