@@ -23,26 +23,24 @@ def udctmdwin(
 ) -> dict[int, dict[int, dict[int, np.ndarray]]]:
     Sgrid = {}
     f1d = {}
-    for ind in range(1, param_udct.dim + 1):
-        start = -1.5 * np.pi
-        stop = 0.5 * np.pi  # - np.pi / (param_udct.size[ind - 1] / 2)
-        # step = np.pi / (param_udct.size[ind - 1] / 2)
-        # np.arange(start, stop + step, step)
-        Sgrid[ind] = np.linspace(start, stop, param_udct.size[ind - 1], endpoint=False)
+    for ind in range(param_udct.dim):
+        Sgrid[ind + 1] = np.linspace(
+            -1.5 * np.pi, 0.5 * np.pi, param_udct.size[ind], endpoint=False
+        )
 
         params = np.array([-2, -1, *param_udct.r[:2]])
-        f1d[(param_udct.res, ind)] = fun_meyer(np.abs(Sgrid[ind]), *params)
+        f1d[(param_udct.res, ind + 1)] = fun_meyer(np.abs(Sgrid[ind + 1]), *params)
         if param_udct.res == 1:
-            f1d[(param_udct.res, ind)] += fun_meyer(
-                np.abs(Sgrid[ind] + 2 * np.pi), *params
+            f1d[(param_udct.res, ind + 1)] += fun_meyer(
+                np.abs(Sgrid[ind + 1] + 2 * np.pi), *params
             )
         params[2:] = param_udct.r[2:]
-        f1d[(param_udct.res + 1, ind)] = fun_meyer(abs(Sgrid[ind]), *params)
+        f1d[(param_udct.res + 1, ind + 1)] = fun_meyer(abs(Sgrid[ind + 1]), *params)
 
         for jn in range(param_udct.res - 1, 0, -1):
             params[2:] = param_udct.r[:2]
             params[2:] /= 2 ** (param_udct.res - jn)
-            f1d[(jn, ind)] = fun_meyer(abs(Sgrid[ind]), *params)
+            f1d[(jn, ind + 1)] = fun_meyer(abs(Sgrid[ind + 1]), *params)
 
     F2d = {}
     for jn in range(param_udct.res, 0, -1):
@@ -57,8 +55,8 @@ def udctmdwin(
         FP[FP < 0] = 0
         F2d[jn + 1] = FP
     F2d[1] = FL.copy()
-
     Winlow = circshift(np.sqrt(F2d[1]), tuple(s // 4 for s in param_udct.size))
+
     # convert to sparse format
     udctwin = {}
     udctwin[1] = {}
@@ -72,45 +70,44 @@ def udctmdwin(
     # every combination of 2 dimension out of 1:dim
     mperms = np.asarray(list(combinations(np.arange(1, param_udct.dim + 1), 2)))
     M = {}
-    for ind in range(1, 1 + len(mperms)):
-        M[(ind, 1)], M[ind, 2] = adapt_grid(
-            Sgrid[mperms[ind - 1, 0]], Sgrid[mperms[ind - 1, 1]]
+    for ind in range(len(mperms)):
+        M[(ind + 1, 1)], M[ind + 1, 2] = adapt_grid(
+            Sgrid[mperms[ind, 0]], Sgrid[mperms[ind, 1]]
         )
 
     # gather angle function for each pyramid
     Mdir = {}
     Mang = {}
     Mang_in = {}
-    for res in range(1, param_udct.res + 1):
-        Mang[res] = {}
-        Mang_in[res] = {}
+    for res in range(param_udct.res):
+        Mang[res + 1] = {}
+        Mang_in[res + 1] = {}
 
-        Mdir[res] = np.zeros((param_udct.dim, param_udct.dim - 1), dtype=int)
+        Mdir[res + 1] = np.zeros((param_udct.dim, param_udct.dim - 1), dtype=int)
         # for each resolution
-        for ind in range(1, param_udct.dim + 1):
+        for ind in range(param_udct.dim):
             # for each pyramid in resolution res
             cnt = 1
             # cnt is number of angle function required for each pyramid
             # now loop through mperms
-            Mdir[res][ind - 1, :] = np.array(
-                list(range(1, ind)) + list(range(ind + 1, param_udct.dim + 1)),
-                dtype=int,
+            Mdir[res + 1][ind, :] = (
+                1 + np.r_[range(ind), range(ind + 1, param_udct.dim)]
             )
             # Mdir is dimension of need to calculate angle function on each
             # hyperpyramid
-            for hp in range(1, mperms.shape[0] + 1):
-                for ndir in range(1, 3):
+            for hp in range(mperms.shape[0]):
+                for ndir in range(2):
                     # Fill with zeros, will be replaced
-                    # Mang[res][(ind, cnt)] = np.zeros(param_udct.size)
-                    if mperms[hp - 1, ndir - 1] == ind:
+                    # Mang[res+1][(ind+1, cnt)] = np.zeros(param_udct.size)
+                    if mperms[hp, ndir] == ind + 1:
                         tmp = angle_fun(
-                            M[(hp, ndir)],
-                            ndir,
-                            param_udct.cfg[res - 1, mperms[hp - 1, 3 - ndir - 1] - 1],
+                            M[(hp + 1, ndir + 1)],
+                            ndir + 1,
+                            param_udct.cfg[res, mperms[hp, 1 - ndir] - 1],
                             param_udct.alpha,
                         )
-                        Mang[res][(ind, cnt)] = tmp
-                        Mang_in[res][(ind, cnt)] = mperms[hp - 1, 1 - 1 : 2]
+                        Mang[res + 1][(ind + 1, cnt)] = tmp
+                        Mang_in[res + 1][(ind + 1, cnt)] = mperms[hp, :2]
                         cnt += 1
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
