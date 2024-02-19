@@ -88,6 +88,10 @@ module = "curvelets.*"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
+[[tool.mypy.overrides]]
+module = ["matplotlib.*", "mpl_toolkits.*", "numpy.*"]
+ignore_missing_imports = true
+
 
 [tool.ruff]
 src = ["src"]

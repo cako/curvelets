@@ -37,21 +37,23 @@ repos:
   #   hooks:
   #     - id: prettier
   #       types_or: [yaml, markdown, html, css, scss, javascript, json]
-        args: [--prose-wrap=always]
+  #       args: [--prose-wrap=always]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.1.14"
     hooks:
       - id: ruff
         args: ["--fix", "--show-fixes"]
+        exclude: reference
       - id: ruff-format
+        exclude: reference
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: "v1.8.0"
     hooks:
       - id: mypy
-        files: src|tests
-        args: []
+        args: ["--follow-imports=skip"]
+        exclude: src/curvelets/reference
         additional_dependencies:
           - pytest
 
