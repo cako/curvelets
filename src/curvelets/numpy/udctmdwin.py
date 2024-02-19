@@ -18,7 +18,9 @@ from .utils import (
 )
 
 
-def udctmdwin(param_udct: ParamUDCT) -> dict[dict[dict | np.ndarray]]:
+def udctmdwin(
+    param_udct: ParamUDCT,
+) -> dict[int, dict[int, np.ndarray | dict[int, np.ndarray]]]:
     Sgrid = {}
     f1d = {}
     for ind in range(1, param_udct.dim + 1):
