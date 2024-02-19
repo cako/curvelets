@@ -23,41 +23,42 @@ def _create_bandpass_windows(
     nscales: int, shape: tuple[int, ...], r: tuple[float, float, float, float]
 ) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
     dim = len(shape)
-    shape_grid = {}
+    shape_grid: dict[int, np.ndarray] = {}
     meyers: dict[tuple[int, int], np.ndarray] = {}
     for ind in range(dim):
-        shape_grid[ind + 1] = np.linspace(
+        # Don't take the np.pi out of the linspace
+        shape_grid[ind] = np.linspace(
             -1.5 * np.pi, 0.5 * np.pi, shape[ind], endpoint=False
-        )  # Don't take the np.pi out of the linspace
+        )
 
         params = np.array([-2, -1, *r[:2]])
-        abs_shape_grid = np.abs(shape_grid[ind + 1])
-        meyers[(nscales, ind + 1)] = fun_meyer(abs_shape_grid, *params)
+        abs_shape_grid = np.abs(shape_grid[ind])
+        meyers[(nscales, ind)] = fun_meyer(abs_shape_grid, *params)
         if nscales == 1:
-            meyers[(nscales, ind + 1)] += fun_meyer(
-                np.abs(shape_grid[ind + 1] + 2 * np.pi), *params
+            meyers[(nscales, ind)] += fun_meyer(
+                np.abs(shape_grid[ind] + 2 * np.pi), *params
             )
         params[2:] = r[2:]
-        meyers[(nscales + 1, ind + 1)] = fun_meyer(abs_shape_grid, *params)
+        meyers[(nscales + 1, ind)] = fun_meyer(abs_shape_grid, *params)
 
         for jn in range(nscales - 1, 0, -1):
             params[2:] = r[:2]
             params[2:] /= 2 ** (nscales - jn)
-            meyers[(jn, ind + 1)] = fun_meyer(abs_shape_grid, *params)
+            meyers[(jn, ind)] = fun_meyer(abs_shape_grid, *params)
 
-    bandpasses = {}
+    bandpasses: dict[int, np.ndarray] = {}
     for jn in range(nscales, 0, -1):
         lo = np.array([1.0])
         hi = np.array([1.0])
-        for ind in range(dim, 0, -1):
+        for ind in range(dim - 1, -1, -1):
             lo = np.kron(meyers[(jn, ind)], lo)
             hi = np.kron(meyers[(jn + 1, ind)], hi)
         lo_nd = lo.reshape(*shape)
         hi_nd = hi.reshape(*shape)
         bp_nd = hi_nd - lo_nd
         bp_nd[bp_nd < 0] = 0
-        bandpasses[jn + 1] = bp_nd
-    bandpasses[1] = lo_nd
+        bandpasses[jn] = bp_nd
+    bandpasses[0] = lo_nd
     return shape_grid, bandpasses
 
 
@@ -67,7 +68,7 @@ def udctmdwin(
     Sgrid, F2d = _create_bandpass_windows(
         nscales=param_udct.res, shape=param_udct.size, r=param_udct.r
     )
-    Winlow = circshift(np.sqrt(F2d[1]), tuple(s // 4 for s in param_udct.size))
+    Winlow = circshift(np.sqrt(F2d[0]), tuple(s // 4 for s in param_udct.size))
 
     # convert to sparse format
     udctwin = {}
@@ -85,7 +86,7 @@ def udctmdwin(
     M = {}
     for ind in range(len(mperms)):
         M[(ind + 1, 1)], M[ind + 1, 2] = adapt_grid(
-            Sgrid[mperms[ind, 0]], Sgrid[mperms[ind, 1]]
+            Sgrid[mperms[ind, 0] - 1], Sgrid[mperms[ind, 1] - 1]
         )
 
     # gather angle function for each pyramid
@@ -164,7 +165,7 @@ def udctmdwin(
                     afun *= afun2
                 aafun = {}
                 ang_in2 = None
-                afun = afun * F2d[res + 1]
+                afun = afun * F2d[res]
                 afun = np.sqrt(circshift(afun, tuple(s // 4 for s in param_udct.size)))
 
                 # first windows function
