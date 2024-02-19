@@ -82,12 +82,12 @@ def udctmdwin(
     indices[0][0] = {}
     indices[0][0][0] = np.zeros((1, 1), dtype=int)
     # every combination of 2 dimension out of 1:dim
-    mperms = np.asarray(list(combinations(np.arange(1, param_udct.dim + 1), 2)))
+    mperms = np.asarray(list(combinations(np.arange(param_udct.dim), 2)))
     M = {}
-    for ind in range(len(mperms)):
-        M[(ind, 0)], M[ind, 1] = adapt_grid(
-            Sgrid[mperms[ind, 0] - 1], Sgrid[mperms[ind, 1] - 1]
-        )
+    for ind, perm in enumerate(mperms):
+        out = adapt_grid(Sgrid[perm[0]], Sgrid[perm[1]])
+        M[(ind, 0)] = out[0]
+        M[(ind, 1)] = out[1]
 
     # gather angle function for each pyramid
     Mdir = {}
@@ -108,16 +108,16 @@ def udctmdwin(
             # Mdir is dimension of need to calculate angle function on each
             # hyperpyramid
             for hp in range(mperms.shape[0]):
-                for ndir in range(2):
-                    if mperms[hp, ndir] == ind + 1:
+                for ndir in range(mperms.shape[1]):
+                    if mperms[hp, ndir] == ind:
                         tmp = angle_fun(
                             M[(hp, ndir)],
                             ndir + 1,
-                            param_udct.cfg[res, mperms[hp, 1 - ndir] - 1],
+                            param_udct.cfg[res, mperms[hp, 1 - ndir]],
                             param_udct.alpha,
                         )
                         Mang[res][(ind, cnt)] = tmp
-                        Mang_in[res][(ind, cnt)] = mperms[hp, :2]
+                        Mang_in[res][(ind, cnt)] = mperms[hp, :2] + 1
                         cnt += 1
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
@@ -130,10 +130,10 @@ def udctmdwin(
             udctwin[res][in1] = {}
             # for each hyperpyramid
             ang_in: int | np.ndarray = 1
-            for in2 in range(1, param_udct.dim - 1 + 1):
-                ln = len(Mang[res - 1][(in1, in2 - 1)])
+            for in2 in range(param_udct.dim - 1):
+                ln = len(Mang[res - 1][(in1, in2)])
                 tmp2 = np.arange(ln, dtype=int)[:, None] + 1
-                if in2 == 1:
+                if in2 == 0:
                     ang_in = tmp2
                 else:
                     tmp3 = np.kron(ang_in, np.ones((ln, 1), dtype=int))
@@ -208,35 +208,35 @@ def udctmdwin(
     val = udctwin[0][0][0][:, 1]
     sumw2.T.flat[idx] += val.T.ravel() ** 2
     for res in range(1, param_udct.res + 1):
-        for dir in range(1, param_udct.dim + 1):
-            for ang in range(1, len(udctwin[res][dir - 1]) + 1):
+        for dir in range(param_udct.dim):
+            for ang in range(len(udctwin[res][dir])):
                 tmpw = np.zeros(param_udct.size)
-                idx = udctwin[res][dir - 1][ang - 1][:, 0].astype(int) - 1
-                val = udctwin[res][dir - 1][ang - 1][:, 1]
+                idx = udctwin[res][dir][ang][:, 0].astype(int) - 1
+                val = udctwin[res][dir][ang][:, 1]
                 tmpw.T.flat[idx] += val.T.ravel() ** 2
                 sumw2 += tmpw
-                tmpw = fftflip(tmpw, dir - 1)
+                tmpw = fftflip(tmpw, dir)
                 sumw2 += tmpw
 
     sumw2 = np.sqrt(sumw2)
     idx = udctwin[0][0][0][:, 0].astype(int) - 1
     udctwin[0][0][0][:, 1] /= sumw2.T.ravel()[idx]
     for res in range(1, param_udct.res + 1):
-        for dir in range(1, param_udct.dim + 1):
-            for ang in range(1, len(udctwin[res][dir - 1]) + 1):
-                idx = udctwin[res][dir - 1][ang - 1][:, 0].astype(int) - 1
-                val = udctwin[res][dir - 1][ang - 1][:, 1]
-                udctwin[res][dir - 1][ang - 1][:, 1] /= sumw2.T.ravel()[idx]
+        for dir in range(param_udct.dim):
+            for ang in range(len(udctwin[res][dir])):
+                idx = udctwin[res][dir][ang][:, 0].astype(int) - 1
+                val = udctwin[res][dir][ang][:, 1]
+                udctwin[res][dir][ang][:, 1] /= sumw2.T.ravel()[idx]
 
     # decimation ratio for each band
     param_udct.dec = {}
     for res in range(1, param_udct.res + 1):
         tmp = np.ones((param_udct.dim, param_udct.dim))
         param_udct.dec[res] = 2.0 ** (param_udct.res - res + 1) * tmp
-        for ind in range(1, param_udct.dim + 1):
-            ind2 = Mdir[res - 1][ind - 1, :] - 1
-            ind3 = Mdir[res - 1][ind - 1, :] - 1
-            param_udct.dec[res][ind - 1, ind2] = (
+        for ind in range(param_udct.dim):
+            ind2 = Mdir[res - 1][ind, :] - 1
+            ind3 = Mdir[res - 1][ind, :] - 1
+            param_udct.dec[res][ind, ind2] = (
                 2.0 ** (param_udct.res - res) * 2 * param_udct.cfg[res - 1, ind3] / 3
             )
 
