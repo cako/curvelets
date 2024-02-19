@@ -104,7 +104,7 @@ def udctmdwin(
             cnt = 0
             # cnt is number of angle function required for each pyramid
             # now loop through mperms
-            Mdir[res][ind, :] = 1 + np.r_[range(ind), range(ind + 1, param_udct.dim)]
+            Mdir[res][ind, :] = np.r_[range(ind), range(ind + 1, param_udct.dim)]
             # Mdir is dimension of need to calculate angle function on each
             # hyperpyramid
             for hp in range(mperms.shape[0]):
@@ -140,7 +140,7 @@ def udctmdwin(
                     tmp4 = np.kron(np.ones((ang_in.shape[0], 1), dtype=int), tmp2)
                     ang_in = np.c_[tmp3, tmp4]
             lent = ang_in.shape[0]
-            ang_inmax = param_udct.cfg[res - 1, Mdir[res - 1][in1, :] - 1]
+            ang_inmax = param_udct.cfg[res - 1, Mdir[res - 1][in1, :]]
             # lent is the smallest number of windows need to calculated on each
             # pyramid
             # ang_inmax is M-1 vector contain number of angle function per each
@@ -181,7 +181,7 @@ def udctmdwin(
                             a = aafun[in6 + 1]
                             b = Mdir[res - 1][in1, in5]
                             end = max(aafun.keys())
-                            aafun[end + 1] = fftflip(a, b - 1)
+                            aafun[end + 1] = fftflip(a, b)
                 aafun = np.concatenate(
                     [aafun[k][None, ...] for k in sorted(aafun.keys())], axis=0
                 )
@@ -234,36 +234,41 @@ def udctmdwin(
         tmp = np.ones((param_udct.dim, param_udct.dim))
         param_udct.dec[res] = 2.0 ** (param_udct.res - res + 1) * tmp
         for ind in range(param_udct.dim):
-            ind2 = Mdir[res - 1][ind, :] - 1
-            ind3 = Mdir[res - 1][ind, :] - 1
+            ind2 = Mdir[res - 1][ind, :]
+            ind3 = Mdir[res - 1][ind, :]
             param_udct.dec[res][ind, ind2] = (
                 2.0 ** (param_udct.res - res) * 2 * param_udct.cfg[res - 1, ind3] / 3
             )
 
     # sort the window
     newwin = {}
-    for res in range(2, param_udct.res + 1 + 1):
-        for pyr in range(1, param_udct.dim + 1):
+    for res in range(1, param_udct.res + 1):
+        for pyr in range(param_udct.dim):
             # take out the angle index list
-            mlist = indices[res - 1][pyr - 1].copy()
+            mlist = indices[res][pyr]
 
-            # map it to a number
-            mult = 1
-            nlist = np.zeros((mlist.shape[0], 1))
-            for d in range(mlist.shape[1], 0, -1):
-                for b in range(1, mlist.shape[0] + 1):
-                    nlist[b - 1] += mult * mlist[b - 1, d - 1]
-                mult *= 100
-            ix = np.argsort(nlist, axis=0) + 1
-            # b = nlist[ix]
+            # Sort by the first and then the second, etc.
 
-            newind = mlist.copy()
-            for b in range(1, mlist.shape[0] + 1):
-                newind[b - 1, :] = mlist[ix[b - 1] - 1, :].copy()
-                newwin[b - 1] = udctwin[res - 1][pyr - 1][ix[b - 1].item() - 1].copy()
+            # # Approach 1: Create a structured array and then sort by fields
+            # struct = [(f"x{i}", "<i8") for i in range(mlist.shape[1])]
+            # ix = np.argsort(
+            #     np.array([tuple(m) for m in mlist], dtype=struct),
+            #     order=tuple(t[0] for t in struct),
+            # )
+            # Approach 2: Create a 1D array then sort that array
+            m = mlist.max() + 1
+            ix = np.argsort(
+                sum(
+                    m**i2 * mlist[:, i1]
+                    for i1, i2 in enumerate(range(mlist.shape[1] - 1, -1, -1))
+                )
+            )
 
-            indices[res - 1][pyr - 1] = newind.copy()
-            udctwin[res - 1][pyr - 1] = newwin.copy()
+            newind = mlist[ix]
+            for i, idx in enumerate(ix):
+                newwin[i] = udctwin[res][pyr][idx]
+            indices[res][pyr] = newind.copy()
+            udctwin[res][pyr] = newwin.copy()
 
     # Store with keys starting at 1 and in order
     udctwin2 = {}
