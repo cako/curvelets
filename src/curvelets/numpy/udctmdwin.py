@@ -239,13 +239,6 @@ def udctmdwin(
                 2.0 ** (param_udct.res - res) * 2 * param_udct.cfg[res - 1, ind3] / 3
             )
 
-    param_udct.len_r = param_udct.len / 2.0 ** ((param_udct.res - 1) * param_udct.dim)
-    for res in range(1, param_udct.res + 1):
-        for ind in range(1, param_udct.dim + 1):
-            a = udctwin[res + 1][ind]
-            b = param_udct.dec[res][ind - 1, :]
-            param_udct.len_r += len(a) * 2 * param_udct.len / np.prod(b)
-
     # sort the window
     newwin = {}
     for res in range(2, param_udct.res + 1 + 1):
