@@ -166,12 +166,12 @@ def udctmdwin(
                     tmp2 = Minds[ires - 1][(idim, i4)]
                     afun2 = angle_kron(tmp1, tmp2, param_udct)
                     afun *= afun2
-                aafun = {}
                 afun = afun * F2d[ires]
                 afun = np.sqrt(circshift(afun, tuple(s // 4 for s in param_udct.size)))
 
                 # first windows function
-                aafun[1] = afun
+                aafun = []
+                aafun.append(afun)
 
                 # index of current angle
                 i2_ang = i1_ang[i3 : i3 + 1, :] + 1
@@ -183,13 +183,9 @@ def udctmdwin(
                             i2_ang_tmp = i2_ang[i6 : i6 + 1, :].copy()
                             i2_ang_tmp[0, i5] = ang_inmax[i5] + 1 - i2_ang[i6, i5]
                             i2_ang = np.concatenate((i2_ang, i2_ang_tmp), axis=0)
-                            end = max(aafun.keys())
-                            aafun[end + 1] = fftflip(
-                                aafun[i6 + 1], Mdirs[ires - 1][idim, i5]
-                            )
-                aafun = np.concatenate(
-                    [aafun[k][None, ...] for k in sorted(aafun.keys())], axis=0
-                )
+                            aafun.append(fftflip(aafun[i6], Mdirs[ires - 1][idim, i5]))
+                aafun = np.c_[aafun]
+
                 if i3 == 0:
                     ang_ind = i2_ang
                     for i7 in range(ang_ind.shape[0]):
