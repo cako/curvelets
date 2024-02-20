@@ -300,21 +300,9 @@ def udctmdwin(
         udctwin=udctwin, indices=indices, res=param_udct.res, dim=param_udct.dim
     )
 
-    # Store with keys starting at 1 and in order
-    udctwin2 = {}
-    # indices2 = {}
-    for ires in udctwin:
-        udctwin2[ires + 1] = {}
-        # indices2[ires + 1] = {}
-        for idir in udctwin[ires]:
-            udctwin2[ires + 1][idir + 1] = {}
-            # indices2[ires + 1][idir + 1] = indices[ires][idir]
-            for iang in udctwin[ires][idir]:
-                udctwin2[ires + 1][idir + 1][iang + 1] = udctwin[ires][idir][iang]
-
     # decimation ratio for each band
     decimation_ratio = _calculate_decimation_ratios(
         res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
     )
 
-    return udctwin2, decimation_ratio, indices
+    return udctwin, decimation_ratio, indices

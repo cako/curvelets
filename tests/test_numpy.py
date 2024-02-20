@@ -34,44 +34,64 @@ def test_compare_with_reference(dim):
     udctwin = my_udct.windows
     udctwin_ref, _ = udct_ref.udctmdwin(param_ref)
 
-    assert udctwin.keys() == udctwin_ref.keys()
-    for res in udctwin:
-        assert udctwin[res].keys() == udctwin_ref[res].keys()
-        for dir in udctwin[res]:
+    np.testing.assert_array_equal(
+        1 + np.asarray(list(udctwin.keys())), np.asarray(list(udctwin_ref.keys()))
+    )
+    for res in udctwin_ref:
+        np.testing.assert_array_equal(
+            1 + np.asarray(list(udctwin[res - 1].keys())),
+            np.asarray(list(udctwin_ref[res].keys())),
+        )
+        for dir in udctwin_ref[res]:
             if res == 1 and dir == 1:
                 np.testing.assert_array_equal(
                     my_udct.indices[res - 1][dir - 1], param_ref.ind[res][dir]
                 )
                 np.testing.assert_allclose(
-                    udctwin[res][dir][1], udctwin_ref[res][dir], rtol=1e-14
+                    udctwin[res - 1][dir - 1][0], udctwin_ref[res][dir], rtol=1e-14
                 )
             else:
                 np.testing.assert_array_equal(
                     1 + my_udct.indices[res - 1][dir - 1], param_ref.ind[res][dir]
                 )
-
-                assert udctwin[res][dir].keys() == udctwin_ref[res][dir].keys()
-                for ang in udctwin[res][dir]:
+                np.testing.assert_array_equal(
+                    1 + np.asarray(list(udctwin[res - 1][dir - 1].keys())),
+                    np.asarray(list(udctwin_ref[res][dir].keys())),
+                )
+                for ang in udctwin_ref[res][dir]:
                     np.testing.assert_allclose(
-                        udctwin[res][dir][ang], udctwin_ref[res][dir][ang], rtol=1e-14
+                        udctwin[res - 1][dir - 1][ang - 1],
+                        udctwin_ref[res][dir][ang],
+                        rtol=1e-14,
                     )
 
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
     coeffs_ref, _ = udct_ref.udctmddec(im, param_udct=param_ref, udctwin=udctwin_ref)
 
-    for res in coeffs:
-        assert coeffs[res].keys() == coeffs_ref[res].keys()
-        for dir in coeffs[res]:
+    np.testing.assert_array_equal(
+        1 + np.asarray(list(coeffs.keys())), np.asarray(list(coeffs_ref.keys()))
+    )
+    for res in coeffs_ref:
+        np.testing.assert_array_equal(
+            1 + np.asarray(list(coeffs[res - 1].keys())),
+            np.asarray(list(coeffs_ref[res].keys())),
+        )
+        for dir in coeffs_ref[res]:
             if res == 1 and dir == 1:
                 np.testing.assert_allclose(
-                    coeffs[res][dir][1], coeffs_ref[res][dir], rtol=1e-14
+                    coeffs[res - 1][dir - 1][0], coeffs_ref[res][dir], rtol=1e-14
                 )
             else:
-                assert coeffs[res][dir].keys() == coeffs_ref[res][dir].keys()
-                for ang in coeffs[res][dir]:
+                np.testing.assert_array_equal(
+                    1 + np.asarray(list(coeffs[res - 1][dir - 1].keys())),
+                    np.asarray(list(coeffs_ref[res][dir].keys())),
+                )
+                for ang in coeffs_ref[res][dir]:
                     np.testing.assert_allclose(
-                        coeffs[res][dir][ang], coeffs_ref[res][dir][ang], rtol=1e-14
+                        coeffs[res - 1][dir - 1][ang - 1],
+                        coeffs_ref[res][dir][ang],
+                        rtol=1e-14,
                     )
     im2 = my_udct.backward(coeffs)
     im2_ref, _ = udct_ref.udctmdrec(

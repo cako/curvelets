@@ -15,33 +15,33 @@ def udctmddec(
     imf = np.fft.fftn(im)
 
     fband = np.zeros_like(imf)
-    idx, val = from_sparse(udctwin[1][1][1])
+    idx, val = from_sparse(udctwin[0][0][0])
     fband.T.flat[idx] = imf.T.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
     coeff = {}
-    coeff[1] = {}
-    coeff[1][1] = {}
+    coeff[0] = {}
+    coeff[0][0] = {}
     decim = np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int)
-    coeff[1][1][1] = downsamp(cband, decim)
+    coeff[0][0][0] = downsamp(cband, decim)
     norm = np.sqrt(
         np.prod(np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1)))
     )
-    coeff[1][1][1] *= norm
+    coeff[0][0][0] *= norm
 
     for res in range(1, 1 + param_udct.res):
-        coeff[res + 1] = {}
+        coeff[res] = {}
         for dir in range(1, 1 + param_udct.dim):
-            coeff[res + 1][dir] = {}
-            for ang in range(1, 1 + len(udctwin[res + 1][dir])):
+            coeff[res][dir - 1] = {}
+            for ang in range(1, 1 + len(udctwin[res][dir - 1])):
                 fband = np.zeros_like(imf)
-                idx, val = from_sparse(udctwin[res + 1][dir][ang])
+                idx, val = from_sparse(udctwin[res][dir - 1][ang - 1])
                 fband.T.flat[idx] = imf.T.flat[idx] * val
 
                 cband = np.fft.ifftn(fband)
                 decim = decimation_ratio[res][dir - 1, :].astype(int)
-                coeff[res + 1][dir][ang] = downsamp(cband, decim)
-                coeff[res + 1][dir][ang] *= np.sqrt(
+                coeff[res][dir - 1][ang - 1] = downsamp(cband, decim)
+                coeff[res][dir - 1][ang - 1] *= np.sqrt(
                     2 * np.prod(decimation_ratio[res][dir - 1, :])
                 )
     return coeff
@@ -57,21 +57,21 @@ def udctmdrec(
 
     for res in range(1, 1 + param_udct.res):
         for dir in range(1, 1 + param_udct.dim):
-            for ang in range(1, 1 + len(udctwin[res + 1][dir])):
+            for ang in range(1, 1 + len(udctwin[res][dir - 1])):
                 decim = decimation_ratio[res][dir - 1, :].astype(int)
-                cband = upsamp(coeff[res + 1][dir][ang], decim)
+                cband = upsamp(coeff[res][dir - 1][ang - 1], decim)
                 cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir - 1, :]))
                 cband = np.prod(decimation_ratio[res][dir - 1, :]) * np.fft.fftn(cband)
-                idx, val = from_sparse(udctwin[res + 1][dir][ang])
+                idx, val = from_sparse(udctwin[res][dir - 1][ang - 1])
                 imf.T.flat[idx] += cband.T.flat[idx] * val
 
     imfl = np.zeros(param_udct.size, dtype=np.complex128)
     decimlow = np.full(
         (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
     )
-    cband = upsamp(coeff[1][1][1], decimlow)
+    cband = upsamp(coeff[0][0][0], decimlow)
     cband = np.sqrt(np.prod(decimlow)) * np.fft.fftn(cband)
-    idx, val = from_sparse(udctwin[1][1][1])
+    idx, val = from_sparse(udctwin[0][0][0])
     imfl.T.flat[idx] += cband.T.flat[idx] * val
     imf = 2 * imf + imfl
     return np.fft.ifftn(imf).real

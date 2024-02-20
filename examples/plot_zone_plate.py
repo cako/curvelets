@@ -81,7 +81,7 @@ print(f"Max Error: {opts['vmax']:.2g}")  # noqa: T201
 # %%
 # Curvelet Coefficients: Amplitude and Phase
 # ##########################################
-for i in range(1, max(coeffs.keys())):
+for i in coeffs:
     for j in coeffs[i]:
         for a in coeffs[i][j]:
             z = coeffs[i][j][a]
@@ -110,7 +110,7 @@ for i in range(1, max(coeffs.keys())):
 # Curvelet Coefficients: Real and Imaginary
 # #########################################
 opts["cmap"] = "gray"
-for i in range(1, max(coeffs.keys())):
+for i in coeffs:
     for j in coeffs[i]:
         for a in coeffs[i][j]:
             z = coeffs[i][j][a]
