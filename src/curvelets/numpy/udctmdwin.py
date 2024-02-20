@@ -207,8 +207,7 @@ def udctmdwin(
     # `indices` gets stored as `param_udct.ind` in the original.
     indices = {}
     indices[0] = {}
-    indices[0][0] = {}
-    indices[0][0][0] = np.zeros((1, 1), dtype=int)
+    indices[0][0] = np.zeros((1, 1), dtype=int)
     Mdirs, Mangs, Minds = _create_angle_info(
         Sgrid,
         dim=param_udct.dim,
@@ -228,9 +227,10 @@ def udctmdwin(
             # for each hyperpyramid
             i1_ang = np.arange(len(Mangs[ires - 1][(idim, 0)]))[:, None]
             for i2 in range(1, param_udct.dim - 1):
+                ln = len(Mangs[ires - 1][(idim, i2)])
                 tmp2 = np.arange(len(Mangs[ires - 1][(idim, i2)]))[:, None]
-                tmp3 = np.kron(i1_ang, np.ones_like(tmp2))
-                tmp4 = np.kron(np.ones_like(i1_ang), tmp2)
+                tmp3 = np.kron(i1_ang, np.ones((ln, 1), dtype=int))
+                tmp4 = np.kron(np.ones((i1_ang.shape[0], 1), dtype=int), tmp2)
                 i1_ang = np.c_[tmp3, tmp4]
             lent = i1_ang.shape[0]
             ang_inmax = param_udct.cfg[ires - 1, Mdirs[ires - 1][idim, :]]
@@ -241,19 +241,19 @@ def udctmdwin(
             for i3 in range(lent):
                 # for each calculated windows function, estimated all the other
                 # flipped window functions
-                afun = np.ones(param_udct.size, dtype=float)
+                win = np.ones(param_udct.size, dtype=float)
                 for i4 in range(param_udct.dim - 1):
                     idx = i1_ang.reshape(len(i1_ang), -1)[i3, i4]
                     tmp1 = Mangs[ires - 1][(idim, i4)][idx]
                     tmp2 = Minds[ires - 1][(idim, i4)]
                     afun2 = angle_kron(tmp1, tmp2, param_udct)
-                    afun *= afun2
-                afun = afun * F2d[ires]
-                afun = np.sqrt(circshift(afun, tuple(s // 4 for s in param_udct.size)))
+                    win *= afun2
+                win = win * F2d[ires]
+                win = np.sqrt(circshift(win, tuple(s // 4 for s in param_udct.size)))
 
                 # first windows function
-                aafun = []
-                aafun.append(afun)
+                angle_functions = []
+                angle_functions.append(win)
 
                 # index of current angle
                 i2_ang = i1_ang[i3 : i3 + 1, :] + 1
@@ -265,14 +265,16 @@ def udctmdwin(
                             i2_ang_tmp = i2_ang[i6 : i6 + 1, :].copy()
                             i2_ang_tmp[0, i5] = ang_inmax[i5] + 1 - i2_ang[i6, i5]
                             i2_ang = np.concatenate((i2_ang, i2_ang_tmp), axis=0)
-                            aafun.append(fftflip(aafun[i6], Mdirs[ires - 1][idim, i5]))
-                aafun = np.c_[aafun]
+                            angle_functions.append(
+                                fftflip(angle_functions[i6], Mdirs[ires - 1][idim, i5])
+                            )
+                angle_functions = np.c_[angle_functions]
 
                 if i3 == 0:
                     ang_ind = i2_ang
                     for i7 in range(ang_ind.shape[0]):
                         udctwin[ires][idim][i7] = to_sparse(
-                            aafun[i7], param_udct.winthresh
+                            angle_functions[i7], param_udct.winthresh
                         )
                 else:
                     inold = ang_ind.shape[0]
@@ -280,17 +282,13 @@ def udctmdwin(
                     innew = ang_ind.shape[0]
                     for i7 in range(inold, innew):
                         udctwin[ires][idim][i7] = to_sparse(
-                            aafun[i7 - inold], param_udct.winthresh
+                            angle_functions[i7 - inold], param_udct.winthresh
                         )
                     indices[ires][idim] = ang_ind.copy()
+
     # Normalization
     _inplace_normalize_windows(
         udctwin, size=param_udct.size, dim=param_udct.dim, res=param_udct.res
-    )
-
-    # decimation ratio for each band
-    decimation_ratio = _calculate_decimation_ratios(
-        res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
     )
 
     # sort the window
@@ -300,11 +298,19 @@ def udctmdwin(
 
     # Store with keys starting at 1 and in order
     udctwin2 = {}
+    # indices2 = {}
     for ires in udctwin:
         udctwin2[ires + 1] = {}
+        # indices2[ires + 1] = {}
         for idir in udctwin[ires]:
             udctwin2[ires + 1][idir + 1] = {}
+            # indices2[ires + 1][idir + 1] = indices[ires][idir]
             for iang in udctwin[ires][idir]:
                 udctwin2[ires + 1][idir + 1][iang + 1] = udctwin[ires][idir][iang]
 
-    return udctwin2, decimation_ratio
+    # decimation ratio for each band
+    decimation_ratio = _calculate_decimation_ratios(
+        res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
+    )
+
+    return udctwin2, decimation_ratio, indices

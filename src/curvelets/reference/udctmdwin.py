@@ -20,7 +20,7 @@ def _to_sparse(arr, thresh):
     return np.c_[idx + 1, travel(arr)[idx]]
 
 
-def udctmdwin(param_udct: ParamUDCT):
+def udctmdwin(param_udct: ParamUDCT) -> dict:
     Sgrid = {}
     f1d = {}
     for ind in range(1, param_udct.dim + 1):

@@ -38,6 +38,9 @@ def test_compare_with_reference(dim):
     for res in udctwin:
         assert udctwin[res].keys() == udctwin_ref[res].keys()
         for dir in udctwin[res]:
+            np.testing.assert_array_equal(
+                my_udct.indices[res - 1][dir - 1], param_ref.ind[res][dir]
+            )
             if res == 1 and dir == 1:
                 np.testing.assert_allclose(
                     udctwin[res][dir][1], udctwin_ref[res][dir], rtol=1e-14

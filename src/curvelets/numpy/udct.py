@@ -98,7 +98,7 @@ class UDCT:
             dim=dim, size=size, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
 
-        self.windows, self.decimation_ratio = udctmdwin(self.params)
+        self.windows, self.decimation_ratio, self.indices = udctmdwin(self.params)
 
     def forward(self, x: np.ndarray) -> dict[dict[np.ndarray | dict]]:
         return udctmddec(x, self.params, self.windows, self.decimation_ratio)
