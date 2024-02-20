@@ -6,6 +6,7 @@ from typing import Any
 
 # import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
 from .utils import (
     ParamUDCT,
@@ -144,16 +145,17 @@ def _inplace_normalize_windows(
 
 def _calculate_decimation_ratios(
     res: int, dim: int, cfg: np.ndarray, Mdirs: dict[int, np.ndarray]
-) -> dict[int, np.ndarray]:
-    decimation_ratio = {}
+) -> dict[int, npt.NDArray[np.int_]]:
+    decimation_ratio: dict[int, npt.NDArray[np.int_]] = {}
     for ires in range(1, res + 1):
-        tmp1 = np.ones((dim, dim))
-        decimation_ratio[ires] = 2.0 ** (res - ires + 1) * tmp1
-        for ind in range(dim):
-            ind2 = Mdirs[ires - 1][ind, :]
-            ind3 = Mdirs[ires - 1][ind, :]
-            decimation_ratio[ires][ind, ind2] = (
-                2.0 ** (res - ires) * 2 * cfg[ires - 1, ind3] / 3
+        decimation_ratio[ires] = np.full(
+            (dim, dim), fill_value=2.0 ** (res - ires + 1), dtype=int
+        )
+        for i0 in range(dim):
+            i1 = Mdirs[ires - 1][i0, :]
+            i3 = Mdirs[ires - 1][i0, :]
+            decimation_ratio[ires][i0, i1] = (
+                2.0 ** (res - ires) * 2 * cfg[ires - 1, i3] / 3
             )
     return decimation_ratio
 

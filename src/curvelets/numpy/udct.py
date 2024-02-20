@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from .udctmdwin import udctmdwin
 from .utils import ParamUDCT, downsamp, from_sparse, upsamp
@@ -10,7 +11,7 @@ def udctmddec(
     im: np.ndarray,
     param_udct: ParamUDCT,
     udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
-    decimation_ratio: dict[int, np.ndarray],
+    decimation_ratio: dict[int, npt.NDArray[np.int_]],
 ) -> dict[int, dict[int, dict[int, np.ndarray]]]:
     imf = np.fft.fftn(im)
 
@@ -31,18 +32,18 @@ def udctmddec(
 
     for res in range(1, 1 + param_udct.res):
         coeff[res] = {}
-        for dir in range(1, 1 + param_udct.dim):
-            coeff[res][dir - 1] = {}
-            for ang in range(1, 1 + len(udctwin[res][dir - 1])):
+        for dir in range(param_udct.dim):
+            coeff[res][dir] = {}
+            for ang in range(len(udctwin[res][dir])):
                 fband = np.zeros_like(imf)
-                idx, val = from_sparse(udctwin[res][dir - 1][ang - 1])
+                idx, val = from_sparse(udctwin[res][dir][ang])
                 fband.T.flat[idx] = imf.T.flat[idx] * val
 
                 cband = np.fft.ifftn(fband)
-                decim = decimation_ratio[res][dir - 1, :].astype(int)
-                coeff[res][dir - 1][ang - 1] = downsamp(cband, decim)
-                coeff[res][dir - 1][ang - 1] *= np.sqrt(
-                    2 * np.prod(decimation_ratio[res][dir - 1, :])
+                decim = decimation_ratio[res][dir, :]
+                coeff[res][dir][ang] = downsamp(cband, decim)
+                coeff[res][dir][ang] *= np.sqrt(
+                    2 * np.prod(decimation_ratio[res][dir, :])
                 )
     return coeff
 
@@ -51,21 +52,23 @@ def udctmdrec(
     coeff: dict[int, dict[int, dict[int, np.ndarray]]],
     param_udct: ParamUDCT,
     udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
-    decimation_ratio: dict[int, np.ndarray],
+    decimation_ratio: dict[int, npt.NDArray[np.int_]],
 ) -> np.ndarray:
-    imf = np.zeros(param_udct.size, dtype=np.complex128)
+    rdtype = udctwin[0][0][0].real.dtype
+    cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
+    imf = np.zeros(param_udct.size, dtype=cdtype)
 
     for res in range(1, 1 + param_udct.res):
-        for dir in range(1, 1 + param_udct.dim):
-            for ang in range(1, 1 + len(udctwin[res][dir - 1])):
-                decim = decimation_ratio[res][dir - 1, :].astype(int)
-                cband = upsamp(coeff[res][dir - 1][ang - 1], decim)
-                cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir - 1, :]))
-                cband = np.prod(decimation_ratio[res][dir - 1, :]) * np.fft.fftn(cband)
-                idx, val = from_sparse(udctwin[res][dir - 1][ang - 1])
+        for dir in range(param_udct.dim):
+            for ang in range(len(udctwin[res][dir])):
+                decim = decimation_ratio[res][dir, :]
+                cband = upsamp(coeff[res][dir][ang], decim)
+                cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir, :]))
+                cband = np.prod(decimation_ratio[res][dir, :]) * np.fft.fftn(cband)
+                idx, val = from_sparse(udctwin[res][dir][ang])
                 imf.T.flat[idx] += cband.T.flat[idx] * val
 
-    imfl = np.zeros(param_udct.size, dtype=np.complex128)
+    imfl = np.zeros(param_udct.size, dtype=cdtype)
     decimlow = np.full(
         (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
     )
