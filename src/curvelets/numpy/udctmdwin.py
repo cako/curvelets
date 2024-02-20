@@ -62,6 +62,52 @@ def _create_bandpass_windows(
     return shape_grid, bandpasses
 
 
+def _create_angle_info(
+    Sgrid: dict[int, np.ndarray], dim: int, res: int, cfg: np.ndarray, alpha: float
+) -> tuple[
+    dict[int, np.ndarray],
+    dict[int, dict[tuple[int, int], np.ndarray]],
+    dict[int, np.ndarray],
+]:
+    # every combination of 2 dimension out of 1:dim
+    mperms = np.asarray(list(combinations(np.arange(dim), 2)))
+    Mgrid: dict[tuple[int, int] : np.ndarray] = {}
+    for ind, perm in enumerate(mperms):
+        out = adapt_grid(Sgrid[perm[0]], Sgrid[perm[1]])
+        Mgrid[(ind, 0)] = out[0]
+        Mgrid[(ind, 1)] = out[1]
+
+    # gather angle function for each pyramid
+    Mdirs: dict[int, np.ndarray] = {}
+    Mangs: dict[int, dict[tuple[int, int], np.ndarray]] = {}
+    Minds: dict[int, np.ndarray] = {}
+    for ires in range(res):
+        Mangs[ires] = {}
+        Minds[ires] = {}
+        Mdirs[ires] = np.zeros((dim, dim - 1), dtype=int)
+        # for each resolution
+        for idim in range(dim):
+            # for each pyramid in resolution res
+            cnt = 0
+            # cnt is number of angle function required for each pyramid
+            # now loop through mperms
+            Mdirs[ires][idim, :] = np.r_[range(idim), range(idim + 1, dim)]
+            # Mdir is dimension of need to calculate angle function on each
+            # hyperpyramid
+            for ihyp in range(mperms.shape[0]):
+                for idir in range(mperms.shape[1]):
+                    if mperms[ihyp, idir] == idim:
+                        Mangs[ires][(idim, cnt)] = angle_fun(
+                            Mgrid[(ihyp, idir)],
+                            idir + 1,
+                            cfg[ires, mperms[ihyp, 1 - idir]],
+                            alpha,
+                        )
+                        Minds[ires][(idim, cnt)] = mperms[ihyp, :] + 1
+                        cnt += 1
+    return Mdirs, Mangs, Minds
+
+
 def udctmdwin(
     param_udct: ParamUDCT,
 ) -> dict[int, dict[int, dict[int, np.ndarray]]]:
@@ -81,42 +127,13 @@ def udctmdwin(
     indices[0] = {}
     indices[0][0] = {}
     indices[0][0][0] = np.zeros((1, 1), dtype=int)
-    # every combination of 2 dimension out of 1:dim
-    mperms = np.asarray(list(combinations(np.arange(param_udct.dim), 2)))
-    Mgrid = {}
-    for ind, perm in enumerate(mperms):
-        out = adapt_grid(Sgrid[perm[0]], Sgrid[perm[1]])
-        Mgrid[(ind, 0)] = out[0]
-        Mgrid[(ind, 1)] = out[1]
-
-    # gather angle function for each pyramid
-    Mdirs: dict[int, np.ndarray] = {}
-    Mangs: dict[int, dict[tuple[int, int], np.ndarray]] = {}
-    Minds: dict[int, np.ndarray] = {}
-    for ires in range(param_udct.res):
-        Mangs[ires] = {}
-        Minds[ires] = {}
-        Mdirs[ires] = np.zeros((param_udct.dim, param_udct.dim - 1), dtype=int)
-        # for each resolution
-        for idim in range(param_udct.dim):
-            # for each pyramid in resolution res
-            cnt = 0
-            # cnt is number of angle function required for each pyramid
-            # now loop through mperms
-            Mdirs[ires][idim, :] = np.r_[range(idim), range(idim + 1, param_udct.dim)]
-            # Mdir is dimension of need to calculate angle function on each
-            # hyperpyramid
-            for ihyp in range(mperms.shape[0]):
-                for idir in range(mperms.shape[1]):
-                    if mperms[ihyp, idir] == idim:
-                        Mangs[ires][(idim, cnt)] = angle_fun(
-                            Mgrid[(ihyp, idir)],
-                            idir + 1,
-                            param_udct.cfg[ires, mperms[ihyp, 1 - idir]],
-                            param_udct.alpha,
-                        )
-                        Minds[ires][(idim, cnt)] = mperms[ihyp, :2] + 1
-                        cnt += 1
+    Mdirs, Mangs, Minds = _create_angle_info(
+        Sgrid,
+        dim=param_udct.dim,
+        res=param_udct.res,
+        cfg=param_udct.cfg,
+        alpha=param_udct.alpha,
+    )
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
     # dimension (column)
@@ -150,7 +167,6 @@ def udctmdwin(
                     afun2 = angle_kron(tmp1, tmp2, param_udct)
                     afun *= afun2
                 aafun = {}
-                i2_ang = None
                 afun = afun * F2d[ires]
                 afun = np.sqrt(circshift(afun, tuple(s // 4 for s in param_udct.size)))
 
@@ -159,7 +175,6 @@ def udctmdwin(
 
                 # index of current angle
                 i2_ang = i1_ang[i3 : i3 + 1, :] + 1
-                # print(f"{ang_in2.shape=}")
 
                 # all possible flip along different dimension
                 for i5 in range(param_udct.dim - 2, -1, -1):
@@ -190,7 +205,7 @@ def udctmdwin(
                             aafun[i7 - inold], param_udct.winthresh
                         )
                     indices[ires][idim] = ang_ind.copy()
-
+    # Normalization
     sumw2 = np.zeros(param_udct.size)
     idx = udctwin[0][0][0][:, 0].astype(int) - 1
     val = udctwin[0][0][0][:, 1]
