@@ -108,6 +108,88 @@ def _create_angle_info(
     return Mdirs, Mangs, Minds
 
 
+def _inplace_normalize_windows(
+    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    size: tuple[int, ...],
+    dim: int,
+    res: int,
+) -> None:
+    sumw2 = np.zeros(size)
+    idx = udctwin[0][0][0][:, 0].astype(int) - 1
+    val = udctwin[0][0][0][:, 1]
+    sumw2.T.flat[idx] += val.T.ravel() ** 2
+    for ires in range(1, res + 1):
+        for idir in range(dim):
+            for iang in range(len(udctwin[ires][idir])):
+                tmpw = np.zeros(size)
+                idx = udctwin[ires][idir][iang][:, 0].astype(int) - 1
+                val = udctwin[ires][idir][iang][:, 1]
+                tmpw.T.flat[idx] += val.T.ravel() ** 2
+                sumw2 += tmpw
+                tmpw = fftflip(tmpw, idir)
+                sumw2 += tmpw
+
+    sumw2 = np.sqrt(sumw2)
+    idx = udctwin[0][0][0][:, 0].astype(int) - 1
+    udctwin[0][0][0][:, 1] /= sumw2.T.ravel()[idx]
+    for ires in range(1, res + 1):
+        for idir in range(dim):
+            for iang in range(len(udctwin[ires][idir])):
+                idx = udctwin[ires][idir][iang][:, 0].astype(int) - 1
+                val = udctwin[ires][idir][iang][:, 1]
+                udctwin[ires][idir][iang][:, 1] /= sumw2.T.ravel()[idx]
+
+
+def _calculate_decimation_ratios(
+    res: int, dim: int, cfg: np.ndarray, Mdirs: dict[int, np.ndarray]
+) -> dict[int, np.ndarray]:
+    decimation_ratio = {}
+    for ires in range(1, res + 1):
+        tmp1 = np.ones((dim, dim))
+        decimation_ratio[ires] = 2.0 ** (res - ires + 1) * tmp1
+        for ind in range(dim):
+            ind2 = Mdirs[ires - 1][ind, :]
+            ind3 = Mdirs[ires - 1][ind, :]
+            decimation_ratio[ires][ind, ind2] = (
+                2.0 ** (res - ires) * 2 * cfg[ires - 1, ind3] / 3
+            )
+    return decimation_ratio
+
+
+def _inplace_sort_windows(
+    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    indices: dict[int, dict[int, np.ndarray]],
+    res: int,
+    dim: int,
+) -> None:
+    newwin = {}
+    for ires in range(1, res + 1):
+        for idim in range(dim):
+            mlist = indices[ires][idim]
+
+            # # Approach 1: Create a structured array and then sort by fields
+            # struct = [(f"x{i}", "<i8") for i in range(mlist.shape[1])]
+            # ix = np.argsort(
+            #     np.array([tuple(m) for m in mlist], dtype=struct),
+            #     order=tuple(t[0] for t in struct),
+            # )
+            #
+            # Approach 2: Create a 1D array then sort that array
+            m = mlist.max() + 1
+            ix = np.argsort(
+                sum(
+                    m**i2 * mlist[:, i1]
+                    for i1, i2 in enumerate(range(mlist.shape[1] - 1, -1, -1))
+                )
+            )
+
+            newind = mlist[ix]
+            for i, idx in enumerate(ix):
+                newwin[i] = udctwin[ires][idim][idx]
+            indices[ires][idim] = newind.copy()
+            udctwin[ires][idim] = newwin.copy()
+
+
 def udctmdwin(
     param_udct: ParamUDCT,
 ) -> dict[int, dict[int, dict[int, np.ndarray]]]:
@@ -202,72 +284,19 @@ def udctmdwin(
                         )
                     indices[ires][idim] = ang_ind.copy()
     # Normalization
-    sumw2 = np.zeros(param_udct.size)
-    idx = udctwin[0][0][0][:, 0].astype(int) - 1
-    val = udctwin[0][0][0][:, 1]
-    sumw2.T.flat[idx] += val.T.ravel() ** 2
-    for ires in range(1, param_udct.res + 1):
-        for idir in range(param_udct.dim):
-            for iang in range(len(udctwin[ires][idir])):
-                tmpw = np.zeros(param_udct.size)
-                idx = udctwin[ires][idir][iang][:, 0].astype(int) - 1
-                val = udctwin[ires][idir][iang][:, 1]
-                tmpw.T.flat[idx] += val.T.ravel() ** 2
-                sumw2 += tmpw
-                tmpw = fftflip(tmpw, idir)
-                sumw2 += tmpw
-
-    sumw2 = np.sqrt(sumw2)
-    idx = udctwin[0][0][0][:, 0].astype(int) - 1
-    udctwin[0][0][0][:, 1] /= sumw2.T.ravel()[idx]
-    for ires in range(1, param_udct.res + 1):
-        for idir in range(param_udct.dim):
-            for iang in range(len(udctwin[ires][idir])):
-                idx = udctwin[ires][idir][iang][:, 0].astype(int) - 1
-                val = udctwin[ires][idir][iang][:, 1]
-                udctwin[ires][idir][iang][:, 1] /= sumw2.T.ravel()[idx]
+    _inplace_normalize_windows(
+        udctwin, size=param_udct.size, dim=param_udct.dim, res=param_udct.res
+    )
 
     # decimation ratio for each band
-    decimation_ratio = {}
-    for ires in range(1, param_udct.res + 1):
-        tmp1 = np.ones((param_udct.dim, param_udct.dim))
-        decimation_ratio[ires] = 2.0 ** (param_udct.res - ires + 1) * tmp1
-        for ind in range(param_udct.dim):
-            ind2 = Mdirs[ires - 1][ind, :]
-            ind3 = Mdirs[ires - 1][ind, :]
-            decimation_ratio[ires][ind, ind2] = (
-                2.0 ** (param_udct.res - ires) * 2 * param_udct.cfg[ires - 1, ind3] / 3
-            )
+    decimation_ratio = _calculate_decimation_ratios(
+        res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
+    )
 
     # sort the window
-    newwin = {}
-    for ires in range(1, param_udct.res + 1):
-        for idim in range(param_udct.dim):
-            # take out the angle index list
-            mlist = indices[ires][idim]
-
-            # Sort by the first and then the second, etc.
-
-            # # Approach 1: Create a structured array and then sort by fields
-            # struct = [(f"x{i}", "<i8") for i in range(mlist.shape[1])]
-            # ix = np.argsort(
-            #     np.array([tuple(m) for m in mlist], dtype=struct),
-            #     order=tuple(t[0] for t in struct),
-            # )
-            # Approach 2: Create a 1D array then sort that array
-            m = mlist.max() + 1
-            ix = np.argsort(
-                sum(
-                    m**i2 * mlist[:, i1]
-                    for i1, i2 in enumerate(range(mlist.shape[1] - 1, -1, -1))
-                )
-            )
-
-            newind = mlist[ix]
-            for i, idx in enumerate(ix):
-                newwin[i] = udctwin[ires][idim][idx]
-            indices[ires][idim] = newind.copy()
-            udctwin[ires][idim] = newwin.copy()
+    _inplace_sort_windows(
+        udctwin=udctwin, indices=indices, res=param_udct.res, dim=param_udct.dim
+    )
 
     # Store with keys starting at 1 and in order
     udctwin2 = {}
