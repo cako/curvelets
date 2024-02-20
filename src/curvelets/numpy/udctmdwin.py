@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 __all__ = ["udctmdwin"]
-
 from itertools import combinations
+from typing import Any
 
 # import matplotlib.pyplot as plt
 import numpy as np
@@ -14,6 +14,7 @@ from .utils import (
     angle_kron,
     circshift,
     fftflip,
+    from_sparse,
     fun_meyer,
     to_sparse,
 )
@@ -62,6 +63,10 @@ def _create_bandpass_windows(
     return shape_grid, bandpasses
 
 
+def _nchoosek(n: Any, k: Any) -> np.ndarray:
+    return np.asarray(list(combinations(n, k)))
+
+
 def _create_angle_info(
     Sgrid: dict[int, np.ndarray], dim: int, res: int, cfg: np.ndarray, alpha: float
 ) -> tuple[
@@ -70,7 +75,7 @@ def _create_angle_info(
     dict[int, np.ndarray],
 ]:
     # every combination of 2 dimension out of 1:dim
-    mperms = np.asarray(list(combinations(np.arange(dim), 2)))
+    mperms = _nchoosek(np.arange(dim), 2)
     Mgrid: dict[tuple[int, int] : np.ndarray] = {}
     for ind, perm in enumerate(mperms):
         out = adapt_grid(Sgrid[perm[0]], Sgrid[perm[1]])
@@ -115,15 +120,13 @@ def _inplace_normalize_windows(
     res: int,
 ) -> None:
     sumw2 = np.zeros(size)
-    idx = udctwin[0][0][0][:, 0].astype(int) - 1
-    val = udctwin[0][0][0][:, 1]
+    idx, val = from_sparse(udctwin[0][0][0])
     sumw2.T.flat[idx] += val.T.ravel() ** 2
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
                 tmpw = np.zeros(size)
-                idx = udctwin[ires][idir][iang][:, 0].astype(int) - 1
-                val = udctwin[ires][idir][iang][:, 1]
+                idx, val = from_sparse(udctwin[ires][idir][iang])
                 tmpw.T.flat[idx] += val.T.ravel() ** 2
                 sumw2 += tmpw
                 tmpw = fftflip(tmpw, idir)
@@ -135,8 +138,7 @@ def _inplace_normalize_windows(
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
-                idx = udctwin[ires][idir][iang][:, 0].astype(int) - 1
-                val = udctwin[ires][idir][iang][:, 1]
+                idx, val = from_sparse(udctwin[ires][idir][iang])
                 udctwin[ires][idir][iang][:, 1] /= sumw2.T.ravel()[idx]
 
 
@@ -248,7 +250,7 @@ def udctmdwin(
                     tmp2 = Minds[ires - 1][(idim, i4)]
                     afun2 = angle_kron(tmp1, tmp2, param_udct)
                     win *= afun2
-                win = win * F2d[ires]
+                win *= F2d[ires]
                 win = np.sqrt(circshift(win, tuple(s // 4 for s in param_udct.size)))
 
                 # first windows function
@@ -264,10 +266,12 @@ def udctmdwin(
                         if 2 * i2_ang[i6, i5] <= ang_inmax[i5]:
                             i2_ang_tmp = i2_ang[i6 : i6 + 1, :].copy()
                             i2_ang_tmp[0, i5] = ang_inmax[i5] + 1 - i2_ang[i6, i5]
-                            i2_ang = np.concatenate((i2_ang, i2_ang_tmp), axis=0)
-                            angle_functions.append(
-                                fftflip(angle_functions[i6], Mdirs[ires - 1][idim, i5])
+                            i2_ang = np.r_[i2_ang, i2_ang_tmp]
+                            win = fftflip(
+                                angle_functions[i6], Mdirs[ires - 1][idim, i5]
                             )
+                            angle_functions.append(win)
+                i2_ang -= 1  # Adjust so that `indices` is 0-based
                 angle_functions = np.c_[angle_functions]
 
                 if i3 == 0:

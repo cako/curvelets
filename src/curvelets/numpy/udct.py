@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from .udctmdwin import udctmdwin
-from .utils import ParamUDCT, downsamp, upsamp
+from .utils import ParamUDCT, downsamp, from_sparse, upsamp
 
 
 def udctmddec(
@@ -15,8 +15,7 @@ def udctmddec(
     imf = np.fft.fftn(im)
 
     fband = np.zeros_like(imf)
-    idx = udctwin[1][1][1][:, 0].astype(int) - 1
-    val = udctwin[1][1][1][:, 1]
+    idx, val = from_sparse(udctwin[1][1][1])
     fband.T.flat[idx] = imf.T.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
@@ -36,8 +35,7 @@ def udctmddec(
             coeff[res + 1][dir] = {}
             for ang in range(1, 1 + len(udctwin[res + 1][dir])):
                 fband = np.zeros_like(imf)
-                idx = udctwin[res + 1][dir][ang][:, 0].astype(int) - 1
-                val = udctwin[res + 1][dir][ang][:, 1]
+                idx, val = from_sparse(udctwin[res + 1][dir][ang])
                 fband.T.flat[idx] = imf.T.flat[idx] * val
 
                 cband = np.fft.ifftn(fband)
@@ -64,8 +62,7 @@ def udctmdrec(
                 cband = upsamp(coeff[res + 1][dir][ang], decim)
                 cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir - 1, :]))
                 cband = np.prod(decimation_ratio[res][dir - 1, :]) * np.fft.fftn(cband)
-                idx = udctwin[res + 1][dir][ang][:, 0].astype(int) - 1
-                val = udctwin[res + 1][dir][ang][:, 1]
+                idx, val = from_sparse(udctwin[res + 1][dir][ang])
                 imf.T.flat[idx] += cband.T.flat[idx] * val
 
     imfl = np.zeros(param_udct.size, dtype=np.complex128)
@@ -74,8 +71,7 @@ def udctmdrec(
     )
     cband = upsamp(coeff[1][1][1], decimlow)
     cband = np.sqrt(np.prod(decimlow)) * np.fft.fftn(cband)
-    idx = udctwin[1][1][1][:, 0].astype(int) - 1
-    val = udctwin[1][1][1][:, 1]
+    idx, val = from_sparse(udctwin[1][1][1])
     imfl.T.flat[idx] += cband.T.flat[idx] * val
     imf = 2 * imf + imfl
     return np.fft.ifftn(imf).real

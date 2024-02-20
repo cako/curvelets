@@ -143,6 +143,12 @@ def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
     return np.c_[idx + 1, travel(arr)[idx]]
 
 
+def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    idx = arr[:, 0].astype(int) - 1
+    val = arr[:, 1]
+    return idx, val
+
+
 def upsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
     assert F.ndim == len(decim)
     upsamp_shape = tuple(s * d for s, d in zip(F.shape, decim))
