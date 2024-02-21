@@ -5,7 +5,7 @@ import pytest
 
 import curvelets.numpy as udct
 import curvelets.reference as udct_ref
-from curvelets.numpy.utils import from_sparse
+from curvelets.numpy.utils import from_sparse, from_sparse_new
 
 
 @pytest.mark.parametrize("dim", list(range(2, 5)))
@@ -53,7 +53,7 @@ def test_compare_with_reference(dim):
                 np.testing.assert_array_equal(
                     my_udct.indices[0][0], param_ref.ind[1][1]
                 )
-                idx, val = from_sparse(udctwin[0][0][0])
+                idx, val = from_sparse_new(udctwin[0][0][0])
                 win[...] = 0  # Reset
                 win.T.flat[idx] = val  # Fill
 
@@ -71,7 +71,7 @@ def test_compare_with_reference(dim):
                     np.asarray(list(udctwin_ref[res][dir].keys())),
                 )
                 for ang in udctwin_ref[res][dir]:
-                    idx, val = from_sparse(udctwin[res - 1][dir - 1][ang - 1])
+                    idx, val = from_sparse_new(udctwin[res - 1][dir - 1][ang - 1])
                     win[...] = 0  # Reset
                     win.T.flat[idx] = val  # Fill
 

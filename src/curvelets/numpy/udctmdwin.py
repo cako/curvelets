@@ -15,9 +15,9 @@ from .utils import (
     angle_kron,
     circshift,
     fftflip,
-    from_sparse,
+    from_sparse_new,
     fun_meyer,
-    to_sparse,
+    to_sparse_new,
 )
 
 
@@ -121,25 +121,25 @@ def _inplace_normalize_windows(
     res: int,
 ) -> None:
     sumw2 = np.zeros(size)
-    idx, val = from_sparse(udctwin[0][0][0])
+    idx, val = from_sparse_new(udctwin[0][0][0])
     sumw2.T.flat[idx] += val.T.ravel() ** 2
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
                 tmpw = np.zeros(size)
-                idx, val = from_sparse(udctwin[ires][idir][iang])
+                idx, val = from_sparse_new(udctwin[ires][idir][iang])
                 tmpw.T.flat[idx] += val.T.ravel() ** 2
                 sumw2 += tmpw
                 tmpw = fftflip(tmpw, idir)
                 sumw2 += tmpw
 
     sumw2 = np.sqrt(sumw2)
-    idx = udctwin[0][0][0][:, 0].astype(int) - 1
+    idx, _ = from_sparse_new(udctwin[0][0][0])
     udctwin[0][0][0][:, 1] /= sumw2.T.ravel()[idx]
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
-                idx, val = from_sparse(udctwin[ires][idir][iang])
+                idx, _ = from_sparse_new(udctwin[ires][idir][iang])
                 udctwin[ires][idir][iang][:, 1] /= sumw2.T.ravel()[idx]
 
 
@@ -206,7 +206,7 @@ def udctmdwin(
     udctwin = {}
     udctwin[0] = {}
     udctwin[0][0] = {}
-    udctwin[0][0][0] = to_sparse(Winlow, param_udct.winthresh)
+    udctwin[0][0][0] = to_sparse_new(Winlow, param_udct.winthresh)
 
     # `indices` gets stored as `param_udct.ind` in the original.
     indices = {}
@@ -279,7 +279,7 @@ def udctmdwin(
                 if i3 == 0:
                     ang_ind = i2_ang
                     for i7 in range(ang_ind.shape[0]):
-                        udctwin[ires][idim][i7] = to_sparse(
+                        udctwin[ires][idim][i7] = to_sparse_new(
                             angle_functions[i7], param_udct.winthresh
                         )
                 else:
@@ -287,7 +287,7 @@ def udctmdwin(
                     ang_ind = np.concatenate((ang_ind, i2_ang), axis=0)
                     innew = ang_ind.shape[0]
                     for i7 in range(inold, innew):
-                        udctwin[ires][idim][i7] = to_sparse(
+                        udctwin[ires][idim][i7] = to_sparse_new(
                             angle_functions[i7 - inold], param_udct.winthresh
                         )
                     indices[ires][idim] = ang_ind.copy()
