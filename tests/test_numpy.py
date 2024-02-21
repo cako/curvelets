@@ -5,6 +5,7 @@ import pytest
 
 import curvelets.numpy as udct
 import curvelets.reference as udct_ref
+from curvelets.numpy.utils import from_sparse
 
 
 @pytest.mark.parametrize("dim", list(range(2, 5)))
@@ -24,7 +25,7 @@ def test_compare_with_reference(dim):
     )
     alpha = 0.3 * rng.uniform(size=1)
     r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
-    winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1))
+    winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1).item())
 
     my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
     param_ref = udct_ref.ParamUDCT(
@@ -33,6 +34,11 @@ def test_compare_with_reference(dim):
 
     udctwin = my_udct.windows
     udctwin_ref, _ = udct_ref.udctmdwin(param_ref)
+
+    rdtype = udctwin[0][0][0].real.dtype
+    cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
+    win = np.zeros(param_ref.size, dtype=cdtype)
+    win_ref = np.zeros(param_ref.size, dtype=cdtype)
 
     np.testing.assert_array_equal(
         1 + np.asarray(list(udctwin.keys())), np.asarray(list(udctwin_ref.keys()))
@@ -45,11 +51,17 @@ def test_compare_with_reference(dim):
         for dir in udctwin_ref[res]:
             if res == 1 and dir == 1:
                 np.testing.assert_array_equal(
-                    my_udct.indices[res - 1][dir - 1], param_ref.ind[res][dir]
+                    my_udct.indices[0][0], param_ref.ind[1][1]
                 )
-                np.testing.assert_allclose(
-                    udctwin[res - 1][dir - 1][0], udctwin_ref[res][dir], rtol=1e-14
-                )
+                idx, val = from_sparse(udctwin[0][0][0])
+                win[...] = 0  # Reset
+                win.T.flat[idx] = val  # Fill
+
+                idx, val = from_sparse(udctwin_ref[1][1])
+                win_ref[...] = 0  # Reset
+                win_ref.T.flat[idx] = val  # Fill
+                np.testing.assert_allclose(win, win_ref, rtol=1e-14)
+
             else:
                 np.testing.assert_array_equal(
                     1 + my_udct.indices[res - 1][dir - 1], param_ref.ind[res][dir]
@@ -59,11 +71,14 @@ def test_compare_with_reference(dim):
                     np.asarray(list(udctwin_ref[res][dir].keys())),
                 )
                 for ang in udctwin_ref[res][dir]:
-                    np.testing.assert_allclose(
-                        udctwin[res - 1][dir - 1][ang - 1],
-                        udctwin_ref[res][dir][ang],
-                        rtol=1e-14,
-                    )
+                    idx, val = from_sparse(udctwin[res - 1][dir - 1][ang - 1])
+                    win[...] = 0  # Reset
+                    win.T.flat[idx] = val  # Fill
+
+                    idx, val = from_sparse(udctwin_ref[res][dir][ang])
+                    win_ref[...] = 0  # Reset
+                    win_ref.T.flat[idx] = val  # Fill
+                    np.testing.assert_allclose(win, win_ref, rtol=1e-14)
 
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
