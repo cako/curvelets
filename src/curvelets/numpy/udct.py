@@ -23,7 +23,9 @@ def udctmddec(
     coeff: dict[int, dict[int, dict[int, np.ndarray]]] = {}
     coeff[0] = {}
     coeff[0][0] = {}
-    decim = np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int)
+    decim: npt.NDArray[np.int_] = np.full(
+        (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
+    )
     coeff[0][0][0] = downsamp(cband, decim)
     norm = np.sqrt(
         np.prod(np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1)))
@@ -69,7 +71,7 @@ def udctmdrec(
                 imf.flat[idx] += cband.flat[idx] * val
 
     imfl = np.zeros(param_udct.size, dtype=cdtype)
-    decimlow = np.full(
+    decimlow: npt.NDArray[np.int_] = np.full(
         (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
     )
     cband = upsamp(coeff[0][0][0], decimlow)

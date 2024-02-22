@@ -5,19 +5,20 @@ from dataclasses import dataclass, field
 from math import ceil, prod
 
 import numpy as np
+import numpy.typing as npt
 
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
 class ParamUDCT:
     dim: int
     size: tuple[int, ...]
-    cfg: np.ndarray  # last dimension  == dim
+    cfg: npt.NDArray[np.int_]  # last dimension  == dim
     alpha: float
     r: tuple[float, float, float, float]
     winthresh: float
     len: int = field(init=False)
     res: int = field(init=False)
-    decim: np.ndarray = field(init=False)
+    decim: npt.NDArray[np.int_] = field(init=False)
     ind: dict[int, dict[int, np.ndarray]] | None = None
     dec: dict[int, np.ndarray] | None = None
 
@@ -35,11 +36,11 @@ def circshift(arr: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
 def adapt_grid(S1: np.ndarray, S2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     x1, x2 = np.meshgrid(S2, S1)
 
-    t1 = np.zeros_like(x1, dtype=float)
+    t1: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
     ind = (x1 != 0) & (np.abs(x2) <= np.abs(x1))
     t1[ind] = -x2[ind] / x1[ind]
 
-    t2 = np.zeros_like(x1, dtype=float)
+    t2: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
     ind = (x2 != 0) & (np.abs(x1) < np.abs(x2))
     t2[ind] = x1[ind] / x2[ind]
 
@@ -92,7 +93,7 @@ def angle_kron(
     angle_fun: np.ndarray, nper: np.ndarray, param_udct: ParamUDCT
 ) -> np.ndarray:
     # , nper, param_udct
-    krsz = np.ones(3, dtype=int)
+    krsz: npt.NDArray[np.int_] = np.ones(3, dtype=int)
     krsz[0] = np.prod(param_udct.size[: nper[0] - 1])
     krsz[1] = np.prod(param_udct.size[nper[0] : nper[1] - 1])
     krsz[2] = np.prod(param_udct.size[nper[1] : param_udct.dim])
@@ -113,10 +114,10 @@ def downsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
 def fftflip(F: np.ndarray, axis: int) -> np.ndarray:
     Fc = F
     dim = F.ndim
-    shiftvec: np.ndarray = np.zeros((dim,), dtype=int)
+    shiftvec: npt.NDArray[np.int_] = np.zeros((dim,), dtype=int)
     shiftvec[axis] = 1
     Fc = np.flip(F, axis)
-    return circshift(Fc, shiftvec)
+    return circshift(Fc, tuple(shiftvec))
 
 
 def fun_meyer(x: np.ndarray, p1: float, p2: float, p3: float, p4: float) -> np.ndarray:
@@ -144,10 +145,11 @@ def travel_new(arr: np.ndarray) -> np.ndarray:
 
 def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
     idx = np.argwhere(travel(arr) > thresh)
-    return np.c_[idx + 1, travel(arr)[idx]]
+    out: npt.NDArray[np.floating] = np.c_[idx + 1, travel(arr)[idx]]
+    return out
 
 
-def to_sparse_new(arr: np.ndarray, thresh: float) -> np.ndarray:
+def to_sparse_new(arr: np.ndarray, thresh: float) -> list[np.ndarray]:
     idx = np.argwhere(arr.ravel() > thresh)
     return [idx, arr.ravel()[idx]]
 

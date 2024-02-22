@@ -73,7 +73,7 @@ def _create_angle_info(
 ) -> tuple[
     dict[int, np.ndarray],
     dict[int, dict[tuple[int, int], np.ndarray]],
-    dict[int, np.ndarray],
+    dict[int, dict[tuple[int, int], np.ndarray]],
 ]:
     # every combination of 2 dimension out of 1:dim
     mperms = _nchoosek(np.arange(dim), 2)
@@ -86,7 +86,7 @@ def _create_angle_info(
     # gather angle function for each pyramid
     Mdirs: dict[int, np.ndarray] = {}
     Mangs: dict[int, dict[tuple[int, int], np.ndarray]] = {}
-    Minds: dict[int, np.ndarray] = {}
+    Minds: dict[int, dict[tuple[int, int], np.ndarray]] = {}
     for ires in range(res):
         Mangs[ires] = {}
         Minds[ires] = {}
@@ -115,7 +115,7 @@ def _create_angle_info(
 
 
 def _inplace_normalize_windows(
-    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
     size: tuple[int, ...],
     dim: int,
     res: int,
@@ -198,8 +198,8 @@ def udctmdwin(
     param_udct: ParamUDCT,
 ) -> tuple[
     dict[int, dict[int, dict[int, list[np.ndarray]]]],
-    dict[int, dict[int, np.ndarray]],
     dict[int, npt.NDArray[np.int_]],
+    dict[int, dict[int, np.ndarray]],
 ]:
     Sgrid, F2d = _create_bandpass_windows(
         nscales=param_udct.res, shape=param_udct.size, r=param_udct.r
