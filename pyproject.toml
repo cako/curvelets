@@ -137,7 +137,7 @@ isort.required-imports = ["from __future__ import annotations"]
 
 [tool.pylint]
 py-version = "3.9"
-ignore-paths = [".*/_version.py"]
+ignore-paths = [".*/_version.py", '.*/curvelets/reference/.*$']
 reports.output-format = "colorized"
 similarities.ignore-imports = "yes"
 messages_control.disable = [
