@@ -44,10 +44,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
             params[2:] /= 2 ** (param_udct.res - jn)
             f1d[(jn, ind)] = fun_meyer(abs(Sgrid[ind]), *params)
 
-    out = {}
-    out["Sgrid"] = deepcopy(Sgrid)
-    out["f1d"] = deepcopy(f1d)
-
     F2d = {}
     for jn in range(param_udct.res, 0, -1):
         fltmp = np.array([1.0])
@@ -62,20 +58,11 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
         F2d[jn + 1] = FP
     F2d[1] = FL.copy()
 
-    out["fltmp"] = fltmp.copy()
-    out["fhtmp"] = fhtmp.copy()
-    out["FL"] = FL.copy()
-    out["FH"] = FH.copy()
-    out["FP"] = FP.copy()
-    out["F2d"] = deepcopy(F2d)
-    out["sqrtF21"] = deepcopy(np.sqrt(F2d[1]))
     Winlow = circshift(np.sqrt(F2d[1]), tuple(s // 4 for s in param_udct.size))
-    out["Winlow"] = Winlow.copy()
     # convert to sparse format
     udctwin = {}
     udctwin[1] = {}
     udctwin[1][1] = _to_sparse(Winlow, param_udct.winthresh)
-    out["udctwin"] = udctwin.copy()
 
     param_udct.ind = {}
     param_udct.ind[1] = {}
@@ -87,7 +74,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
         M[(ind, 1)], M[ind, 2] = adapt_grid(
             Sgrid[mperms[ind - 1, 0]], Sgrid[mperms[ind - 1, 1]]
         )
-    out["M"] = M
 
     # gather angle function for each pyramid
 
@@ -125,10 +111,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
                         Mang[res][(ind, cnt)] = tmp
                         Mang_in[res][(ind, cnt)] = mperms[hp - 1, 1 - 1 : 2]
                         cnt += 1
-
-    out["Mdir"] = deepcopy(Mdir)
-    out["Mang"] = deepcopy(Mang)
-    out["Mang_in"] = deepcopy(Mang_in)
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
     # dimension (column)
@@ -229,17 +211,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
                         )
                     param_udct.ind[res + 1][in1] = ang_ind.copy()
 
-    out["ang_in"] = ang_in
-    out["ang_inmax"] = ang_inmax
-    out["afun2"] = afun2
-    out["afun"] = afun
-    out["ang_in2"] = ang_in2
-    out["ang_in2tmp"] = ang_in2tmp
-    out["aafun"] = deepcopy(aafun)
-    out["ang_ind"] = ang_ind
-    # out["subband"] = subband
-    out["udctwin"] = deepcopy(udctwin)
-
     sumw2 = np.zeros(param_udct.size)
     idx = udctwin[1][1][:, 0].astype(int) - 1
     val = udctwin[1][1][:, 1]
@@ -255,8 +226,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
                 tmpw = fftflip(tmpw, dir - 1)
                 sumw2 += tmpw
 
-    out["sumw2"] = sumw2.copy()
-
     sumw2 = np.sqrt(sumw2)
     idx = udctwin[1][1][:, 0].astype(int) - 1
     udctwin[1][1][:, 1] /= sumw2.T.ravel()[idx]
@@ -266,8 +235,6 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
                 idx = udctwin[res + 1][dir][ang][:, 0].astype(int) - 1
                 val = udctwin[res + 1][dir][ang][:, 1]
                 udctwin[res + 1][dir][ang][:, 1] /= sumw2.T.ravel()[idx]
-
-    out["udctwin2"] = deepcopy(udctwin)
 
     # decimation ratio for each band
     param_udct.dec = {}
@@ -281,17 +248,12 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
                 2.0 ** (param_udct.res - res) * 2 * param_udct.cfg[res - 1, ind3] / 3
             )
 
-    out["param_udct_dec"] = deepcopy(param_udct.dec)
-
     param_udct.len_r = param_udct.len / 2.0 ** ((param_udct.res - 1) * param_udct.dim)
     for res in range(1, param_udct.res + 1):
         for ind in range(1, param_udct.dim + 1):
             a = udctwin[res + 1][ind]
             b = param_udct.dec[res][ind - 1, :]
             param_udct.len_r += len(a) * 2 * param_udct.len / np.prod(b)
-
-    out["param_udct_len_r"] = param_udct.len_r
-    out["param_udct_ind"] = deepcopy(param_udct.ind)
 
     # sort the window
     newwin = {}
@@ -318,12 +280,4 @@ def udctmdwin(param_udct: ParamUDCT) -> dict:
             param_udct.ind[res][pyr] = newind.copy()
             udctwin[res][pyr] = newwin.copy()
 
-    out["param_udct_ind2"] = deepcopy(param_udct.ind)
-    out["mlist"] = deepcopy(mlist)
-    out["nlist"] = deepcopy(nlist)
-    out["ix"] = deepcopy(ix)
-    out["newind"] = deepcopy(newind)
-    out["newwin"] = deepcopy(newwin)
-    out["udctwin_final"] = deepcopy(udctwin)
-
-    return udctwin, out
+    return udctwin

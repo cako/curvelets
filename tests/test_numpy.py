@@ -33,7 +33,7 @@ def test_compare_with_reference(dim):
     )
 
     udctwin = my_udct.windows
-    udctwin_ref, _ = udct_ref.udctmdwin(param_ref)
+    udctwin_ref = udct_ref.udctmdwin(param_ref)
 
     rdtype = udctwin[0][0][0][1].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
@@ -82,7 +82,7 @@ def test_compare_with_reference(dim):
 
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
-    coeffs_ref, _ = udct_ref.udctmddec(im, param_udct=param_ref, udctwin=udctwin_ref)
+    coeffs_ref = udct_ref.udctmddec(im, param_udct=param_ref, udctwin=udctwin_ref)
 
     np.testing.assert_array_equal(
         1 + np.asarray(list(coeffs.keys())), np.asarray(list(coeffs_ref.keys()))
@@ -109,9 +109,7 @@ def test_compare_with_reference(dim):
                         rtol=1e-14,
                     )
     im2 = my_udct.backward(coeffs)
-    im2_ref, _ = udct_ref.udctmdrec(
-        coeffs_ref, param_udct=param_ref, udctwin=udctwin_ref
-    )
+    im2_ref = udct_ref.udctmdrec(coeffs_ref, param_udct=param_ref, udctwin=udctwin_ref)
     np.testing.assert_allclose(im2, im2_ref, rtol=1e-14)
 
 

@@ -30,9 +30,7 @@ class ParamUDCT:
 
 
 def udctmddec(im, param_udct, udctwin):
-    out = {}
     imf = np.fft.fftn(im)
-    out["imf"] = imf.copy()
 
     fband = np.zeros_like(imf)
     idx = udctwin[1][1][:, 0].astype(int) - 1
@@ -40,8 +38,6 @@ def udctmddec(im, param_udct, udctwin):
     fband.T.flat[idx] = imf.T.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
-    out["fband"] = fband.copy()
-    out["cband"] = cband.copy()
     coeff = {}
     coeff[1] = {}
     decim = np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int)
@@ -67,11 +63,10 @@ def udctmddec(im, param_udct, udctwin):
                 coeff[res + 1][dir][ang] *= np.sqrt(
                     2 * np.prod(param_udct.dec[res][dir - 1, :])
                 )
-    return coeff, out
+    return coeff
 
 
 def udctmdrec(coeff, param_udct, udctwin):
-    out = {}
     imf = np.zeros(param_udct.size, dtype=np.complex128)
 
     for res in range(1, 1 + param_udct.res):
@@ -85,10 +80,6 @@ def udctmdrec(coeff, param_udct, udctwin):
                 val = udctwin[res + 1][dir][ang][:, 1]
                 imf.T.flat[idx] += cband.T.flat[idx] * val
 
-    out["decim"] = decim.copy()
-    out["cband"] = cband.copy()
-    out["imf"] = imf.copy()
-
     imfl = np.zeros(param_udct.size, dtype=np.complex128)
     decimlow = np.full(
         (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
@@ -100,4 +91,4 @@ def udctmdrec(coeff, param_udct, udctwin):
     imfl.T.flat[idx] += cband.T.flat[idx] * val
     imf = 2 * imf + imfl
     im2 = np.fft.ifftn(imf).real
-    return im2, out
+    return im2
