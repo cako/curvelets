@@ -10,7 +10,7 @@ from .utils import ParamUDCT, downsamp, from_sparse_new, upsamp
 def udctmddec(
     im: np.ndarray,
     param_udct: ParamUDCT,
-    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
     decimation_ratio: dict[int, npt.NDArray[np.int_]],
 ) -> dict[int, dict[int, dict[int, np.ndarray]]]:
     imf = np.fft.fftn(im)
@@ -20,7 +20,7 @@ def udctmddec(
     fband.flat[idx] = imf.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
-    coeff = {}
+    coeff: dict[int, dict[int, dict[int, np.ndarray]]] = {}
     coeff[0] = {}
     coeff[0][0] = {}
     decim = np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int)
@@ -51,7 +51,7 @@ def udctmddec(
 def udctmdrec(
     coeff: dict[int, dict[int, dict[int, np.ndarray]]],
     param_udct: ParamUDCT,
-    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
     decimation_ratio: dict[int, npt.NDArray[np.int_]],
 ) -> np.ndarray:
     rdtype = udctwin[0][0][0][1].real.dtype
@@ -99,8 +99,8 @@ class UDCT:
 
         self.windows, self.decimation_ratio, self.indices = udctmdwin(self.params)
 
-    def forward(self, x: np.ndarray) -> dict[dict[np.ndarray | dict]]:
+    def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
         return udctmddec(x, self.params, self.windows, self.decimation_ratio)
 
-    def backward(self, c: dict[dict[np.ndarray | dict]]) -> np.ndarray:
+    def backward(self, c: dict[int, dict[int, dict[int, np.ndarray]]]) -> np.ndarray:
         return udctmdrec(c, self.params, self.windows, self.decimation_ratio)

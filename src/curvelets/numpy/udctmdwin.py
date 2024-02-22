@@ -77,7 +77,7 @@ def _create_angle_info(
 ]:
     # every combination of 2 dimension out of 1:dim
     mperms = _nchoosek(np.arange(dim), 2)
-    Mgrid: dict[tuple[int, int] : np.ndarray] = {}
+    Mgrid: dict[tuple[int, int], np.ndarray] = {}
     for ind, perm in enumerate(mperms):
         out = adapt_grid(Sgrid[perm[0]], Sgrid[perm[1]])
         Mgrid[(ind, 0)] = out[0]
@@ -196,20 +196,24 @@ def _inplace_sort_windows(
 
 def udctmdwin(
     param_udct: ParamUDCT,
-) -> dict[int, dict[int, dict[int, np.ndarray]]]:
+) -> tuple[
+    dict[int, dict[int, dict[int, list[np.ndarray]]]],
+    dict[int, dict[int, np.ndarray]],
+    dict[int, npt.NDArray[np.int_]],
+]:
     Sgrid, F2d = _create_bandpass_windows(
         nscales=param_udct.res, shape=param_udct.size, r=param_udct.r
     )
     Winlow = circshift(np.sqrt(F2d[0]), tuple(s // 4 for s in param_udct.size))
 
     # convert to sparse format
-    udctwin = {}
+    udctwin: dict[int, dict[int, dict[int, np.ndarray]]] = {}
     udctwin[0] = {}
     udctwin[0][0] = {}
     udctwin[0][0][0] = to_sparse_new(Winlow, param_udct.winthresh)
 
     # `indices` gets stored as `param_udct.ind` in the original.
-    indices = {}
+    indices: dict[int, dict[int, np.ndarray]] = {}
     indices[0] = {}
     indices[0][0] = np.zeros((1, 1), dtype=int)
     Mdirs, Mangs, Minds = _create_angle_info(

@@ -158,7 +158,7 @@ def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return idx, val
 
 
-def from_sparse_new(arr_list: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def from_sparse_new(arr_list: list[np.ndarray]) -> list[np.ndarray]:
     return arr_list
 
 
