@@ -53,7 +53,7 @@ repos:
     hooks:
       - id: mypy
         args: ["--follow-imports=skip"]
-        exclude: src/curvelets/reference
+        exclude: src/curvelets/reference|noxfile.py
         additional_dependencies:
           - pytest
 
