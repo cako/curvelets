@@ -28,7 +28,7 @@
 
 ## Frequently Asked Questions
 
-### 1. What even are curvelets?
+### 1. What even *are* curvelets?
 
    Curvelets are like wavelets, but in 2D (3D, 4D, etc.). But so are steerable wavelets, Gabor wavelets, wedgelets, beamlets, bandlets, contourlets, shearlets, wave atoms, platelets, surfacelets, ... you get the idea. Like wavelets, these "X-lets" allow us to separate a signal into different "scales" (analog to frequency in 1D, that is, how fast the signal is varying), "location" (equivalent to time in 1D) and the direction in which the signal is varying (which does not have 1D analog).
 
@@ -60,15 +60,15 @@ My suggestion is to use curvelets and other transforms for small to mid-sized da
 Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. If you need a high-performance transform, I would consider using [Kymatio](https://www.kymat.io/) which has a GPU-accelerated PyTorch implementation.
 
 ## References
-[1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, Fast Discrete Curvelet Transforms: Multiscale Modeling & Simulation, 5, 861–899.
+[1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
 
-[2] Nguyen, T. T., and H. Chauris, 2010, Uniform Discrete Curvelet Transform: IEEE Transactions on Signal Processing, 58, 3618–3634.
+[2] Nguyen, T. T., and H. Chauris, 2010, *Uniform Discrete Curvelet Transform*: IEEE Transactions on Signal Processing, 58, 3618–3634.
 
 
-[3] Candès, E. J., and L. Demanet, 2005, The curvelet representation of wave propagators is optimally sparse: Communications on Pure and Applied Mathematics, 58, 1472–1528.
+[3] Candès, E. J., and L. Demanet, 2005, *The curvelet representation of wave propagators is optimally sparse*: Communications on Pure and Applied Mathematics, 58, 1472–1528.
 
-[4] Candès, E. J., and D. L. Donoho, 2003, New tight frames of curvelets and optimal representations of objects with piecewise C2 singularities: Communications on Pure and Applied Mathematics, 57, 219–266.
+[4] Candès, E. J., and D. L. Donoho, 2003, *New tight frames of curvelets and optimal representations of objects with piecewise C2 singularities*: Communications on Pure and Applied Mathematics, 57, 219–266.
 
-[5] Luan, S., C. Chen, B. Zhang, J. Han, and J. Liu, 2018, Gabor Convolutional Networks: IEEE Transactions on Image Processing, 27, 4357–4366.
+[5] Luan, S., C. Chen, B. Zhang, J. Han, and J. Liu, 2018, *Gabor Convolutional Networks*: IEEE Transactions on Image Processing, 27, 4357–4366.
 
-[6] Bruna, J., and S. Mallat, 2013, Invariant Scattering Convolution Networks: IEEE Transactions on Pattern Analysis and Machine Intelligence, 35, 1872–1886.
+[6] Bruna, J., and S. Mallat, 2013, *Invariant Scattering Convolution Networks*: IEEE Transactions on Pattern Analysis and Machine Intelligence, 35, 1872–1886.
