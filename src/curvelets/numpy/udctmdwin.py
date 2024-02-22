@@ -122,13 +122,13 @@ def _inplace_normalize_windows(
 ) -> None:
     sumw2 = np.zeros(size)
     idx, val = from_sparse_new(udctwin[0][0][0])
-    sumw2.flat[idx] += val.ravel() ** 2
+    sumw2.flat[idx] += val**2
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
                 tmpw = np.zeros(size)
                 idx, val = from_sparse_new(udctwin[ires][idir][iang])
-                tmpw.flat[idx] += val.ravel() ** 2
+                tmpw.flat[idx] += val**2
                 sumw2 += tmpw
                 tmpw = fftflip(tmpw, idir)
                 sumw2 += tmpw
