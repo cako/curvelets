@@ -17,7 +17,7 @@ def udctmddec(
 
     fband = np.zeros_like(imf)
     idx, val = from_sparse_new(udctwin[0][0][0])
-    fband.T.flat[idx] = imf.T.flat[idx] * val
+    fband.flat[idx] = imf.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
     coeff = {}
@@ -37,7 +37,7 @@ def udctmddec(
             for ang in range(len(udctwin[res][dir])):
                 fband = np.zeros_like(imf)
                 idx, val = from_sparse_new(udctwin[res][dir][ang])
-                fband.T.flat[idx] = imf.T.flat[idx] * val
+                fband.flat[idx] = imf.flat[idx] * val
 
                 cband = np.fft.ifftn(fband)
                 decim = decimation_ratio[res][dir, :]
@@ -66,7 +66,7 @@ def udctmdrec(
                 cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir, :]))
                 cband = np.prod(decimation_ratio[res][dir, :]) * np.fft.fftn(cband)
                 idx, val = from_sparse_new(udctwin[res][dir][ang])
-                imf.T.flat[idx] += cband.T.flat[idx] * val
+                imf.flat[idx] += cband.flat[idx] * val
 
     imfl = np.zeros(param_udct.size, dtype=cdtype)
     decimlow = np.full(
@@ -75,7 +75,7 @@ def udctmdrec(
     cband = upsamp(coeff[0][0][0], decimlow)
     cband = np.sqrt(np.prod(decimlow)) * np.fft.fftn(cband)
     idx, val = from_sparse_new(udctwin[0][0][0])
-    imfl.T.flat[idx] += cband.T.flat[idx] * val
+    imfl.flat[idx] += cband.flat[idx] * val
     imf = 2 * imf + imfl
     return np.fft.ifftn(imf).real
 

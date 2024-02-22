@@ -55,7 +55,7 @@ def test_compare_with_reference(dim):
                 )
                 idx, val = from_sparse_new(udctwin[0][0][0])
                 win[...] = 0  # Reset
-                win.T.flat[idx] = val  # Fill
+                win.flat[idx] = val  # Fill
 
                 idx, val = from_sparse(udctwin_ref[1][1])
                 win_ref[...] = 0  # Reset
@@ -73,7 +73,7 @@ def test_compare_with_reference(dim):
                 for ang in udctwin_ref[res][dir]:
                     idx, val = from_sparse_new(udctwin[res - 1][dir - 1][ang - 1])
                     win[...] = 0  # Reset
-                    win.T.flat[idx] = val  # Fill
+                    win.flat[idx] = val  # Fill
 
                     idx, val = from_sparse(udctwin_ref[res][dir][ang])
                     win_ref[...] = 0  # Reset

@@ -122,25 +122,25 @@ def _inplace_normalize_windows(
 ) -> None:
     sumw2 = np.zeros(size)
     idx, val = from_sparse_new(udctwin[0][0][0])
-    sumw2.T.flat[idx] += val.T.ravel() ** 2
+    sumw2.flat[idx] += val.ravel() ** 2
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
                 tmpw = np.zeros(size)
                 idx, val = from_sparse_new(udctwin[ires][idir][iang])
-                tmpw.T.flat[idx] += val.T.ravel() ** 2
+                tmpw.flat[idx] += val.ravel() ** 2
                 sumw2 += tmpw
                 tmpw = fftflip(tmpw, idir)
                 sumw2 += tmpw
 
     sumw2 = np.sqrt(sumw2)
     idx, _ = from_sparse_new(udctwin[0][0][0])
-    udctwin[0][0][0][:, 1] /= sumw2.T.ravel()[idx]
+    udctwin[0][0][0][:, 1] /= sumw2.ravel()[idx]
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
                 idx, _ = from_sparse_new(udctwin[ires][idir][iang])
-                udctwin[ires][idir][iang][:, 1] /= sumw2.T.ravel()[idx]
+                udctwin[ires][idir][iang][:, 1] /= sumw2.ravel()[idx]
 
 
 def _calculate_decimation_ratios(

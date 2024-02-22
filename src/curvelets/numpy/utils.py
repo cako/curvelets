@@ -138,14 +138,18 @@ def travel(arr: np.ndarray) -> np.ndarray:
     return arr.T.ravel()
 
 
+def travel_new(arr: np.ndarray) -> np.ndarray:
+    return arr.ravel()
+
+
 def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
     idx = np.argwhere(travel(arr) > thresh)
     return np.c_[idx + 1, travel(arr)[idx]]
 
 
 def to_sparse_new(arr: np.ndarray, thresh: float) -> np.ndarray:
-    idx = np.argwhere(travel(arr) > thresh)
-    return np.c_[idx, travel(arr)[idx]]
+    idx = np.argwhere(travel_new(arr) > thresh)
+    return np.c_[idx, travel_new(arr)[idx]]
 
 
 def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
