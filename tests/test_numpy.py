@@ -35,7 +35,7 @@ def test_compare_with_reference(dim):
     udctwin = my_udct.windows
     udctwin_ref, _ = udct_ref.udctmdwin(param_ref)
 
-    rdtype = udctwin[0][0][0].real.dtype
+    rdtype = udctwin[0][0][0][1].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
     win = np.zeros(param_ref.size, dtype=cdtype)
     win_ref = np.zeros(param_ref.size, dtype=cdtype)

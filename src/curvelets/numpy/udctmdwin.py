@@ -134,13 +134,13 @@ def _inplace_normalize_windows(
                 sumw2 += tmpw
 
     sumw2 = np.sqrt(sumw2)
-    idx, _ = from_sparse_new(udctwin[0][0][0])
-    udctwin[0][0][0][:, 1] /= sumw2.ravel()[idx]
+    idx, val = from_sparse_new(udctwin[0][0][0])
+    val /= sumw2.ravel()[idx]
     for ires in range(1, res + 1):
         for idir in range(dim):
             for iang in range(len(udctwin[ires][idir])):
-                idx, _ = from_sparse_new(udctwin[ires][idir][iang])
-                udctwin[ires][idir][iang][:, 1] /= sumw2.ravel()[idx]
+                idx, val = from_sparse_new(udctwin[ires][idir][iang])
+                val /= sumw2.ravel()[idx]
 
 
 def _calculate_decimation_ratios(

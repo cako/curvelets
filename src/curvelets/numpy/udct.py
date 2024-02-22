@@ -54,7 +54,7 @@ def udctmdrec(
     udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
     decimation_ratio: dict[int, npt.NDArray[np.int_]],
 ) -> np.ndarray:
-    rdtype = udctwin[0][0][0].real.dtype
+    rdtype = udctwin[0][0][0][1].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
     imf = np.zeros(param_udct.size, dtype=cdtype)
 

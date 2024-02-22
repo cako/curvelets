@@ -148,8 +148,8 @@ def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
 
 
 def to_sparse_new(arr: np.ndarray, thresh: float) -> np.ndarray:
-    idx = np.argwhere(travel_new(arr) > thresh)
-    return np.c_[idx, travel_new(arr)[idx]]
+    idx = np.argwhere(arr.ravel() > thresh)
+    return [idx, arr.ravel()[idx]]
 
 
 def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -158,10 +158,8 @@ def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return idx, val
 
 
-def from_sparse_new(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    idx = arr[:, 0].astype(int)
-    val = arr[:, 1]
-    return idx, val
+def from_sparse_new(arr_list: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    return arr_list
 
 
 def upsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
