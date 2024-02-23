@@ -161,7 +161,7 @@ def _calculate_decimation_ratios(
 
 
 def _inplace_sort_windows(
-    udctwin: dict[int, dict[int, dict[int, np.ndarray]]],
+    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
     indices: dict[int, dict[int, np.ndarray]],
     res: int,
     dim: int,
@@ -207,7 +207,7 @@ def udctmdwin(
     Winlow = circshift(np.sqrt(F2d[0]), tuple(s // 4 for s in param_udct.size))
 
     # convert to sparse format
-    udctwin: dict[int, dict[int, dict[int, np.ndarray]]] = {}
+    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]] = {}
     udctwin[0] = {}
     udctwin[0][0] = {}
     udctwin[0][0][0] = to_sparse_new(Winlow, param_udct.winthresh)
@@ -249,7 +249,7 @@ def udctmdwin(
             for i3 in range(lent):
                 # for each calculated windows function, estimated all the other
                 # flipped window functions
-                win = np.ones(param_udct.size, dtype=float)
+                win: npt.NDArray[np.floating] = np.ones(param_udct.size, dtype=float)
                 for i4 in range(param_udct.dim - 1):
                     idx = i1_ang.reshape(len(i1_ang), -1)[i3, i4]
                     tmp1 = Mangs[ires - 1][(idim, i4)][idx]

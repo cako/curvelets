@@ -90,7 +90,7 @@ def angle_fun(Mgrid: np.ndarray, direction: int, n: int, alpha: float) -> np.nda
 
 
 def angle_kron(
-    angle_fun: np.ndarray, nper: np.ndarray, param_udct: ParamUDCT
+    angle_arr: np.ndarray, nper: np.ndarray, param_udct: ParamUDCT
 ) -> np.ndarray:
     # , nper, param_udct
     krsz: npt.NDArray[np.int_] = np.ones(3, dtype=int)
@@ -98,9 +98,7 @@ def angle_kron(
     krsz[1] = np.prod(param_udct.size[nper[0] : nper[1] - 1])
     krsz[2] = np.prod(param_udct.size[nper[1] : param_udct.dim])
 
-    tmp = angle_fun
-
-    tmp1 = np.kron(np.ones((krsz[1], 1), dtype=int), tmp)
+    tmp1 = np.kron(np.ones((krsz[1], 1), dtype=int), angle_arr)
     tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), travel(tmp1)).ravel()
     tmp3 = travel(np.kron(tmp2, np.ones((krsz[0], 1), dtype=int)))
     return tmp3.reshape(*param_udct.size[::-1]).T
