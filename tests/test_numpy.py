@@ -27,7 +27,7 @@ def test_compare_with_reference(dim):
     r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
     winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1).item())
 
-    my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+    my_udct = udct.UDCT(shape=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
     param_ref = udct_ref.ParamUDCT(
         dim=dim, size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh
     )
@@ -132,7 +132,7 @@ def test_round_trip_absolute(dim):
     r = tuple(np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3)
     winthresh = 1e-5
 
-    my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+    my_udct = udct.UDCT(shape=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
     im2 = my_udct.backward(coeffs)
@@ -182,7 +182,7 @@ def test_round_trip_rel(dim):
     r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
     winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1))
 
-    my_udct = udct.UDCT(size=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+    my_udct = udct.UDCT(shape=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
     im2 = my_udct.backward(coeffs)
