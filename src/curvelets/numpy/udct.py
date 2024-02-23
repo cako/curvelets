@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import numpy.typing as npt
 
@@ -95,8 +97,43 @@ class UDCT:
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
         one = np.pi / 3
         r1 = (one, 2 * one, 2 * one, 4 * one) if r is None else r
+
+class SimpleUDCT:
+    def __init__(
+        self,
+        shape: tuple[int, ...],
+        nscales: int = 3,
+        nbands_per_direction: int = 3,
+        alpha: float | None = None,
+        winthresh: float = 1e-5,
+    ) -> None:
+        assert nscales > 1
+        assert nbands_per_direction >= 3
+
+        dim = len(shape)
+        nbands: npt.NDArray[np.int_] = (
+            nbands_per_direction * 2 ** np.arange(nscales - 1)
+        ).astype(int)
+
+        if alpha is None:
+            if nbands_per_direction == 3:
+                alpha = 0.15
+            elif nbands_per_direction == 4:
+                alpha = 0.3
+            elif nbands_per_direction == 5:
+                alpha = 0.5
+            else:
+                alpha = 0.5
+        for i, nb in enumerate(nbands, start=1):
+            if 2**i * (1 + 2 * alpha) * (1 + alpha) >= nb:
+                msg = f"alpha={alpha:.3f} does not respect respect the relationship (2^{i}/{nb})(1+2α)(1+α) < 1 for scale {i+1}"  # noqa: RUF001
+                logging.warning(msg)
+        cfg = np.tile(nbands[:, None], dim)
+        r: tuple[float, float, float, float] = tuple(  # type: ignore [assignment]
+            np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
+        )
         self.params = ParamUDCT(
-            dim=dim, size=size, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
+            dim=dim, size=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh
         )
 
         self.windows, self.decimation_ratio, self.indices = udctmdwin(self.params)
