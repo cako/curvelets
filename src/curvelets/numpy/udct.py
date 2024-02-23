@@ -34,20 +34,20 @@ def udctmddec(
     )
     coeff[0][0][0] *= norm
 
-    for res in range(1, 1 + param_udct.res):
-        coeff[res] = {}
-        for dir in range(param_udct.dim):
-            coeff[res][dir] = {}
-            for ang in range(len(udctwin[res][dir])):
+    for ires in range(1, 1 + param_udct.res):
+        coeff[ires] = {}
+        for idir in range(param_udct.dim):
+            coeff[ires][idir] = {}
+            for iang in range(len(udctwin[ires][idir])):
                 fband = np.zeros_like(imf)
-                idx, val = from_sparse_new(udctwin[res][dir][ang])
+                idx, val = from_sparse_new(udctwin[ires][idir][iang])
                 fband.flat[idx] = imf.flat[idx] * val
 
                 cband = np.fft.ifftn(fband)
-                decim = decimation_ratio[res][dir, :]
-                coeff[res][dir][ang] = downsamp(cband, decim)
-                coeff[res][dir][ang] *= np.sqrt(
-                    2 * np.prod(decimation_ratio[res][dir, :])
+                decim = decimation_ratio[ires][idir, :]
+                coeff[ires][idir][iang] = downsamp(cband, decim)
+                coeff[ires][idir][iang] *= np.sqrt(
+                    2 * np.prod(decimation_ratio[ires][idir, :])
                 )
     return coeff
 
@@ -62,14 +62,14 @@ def udctmdrec(
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
     imf = np.zeros(param_udct.size, dtype=cdtype)
 
-    for res in range(1, 1 + param_udct.res):
-        for dir in range(param_udct.dim):
-            for ang in range(len(udctwin[res][dir])):
-                decim = decimation_ratio[res][dir, :]
-                cband = upsamp(coeff[res][dir][ang], decim)
-                cband /= np.sqrt(2 * np.prod(decimation_ratio[res][dir, :]))
-                cband = np.prod(decimation_ratio[res][dir, :]) * np.fft.fftn(cband)
-                idx, val = from_sparse_new(udctwin[res][dir][ang])
+    for ires in range(1, 1 + param_udct.res):
+        for idir in range(param_udct.dim):
+            for iang in range(len(udctwin[ires][idir])):
+                decim = decimation_ratio[ires][idir, :]
+                cband = upsamp(coeff[ires][idir][iang], decim)
+                cband /= np.sqrt(2 * np.prod(decimation_ratio[ires][idir, :]))
+                cband = np.prod(decimation_ratio[ires][idir, :]) * np.fft.fftn(cband)
+                idx, val = from_sparse_new(udctwin[ires][idir][iang])
                 imf.flat[idx] += cband.flat[idx] * val
 
     imfl = np.zeros(param_udct.size, dtype=cdtype)
@@ -87,16 +87,29 @@ def udctmdrec(
 class UDCT:
     def __init__(
         self,
-        size: tuple[int, ...],
+        shape: tuple[int, ...],
         cfg: np.ndarray | None = None,
         alpha: float = 0.15,
         r: tuple[float, float, float, float] | None = None,
         winthresh: float = 1e-5,
     ) -> None:
-        dim = len(size)
+        dim = len(shape)
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
-        one = np.pi / 3
-        r1 = (one, 2 * one, 2 * one, 4 * one) if r is None else r
+        r1: tuple[float, float, float, float] = (  # type: ignore [assignment]
+            tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r  # type: ignore [assignment]
+        )
+        self.params = ParamUDCT(
+            dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
+        )
+
+        self.windows, self.decimation_ratio, self.indices = udctmdwin(self.params)
+
+    def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
+        return udctmddec(x, self.params, self.windows, self.decimation_ratio)
+
+    def backward(self, c: dict[int, dict[int, dict[int, np.ndarray]]]) -> np.ndarray:
+        return udctmdrec(c, self.params, self.windows, self.decimation_ratio)
+
 
 class SimpleUDCT:
     def __init__(
