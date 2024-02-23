@@ -95,8 +95,8 @@ class UDCT:
     ) -> None:
         dim = len(shape)
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
-        r1: tuple[float, float, float, float] = (  # type: ignore [assignment]
-            tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r  # type: ignore [assignment]
+        r1: tuple[float, float, float, float] = (
+            tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r
         )
         self.params = ParamUDCT(
             dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
@@ -142,7 +142,7 @@ class SimpleUDCT:
                 msg = f"alpha={alpha:.3f} does not respect respect the relationship (2^{i}/{nb})(1+2α)(1+α) < 1 for scale {i+1}"  # noqa: RUF001
                 logging.warning(msg)
         cfg = np.tile(nbands[:, None], dim)
-        r: tuple[float, float, float, float] = tuple(  # type: ignore [assignment]
+        r: tuple[float, float, float, float] = tuple(
             np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
         )
         self.params = ParamUDCT(
