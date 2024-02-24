@@ -20,7 +20,9 @@ def make_r(
         tuple((np.asarray(shape).astype(float) - 1) / 2) if origin is None else origin
     )
 
-    ramps = np.meshgrid(*[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)])
+    ramps = np.meshgrid(
+        *[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)], indexing="ij"
+    )
     return sum(x**2 for x in ramps) ** (exponent / 2)
 
 
