@@ -68,10 +68,25 @@ def _nchoosek(n: Any, k: Any) -> np.ndarray:
     return np.asarray(list(combinations(n, k)))
 
 
+def _create_mdirs(dim: int, res: int) -> list[np.ndarray]:
+    # Mdir is dimension of need to calculate angle function on each
+    # hyperpyramid
+    return [
+        np.c_[[np.r_[np.arange(idim), np.arange(idim + 1, dim)] for idim in range(dim)]]
+        for ires in range(res)
+    ]
+    # Mdirs: dict[int, np.ndarray] = {}
+    # for ires in range(res):
+    #     Mdirs[ires] = np.zeros((dim, dim - 1), dtype=int)
+    #     for idim in range(dim):
+    #         Mdirs[ires][idim, :] = np.r_[range(idim), range(idim + 1, dim)]
+
+    # return Mdirs
+
+
 def _create_angle_info(
     Sgrid: dict[int, np.ndarray], dim: int, res: int, cfg: np.ndarray, alpha: float
 ) -> tuple[
-    dict[int, np.ndarray],
     dict[int, dict[tuple[int, int], np.ndarray]],
     dict[int, dict[tuple[int, int], np.ndarray]],
 ]:
@@ -84,22 +99,17 @@ def _create_angle_info(
         Mgrid[(ind, 1)] = out[1]
 
     # gather angle function for each pyramid
-    Mdirs: dict[int, np.ndarray] = {}
     Mangs: dict[int, dict[tuple[int, int], np.ndarray]] = {}
     Minds: dict[int, dict[tuple[int, int], np.ndarray]] = {}
     for ires in range(res):
         Mangs[ires] = {}
         Minds[ires] = {}
-        Mdirs[ires] = np.zeros((dim, dim - 1), dtype=int)
         # for each resolution
         for idim in range(dim):
             # for each pyramid in resolution res
             cnt = 0
             # cnt is number of angle function required for each pyramid
             # now loop through mperms
-            Mdirs[ires][idim, :] = np.r_[range(idim), range(idim + 1, dim)]
-            # Mdir is dimension of need to calculate angle function on each
-            # hyperpyramid
             for ihyp in range(mperms.shape[0]):
                 for idir in range(mperms.shape[1]):
                     if mperms[ihyp, idir] == idim:
@@ -111,7 +121,7 @@ def _create_angle_info(
                         )
                         Minds[ires][(idim, cnt)] = mperms[ihyp, :] + 1
                         cnt += 1
-    return Mdirs, Mangs, Minds
+    return Mangs, Minds
 
 
 def _inplace_normalize_windows(
@@ -144,7 +154,7 @@ def _inplace_normalize_windows(
 
 
 def _calculate_decimation_ratios(
-    res: int, dim: int, cfg: np.ndarray, Mdirs: dict[int, np.ndarray]
+    res: int, dim: int, cfg: np.ndarray, Mdirs: list[np.ndarray]
 ) -> dict[int, npt.NDArray[np.int_]]:
     decimation_ratio: dict[int, npt.NDArray[np.int_]] = {}
     for ires in range(1, res + 1):
@@ -216,12 +226,18 @@ def udctmdwin(
     indices: dict[int, dict[int, np.ndarray]] = {}
     indices[0] = {}
     indices[0][0] = np.zeros((1, 1), dtype=int)
-    Mdirs, Mangs, Minds = _create_angle_info(
+    Mdirs = _create_mdirs(dim=param_udct.dim, res=param_udct.res)
+    Mangs, Minds = _create_angle_info(
         Sgrid,
         dim=param_udct.dim,
         res=param_udct.res,
         cfg=param_udct.cfg,
         alpha=param_udct.alpha,
+    )
+
+    # decimation ratio for each band
+    decimation_ratio = _calculate_decimation_ratios(
+        res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
     )
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
@@ -304,11 +320,6 @@ def udctmdwin(
     # sort the window
     _inplace_sort_windows(
         udctwin=udctwin, indices=indices, res=param_udct.res, dim=param_udct.dim
-    )
-
-    # decimation ratio for each band
-    decimation_ratio = _calculate_decimation_ratios(
-        res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
     )
 
     return udctwin, decimation_ratio, indices
