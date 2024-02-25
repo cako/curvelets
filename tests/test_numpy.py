@@ -12,7 +12,7 @@ from curvelets.numpy.utils import from_sparse, from_sparse_new
 def test_compare_with_reference(dim):
     rng = np.random.default_rng()
 
-    opts = [32, 64, 128, 256]
+    opts = [16, 32, 64, 128, 256]
     if dim == 3:
         opts = opts[:2]
     elif dim >= 4:
@@ -126,6 +126,8 @@ def test_round_trip_absolute(dim):
         size = (256, 256)
     elif dim == 3:
         size = tuple(4 * np.array([32, 32, 32]))
+    elif dim == 3:
+        size = tuple(16, 16, 16, 16)
     cfg = (
         np.array([[3, 3], [6, 6], [12, 6]])
         if dim == 2
@@ -164,15 +166,15 @@ def test_round_trip_absolute(dim):
     np.testing.assert_allclose(im, im2, atol=1e-4)
 
 
-@pytest.mark.parametrize("dim", list(range(2, 4)))
+@pytest.mark.parametrize("dim", list(range(2, 5)))
 def test_round_trip_rel(dim):
     rng = np.random.default_rng()
 
     # For random parameters in the range below, we can guarantee an relative precision of
     # approximately 0.5% of the maximum amplitude in the original image.
-    opts = [32, 64, 128, 256]
+    opts = [16, 32, 64, 128, 256]
     if dim == 3:
-        opts = opts[:2]
+        opts = opts[:3]
     elif dim >= 4:
         opts = opts[:1]
     size = rng.choice(opts, size=dim, replace=True)
