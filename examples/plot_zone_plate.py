@@ -83,10 +83,10 @@ print(f"Max Error: {opts['vmax']:.2g}")  # noqa: T201
 # %%
 # Curvelet Coefficients: Amplitude and Phase
 # ##########################################
-for i in coeffs:
-    for j in coeffs[i]:
-        for a in coeffs[i][j]:
-            z = coeffs[i][j][a]
+for ires, _ in enumerate(coeffs):
+    for idir, _ in enumerate(coeffs[ires]):
+        for iang, _ in enumerate(coeffs[ires][idir]):
+            z = coeffs[ires][idir][iang]
             opts["vmax"] = np.abs(z).max()
             opts["vmin"] = 0
             opts["cmap"] = "gray"
@@ -104,7 +104,7 @@ for i in coeffs:
             cb.ax.yaxis.set_major_formatter(lambda x, _: f"{x:.0f}°")
             axs[0].set(title="Amplitude")
             axs[1].set(title="Phase")
-            fig.suptitle(f"Scale {i} | Direction {j} | Angle {a}")
+            fig.suptitle(f"Scale {ires} | Direction {idir} | Angle {iang}")
             fig.tight_layout()
 
 
@@ -112,10 +112,10 @@ for i in coeffs:
 # Curvelet Coefficients: Real and Imaginary
 # #########################################
 opts["cmap"] = "gray"
-for i in coeffs:
-    for j in coeffs[i]:
-        for a in coeffs[i][j]:
-            z = coeffs[i][j][a]
+for ires, _ in enumerate(coeffs):
+    for idir, _ in enumerate(coeffs[ires]):
+        for iang, _ in enumerate(coeffs[ires][idir]):
+            z = coeffs[ires][idir][iang]
             opts["vmax"] = np.abs(z).max()
             opts["vmin"] = -opts["vmax"]
             fig, axs = plt.subplots(1, 2, figsize=(8, 3))
@@ -126,5 +126,5 @@ for i in coeffs:
                 cb.ax.yaxis.set_major_formatter(fmt)
             axs[0].set(title="Real")
             axs[1].set(title="Imaginary")
-            fig.suptitle(f"Scale {i} | Direction {j} | Angle {a}")
+            fig.suptitle(f"Scale {ires} | Direction {idir} | Angle {iang}")
             fig.tight_layout()
