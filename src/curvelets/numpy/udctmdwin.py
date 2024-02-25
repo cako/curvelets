@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
+from .typing import UDCTWindows
 from .utils import (
     ParamUDCT,
     adapt_grid,
@@ -125,10 +126,7 @@ def _create_angle_info(
 
 
 def _inplace_normalize_windows(
-    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
-    size: tuple[int, ...],
-    dim: int,
-    res: int,
+    udctwin: UDCTWindows, size: tuple[int, ...], dim: int, res: int
 ) -> None:
     sumw2 = np.zeros(size)
     idx, val = from_sparse_new(udctwin[0][0][0])
@@ -172,12 +170,8 @@ def _calculate_decimation_ratios_with_lowest(
 
 
 def _inplace_sort_windows(
-    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
-    indices: dict[int, dict[int, np.ndarray]],
-    res: int,
-    dim: int,
+    udctwin: UDCTWindows, indices: dict[int, dict[int, np.ndarray]], res: int, dim: int
 ) -> None:
-    newwin = {}
     for ires in range(1, res + 1):
         for idim in range(dim):
             mlist = indices[ires][idim]
@@ -198,30 +192,23 @@ def _inplace_sort_windows(
                 )
             )
 
-            newind = mlist[ix]
-            for i, idx in enumerate(ix):
-                newwin[i] = udctwin[ires][idim][idx]
-            indices[ires][idim] = newind.copy()
-            udctwin[ires][idim] = newwin.copy()
+            indices[ires][idim] = mlist[ix]
+            udctwin[ires][idim] = [udctwin[ires][idim][idx] for idx in ix]
 
 
 def udctmdwin(
     param_udct: ParamUDCT,
-) -> tuple[
-    dict[int, dict[int, dict[int, list[np.ndarray]]]],
-    dict[int, npt.NDArray[np.int_]],
-    dict[int, dict[int, np.ndarray]],
-]:
+) -> tuple[UDCTWindows, list[npt.NDArray[np.int_]], dict[int, dict[int, np.ndarray]]]:
     Sgrid, F2d = _create_bandpass_windows(
         nscales=param_udct.res, shape=param_udct.size, r=param_udct.r
     )
     Winlow = circshift(np.sqrt(F2d[0]), tuple(s // 4 for s in param_udct.size))
 
     # convert to sparse format
-    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]] = {}
-    udctwin[0] = {}
-    udctwin[0][0] = {}
-    udctwin[0][0][0] = to_sparse_new(Winlow, param_udct.winthresh)
+    udctwin: UDCTWindows = []
+    udctwin.append([])
+    udctwin[0].append([])
+    udctwin[0][0] = [to_sparse_new(Winlow, param_udct.winthresh)]
 
     # `indices` gets stored as `param_udct.ind` in the original.
     indices: dict[int, dict[int, np.ndarray]] = {}
@@ -245,10 +232,10 @@ def udctmdwin(
     # dimension (column)
     for ires in range(1, param_udct.res + 1):
         # for each resolution
-        udctwin[ires] = {}
+        udctwin.append([])
         indices[ires] = {}
         for idim in range(param_udct.dim):
-            udctwin[ires][idim] = {}
+            udctwin[ires].append([])
             # for each hyperpyramid
             i1_ang = np.arange(len(Mangs[ires - 1][(idim, 0)]))[:, None]
             for i2 in range(1, param_udct.dim - 1):
@@ -300,16 +287,18 @@ def udctmdwin(
                 if i3 == 0:
                     ang_ind = i2_ang
                     for i7 in range(ang_ind.shape[0]):
-                        udctwin[ires][idim][i7] = to_sparse_new(
-                            angle_functions[i7], param_udct.winthresh
+                        udctwin[ires][idim].append(
+                            to_sparse_new(angle_functions[i7], param_udct.winthresh)
                         )
                 else:
                     inold = ang_ind.shape[0]
                     ang_ind = np.concatenate((ang_ind, i2_ang), axis=0)
                     innew = ang_ind.shape[0]
                     for i7 in range(inold, innew):
-                        udctwin[ires][idim][i7] = to_sparse_new(
-                            angle_functions[i7 - inold], param_udct.winthresh
+                        udctwin[ires][idim].append(
+                            to_sparse_new(
+                                angle_functions[i7 - inold], param_udct.winthresh
+                            )
                         )
                     indices[ires][idim] = ang_ind.copy()
 

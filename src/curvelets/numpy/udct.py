@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+from math import prod
 
 import numpy as np
 import numpy.typing as npt
 
+from .typing import UDCTCoefficients, UDCTWindows
 from .udctmdwin import udctmdwin
 from .utils import ParamUDCT, downsamp, from_sparse_new, upsamp
 
@@ -12,9 +14,9 @@ from .utils import ParamUDCT, downsamp, from_sparse_new, upsamp
 def udctmddec(
     im: np.ndarray,
     param_udct: ParamUDCT,
-    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
-    decimation_ratio: dict[int, npt.NDArray[np.int_]],
-) -> dict[int, dict[int, dict[int, np.ndarray]]]:
+    udctwin: UDCTWindows,
+    decimation_ratio: list[npt.NDArray[np.int_]],
+) -> UDCTCoefficients:
     imf = np.fft.fftn(im)
 
     fband = np.zeros_like(imf)
@@ -22,19 +24,16 @@ def udctmddec(
     fband.flat[idx] = imf.flat[idx] * val
     cband = np.fft.ifftn(fband)
 
-    coeff: dict[int, dict[int, dict[int, np.ndarray]]] = {}
-    coeff[0] = {}
-    coeff[0][0] = {}
-    coeff[0][0][0] = downsamp(cband, decimation_ratio[0][0])
+    coeff: UDCTCoefficients = [[[downsamp(cband, decimation_ratio[0][0])]]]
     norm = np.sqrt(
         np.prod(np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1)))
     )
     coeff[0][0][0] *= norm
 
     for ires in range(1, 1 + param_udct.res):
-        coeff[ires] = {}
+        coeff.append([])
         for idir in range(param_udct.dim):
-            coeff[ires][idir] = {}
+            coeff[ires].append([])
             for iang in range(len(udctwin[ires][idir])):
                 fband = np.zeros_like(imf)
                 idx, val = from_sparse_new(udctwin[ires][idir][iang])
@@ -42,7 +41,7 @@ def udctmddec(
 
                 cband = np.fft.ifftn(fband)
                 decim = decimation_ratio[ires][idir, :]
-                coeff[ires][idir][iang] = downsamp(cband, decim)
+                coeff[ires][idir].append(downsamp(cband, decim))
                 coeff[ires][idir][iang] *= np.sqrt(
                     2 * np.prod(decimation_ratio[ires][idir, :])
                 )
@@ -50,10 +49,10 @@ def udctmddec(
 
 
 def udctmdrec(
-    coeff: dict[int, dict[int, dict[int, np.ndarray]]],
+    coeff: UDCTCoefficients,
     param_udct: ParamUDCT,
-    udctwin: dict[int, dict[int, dict[int, list[np.ndarray]]]],
-    decimation_ratio: dict[int, npt.NDArray[np.int_]],
+    udctwin: UDCTWindows,
+    decimation_ratio: list[npt.NDArray[np.int_]],
 ) -> np.ndarray:
     rdtype = udctwin[0][0][0][1].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
@@ -87,11 +86,12 @@ class UDCT:
         r: tuple[float, float, float, float] | None = None,
         winthresh: float = 1e-5,
     ) -> None:
+        self.shape = shape
         dim = len(shape)
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
         r1: tuple[float, float, float, float] = (
             tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r
-        )
+        )  # type: ignore[assignment]
         self.params = ParamUDCT(
             dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
@@ -101,7 +101,7 @@ class UDCT:
     def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
         return udctmddec(x, self.params, self.windows, self.decimation)
 
-    def backward(self, c: dict[int, dict[int, dict[int, np.ndarray]]]) -> np.ndarray:
+    def backward(self, c: UDCTCoefficients) -> np.ndarray:
         return udctmdrec(c, self.params, self.windows, self.decimation)
 
 
@@ -138,6 +138,6 @@ class SimpleUDCT(UDCT):
         cfg = np.tile(nbands[:, None], dim)
         r: tuple[float, float, float, float] = tuple(
             np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
-        )
+        )  # type: ignore[assignment]
 
         super().__init__(shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)

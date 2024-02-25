@@ -23,8 +23,10 @@ def test_compare_with_reference(dim):
         if dim == 2
         else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
     )
-    alpha = 0.3 * rng.uniform(size=1)
-    r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
+    alpha = 0.3 * rng.uniform(size=1).item()
+    r: tuple[float, float, float, float] = tuple(
+        np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
+    )
     winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1).item())
 
     my_udct = udct.UDCT(shape=size, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
@@ -34,6 +36,7 @@ def test_compare_with_reference(dim):
 
     udctwin = my_udct.windows
     udctwin_ref = udct_ref.udctmdwin(param_ref)
+    assert param_ref.ind is not None
 
     rdtype = udctwin[0][0][0][1].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
@@ -41,11 +44,11 @@ def test_compare_with_reference(dim):
     win_ref = np.zeros(param_ref.size, dtype=cdtype)
 
     np.testing.assert_array_equal(
-        1 + np.asarray(list(udctwin.keys())), np.asarray(list(udctwin_ref.keys()))
+        1 + np.arange(len(udctwin)), np.asarray(list(udctwin_ref.keys()))
     )
     for res in udctwin_ref:
         np.testing.assert_array_equal(
-            1 + np.asarray(list(udctwin[res - 1].keys())),
+            1 + np.arange(len(udctwin[res - 1])),
             np.asarray(list(udctwin_ref[res].keys())),
         )
         for dir in udctwin_ref[res]:
@@ -67,7 +70,7 @@ def test_compare_with_reference(dim):
                     1 + my_udct.indices[res - 1][dir - 1], param_ref.ind[res][dir]
                 )
                 np.testing.assert_array_equal(
-                    1 + np.asarray(list(udctwin[res - 1][dir - 1].keys())),
+                    1 + np.arange(len(udctwin[res - 1][dir - 1])),
                     np.asarray(list(udctwin_ref[res][dir].keys())),
                 )
                 for ang in udctwin_ref[res][dir]:
@@ -85,11 +88,11 @@ def test_compare_with_reference(dim):
     coeffs_ref = udct_ref.udctmddec(im, param_udct=param_ref, udctwin=udctwin_ref)
 
     np.testing.assert_array_equal(
-        1 + np.asarray(list(coeffs.keys())), np.asarray(list(coeffs_ref.keys()))
+        1 + np.arange(len(coeffs)), np.asarray(list(coeffs_ref.keys()))
     )
     for res in coeffs_ref:
         np.testing.assert_array_equal(
-            1 + np.asarray(list(coeffs[res - 1].keys())),
+            1 + np.arange(len(coeffs[res - 1])),
             np.asarray(list(coeffs_ref[res].keys())),
         )
         for dir in coeffs_ref[res]:
@@ -99,7 +102,7 @@ def test_compare_with_reference(dim):
                 )
             else:
                 np.testing.assert_array_equal(
-                    1 + np.asarray(list(coeffs[res - 1][dir - 1].keys())),
+                    1 + np.arange(len(coeffs[res - 1][dir - 1])),
                     np.asarray(list(coeffs_ref[res][dir].keys())),
                 )
                 for ang in coeffs_ref[res][dir]:

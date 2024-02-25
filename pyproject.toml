@@ -29,7 +29,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["numpy>=1.20"]
+dependencies = ["numpy>=1.20", "typing_extensions; python_version<='3.10'"]
 
 [project.optional-dependencies]
 test = ["pytest >=6", "pytest-cov >=3"]
