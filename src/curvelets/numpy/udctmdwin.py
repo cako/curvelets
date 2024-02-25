@@ -153,19 +153,20 @@ def _inplace_normalize_windows(
                 val /= sumw2.ravel()[idx]
 
 
-def _calculate_decimation_ratios(
+def _calculate_decimation_ratios_with_lowest(
     res: int, dim: int, cfg: np.ndarray, Mdirs: list[np.ndarray]
-) -> dict[int, npt.NDArray[np.int_]]:
-    decimation_ratio: dict[int, npt.NDArray[np.int_]] = {}
+) -> list[npt.NDArray[np.int_]]:
+    decimation_ratio: list[npt.NDArray[np.int_]] = [
+        np.full((1, dim), fill_value=2 ** (res - 1), dtype=int)
+    ]
     for ires in range(1, res + 1):
-        decimation_ratio[ires] = np.full(
-            (dim, dim), fill_value=2.0 ** (res - ires + 1), dtype=int
+        decimation_ratio.append(
+            np.full((dim, dim), fill_value=2.0 ** (res - ires + 1), dtype=int)
         )
         for i0 in range(dim):
-            i1 = Mdirs[ires - 1][i0, :]
-            i3 = Mdirs[ires - 1][i0, :]
-            decimation_ratio[ires][i0, i1] = (
-                2.0 ** (res - ires) * 2 * cfg[ires - 1, i3] / 3
+            i1s = Mdirs[ires - 1][i0, :]
+            decimation_ratio[ires][i0, i1s] = (
+                2 * cfg[ires - 1, i1s] * 2 ** (res - ires) // 3
             )
     return decimation_ratio
 
@@ -236,7 +237,7 @@ def udctmdwin(
     )
 
     # decimation ratio for each band
-    decimation_ratio = _calculate_decimation_ratios(
+    decimation_ratio = _calculate_decimation_ratios_with_lowest(
         res=param_udct.res, dim=param_udct.dim, cfg=param_udct.cfg, Mdirs=Mdirs
     )
 

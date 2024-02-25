@@ -25,10 +25,7 @@ def udctmddec(
     coeff: dict[int, dict[int, dict[int, np.ndarray]]] = {}
     coeff[0] = {}
     coeff[0][0] = {}
-    decim: npt.NDArray[np.int_] = np.full(
-        (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
-    )
-    coeff[0][0][0] = downsamp(cband, decim)
+    coeff[0][0][0] = downsamp(cband, decimation_ratio[0][0])
     norm = np.sqrt(
         np.prod(np.full((param_udct.dim,), fill_value=2 ** (param_udct.res - 1)))
     )
@@ -73,11 +70,8 @@ def udctmdrec(
                 imf.flat[idx] += cband.flat[idx] * val
 
     imfl = np.zeros(param_udct.size, dtype=cdtype)
-    decimlow: npt.NDArray[np.int_] = np.full(
-        (param_udct.dim,), fill_value=2 ** (param_udct.res - 1), dtype=int
-    )
-    cband = upsamp(coeff[0][0][0], decimlow)
-    cband = np.sqrt(np.prod(decimlow)) * np.fft.fftn(cband)
+    cband = upsamp(coeff[0][0][0], decimation_ratio[0][0])
+    cband = np.sqrt(np.prod(decimation_ratio[0][0])) * np.fft.fftn(cband)
     idx, val = from_sparse_new(udctwin[0][0][0])
     imfl.flat[idx] += cband.flat[idx] * val
     imf = 2 * imf + imfl
@@ -102,13 +96,13 @@ class UDCT:
             dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
 
-        self.windows, self.decimation_ratio, self.indices = udctmdwin(self.params)
+        self.windows, self.decimation, self.indices = udctmdwin(self.params)
 
     def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
-        return udctmddec(x, self.params, self.windows, self.decimation_ratio)
+        return udctmddec(x, self.params, self.windows, self.decimation)
 
     def backward(self, c: dict[int, dict[int, dict[int, np.ndarray]]]) -> np.ndarray:
-        return udctmdrec(c, self.params, self.windows, self.decimation_ratio)
+        return udctmdrec(c, self.params, self.windows, self.decimation)
 
 
 class SimpleUDCT:
@@ -149,10 +143,10 @@ class SimpleUDCT:
             dim=dim, size=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh
         )
 
-        self.windows, self.decimation_ratio, self.indices = udctmdwin(self.params)
+        self.windows, self.decimation, self.indices = udctmdwin(self.params)
 
     def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
-        return udctmddec(x, self.params, self.windows, self.decimation_ratio)
+        return udctmddec(x, self.params, self.windows, self.decimation)
 
     def backward(self, c: dict[int, dict[int, dict[int, np.ndarray]]]) -> np.ndarray:
-        return udctmdrec(c, self.params, self.windows, self.decimation_ratio)
+        return udctmdrec(c, self.params, self.windows, self.decimation)
