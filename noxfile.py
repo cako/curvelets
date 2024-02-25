@@ -11,7 +11,7 @@ DIR = Path(__file__).parent.resolve()
 nox.options.sessions = ["lint", "pylint", "tests"]
 
 
-@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
+@nox.session
 def lint(session: nox.Session) -> None:
     """
     Run the linter.
@@ -22,7 +22,7 @@ def lint(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
+@nox.session
 def pylint(session: nox.Session) -> None:
     """
     Run PyLint.
