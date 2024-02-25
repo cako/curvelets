@@ -122,12 +122,13 @@ def test_round_trip_absolute(dim):
 
     # For these specific parameters, we can guarantee an absolute precision of
     # approximately 1e-4
+    size: tuple[int, ...]
     if dim == 2:
         size = (256, 256)
     elif dim == 3:
         size = tuple(4 * np.array([32, 32, 32]))
     elif dim == 3:
-        size = tuple(16, 16, 16, 16)
+        size = (16, 16, 16, 16)
     cfg = (
         np.array([[3, 3], [6, 6], [12, 6]])
         if dim == 2

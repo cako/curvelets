@@ -91,7 +91,7 @@ class UDCT:
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
         r1: tuple[float, float, float, float] = (
             tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r
-        )  # type: ignore[assignment]
+        )
         self.params = ParamUDCT(
             dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
@@ -162,6 +162,6 @@ class SimpleUDCT(UDCT):
         cfg = np.tile(nbands[:, None], dim)
         r: tuple[float, float, float, float] = tuple(
             np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
-        )  # type: ignore[assignment]
+        )
 
         super().__init__(shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
