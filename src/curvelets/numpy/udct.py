@@ -100,21 +100,21 @@ class UDCT:
 
     def vect(self, coeffs: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
         coeffs_vec = []
-        for ires in range(len(coeffs)):
-            for idir in range(len(coeffs[ires])):
-                for iang in range(len(coeffs[ires][idir])):
-                    coeffs_vec.append(coeffs[ires][idir][iang].ravel())
+        for c in coeffs:
+            for d in c:
+                for a in d:
+                    coeffs_vec.append(a.ravel())
         return np.concatenate(coeffs_vec)
 
     def struct(self, coeffs_vec: npt.NDArray[np.complexfloating]) -> UDCTCoefficients:
         ibeg = 0
         coeffs: UDCTCoefficients = []
-        for ires in range(len(self.decimation)):
+        for ires, decres in enumerate(self.decimation):
             coeffs.append([])
-            for idir in range(len(self.decimation[ires])):
+            for idir, decdir in enumerate(decres):
                 coeffs[ires].append([])
                 for _ in self.windows[ires][idir]:
-                    shape_decim = self.shape // self.decimation[ires][idir]
+                    shape_decim = self.shape // decdir
                     iend = ibeg + prod(shape_decim)
                     coeffs[ires][idir].append(
                         coeffs_vec[ibeg:iend].reshape(shape_decim)

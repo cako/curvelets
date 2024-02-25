@@ -230,7 +230,7 @@ def udctmdwin(
 
     # Mang is 1-d angle function for each hyper pyramid (row) and each angle
     # dimension (column)
-    for ires in range(1, param_udct.res + 1):
+    for ires in range(1, param_udct.res + 1):  # pylint: disable=too-many-nested-blocks
         # for each resolution
         udctwin.append([])
         indices[ires] = {}
