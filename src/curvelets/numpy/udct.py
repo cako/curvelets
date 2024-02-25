@@ -105,7 +105,7 @@ class UDCT:
         return udctmdrec(c, self.params, self.windows, self.decimation)
 
 
-class SimpleUDCT:
+class SimpleUDCT(UDCT):
     def __init__(
         self,
         shape: tuple[int, ...],
@@ -139,14 +139,5 @@ class SimpleUDCT:
         r: tuple[float, float, float, float] = tuple(
             np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
         )
-        self.params = ParamUDCT(
-            dim=dim, size=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh
-        )
 
-        self.windows, self.decimation, self.indices = udctmdwin(self.params)
-
-    def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
-        return udctmddec(x, self.params, self.windows, self.decimation)
-
-    def backward(self, c: dict[int, dict[int, dict[int, np.ndarray]]]) -> np.ndarray:
-        return udctmdrec(c, self.params, self.windows, self.decimation)
+        super().__init__(shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
