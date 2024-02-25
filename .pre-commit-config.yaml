@@ -52,7 +52,7 @@ repos:
     rev: "v1.8.0"
     hooks:
       - id: mypy
-        args: ["--follow-imports=skip"]
+        args: ["--follow-imports=skip", "--python-version=3.11"]
         exclude: src/curvelets/reference|noxfile.py
         additional_dependencies:
           - pytest
