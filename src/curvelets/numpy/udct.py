@@ -98,7 +98,31 @@ class UDCT:
 
         self.windows, self.decimation, self.indices = udctmdwin(self.params)
 
-    def forward(self, x: np.ndarray) -> dict[int, dict[int, dict[int, np.ndarray]]]:
+    def vect(self, coeffs: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
+        coeffs_vec = []
+        for ires in range(len(coeffs)):
+            for idir in range(len(coeffs[ires])):
+                for iang in range(len(coeffs[ires][idir])):
+                    coeffs_vec.append(coeffs[ires][idir][iang].ravel())
+        return np.concatenate(coeffs_vec)
+
+    def struct(self, coeffs_vec: npt.NDArray[np.complexfloating]) -> UDCTCoefficients:
+        ibeg = 0
+        coeffs: UDCTCoefficients = []
+        for ires in range(len(self.decimation)):
+            coeffs.append([])
+            for idir in range(len(self.decimation[ires])):
+                coeffs[ires].append([])
+                for _ in self.windows[ires][idir]:
+                    shape_decim = self.shape // self.decimation[ires][idir]
+                    iend = ibeg + prod(shape_decim)
+                    coeffs[ires][idir].append(
+                        coeffs_vec[ibeg:iend].reshape(shape_decim)
+                    )
+                    ibeg = iend
+        return coeffs
+
+    def forward(self, x: np.ndarray) -> UDCTCoefficients:
         return udctmddec(x, self.params, self.windows, self.decimation)
 
     def backward(self, c: UDCTCoefficients) -> np.ndarray:

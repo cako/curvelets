@@ -214,3 +214,35 @@ def test_round_trip_rel(dim):
     #     pass
 
     np.testing.assert_allclose(im, im2, atol=0.005 * im.max())
+
+
+@pytest.mark.parametrize("dim", list(range(2, 5)))
+def test_vect_struct(dim):
+    rng = np.random.default_rng()
+
+    opts = [16, 32, 64, 128, 256]
+    if dim == 3:
+        opts = opts[:3]
+    elif dim >= 4:
+        opts = opts[:1]
+    shape: tuple[int, ...] = tuple(rng.choice(opts, size=dim, replace=True))
+    cfg = (
+        np.array([[3, 3], [6, 6], [12, 6]])
+        if dim == 2
+        else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
+    )
+    alpha = 0.3 * rng.uniform(size=1).item()
+    r: tuple[float, float, float, float] = tuple(
+        np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
+    )
+    winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1).item())
+
+    C = udct.UDCT(shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+    im = rng.normal(size=shape)
+    c1 = C.forward(im)
+
+    c2 = C.struct(C.vect(c1))
+    for ires, _ in enumerate(c1):
+        for idir, _ in enumerate(c1[ires]):
+            for iang, _ in enumerate(c1[ires][idir]):
+                np.testing.assert_allclose(c1[ires][idir][iang], c2[ires][idir][iang])
