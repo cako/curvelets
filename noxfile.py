@@ -11,7 +11,7 @@ DIR = Path(__file__).parent.resolve()
 nox.options.sessions = ["lint", "pylint", "tests"]
 
 
-@nox.session
+@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
 def lint(session: nox.Session) -> None:
     """
     Run the linter.
@@ -22,7 +22,7 @@ def lint(session: nox.Session) -> None:
     )
 
 
-@nox.session
+@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
 def pylint(session: nox.Session) -> None:
     """
     Run PyLint.
@@ -33,7 +33,7 @@ def pylint(session: nox.Session) -> None:
     session.run("pylint", "curvelets", *session.posargs)
 
 
-@nox.session
+@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
@@ -103,7 +103,7 @@ def build_api_docs(session: nox.Session) -> None:
     )
 
 
-@nox.session
+@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
 def build(session: nox.Session) -> None:
     """
     Build an SDist and wheel.
