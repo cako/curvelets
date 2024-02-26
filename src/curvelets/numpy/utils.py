@@ -106,7 +106,7 @@ def angle_kron(
 
 def downsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
     assert F.ndim == len(decim)
-    return F[tuple(slice(None, None, d) for d in decim)].copy()
+    return F[tuple(slice(None, None, d) for d in decim)]
 
 
 def fftflip(F: np.ndarray, axis: int) -> np.ndarray:
