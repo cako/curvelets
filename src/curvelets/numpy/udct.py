@@ -18,10 +18,11 @@ def udctmddec(
     decimation_ratio: list[npt.NDArray[np.int_]],
 ) -> UDCTCoefficients:
     imf = np.fft.fftn(im)
+    cdtype = imf.dtype
 
     fband = np.zeros_like(imf)
     idx, val = from_sparse_new(udctwin[0][0][0])
-    fband.flat[idx] = imf.flat[idx] * val
+    fband.flat[idx] = imf.flat[idx] * val.astype(cdtype)
     cband = np.fft.ifftn(fband)
 
     coeff: UDCTCoefficients = [[[downsamp(cband, decimation_ratio[0][0])]]]
@@ -37,14 +38,12 @@ def udctmddec(
             for iang in range(len(udctwin[ires][idir])):
                 fband = np.zeros_like(imf)
                 idx, val = from_sparse_new(udctwin[ires][idir][iang])
-                fband.flat[idx] = imf.flat[idx] * val
+                fband.flat[idx] = imf.flat[idx] * val.astype(cdtype)
 
                 cband = np.fft.ifftn(fband)
                 decim = decimation_ratio[ires][idir, :]
                 coeff[ires][idir].append(downsamp(cband, decim))
-                coeff[ires][idir][iang] *= np.sqrt(
-                    2 * np.prod(decimation_ratio[ires][idir, :])
-                )
+                coeff[ires][idir][iang] *= np.sqrt(2 * np.prod(decim))
     return coeff
 
 
@@ -54,7 +53,7 @@ def udctmdrec(
     udctwin: UDCTWindows,
     decimation_ratio: list[npt.NDArray[np.int_]],
 ) -> np.ndarray:
-    rdtype = udctwin[0][0][0][1].real.dtype
+    rdtype = coeff[0][0][0].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
     imf = np.zeros(param_udct.size, dtype=cdtype)
 
@@ -63,16 +62,17 @@ def udctmdrec(
             for iang in range(len(udctwin[ires][idir])):
                 decim = decimation_ratio[ires][idir, :]
                 cband = upsamp(coeff[ires][idir][iang], decim)
-                cband /= np.sqrt(2 * np.prod(decimation_ratio[ires][idir, :]))
-                cband = np.prod(decimation_ratio[ires][idir, :]) * np.fft.fftn(cband)
+                cband /= np.sqrt(2 * np.prod(decim))
+                cband = np.prod(decim) * np.fft.fftn(cband)
                 idx, val = from_sparse_new(udctwin[ires][idir][iang])
-                imf.flat[idx] += cband.flat[idx] * val
+                imf.flat[idx] += cband.flat[idx] * val.astype(cdtype)
 
     imfl = np.zeros(param_udct.size, dtype=cdtype)
-    cband = upsamp(coeff[0][0][0], decimation_ratio[0][0])
-    cband = np.sqrt(np.prod(decimation_ratio[0][0])) * np.fft.fftn(cband)
+    decim = decimation_ratio[0][0]
+    cband = upsamp(coeff[0][0][0], decim)
+    cband = np.sqrt(np.prod(decim)) * np.fft.fftn(cband)
     idx, val = from_sparse_new(udctwin[0][0][0])
-    imfl.flat[idx] += cband.flat[idx] * val
+    imfl.flat[idx] += cband.flat[idx] * val.astype(cdtype)
     imf = 2 * imf + imfl
     return np.fft.ifftn(imf).real
 
