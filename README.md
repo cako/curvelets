@@ -55,7 +55,7 @@ The `curvelets` follows the cookiecutter package as provided by https://learn.sc
 * Port to PyTorch
 * Improve style of code
 * Document at least user-facing functions
-* Figure out how to restructure the output of the curvelet transform into a single ND cube instead of lists of lists
+* Figure out how to restructure the output of the curvelet transform into a single N-D cube instead of lists of lists
 * Explore alterations to the curvelet transform, e.g.:
   * An "allcurvelets=False" extension where the last scale is a wavelet transform (sum all windows of the last scale and do not decimate)
   * Support for complex signals (remove `imf = 2 * imf + imfl` line at the end, but by properly accounting for the complex part of the signal)
