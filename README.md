@@ -26,6 +26,14 @@
 
 <!-- prettier-ignore-end -->
 ## TODO
+
+Beyond providing a new package for curvelets, I would like this package to serve as a template for modern (pure Python) packaging. The overarching goal is to have a project/package where, once a tag is pushed to master, this branch is immediately deployed in pip, conda-forge, docs, etc. Some packages for inspiration:
+  * https://github.com/kymatio/kymatio/tree/main
+  * https://github.com/PyLops/pylops
+  * https://github.com/scientific-python/repo-review
+
+The `curvelets` follows the cookiecutter package as provided by https://learn.scientific-python.org, and as such, many of the tasks below may already be implemented. Other tasks may require making the repo public (e.g., docs via GitHub pages).
+
 ### CI/CD
 * Set up automated tests
 * Set up automatic versioning (from GitHub tags? see: https://learn.scientific-python.org/development/guides/packaging-simple/#versioning and https://github.com/ofek/hatch-vcs)
@@ -39,6 +47,7 @@
   - Examples
   - API
   - Contributing
+* Deploy docs with Github actions and github pages
 * Set up citation using Zenodo
 * Add more examples of curvelet algorithms
 
