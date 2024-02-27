@@ -25,6 +25,33 @@
 [rtd-link]:                 https://Curvelets.readthedocs.io/en/latest/?badge=latest
 
 <!-- prettier-ignore-end -->
+## TODO
+### CI/CD
+* Set up automated tests
+* Set up automatic versioning (from GitHub tags? see: https://learn.scientific-python.org/development/guides/packaging-simple/#versioning and https://github.com/ofek/hatch-vcs)
+* Create and deploy pip wheels from GitHub actions onto PyPI (see: https://learn.scientific-python.org/development/guides/gha-pure/ and https://packaging.python.org/en/latest/tutorials/packaging-projects/)
+* Create conda-forge package (see: https://conda-forge.org/docs/maintainer/adding_pkgs/)
+
+### Docs
+* Write docs in the style of: https://pylops.github.io/curvelops/, that is, including:
+  - Overview
+  - Installation
+  - Examples
+  - API
+  - Contributing
+* Set up citation using Zenodo
+* Add more examples of curvelet algorithms
+
+### Logic
+* Port to PyTorch
+* Improve style of code
+* Document at least user-facing functions
+* Figure out how to restructure the output of the curvelet transform into a single ND cube instead of lists of lists
+* Explore alterations to the curvelet transform, e.g.:
+  * An "allcurvelets=False" extension where the last scale is a wavelet transform (sum all windows of the last scale and do not decimate)
+  * Support for complex signals (remove `imf = 2 * imf + imfl` line at the end, but by properly accounting for the complex part of the signal)
+  * A monogenic extension (see [7])
+
 
 ## Frequently Asked Questions
 
@@ -76,7 +103,6 @@ Another expected to consider is the availability of high-performance, GPU-accele
 [6] Starck, Jean-Luc. *F-CUR3D – CosmoStat*: CosmoStat, 26 June 2017, www.cosmostat.org/software/f-cur3d. Accessed 25 Feb. 2024.
 
 [7] Storath, M., 2010, *The monogenic curvelet transform*: 2010 IEEE International Conference on Image Processing.
-
 
 [8] Luan, S., C. Chen, B. Zhang, J. Han, and J. Liu, 2018, *Gabor Convolutional Networks*: IEEE Transactions on Image Processing, 27, 4357–4366.
 
