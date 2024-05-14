@@ -47,7 +47,7 @@ The `curvelets` follows the cookiecutter package as provided by https://learn.sc
   - Examples
   - API
   - Contributing
-* Deploy docs with Github actions and github pages
+* Deploy docs with GitHub actions and GitHub pages
 * Set up citation using Zenodo
 * Add more examples of curvelet algorithms
 
