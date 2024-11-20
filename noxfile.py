@@ -8,6 +8,7 @@ import nox
 
 DIR = Path(__file__).parent.resolve()
 
+nox.options.default_venv_backend = "uv|virtualenv"
 nox.options.sessions = ["lint", "pylint", "tests"]
 
 
@@ -33,7 +34,7 @@ def pylint(session: nox.Session) -> None:
     session.run("pylint", "curvelets", *session.posargs)
 
 
-@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
+@nox.session(python=["3.9", "3.10", "3.11", "3.12", "3.13"])
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
@@ -103,7 +104,7 @@ def build_api_docs(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=["3.9", "3.10", "3.11", "3.12"])
+@nox.session(python=["3.9", "3.10", "3.11", "3.12", "3.13"])
 def build(session: nox.Session) -> None:
     """
     Build an SDist and wheel.
