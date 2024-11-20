@@ -1,8 +1,8 @@
-<div align="center">
-<h1>Curvelets</h1>
+# Curvelets
 
-<strong>⚠️ This project is in <i>very</i> early development! Expect bugs! ⚠️
-</strong>
+> [!WARNING]
+> **This project is in *very* early development! Expect bugs!**
+
 
 <h3>
   <a href="#getting-started">Getting Started</a>
@@ -11,7 +11,6 @@
   <span> | </span>
   <a href="https://curvelets.readthedocs.io/en/latest/auto_examples/index.html">Examples</a>
 </h3>
-</div>
 
 [![Actions Status][actions-badge]][actions-link]
 [![Documentation Status][rtd-badge]][rtd-link]
