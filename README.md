@@ -79,7 +79,7 @@ Consider using other, more mature projects.
 
    What separates curvelets from the other X-lets are their interesting properties, including:
    * The curvelet transform has an exact inverse
-   * The discrete curvelet transform has efficient decomposition ("analysis") and reconstruction ("synthesis") implementations [1, 2]
+   * The discrete curvelet transform has efficient decomposition ("analysis") and reconstruction ("synthesis") implementations [[1](#1), 2]
    * The curvelet transform is naturally N-dimensional
    * Curvelet basis functions yield an optimally sparse representation of wave phenomena (seismic data, ultrasound data, etc.) [3]
    * Curvelets have little redundancy, forming a _tight frame_ [4]
