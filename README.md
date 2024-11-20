@@ -78,10 +78,10 @@ Consider using other, more mature projects.
 
    What separates curvelets from the other X-lets are their interesting properties, including:
    * The curvelet transform has an exact inverse
-   * The discrete curvelet transform has efficient decomposition ("analysis") and reconstruction ("synthesis") implementations [[1](#1-candès-e-l-demanet-d-donoho-and-l-ying-2006-fast-discrete-curvelet-transforms-multiscale-modeling--simulation-5-861899), 2]
+   * The discrete curvelet transform has efficient decomposition ("analysis") and reconstruction ("synthesis") implementations [[1](#1-candès-e-l-demanet-d-donoho-and-l-ying-2006-fast-discrete-curvelet-transforms-multiscale-modeling--simulation-5-861899), [2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634)]
    * The curvelet transform is naturally N-dimensional
-   * Curvelet basis functions yield an optimally sparse representation of wave phenomena (seismic data, ultrasound data, etc.) [3]
-   * Curvelets have little redundancy, forming a _tight frame_ [4]
+   * Curvelet basis functions yield an optimally sparse representation of wave phenomena (seismic data, ultrasound data, etc.) [[3](#3-candès-e-j-and-l-demanet-2005-the-curvelet-representation-of-wave-propagators-is-optimally-sparse-communications-on-pure-and-applied-mathematics-58-14721528)]
+   * Curvelets have little redundancy, forming a _tight frame_ [[4](#4-candès-e-j-and-d-l-donoho-2003-new-tight-frames-of-curvelets-and-optimal-representations-of-objects-with-piecewise-c2-singularities-communications-on-pure-and-applied-mathematics-57-219266)]
 
   You can find a good overview (plug: I wrote it!) of curvelets in the Medium article [Demystifying Curvelets](https://towardsdatascience.com/desmystifying-curvelets-c6d88faba0bf).
 
@@ -98,20 +98,19 @@ A third flavor is the Uniform Discrete Curvelet Transform (UDCT) which does not 
 
 This library provides the first pure-Python implementation of the UDCT, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry processionals to use the UDCT more easily.
 
-Note: The Candès FDCTs and Nguyen UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili [5], but the code seems to have disappeared off the internet [6]. Moreover, there is also another type of continuous curvelet transform, the monogenic curvelet transform [7], but I have found no implementation available.
+Note: The Candès FDCTs and Nguyen UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili [[5](#5-woiselle-a-j-l-starck-and-j-fadili-2010-3d-curvelet-transforms-and-astronomical-data-restoration-applied-and-computational-harmonic-analysis-28-171188)], but the code seems to have disappeared off the internet [[6](#6-starck-jean-luc-f-cur3d--cosmostat-cosmostat-26-june-2017-wwwcosmostatorgsoftwaref-cur3d-accessed-25-feb-2024)]. Moreover, there is also another type of continuous curvelet transform, the monogenic curvelet transform [[7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)], but I have found no implementation available.
 
 ### 4. Can I use curvelets for deep-learning?
 This is another facet of the "data-centric" vs "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering, as opposed to using conventional model architectures and letting the data guide the learning process. Alternatively, if the transform is used as a preprocessing step, it can be seen from as feature engineering.
 
-My suggestion is to use curvelets and other transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data. It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks [8, 9] in some cases.
+My suggestion is to use curvelets and other transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data. It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks [[8](#8-luan-s-c-chen-b-zhang-j-han-and-j-liu-2018-gabor-convolutional-networks-ieee-transactions-on-image-processing-27-43574366), [9](#9-bruna-j-and-s-mallat-2013-invariant-scattering-convolution-networks-ieee-transactions-on-pattern-analysis-and-machine-intelligence-35-18721886)] in some cases.
 
-Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/) and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/en/latest/readme.html) which implement the wavelet scattering transform [10] and dual-tree complex wavelet transform, respectively [11].
+Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/) and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/en/latest/readme.html) which implement the wavelet scattering transform [[10](#10-andreux-m-t-angles-g-exarchakis-r-leonarduzzi-g-rochette-l-thiry-j-zarka-s-mallat-j-andén-e-belilovsky-j-bruna-v-lostanlen-m-chaudhary-m-j-hirn-e-oyallon-s-zhang-c-cella-and-m-eickenberg-2020-kymatio-scattering-transforms-in-python-journal-of-machine-learning-research-2160-16)] and dual-tree complex wavelet transform, respectively [[11](#11-kingsbury-n-2001-complex-wavelets-for-shift-invariant-analysis-and-filtering-of-signals-applied-and-computational-harmonic-analysis-10-234253)].
 
 ## References
 ##### [1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
 
 ##### [2] Nguyen, T. T., and H. Chauris, 2010, *Uniform Discrete Curvelet Transform*: IEEE Transactions on Signal Processing, 58, 3618–3634.
-
 
 ##### [3] Candès, E. J., and L. Demanet, 2005, *The curvelet representation of wave propagators is optimally sparse*: Communications on Pure and Applied Mathematics, 58, 1472–1528.
 
