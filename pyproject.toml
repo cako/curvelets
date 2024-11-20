@@ -64,6 +64,9 @@ build.hooks.vcs.version-file = "src/curvelets/_version.py"
 features = ["test"]
 scripts.test = "pytest {args}"
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/.github", "/playground"]
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
