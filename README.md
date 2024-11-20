@@ -1,4 +1,17 @@
-# Curvelets
+<div align="center">
+<h1>Curvelets</h1>
+
+<strong>⚠️ This project is in <i>very</i> early development! Expect bugs! ⚠️
+</strong>
+
+<h3>
+  <a href="#getting-started">Getting Started</a>
+  <span> | </span>
+  <a href="#FAQs">FAQs</a>
+  <span> | </span>
+  <a href="https://curvelets.readthedocs.io/en/latest/auto_examples/index.html">Examples</a>
+</h3>
+</div>
 
 [![Actions Status][actions-badge]][actions-link]
 [![Documentation Status][rtd-badge]][rtd-link]
@@ -25,44 +38,40 @@
 [rtd-link]:                 https://Curvelets.readthedocs.io/en/latest/?badge=latest
 
 <!-- prettier-ignore-end -->
-## TODO
+## Getting stated
 
-Beyond providing a new package for curvelets, I would like this package to serve as a template for modern (pure Python) packaging. The overarching goal is to have a project/package where, once a tag is pushed to master, this branch is immediately deployed in pip, conda-forge, docs, etc. Some packages for inspiration:
-  * https://github.com/kymatio/kymatio/tree/main
-  * https://github.com/PyLops/pylops
-  * https://github.com/scientific-python/repo-review
+```python
+import numpy as np
+from curvelets.numpy import SimpleUDCT
 
-The `curvelets` follows the cookiecutter package as provided by https://learn.scientific-python.org, and as such, many of the tasks below may already be implemented. Other tasks may require making the repo public (e.g., docs via GitHub pages).
+x = np.ones((128, 128))
+C = SimpleUDCT(shape=x.shape)
+y = C.forward(x)
+np.testing.assert_allclose(x, C.backward(y))
+```
 
-### CI/CD
-* Set up automated tests
-* Set up automatic versioning (from GitHub tags? see: https://learn.scientific-python.org/development/guides/packaging-simple/#versioning and https://github.com/ofek/hatch-vcs)
-* Create and deploy pip wheels from GitHub actions onto PyPI (see: https://learn.scientific-python.org/development/guides/gha-pure/ and https://packaging.python.org/en/latest/tutorials/packaging-projects/)
-* Create conda-forge package (see: https://conda-forge.org/docs/maintainer/adding_pkgs/)
-
-### Docs
-* Write docs in the style of: https://pylops.github.io/curvelops/, that is, including:
-  - Overview
-  - Installation
-  - Examples
-  - API
-  - Contributing
-* Deploy docs with GitHub actions and GitHub pages
-* Set up citation using Zenodo
-* Add more examples of curvelet algorithms
-
-### Logic
-* Port to PyTorch
-* Improve style of code
-* Document at least user-facing functions
-* Figure out how to restructure the output of the curvelet transform into a single N-D cube instead of lists of lists
-* Explore alterations to the curvelet transform, e.g.:
-  * An "allcurvelets=False" extension where the last scale is a wavelet transform (sum all windows of the last scale and do not decimate)
-  * Support for complex signals (remove `imf = 2 * imf + imfl` line at the end, but by properly accounting for the complex part of the signal)
-  * A monogenic extension (see [7])
+You can use `SimpleUDCT` very similarly to `FDCT` from [curvelops](https://github.com/PyLops/curvelops), with a limitation that SimpleUDCT only operates arrays whose sizes are powers of 2.
 
 
-## Frequently Asked Questions
+
+## FAQs
+
+### 0. Should I use this library?
+
+Probably not! This library is a work in progress, pre-alpha library for a very specific version of the curvelet transform known as the Uniform Discrete Curvelet Transform (UDCT).
+
+Consider using other, more mature projects.
+
+|                                                             | Description                         | License                                  | N-D?       | Shape       | Invertible? |
+| ----------------------------------------------------------- | ----------------------------------- | ---------------------------------------- | ---------- | ----------- | ----------- |
+| curvelets                                                   | UDCT in Python                      | MIT                                      | N-D        | Powers of 2 | Exact       |
+| [Curvelab](https://curvelet.org/software.php)               | FDCT in C++ and Matlab              | Proprietary (free for academic use only) | 2D, 3D     | Any         | Exact       |
+| [curvelops](https://github.com/PyLops/curvelops)            | Curvelab Python wrapper             | MIT, depedends on Curvelab               | 2D, 3D     | Any         | Exact       |
+| [Kymatio](https://www.kymat.io/)                            | Wavelet scattering transform        | BSD 3-clause                             | 1D, 2D, 3D | Any         | Approximate |
+| [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform | Custom BSD 2-clause                      | 1D, 2D, 3D | Any         | Exact       |
+| [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io) | Discrete WT and Dual-Tree CWT       | MIT                                      | 2D         | Any         | Exact       |
+
+
 
 ### 1. What even *are* curvelets?
 
@@ -74,6 +83,8 @@ The `curvelets` follows the cookiecutter package as provided by https://learn.sc
    * The curvelet transform is naturally N-dimensional
    * Curvelet basis functions yield an optimally sparse representation of wave phenomena (seismic data, ultrasound data, etc.) [3]
    * Curvelets have little redundancy, forming a _tight frame_ [4]
+  
+  You can find a good overview (plug: I wrote it!) of curvelets in the Medium article [Demystifying Curvelets](https://towardsdatascience.com/desmystifying-curvelets-c6d88faba0bf).
 
 ### 2. Why should I care about curvelets?
    Curvelets have a long history and rich history in signal processing. They have been used for a multitude of tasks related in areas such as biomedical imaging (ultrasound, MRI), seismic imaging, synthetic aperture radar, among others. They allow us to extract useful features which can be used to attack problems such as segmentation, inpaining, classification, adaptive subtraction, etc.
@@ -84,18 +95,18 @@ There are three flavors of the discrete curvelet transform with available implem
 
 As of 2024, any non-academic use of the CurveLab Toolbox requires a commercial license. This includes libraries which wrap the CurveLab toolbox such as pybind11-based wrapper [curvelops](https://github.com/PyLops/curvelops), Python SWIG-based wrapper [PyCurvelab](https://github.com/slimgroup/PyCurvelab). Neither curvelops nor PyCurvelab package include any source code of Curvelab. It should be noted, however, that any library which ports or converts Curvelab code to another language is subject to Curvelab's license. Again, neither curvelops or PyCurvelab do so, and can therefore be freely distributed as per their licenses (both have MIT licenses).
 
-The third flavor is the Uniform Discrete Curvelet Transform (UDCT) which does not have the same restrictive license as the FDCT. The UDCT was first implemented in Matlab (see [ucurvmd](https://github.com/nttruong7/ucurvmd)) by one of its authors, Truong Nguyen. The 2D version was ported to Julia as the [Curvelet.jl](https://github.com/fundamental/Curvelet.jl) package, whose development has since been abandoned.
+A third flavor is the Uniform Discrete Curvelet Transform (UDCT) which does not have the same restrictive license as the FDCT. The UDCT was first implemented in Matlab (see [ucurvmd](https://github.com/nttruong7/ucurvmd) \[dead link\]) by one of its authors, Truong Nguyen. The 2D version was ported to Julia as the [Curvelet.jl](https://github.com/fundamental/Curvelet.jl) package, whose development has since been abandoned.
 
 This library provides the first pure-Python implementation of the UDCT, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry processionals to use the UDCT more easily.
 
-Note: The Candès FDCTs and Nguyen UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili [5], but the code seems to have disappeared off the internet [6]. Moreover, there is also another type of continuous curvelet transform, the monogenic curvelet transform [7], but no implementation seems to be available.
+Note: The Candès FDCTs and Nguyen UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili [5], but the code seems to have disappeared off the internet [6]. Moreover, there is also another type of continuous curvelet transform, the monogenic curvelet transform [7], but I have found no implementation available.
 
 ### 4. Can I use curvelets for deep-learning?
-This is another facet of the "data-centric" vs "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering, as opposed to using conventional model architectures and letting the data guide the learning process. Alternatively, if the transform is used as a preprocessing step, it can be seen from a feature engineering perspective.
+This is another facet of the "data-centric" vs "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering, as opposed to using conventional model architectures and letting the data guide the learning process. Alternatively, if the transform is used as a preprocessing step, it can be seen from as feature engineering.
 
 My suggestion is to use curvelets and other transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data. It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks [8, 9] in some cases.
 
-Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. If you need a high-performance transform, I would consider using [Kymatio](https://www.kymat.io/) [10] which has a GPU-accelerated PyTorch implementation.
+Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/)  and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/en/latest/readme.html) which implemente the wavelets scattering [10] and dual-tree complex wavelet transform, respectively [11].
 
 ## References
 [1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
@@ -118,3 +129,6 @@ Another expected to consider is the availability of high-performance, GPU-accele
 [9] Bruna, J., and S. Mallat, 2013, *Invariant Scattering Convolution Networks*: IEEE Transactions on Pattern Analysis and Machine Intelligence, 35, 1872–1886.
 
 [10] Andreux, M., T. Angles, G. Exarchakis, R. Leonarduzzi, G. Rochette, L. Thiry, J. Zarka, S. Mallat, J. Andén, E. Belilovsky, J. Bruna, V. Lostanlen, M. Chaudhary, M. J. Hirn, E. Oyallon, S. Zhang, C. Cella, and M. Eickenberg, 2020, *Kymatio: Scattering Transforms in Python*: Journal of Machine Learning Research, 21(60), 1−6.
+
+[11] Kingsbury, N., 2001, Complex Wavelets for Shift Invariant Analysis and Filtering of Signals: Applied and Computational Harmonic Analysis, 10, 234–253.
+
