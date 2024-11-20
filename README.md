@@ -83,7 +83,7 @@ Consider using other, more mature projects.
    * The curvelet transform is naturally N-dimensional
    * Curvelet basis functions yield an optimally sparse representation of wave phenomena (seismic data, ultrasound data, etc.) [3]
    * Curvelets have little redundancy, forming a _tight frame_ [4]
-  
+
   You can find a good overview (plug: I wrote it!) of curvelets in the Medium article [Demystifying Curvelets](https://towardsdatascience.com/desmystifying-curvelets-c6d88faba0bf).
 
 ### 2. Why should I care about curvelets?
@@ -106,7 +106,7 @@ This is another facet of the "data-centric" vs "model-centric" debate in machine
 
 My suggestion is to use curvelets and other transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data. It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks [8, 9] in some cases.
 
-Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/)  and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/en/latest/readme.html) which implemente the wavelets scattering [10] and dual-tree complex wavelet transform, respectively [11].
+Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/) and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/en/latest/readme.html) which implement the wavelet scattering transform [10] and dual-tree complex wavelet transform, respectively [11].
 
 ## References
 [1]: Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
@@ -130,5 +130,4 @@ Another expected to consider is the availability of high-performance, GPU-accele
 
 [10] Andreux, M., T. Angles, G. Exarchakis, R. Leonarduzzi, G. Rochette, L. Thiry, J. Zarka, S. Mallat, J. Andén, E. Belilovsky, J. Bruna, V. Lostanlen, M. Chaudhary, M. J. Hirn, E. Oyallon, S. Zhang, C. Cella, and M. Eickenberg, 2020, *Kymatio: Scattering Transforms in Python*: Journal of Machine Learning Research, 21(60), 1−6.
 
-[11] Kingsbury, N., 2001, Complex Wavelets for Shift Invariant Analysis and Filtering of Signals: Applied and Computational Harmonic Analysis, 10, 234–253.
-
+[11] Kingsbury, N., 2001, *Complex Wavelets for Shift Invariant Analysis and Filtering of Signals*: Applied and Computational Harmonic Analysis, 10, 234–253.
