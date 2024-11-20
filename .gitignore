@@ -1,5 +1,6 @@
 .vscode/
 docs/auto_examples
+sg_execution_times.rst
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
