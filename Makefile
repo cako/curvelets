@@ -51,3 +51,7 @@ docs:
 servedocs:
 	make uvcheck
 	$(UV) tool run nox -s docs -- --serve --port 1234
+
+precommitupdate:
+	make uvcheck
+	$(UV) tool run pre-commit autoupdate
