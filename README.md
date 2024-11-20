@@ -109,7 +109,7 @@ My suggestion is to use curvelets and other transforms for small to mid-sized da
 Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/)  and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/en/latest/readme.html) which implemente the wavelets scattering [10] and dual-tree complex wavelet transform, respectively [11].
 
 ## References
-[1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
+[1]: Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
 
 [2] Nguyen, T. T., and H. Chauris, 2010, *Uniform Discrete Curvelet Transform*: IEEE Transactions on Signal Processing, 58, 3618–3634.
 
