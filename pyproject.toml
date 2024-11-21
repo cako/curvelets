@@ -65,7 +65,7 @@ features = ["test"]
 scripts.test = "pytest {args}"
 
 [tool.hatch.build.targets.sdist]
-exclude = ["/.github", "/playground"]
+exclude = ["/.github", "/playground", "/testdata"]
 
 
 [tool.pytest.ini_options]
