@@ -6,27 +6,28 @@ __all__ = [
 ]
 import itertools
 from math import ceil, floor
-from typing import List, Optional, Union
+from typing import Any, Union
 
 import matplotlib as mpl
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import cm
 from matplotlib.colors import Colormap
 from matplotlib.figure import Figure
+from numpy.typing import NDArray
 
-from ..typing import AnyNDArray
-from ..utils import apply_along_wedges
+from ..typing import AnyNDArray, UDCTCoefficients
+from ..utils import apply_along_wedges, energy_split
 
 
 def curveshow(
-    c_struct: FDCTStructLike,
+    c_struct: UDCTCoefficients,
     k_space: bool = False,
     basesize: int = 5,
     showaxis: bool = False,
     real: bool = True,
-    kwargs_imshow: Optional[dict] = None,
-) -> List[Figure]:
+    kwargs_imshow: dict[str, Any] | None = None,
+) -> list[Figure]:
     """Display curvelet coefficients in each wedge as images.
 
     For each curvelet scale, display a figure with each wedge
@@ -34,7 +35,7 @@ def curveshow(
 
     Parameters
     ----------
-    c_struct : :obj:`FDCTStructLike <curvelops.typing.FDCTStructLike>`
+    c_struct : :obj:`UDCTCoefficients <curvelets.typing.UDCTCoefficients>`
         Curvelet structure.
     k_space :  :obj:`bool`, optional
         Show curvelet coefficient (False) or its 2D FFT transform (True),
@@ -48,15 +49,15 @@ def curveshow(
     real : :obj:`bool`, optional
         Plot real or imaginary part of curvelet coefficients. Only applicable
         when ``k_space`` is False.
-    kwargs_imshow : ``Optional[dict]``, optional
+    kwargs_imshow : :obj:`dict[str, Any]` optional
         Arguments to be passed to :obj:`matplotlib.pyplot.imshow`.
 
     Examples
     --------
     >>> import numpy as np
     >>> from curvelops import FDCT2D
-    >>> from curvelops.utils import apply_along_wedges, energy
-    >>> from curvelops.plot import curveshow
+    >>> from curvelets.utils import apply_along_wedges, energy
+    >>> from curvelets.plot import curveshow
     >>> d = np.random.randn(101, 101)
     >>> C = FDCT2D(d.shape, nbscales=2, nbangles_coarse=8)
     >>> y = C.struct(C @ d)
@@ -69,7 +70,7 @@ def curveshow(
 
     Returns
     -------
-    List[:obj:`Figure <matplotlib.figure.Figure>`]
+    list[:obj:`Figure <matplotlib.figure.Figure>`]
         One figure per scale.
     """
 
@@ -108,11 +109,10 @@ def curveshow(
         for iwedge, (c_wedge, ax) in enumerate(zip(c_scale, axes)):
             if k_space:
                 ax.imshow(np.abs(fft(c_wedge)), **kwargs_imshow)
+            elif real:
+                ax.imshow(c_wedge.real, **kwargs_imshow)
             else:
-                if real:
-                    ax.imshow(c_wedge.real, **kwargs_imshow)
-                else:
-                    ax.imshow(c_wedge.imag, **kwargs_imshow)
+                ax.imshow(c_wedge.imag, **kwargs_imshow)
             if nangles > 1:
                 ax.set(title=f"Wedge {iwedge}")
             if not showaxis:
@@ -122,12 +122,12 @@ def curveshow(
 
 
 def overlay_disks(
-    c_struct: list[list[AnyNDArray]],
-    axes: AnyNDArray,
+    c_struct: UDCTCoefficients,
+    axes: NDArray[np.object_],
     linewidth: float = 0.5,
     linecolor: str = "r",
     map_cmap: bool = True,
-    cmap: Union[str, Colormap] = "gray_r",
+    cmap: str | Colormap = "gray_r",
     alpha: float = 1.0,
     pclip: float = 1.0,
     map_alpha: bool = False,
@@ -145,7 +145,7 @@ def overlay_disks(
 
     See Also
     --------
-    :obj:`energy_split <curvelops.utils.energy_split>`: Splits a wedge into ``(rows, cols)`` wedges and computes the energy of each of these subdivisions.
+    :obj:`energy_split <curvelets.utils.energy_split>`: Splits a wedge into ``(rows, cols)`` wedges and computes the energy of each of these subdivisions.
 
     :obj:`create_inset_axes_grid`: Create a grid of insets.
 
@@ -155,9 +155,9 @@ def overlay_disks(
 
     Parameters
     ----------
-    c_struct : :obj:`FDCTStructLike <curvelops.typing.FDCTStructLike>`:
+    c_struct : :obj:`UDCTCoefficients <curvelets.typing.UDCTCoefficients>`:
         Curvelet coefficients of underlying image.
-    axes : :obj:`NDArray <numpy.typing.NDArray>`
+    axes : :obj:`NDArray[Axes] <numpy.typing.NDArray>`
         2D grid of axes for which disks will be computed.
     linewidth : :obj:`float`, optional
         Width of line separating scales, by default 0.5.
@@ -202,8 +202,8 @@ def overlay_disks(
     >>> import matplotlib.pyplot as plt
     >>> import numpy as np
     >>> from curvelops import FDCT2D
-    >>> from curvelops.utils import apply_along_wedges
-    >>> from curvelops.plot import create_axes_grid, overlay_disks
+    >>> from curvelets.utils import apply_along_wedges
+    >>> from curvelets.plot import create_axes_grid, overlay_disks
     >>> x = np.random.randn(50, 100)
     >>> C = FDCT2D(x.shape, nbscales=4, nbangles_coarse=8)
     >>> y = C.struct(C @ x)
@@ -221,8 +221,8 @@ def overlay_disks(
     >>> import numpy as np
     >>> from mpl_toolkits.axes_grid1 import make_axes_locatable
     >>> from curvelops import FDCT2D
-    >>> from curvelops.plot import create_inset_axes_grid, overlay_disks
-    >>> from curvelops.utils import apply_along_wedges
+    >>> from curvelets.plot import create_inset_axes_grid, overlay_disks
+    >>> from curvelets.utils import apply_along_wedges
     >>> plt.rcParams.update({"image.interpolation": "blackman"})
     >>> # Construct signal
     >>> xlim = [-1.0, 1.0]

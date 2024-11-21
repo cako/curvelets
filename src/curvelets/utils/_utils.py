@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import TypeVar
+import math
+from typing import Callable, TypeVar
 
 import numpy as np
-from typing_extensions import Callable
+from numpy.typing import NDArray
 
-from ..typing import AnyNDArray, RecursiveListAnyNDArray
+from ..typing import AnyNDArray, ComplexNDArray, RecursiveListAnyNDArray
 
 T = TypeVar("T")
 
@@ -149,7 +150,7 @@ def apply_along_wedges(
     ----------
     c_struct : :obj:`FDCTStructLike <curvelops.typing.FDCTStructLike>`
         Input curvelet coefficients in struct format.
-    fun : Callable[[:obj:`NDArray <numpy.typing.NDArray>`, :obj:`int`, :obj:`int`, :obj:`int`, :obj:`int`], T]
+    fun : Callable[[:obj:`AnyNDArray <numpy.typing.AnyNDArray>`, :obj:`int`, :obj:`int`, :obj:`int`, :obj:`int`], T]
         Function to apply to each individual wedge. The function's arguments
         are respectively: `wedge`, `wedge index in scale`, `scale index`, `number of
         wedges in scale`, `number of scales`.
@@ -186,3 +187,58 @@ def apply_along_wedges(
             out = fun(c_wedge, iwedge, iscale, len(c_angles), len(c_struct))
             mapped_struct[iscale].append(out)
     return mapped_struct
+
+
+def energy(ary: ComplexNDArray) -> float:
+    r"""Computes the energy of an n-dimensional wedge.
+
+    The energy of a vector (flattened n-dimensional array)
+    :math:`(a_0,\ldots,a_{N-1})` is defined as
+
+    .. math::
+
+        \sqrt{\frac{1}{N}\sum\limits_{i=0}^{N-1} |a_i|^2}.
+
+    Parameters
+    ----------
+    ary : :obj:`AnyNDArray <numpy.typing.AnyNDArray>`
+        Input wedge.
+
+    Returns
+    -------
+    :obj:`float`
+        Energy.
+    """
+    return math.sqrt((ary.real**2 + ary.imag**2).mean())
+
+
+def energy_split(ary: AnyNDArray, rows: int, cols: int) -> AnyNDArray:
+    """Splits a wedge into ``(rows, cols)`` wedges and computes the energy
+    of each of these subdivisions.
+
+    See Also
+    --------
+
+    :obj:`energy` : Computes the energy of a wedge.
+
+    Parameters
+    ----------
+    ary : :obj:`AnyNDArray <numpy.typing.AnyNDArray>`
+        Input wedge.
+    rows : :obj:`int`
+        Split axis 0 into `rows` subdivisions.
+    cols : :obj:`int`
+        Split axis 1 into `cols` subdivisions.
+
+    Returns
+    -------
+    :obj:`AnyNDArray <numpy.typing.AnyNDArray>`
+        Matrix of shape ``(rows, cols)`` containing the energy of each
+        subdivision of the input wedge.
+    """
+    norm_local: NDArray[float] = np.empty((rows, cols), dtype=float)
+    split = array_split_nd(ary, rows, cols)
+    for irow in range(rows):
+        for icol in range(cols):
+            norm_local[irow, icol] = energy(split[irow][icol])
+    return norm_local

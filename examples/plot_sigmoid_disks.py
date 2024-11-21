@@ -15,12 +15,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from pylops.signalprocessing import FFT2D
 
 from curvelets.numpy import SimpleUDCT
 from curvelets.plot import (
     create_axes_grid,
-    # create_inset_axes_grid,
-    # overlay_arrows,
+    create_inset_axes_grid,
+    overlay_arrows,
     overlay_disks,
 )
 from curvelets.utils import array_split_nd, ndargmax
@@ -61,8 +62,16 @@ fig.tight_layout()
 
 # %%
 # First we create and apply curvelet transform.
-Cop = SimpleUDCT(data.shape)
-d_c = Cop.forward(data)
+Cop = SimpleUDCT(data.shape, nscales=4)
+d_c_3l = Cop.forward(data)
+d_c = []
+for s in range(len(d_c_3l)):
+    c_ = []
+    for d in range(len(d_c_3l[s])):
+        d_ = len(d_c_3l[s]) - d - 1
+        for l in range(len(d_c_3l[s][d])):
+            c_.append(d_c_3l[s][d_][l])
+    d_c.append(c_)
 
 # %%
 # Each wedge is mapped to a region of the scattering disk.
@@ -81,78 +90,78 @@ fig, axes = create_axes_grid(
     kwargs_subplots={"projection": "polar"},
     kwargs_figure={"figsize": (4, 4)},
 )
-# overlay_disks(d_c, axes, annotate=True)
+overlay_disks(d_c, axes, annotate=True)
 
 
-# # %%
-# # Multiscale Local Directions
-# # ############################
-# # The power of the curvelet transform is to provide dip information varying
-# # with location and scale.
-# # Below we will compute preferrential local directions using an approach
-# # based on the 2D FFT that does not differentiate between scales.
+# %%
+# Multiscale Local Directions
+# ############################
+# The power of the curvelet transform is to provide dip information varying
+# with location and scale.
+# Below we will compute preferrential local directions using an approach
+# based on the 2D FFT that does not differentiate between scales.
 
-# # %%
-# rows, cols = 5, 6
-
-
-# def local_single_scale_dips(data: npt.NDArray, rows: int, cols: int) -> npt.NDArray:
-#     kvecs = np.empty((rows, cols, 2))
-#     d_split = array_split_nd(data.T, rows, cols)
-
-#     for irow in range(kvecs.shape[0]):
-#         for icol in range(kvecs.shape[1]):
-#             d_loc = d_split[irow][icol].T
-#             Fop_loc = FFT2D(
-#                 d_loc.shape,
-#                 sampling=[dx, dz],
-#                 norm="ortho",
-#                 real=False,
-#                 ifftshift_before=True,
-#                 fftshift_after=True,
-#                 engine="scipy",
-#             )
-#             d_k_loc = Fop_loc @ d_loc
-
-#             kx_loc = Fop_loc.f1
-#             kz_loc = Fop_loc.f2
-
-#             kx_locmax, kz_locmax = ndargmax(np.abs(d_k_loc[:, kz_loc > 0]))
-
-#             k = np.array([kx_loc[kx_locmax], kz_loc[kz_loc > 0][kz_locmax]])
-#             kvecs[irow, icol, :] = k / np.linalg.norm(k)
-#     return kvecs
+# %%
+rows, cols = 5, 6
 
 
-# # %%
-# diskcmap = "turbo"
-# rows, cols = 5, 6
-# kvecs = local_single_scale_dips(data, rows, cols)
-# kvecs *= 0.15 * min(x[-1] - x[0], z[-1] - z[0])
+def local_single_scale_dips(data: npt.NDArray, rows: int, cols: int) -> npt.NDArray:
+    kvecs = np.empty((rows, cols, 2))
+    d_split = array_split_nd(data.T, rows, cols)
 
-# fig, ax = plt.subplots(figsize=(8, figsize_aspect * 8))
-# ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)
-# ax.set(xlabel="Position [km]", ylabel="Depth [km]")
-# divider = make_axes_locatable(ax)
-# cax = divider.append_axes("right", size="5%", pad=0.1)
-# mpl.colorbar.ColorbarBase(
-#     cax,
-#     cmap=plt.get_cmap(diskcmap),
-#     norm=mpl.colors.Normalize(vmin=0, vmax=1),
-#     alpha=0.8,
-# )
+    for irow in range(kvecs.shape[0]):
+        for icol in range(kvecs.shape[1]):
+            d_loc = d_split[irow][icol].T
+            Fop_loc = FFT2D(
+                d_loc.shape,
+                sampling=[dx, dz],
+                norm="ortho",
+                real=False,
+                ifftshift_before=True,
+                fftshift_after=True,
+                engine="scipy",
+            )
+            d_k_loc = Fop_loc @ d_loc
 
-# # Local single-scale directions
-# overlay_arrows(kvecs, ax)
+            kx_loc = Fop_loc.f1
+            kz_loc = Fop_loc.f2
 
-# # Local multsicale directions
-# axesin = create_inset_axes_grid(
-#     ax,
-#     rows,
-#     cols,
-#     height=0.6,
-#     width=0.6,
-#     kwargs_inset_axes=dict(projection="polar"),
-# )
-# overlay_disks(d_c, axesin, linewidth=0.0, cmap=diskcmap)
-# fig.tight_layout()
+            kx_locmax, kz_locmax = ndargmax(np.abs(d_k_loc[:, kz_loc > 0]))
+
+            k = np.array([kx_loc[kx_locmax], kz_loc[kz_loc > 0][kz_locmax]])
+            kvecs[irow, icol, :] = k / np.linalg.norm(k)
+    return kvecs
+
+
+# %%
+diskcmap = "turbo"
+rows, cols = 5, 6
+kvecs = local_single_scale_dips(data, rows, cols)
+kvecs *= 0.15 * min(x[-1] - x[0], z[-1] - z[0])
+
+fig, ax = plt.subplots(figsize=(8, figsize_aspect * 8))
+ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)
+ax.set(xlabel="Position [km]", ylabel="Depth [km]")
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size="5%", pad=0.1)
+mpl.colorbar.ColorbarBase(
+    cax,
+    cmap=plt.get_cmap(diskcmap),
+    norm=mpl.colors.Normalize(vmin=0, vmax=1),
+    alpha=0.8,
+)
+
+# Local single-scale directions
+overlay_arrows(kvecs, ax)
+
+# Local multsicale directions
+axesin = create_inset_axes_grid(
+    ax,
+    rows,
+    cols,
+    height=0.6,
+    width=0.6,
+    kwargs_inset_axes=dict(projection="polar"),
+)
+overlay_disks(d_c, axesin, linewidth=0.0, cmap=diskcmap)
+fig.tight_layout()
