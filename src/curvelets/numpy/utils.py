@@ -5,22 +5,25 @@ from dataclasses import dataclass, field
 from math import ceil, prod
 
 import numpy as np
-import numpy.typing as npt
+from numpy.typing import NDArray
+
+from ..typing import AnyNDArray, DTypeF, DTypeG, DTypeI, IntNDArray
 
 
+# TODO: Improve typing, get rid of all AnyNDArray
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
 class ParamUDCT:
     dim: int
     size: tuple[int, ...]
-    cfg: npt.NDArray[np.int_]  # last dimension  == dim
+    cfg: IntNDArray  # last dimension  == dim
     alpha: float
     r: tuple[float, float, float, float]
     winthresh: float
     len: int = field(init=False)
     res: int = field(init=False)
-    decim: npt.NDArray[np.int_] = field(init=False)
-    ind: dict[int, dict[int, np.ndarray]] | None = None
-    dec: dict[int, np.ndarray] | None = None
+    decim: IntNDArray = field(init=False)
+    ind: dict[int, dict[int, IntNDArray]] | None = None
+    dec: dict[int, IntNDArray] | None = None
 
     def __post_init__(self) -> None:
         self.len = prod(self.size)
@@ -28,19 +31,21 @@ class ParamUDCT:
         self.decim = 2 * (np.asarray(self.cfg, dtype=int) // 3)
 
 
-def circshift(arr: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
+def circshift(arr: NDArray[DTypeG], shape: tuple[int, ...]) -> NDArray[DTypeG]:
     assert arr.ndim == len(shape)
     return np.roll(arr, shape, axis=tuple(range(len(shape))))
 
 
-def adapt_grid(S1: np.ndarray, S2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def adapt_grid(
+    S1: NDArray[DTypeF], S2: NDArray[DTypeF]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     x1, x2 = np.meshgrid(S2, S1)
 
-    t1: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
+    t1: NDArray[np.float64] = np.zeros_like(x1, dtype=float)
     ind = (x1 != 0) & (np.abs(x2) <= np.abs(x1))
     t1[ind] = -x2[ind] / x1[ind]
 
-    t2: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
+    t2: NDArray[np.float64] = np.zeros_like(x1, dtype=float)
     ind = (x2 != 0) & (np.abs(x1) < np.abs(x2))
     t2[ind] = x1[ind] / x2[ind]
 
@@ -69,7 +74,7 @@ def adapt_grid(S1: np.ndarray, S2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return M2, M1
 
 
-def angle_fun(Mgrid: np.ndarray, direction: int, n: int, alpha: float) -> np.ndarray:
+def angle_fun(Mgrid: AnyNDArray, direction: int, n: int, alpha: float) -> AnyNDArray:
     # % create 2-D grid function-------------------------------------------------
 
     # angle meyer window
@@ -90,10 +95,10 @@ def angle_fun(Mgrid: np.ndarray, direction: int, n: int, alpha: float) -> np.nda
 
 
 def angle_kron(
-    angle_arr: np.ndarray, nper: np.ndarray, param_udct: ParamUDCT
-) -> np.ndarray:
+    angle_arr: AnyNDArray, nper: AnyNDArray, param_udct: ParamUDCT
+) -> AnyNDArray:
     # , nper, param_udct
-    krsz: npt.NDArray[np.int_] = np.ones(3, dtype=int)
+    krsz: IntNDArray = np.ones(3, dtype=int)
     krsz[0] = np.prod(param_udct.size[: nper[0] - 1])
     krsz[1] = np.prod(param_udct.size[nper[0] : nper[1] - 1])
     krsz[2] = np.prod(param_udct.size[nper[1] : param_udct.dim])
@@ -104,21 +109,21 @@ def angle_kron(
     return tmp3.reshape(*param_udct.size[::-1]).T
 
 
-def downsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
+def downsamp(F: AnyNDArray, decim: AnyNDArray) -> AnyNDArray:
     assert F.ndim == len(decim)
     return F[tuple(slice(None, None, d) for d in decim)]
 
 
-def fftflip(F: np.ndarray, axis: int) -> np.ndarray:
+def fftflip(F: AnyNDArray, axis: int) -> AnyNDArray:
     Fc = F
     dim = F.ndim
-    shiftvec: npt.NDArray[np.int_] = np.zeros((dim,), dtype=int)
+    shiftvec: IntNDArray = np.zeros((dim,), dtype=int)
     shiftvec[axis] = 1
     Fc = np.flip(F, axis)
     return circshift(Fc, tuple(shiftvec))
 
 
-def fun_meyer(x: np.ndarray, p1: float, p2: float, p3: float, p4: float) -> np.ndarray:
+def fun_meyer(x: AnyNDArray, p1: float, p2: float, p3: float, p4: float) -> AnyNDArray:
     p = np.array([-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0])
     y = np.zeros_like(x)
 
@@ -133,36 +138,38 @@ def fun_meyer(x: np.ndarray, p1: float, p2: float, p3: float, p4: float) -> np.n
     return y
 
 
-def travel(arr: np.ndarray) -> np.ndarray:
+def travel(arr: NDArray[DTypeG]) -> NDArray[DTypeG]:
     return arr.T.ravel()
 
 
-def travel_new(arr: np.ndarray) -> np.ndarray:
+def travel_new(arr: NDArray[DTypeG]) -> NDArray[DTypeG]:
     return arr.ravel()
 
 
-def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
+def to_sparse(arr: NDArray[DTypeF], thresh: float) -> NDArray[DTypeF]:
     idx = np.argwhere(travel(arr) > thresh)
-    out: npt.NDArray[np.floating] = np.c_[idx + 1, travel(arr)[idx]]
+    out: NDArray[DTypeF] = np.c_[idx + 1, travel(arr)[idx]]
     return out
 
 
-def to_sparse_new(arr: np.ndarray, thresh: float) -> list[np.ndarray]:
+def to_sparse_new(
+    arr: NDArray[DTypeF], thresh: float
+) -> list[NDArray[np.intp] | NDArray[DTypeF]]:
     idx = np.argwhere(arr.ravel() > thresh)
     return [idx, arr.ravel()[idx]]
 
 
-def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def from_sparse(arr: NDArray[DTypeG]) -> tuple[NDArray[np.intp], NDArray[DTypeG]]:
     idx = arr[:, 0].astype(int) - 1
     val = arr[:, 1]
     return idx, val
 
 
-def from_sparse_new(arr_list: list[np.ndarray]) -> list[np.ndarray]:
+def from_sparse_new(arr_list: list[NDArray[DTypeG]]) -> list[NDArray[DTypeG]]:
     return arr_list
 
 
-def upsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
+def upsamp(F: NDArray[DTypeG], decim: NDArray[DTypeI]) -> NDArray[DTypeG]:
     assert F.ndim == len(decim)
     upsamp_shape = tuple(s * d for s, d in zip(F.shape, decim))
     D = np.zeros(upsamp_shape, dtype=F.dtype)
