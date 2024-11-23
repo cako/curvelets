@@ -7,7 +7,7 @@ from math import prod
 import numpy as np
 import numpy.typing as npt
 
-from .typing import UDCTCoefficients, UDCTWindows
+from ..typing import DTypeG, UDCTCoefficients, UDCTWindows
 from .udctmdwin import udctmdwin
 from .utils import ParamUDCT, downsamp, from_sparse_new, upsamp
 
@@ -100,6 +100,14 @@ class UDCT:
         )
 
         self.windows, self.decimation, self.indices = udctmdwin(self.params)
+
+    def sparse_to_full(
+        self, arr_sparse: tuple[npt.NDArray[np.intp], npt.NDArray[DTypeG]]
+    ) -> npt.NDArray[DTypeG]:
+        idx, val = from_sparse_new(arr_sparse)
+        arr_full = np.zeros(self.params.size, dtype=val.dtype)
+        arr_full.flat[idx] += val
+        return arr_full
 
     def vect(self, coeffs: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
         coeffs_vec = []
