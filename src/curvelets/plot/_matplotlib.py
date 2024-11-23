@@ -142,12 +142,13 @@ def create_axes_grid(
 
 def create_inset_axes_grid(
     ax: Axes,
-    rows: int,
-    cols: int,
+    rows: int = 1,
+    cols: int = 1,
     height: float = 0.5,
     width: float = 0.5,
+    squeeze: bool = True,
     kwargs_inset_axes: dict[Any, Any] | None = None,
-) -> NDArray[np.object_]:
+) -> NDArray[np.object_] | Axes:
     r"""Create a grid of insets.
 
     The input axis will be overlaid with a grid of insets.
@@ -225,6 +226,10 @@ def create_inset_axes_grid(
                 transform=ax.transData,
                 **kwargs_inset_axes,
             )
+    if squeeze:
+        if rows == cols == 1:
+            return axes[0, 0]
+        return axes.squeeze()
     return axes
 
 
