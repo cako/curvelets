@@ -178,8 +178,11 @@ class SimpleUDCT(UDCT):
             else:
                 alpha = 0.5
         for i, nb in enumerate(nbands, start=1):
-            if 2**i * (1 + 2 * alpha) * (1 + alpha) >= nb:
-                msg = f"alpha={alpha:.3f} does not respect respect the relationship (2^{i}/{nb})(1+2α)(1+α) < 1 for scale {i+1}"  # noqa: RUF001
+            if (const := 2 ** (i / nb) * (1 + 2 * alpha) * (1 + alpha)) >= nb:
+                msg = (
+                    f"alpha={alpha:.3f} does not respect the relationship "
+                    f"(2^{i}/{nb})(1+2α)(1+α) = {const:.3f} = < 1 for scale {i+1}"  # noqa: RUF001
+                )
                 logging.warning(msg)
         cfg = np.tile(nbands[:, None], dim)
         r: tuple[float, float, float, float] = tuple(
