@@ -4,12 +4,14 @@ __all__ = [
     "AnyNDArray",
     "IntNDArray",
     "ComplexNDArray",
+    "FloatNDArray",
     "DTypeG",
     "DTypeI",
     "DTypeF",
     "DTypeC",
     "RecursiveListAnyNDArray",
     "UDCTCoefficients",
+    "UDCTWindows",
 ]
 from ._typing import (
     AnyNDArray,
@@ -18,7 +20,9 @@ from ._typing import (
     DTypeF,
     DTypeG,
     DTypeI,
+    FloatNDArray,
     IntNDArray,
     RecursiveListAnyNDArray,
     UDCTCoefficients,
+    UDCTWindows,
 )
