@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 __all__ = [
+    # _curvelet.py
     "curveshow",
+    "overlay_disk",
     "overlay_disks",
+    # _matplotlib.py
     "create_axes_grid",
     "create_colorbar",
     "create_inset_axes_grid",
@@ -12,7 +15,7 @@ __all__ = [
 import logging
 
 from .._internal import MATPLOTLIB_ENABLED
-from ._curvelet import curveshow, overlay_disks
+from ._curvelet import curveshow, overlay_disk, overlay_disks
 
 logger = logging.getLogger()
 
