@@ -1,14 +1,33 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, TypeVar
+from collections import deque
+from collections.abc import Iterable
+from typing import Any, Callable, TypeVar
 
 import numpy as np
+from numpy.fft import fft2, fftfreq, fftshift
 from numpy.typing import NDArray
 
 from ..typing import AnyNDArray, ComplexNDArray, RecursiveListAnyNDArray
 
 T = TypeVar("T")
+
+
+def deepflatten(lst: list[Any]) -> Iterable[Any]:
+    """Flatten a list using a deque."""
+    q: Any = deque()
+    for item in lst:
+        if isinstance(item, list):
+            q.extendleft(reversed(item))
+        else:
+            q.appendleft(item)
+        while q:
+            elem = q.popleft()
+            if isinstance(elem, list):
+                q.extendleft(reversed(elem))
+            else:
+                yield elem
 
 
 def array_split_nd(ary: AnyNDArray, *args: int) -> RecursiveListAnyNDArray:
@@ -142,8 +161,20 @@ def ndargmax(ary: AnyNDArray) -> tuple[np.intp, ...]:
 
 
 def apply_along_wedges(
-    c_struct: list[list[AnyNDArray]], fun: Callable[[AnyNDArray, int, int, int, int], T]
-) -> list[list[T]]:
+    c_struct: list[list[list[AnyNDArray]]],
+    fun: Callable[
+        [
+            AnyNDArray,
+            int,  # wedge index
+            int,  # direction index
+            int,  # scale index
+            int,  # nwedges
+            int,  # ndirections
+            int,  # nscales
+        ],
+        T,
+    ],
+) -> list[list[list[T]]]:
     """Applies a function to each individual wedge.
 
     Parameters
@@ -180,12 +211,24 @@ def apply_along_wedges(
       (11, 23)],
      [(32, 32)]]
     """
-    mapped_struct: list[list[T]] = [[] for _ in c_struct]
+    mapped_struct: list[list[list[T]]] = []
     for iscale, c_angles in enumerate(c_struct):
-        mapped_struct[iscale] = []
-        for iwedge, c_wedge in enumerate(c_angles):
-            out = fun(c_wedge, iwedge, iscale, len(c_angles), len(c_struct))
-            mapped_struct[iscale].append(out)
+        tmp_scale = []
+        for idir, c_dir in enumerate(c_angles):
+            tmp_dir = []
+            for iwedge, c_wedge in enumerate(c_dir):
+                out = fun(
+                    c_wedge,
+                    iwedge,
+                    idir,
+                    iscale,
+                    len(c_dir),
+                    len(c_angles),
+                    len(c_struct),
+                )
+                tmp_dir.append(out)
+            tmp_scale.append(tmp_dir)
+        mapped_struct.append(tmp_scale)
     return mapped_struct
 
 
@@ -242,3 +285,25 @@ def energy_split(ary: AnyNDArray, rows: int, cols: int) -> AnyNDArray:
         for icol in range(cols):
             norm_local[irow, icol] = energy(split[irow][icol])
     return norm_local
+
+
+def normal_vector_field(
+    data: AnyNDArray, rows: int, cols: int, dx: float = 1, dy: float = 1
+) -> NDArray[np.float64]:
+    kvecs: NDArray[np.float64] = np.empty((rows, cols, 2), dtype=float)
+    d_split: list[list[AnyNDArray]] = array_split_nd(data.T, rows, cols)
+
+    for irow in range(kvecs.shape[0]):
+        for icol in range(kvecs.shape[1]):
+            d_loc = d_split[irow][icol].T
+            d_k_loc = fftshift(fft2(d_loc))
+            kx_loc = fftshift(fftfreq(d_loc.shape[0], d=dx))
+            kz_loc = fftshift(fftfreq(d_loc.shape[1], d=dy))
+
+            # Use top quadrants of f-k spectrum
+            top_quadrant = kz_loc > 0
+            kx_locmax, kz_locmax = ndargmax(np.abs(d_k_loc[:, top_quadrant]))
+
+            k = np.array([kx_loc[kx_locmax], kz_loc[top_quadrant][kz_locmax]])
+            kvecs[irow, icol, :] = k / np.linalg.norm(k)
+    return kvecs
