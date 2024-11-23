@@ -234,8 +234,8 @@ def create_inset_axes_grid(
 
 
 def overlay_arrows(
-    vectors: AnyNDArray, ax: Axes, arrowprops: dict[Any, Any] | None = None
-) -> None:
+    vectors: AnyNDArray, ax: Axes, arrowprops: dict[str, Any] | None = None
+) -> Axes:
     r"""Overlay arrows on an axis.
 
     Parameters
@@ -297,3 +297,4 @@ def overlay_arrows(
                 arrowprops=arrowprops,
                 annotation_clip=False,
             )
+    return ax
