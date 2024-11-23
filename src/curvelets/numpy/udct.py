@@ -90,13 +90,13 @@ class UDCT:
     ) -> None:
         self.transpose = transpose
         self.shape = shape[::-1] if self.transpose else shape
-        dim = len(shape)
+        dim = len(self.shape)
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
         r1: tuple[float, float, float, float] = (
             tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r
         )
         self.params = ParamUDCT(
-            dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
+            dim=dim, size=self.shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
 
         self.windows, self.decimation, self.indices = udctmdwin(self.params)
