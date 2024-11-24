@@ -44,7 +44,7 @@ pylint:
 	make uvcheck
 	$(UV) tool run nox -s pylint
 
-docs:
+doc:
 	make uvcheck
 	$(UV) tool run nox -s docs
 
