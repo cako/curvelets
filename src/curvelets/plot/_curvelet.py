@@ -78,6 +78,7 @@ def overlay_disk(
         for idir, d in enumerate(s):
             nwedges = len(d)
             angles_per_wedge = deg_90 / nwedges
+            pm = (-1) ** idir  # CCW for idir == 0, CC otherwise
             for iwedge, w in enumerate(d):
                 color = cmapper.to_rgba(w)
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
@@ -113,7 +114,7 @@ def overlay_disk(
         for idir, d in enumerate(s):
             nwedges = len(d)
             angles_per_wedge = deg_90 / nwedges
-            pm = (-1) ** (idir + 1)
+            pm = (-1) ** idir
             for iwedge in range(nwedges):
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
                     wedge_x = (
