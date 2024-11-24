@@ -69,21 +69,18 @@ def overlay_disk(
     linewidth *= 0.01 / (nscales - 1)
     wedge_height = 1 / (nscales - 1)
     magic_shift = 0  # 0 or -np.pi/8 or -np.pi/16? something else?
-    for iscale in range(nscales):
-        ndir = len(c_struct[iscale])
-        if iscale > 0:
-            assert ndir == 2
-        for idir in range(ndir):
-            nwedges = len(c_struct[iscale][idir])
+    color = cmapper.to_rgba(c_struct[0][0][0])
+    ax.bar(x=0, height=wedge_height, width=deg_360, bottom=0, color=color)
+    for iscale, s in enumerate(c_struct[1:], start=1):
+        assert len(s) == ndir, ValueError(
+            f"{len(s)=} != {ndir=} c_struct must be from 2D input"
+        )
+        for idir, d in enumerate(s):
+            nwedges = len(d)
             angles_per_wedge = deg_90 / nwedges
-            pm = (-1) ** (idir + 1)  # CC for idir == 0, CCW otherwise
-            for iwedge in range(nwedges):
-                color = cmapper.to_rgba(c_struct[iscale][idir][iwedge])
-                if iscale == 0:
-                    ax.bar(
-                        x=0, height=wedge_height, width=deg_360, bottom=0, color=color
-                    )
-                    continue
+            pm = (-1) ** idir  # CCW for idir == 0, CC otherwise
+            for iwedge, w in enumerate(d):
+                color = cmapper.to_rgba(w)
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
                     wedge_x = (
                         offset + pm * angles_per_wedge * (0.5 + iwedge) + magic_shift
@@ -102,7 +99,7 @@ def overlay_disk(
     if linewidth == 0:
         return ax
     # Plot after so they are on top
-    for iscale in range(nscales):
+    for iscale, s in enumerate(c_struct):
         # Scale separators
         ax.bar(
             x=0,
@@ -114,10 +111,10 @@ def overlay_disk(
         if iscale == 0:
             continue
         # Wedge separators
-        for idir in range(len(c_struct[iscale])):
-            nwedges = len(c_struct[iscale][idir])
+        for idir, d in enumerate(s):
+            nwedges = len(d)
             angles_per_wedge = deg_90 / nwedges
-            pm = (-1) ** (idir + 1)
+            pm = (-1) ** idir
             for iwedge in range(nwedges):
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
                     wedge_x = (
