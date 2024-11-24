@@ -11,7 +11,7 @@ from curvelets.utils import deepflatten
 
 def overlay_disk(
     c_struct: list[list[list[float]]],
-    ax: Axes,
+    ax: Axes | None = None,
     linewidth: float = 5,
     linecolor: str = "r",
     cmap: str = "turbo",
@@ -50,6 +50,8 @@ def overlay_disk(
         Axis used.
     """
     ax = plt.gca() if ax is None else ax
+    ax.axis("off")
+
     if vmin is None:
         vmin = min(v for v in deepflatten(c_struct))
     if vmax is None:
@@ -97,42 +99,40 @@ def overlay_disk(
                         bottom=wedge_bottom,
                         color=color,
                     )
-
+    if linewidth == 0:
+        return ax
     # Plot after so they are on top
-    if linewidth > 0:
-        for iscale in range(nscales):
-            # Scale separators
-            ax.bar(
-                x=0,
-                height=linewidth,
-                width=deg_360,
-                bottom=(iscale + 1 - linewidth / 2) / (nscales - 1),
-                color=linecolor,
-            )
-            if iscale == 0:
-                continue
-            # Wedge separators
-            for idir in range(len(c_struct[iscale])):
-                nwedges = len(c_struct[iscale][idir])
-                angles_per_wedge = deg_90 / nwedges
-                pm = (-1) ** (idir + 1)
-                for iwedge in range(nwedges):
-                    for offset in [deg_135, deg_n45]:  # top-left, bottom-right
-                        wedge_x = (
-                            offset
-                            + pm * angles_per_wedge * (0.5 + iwedge)
-                            + magic_shift
-                        )
-                        if direction == "tangent":
-                            wedge_x += deg_90
-                        wedge_width = angles_per_wedge
-                        wedge_bottom = iscale * wedge_height
-                        ax.bar(
-                            x=wedge_x - wedge_width / 2,
-                            height=wedge_height,
-                            width=linewidth,
-                            bottom=wedge_bottom,
-                            color=linecolor,
-                        )
-    ax.axis("off")
+    for iscale in range(nscales):
+        # Scale separators
+        ax.bar(
+            x=0,
+            height=linewidth,
+            width=deg_360,
+            bottom=(iscale + 1 - linewidth / 2) / (nscales - 1),
+            color=linecolor,
+        )
+        if iscale == 0:
+            continue
+        # Wedge separators
+        for idir in range(len(c_struct[iscale])):
+            nwedges = len(c_struct[iscale][idir])
+            angles_per_wedge = deg_90 / nwedges
+            pm = (-1) ** (idir + 1)
+            for iwedge in range(nwedges):
+                for offset in [deg_135, deg_n45]:  # top-left, bottom-right
+                    wedge_x = (
+                        offset + pm * angles_per_wedge * (0.5 + iwedge) + magic_shift
+                    )
+                    if direction == "tangent":
+                        wedge_x += deg_90
+                    wedge_width = angles_per_wedge
+                    wedge_bottom = iscale * wedge_height
+                    ax.bar(
+                        x=wedge_x - wedge_width / 2,
+                        height=wedge_height,
+                        width=linewidth,
+                        bottom=wedge_bottom,
+                        color=linecolor,
+                    )
+
     return ax
