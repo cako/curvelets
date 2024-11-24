@@ -131,19 +131,19 @@ class UDCT:
         np.testing.assert_equal(self.shape, x.shape)
         c = udctmddec(x, self.params, self.windows, self.decimation)
         if self.transpose:
-            for iscale in range(len(c)):
-                for idir in range(len(c[iscale])):
-                    for iwedge in range(len(c[iscale][idir])):
-                        c[iscale][idir][iwedge] = np.transpose(c[iscale][idir][iwedge])
+            for iscale, s in enumerate(c):
+                for idir, d in enumerate(s):
+                    for iwedge, w in enumerate(d):
+                        c[iscale][idir][iwedge] = np.transpose(w)
         return c
 
     def backward(self, c: UDCTCoefficients) -> np.ndarray:
         if self.transpose:
             c = deepcopy(c)
-            for iscale in range(len(c)):
-                for idir in range(len(c[iscale])):
-                    for iwedge in range(len(c[iscale][idir])):
-                        c[iscale][idir][iwedge] = np.transpose(c[iscale][idir][iwedge])
+            for iscale, s in enumerate(c):
+                for idir, d in enumerate(s):
+                    for iwedge, w in enumerate(d):
+                        c[iscale][idir][iwedge] = np.transpose(w)
         x = udctmdrec(c, self.params, self.windows, self.decimation)
         if self.transpose:
             x = np.transpose(x)
