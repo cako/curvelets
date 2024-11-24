@@ -227,7 +227,7 @@ def normal_vector_field(
 
             # Use top quadrants of f-k spectrum
             top_quadrant = kz_loc > 0
-            kx_locmax, kz_locmax = ndargmax(np.abs(d_k_loc[:, top_quadrant]))
+            kx_locmax, kz_locmax = ndargmax(np.abs(d_k_loc[:, top_quadrant]))  # pylint: disable=unbalanced-tuple-unpacking
 
             k = np.array([kx_loc[kx_locmax], kz_loc[top_quadrant][kz_locmax]])
             kvecs[irow, icol, :] = k / np.linalg.norm(k)
