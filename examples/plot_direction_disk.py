@@ -41,16 +41,21 @@ ax.set(xlabel="Position [km]", ylabel="Depth [km]", title="Data")
 
 # %%
 # UDCT
+# ####
 Cop = SimpleUDCT(data.shape, nscales=3, nbands_per_direction=3, transpose=True)
 d_c = Cop.forward(data)
 
 # %%
+# Normal Directions via FFT2D
+# ###########################
 # Compute average normal vector. This vector indicates the direction normal to the structures
 # of the image
 kvecs = normal_vector_field(data, 1, 1)
 kvecs *= 0.4 * min(x[-1] - x[0], z[-1] - z[0])
 
 # %%
+# Scattering Disk via UDCT
+# ########################
 # Now we compute the average energy of each curvelet "wedge". We will plot this on a
 # multiscale disk to show the distribution of energies along different directions of the various
 # scales in the data.
