@@ -8,6 +8,8 @@ from typing import TypeVar
 import numpy as np
 import numpy.typing as npt
 
+D_T = TypeVar("D_T", bound=np.floating)
+
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
 class ParamUDCT:
@@ -148,12 +150,9 @@ def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
     return out
 
 
-D = TypeVar("D", bound=np.floating)
-
-
 def to_sparse_new(
-    arr: npt.NDArray[D], thresh: float
-) -> tuple[npt.NDArray[np.intp], npt.NDArray[D]]:
+    arr: npt.NDArray[D_T], thresh: float
+) -> tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]:
     idx = np.argwhere(arr.ravel() > thresh)
     return (idx, arr.ravel()[idx])
 
