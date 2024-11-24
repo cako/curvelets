@@ -1,7 +1,7 @@
 r"""
 Asymmetric Directional Resolution
 =================================
-One of the features of the UDCT is that it is able to speficy different
+One of the features of the UDCT is that it is able to specify different
 resolutions for different quadrants of the Fourier space. This allows
 one to target finer details with more division, and coarser scales with
 fewer.
@@ -22,11 +22,6 @@ from numpy.fft import fftfreq, fftshift
 
 from curvelets.numpy import UDCT, SimpleUDCT
 
-if sys.version_info >= (3, 10):
-    from typing import TypeAlias
-else:
-    from typing_extensions import TypeAlias
-
 # %%
 # Symmetric and Asymmetric UDCTs
 # ##############################
@@ -41,25 +36,25 @@ C_asymv = UDCT(x.shape, cfg=np.array([[6, 3], [12, 6]]))
 #
 # Created Colored image from Windows
 # ----------------------------------
-rgb_a_T: TypeAlias = tuple[float, float, float] | tuple[float, float, float, float]
 
 
 def color_windows(
     C,
     thresh=0.8,
     cmaps_dir: tuple[str, str] = ("Wistia", "winter_r"),
-    color_low: str | rgb_a_T = "w",
-    color_bg: str | rgb_a_T = (0, 0, 0, 1),
+    color_low: str | tuple[int, ...] = "w",
+    color_bg: str | tuple[int, ...] = (0, 0, 0, 1),
 ):
     wins = C.windows
 
-    def create_mask(wedge):
+    def create_mask(wedge: np.ndarray) -> np.ndarray:
         wedge = C.from_sparse(wedge)
         wedge = fftshift(wedge)
-        mask = wedge >= thresh
-        return mask
+        return wedge >= thresh
 
-    def assign_rgba_to_mask(mask_index, mask_target, rgb_a):
+    def assign_rgba_to_mask(
+        mask_index: np.ndarray, mask_target: np.ndarray, rgb_a: tuple[int, ...]
+    ) -> None:
         mask_target[..., 0][mask_index] = rgb_a[0]
         mask_target[..., 1][mask_index] = rgb_a[1]
         mask_target[..., 2][mask_index] = rgb_a[2]
@@ -104,8 +99,8 @@ def plot_disk(
     C,
     ax,
     cmaps_dir: tuple[str, str] = ("Wistia", "winter_r"),
-    color_low: str | rgb_a_T = "w",
-    color_bg: str | rgb_a_T = (0, 0, 0, 1),
+    color_low: str | tuple[int, ...] = "w",
+    color_bg: str | tuple[int, ...] = (0, 0, 0, 1),
 ):
     deg_360 = 2 * np.pi
     deg_135 = np.pi * 3 / 4
@@ -188,12 +183,12 @@ def plot_colorbars(
     for idir, cax in enumerate(axs):
         max_wedges = max(len(d) for s in windows for d in s)
         cmap = plt.get_cmap(cmaps[idir], max_wedges)
-        cb = ColorbarBase(cax, cmap=cmap, orientation=orientation)
+        ColorbarBase(cax, cmap=cmap, orientation=orientation)
         xyaxis = cax.yaxis if orientation == "vertical" else cax.xaxis
         xyaxis.set_major_locator(ticker.MultipleLocator(1))
         xyaxis.set_major_formatter(
             ticker.FuncFormatter(
-                lambda x, pos: "Low" if int(round(2 * x)) == 0 else "High"
+                lambda x, _: "Low" if int(round(2 * x)) == 0 else "High"
             )
         )
         cax.set_title(f"Dir {idir}")
@@ -210,6 +205,7 @@ nx, ny = x.shape
 kx = fftshift(fftfreq(nx))
 ky = fftshift(fftfreq(ny))
 
+C: UDCT | SimpleUDCT
 # %%
 # Symmetric
 # ---------
