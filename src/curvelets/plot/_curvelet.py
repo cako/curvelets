@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
@@ -13,11 +14,42 @@ def overlay_disk(
     ax: Axes,
     linewidth: float = 5,
     linecolor: str = "r",
-    cmap="turbo",
-    vmin=None,
-    vmax=None,
-    direction="normal",
-):
+    cmap: str = "turbo",
+    vmin: float | None = None,
+    vmax: float | None = None,
+    direction: str = "normal",
+) -> Axes:
+    r"""Overlay a curvelet structure onto its locations on a multiscale, multidirectional disk.
+
+    Its intended usage is to display various scalars derived from curvelet
+    wedges of a certain image with a disk display.
+
+
+    Parameters
+    ----------
+    c_struct : list[list[list[float]]]
+        A scale for every curvelet wedge.
+    ax : :obj:`Axes <matplotlib.axes.Axes>`, optional
+        Axis on which to overlay the disk. Uses :obj:`plt.gca <matplotlib.pyplot.gca>` if None.
+    linewidth : float, optional
+        Width of line separating scales as a percentage of a single scale height, by default 5.
+        Set to zero to disable.
+    linecolor : str, optional
+        Color of line separating scales, by default "r".
+    cmap : str, optional
+        Colormap, by default ``"turbo"``.
+    vmin, vmax : float, optional
+        Data range that the colormap covers. By default, the colormap covers the
+        complete value range of the supplied data.
+    direction : str, optional
+        "tangent" or, by default "normal"
+
+    Returns
+    -------
+    :obj:`Axes <matplotlib.axes.Axes>`
+        Axis used.
+    """
+    ax = plt.gca() if ax is None else ax
     if vmin is None:
         vmin = min(v for v in deepflatten(c_struct))
     if vmax is None:

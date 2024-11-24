@@ -12,6 +12,13 @@ from numpy.typing import NDArray
 
 
 def despine(ax: Axes) -> None:
+    """Remove the top and right spines from plot(s).
+
+    Parameters
+    ----------
+    ax : :obj:`Axes <matplotlib.axes.Axes>`
+        Axis to despine.
+    """
     for spine in ax.spines:
         ax.spines[spine].set_visible(False)
     ax.xaxis.set_visible(False)
@@ -25,17 +32,15 @@ def create_colorbar(
     pad: float = 0.1,
     orientation: str = "vertical",
 ) -> tuple[Axes, Colorbar]:
-    r"""Create a colorbar.
-
-    Divides  axis and attaches a colorbar to it.
+    r"""Create a colorbar. Divides axis and attaches a colorbar to it.
 
     Parameters
     ----------
     im : :obj:`AxesImage <matplotlib.image.AxesImage>`
         Image from which the colorbar will be created.
-        Commonly the output of :obj:`matplotlib.pyplot.imshow`.
+        Commonly the output of :obj:`plt.imshow <matplotlib.pyplot.imshow>`.
     ax : :obj:`Axes <matplotlib.axes.Axes>`, optional
-        Axis which to split. Uses `plt.gca()` if None.
+        Axis which to split. Uses :obj:`plt.gca <matplotlib.pyplot.gca>` if None.
     size : :obj:`float`, optional
         Size of split, by default 0.05. Effectively sets the size of the colorbar.
     pad : :obj:`float`, optional
@@ -45,10 +50,10 @@ def create_colorbar(
 
     Returns
     -------
-    Tuple[:obj:`Axes <matplotlib.axes.Axes>`, :obj:`Colorbar <matplotlib.colorbar.Colorbar>`]
-        **cax** : Colorbar axis.
-
-        **cb** : Colorbar.
+    cax : :obj:`Axes <matplotlib.axes.Axes>`
+        Colorbar axis.
+    cb : :obj:`Colorbar <matplotlib.colorbar.Colorbar>`
+        Colorbar.
 
     Examples
     --------
@@ -62,10 +67,10 @@ def create_colorbar(
     >>> print(cb.vmin)
     -1.0
     """
-    ax_ = plt.gca() if ax is None else ax
-    divider = make_axes_locatable(ax_)
+    ax = plt.gca() if ax is None else ax
+    divider = make_axes_locatable(ax)
     cax: Axes = divider.append_axes("right", size=f"{size:%}", pad=pad)
-    fig = ax_.get_figure()
+    fig = ax.get_figure()
     if fig is None:
         cb = plt.colorbar(im, cax=cax, orientation=orientation)
     else:
@@ -111,7 +116,7 @@ def create_inset_axes_grid(
 
     Returns
     -------
-    :obj:`NDArray[Axes]`
+    :obj:`NDArray <numpy.typing.NDArray>` [:obj:`Axes <matplotlib.axes.Axes>`]
         Array of :obj:`Axes <matplotlib.axes.Axes>` shaped ``(rows, cols)``.
 
     Examples
@@ -179,7 +184,7 @@ def overlay_arrows(
 
     Parameters
     ----------
-    vectors : :obj:`numpy.typing.NDArray`
+    vectors : :obj:`NDArray <numpy.typing.NDArray>`
         Array shaped ``(rows, cols, 2)``, corresponding to a 2D vector field.
     ax : :obj:`Axes <matplotlib.axes.Axes>`
         Axis on which to overlay the arrows.

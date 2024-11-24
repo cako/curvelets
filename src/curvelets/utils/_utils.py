@@ -85,7 +85,7 @@ def array_split_nd(ary: NDArray[D], *args: int) -> list[Any]:
 
     Parameters
     ----------
-    ary : :obj:`numpy.typing.NDArray`
+    ary : :obj:`NDArray[D] <numpy.typing.NDArray>`
         Input array.
     args : :obj:`int`, optional
         Number of splits for each axis of ``ary``.
@@ -98,7 +98,7 @@ def array_split_nd(ary: NDArray[D], *args: int) -> list[Any]:
     Returns
     -------
     list[Any]
-        Recursive lists of lists of :obj:`numpy.typing.NDArray`.
+        Recursive lists of lists of :obj:`NDArray[D] <numpy.typing.NDArray>`.
         The number of depth of nesting is equivalent to the number arguments in args.
 
     See Also
@@ -129,12 +129,29 @@ def array_split_nd(ary: NDArray[D], *args: int) -> list[Any]:
     axis = ary.ndim - len(args)
     split = np.array_split(ary, args[0], axis=axis)
     if len(args) == 1:
-        return split
+        return split  # type: ignore[no-any-return]
     return [array_split_nd(s, *args[1:]) for s in split]
 
 
 def deepflatten(lst: list[Any]) -> Iterable[Any]:
-    """Flatten a list using a deque."""
+    r"""Flatten arbitrarily nested lists
+
+    Parameters
+    ----------
+    lst : list[Any]
+        Nested list of lists.
+
+    Yields
+    ------
+    Iterator[Iterable[Any]]
+        Elements in ``lst`` in order.
+
+    Examples
+    --------
+    >>> from curvelets.utils import deepflatten
+    >>> list(deepflatten([[[[[[1],2,[[3,4]]]]]]]))
+    [1, 2, 3, 4]
+    """
     q: Any = deque()
     for item in lst:
         if isinstance(item, list):
@@ -154,12 +171,12 @@ def ndargmax(ary: NDArray[D]) -> tuple[np.intp, ...]:
 
     Parameters
     ----------
-    ary : :obj:`numpy.typing.NDArray`
-        Input array
+    ary : :obj:`NDArray <numpy.typing.NDArray>`
+        Input array.
 
     Returns
     -------
-    tuple[np.intp, ...]
+    :obj:`tuple` [:obj:`numpy.intp`, ...]
         N-dimensional index of the maximum of ``ary``.
 
     Examples
@@ -172,12 +189,32 @@ def ndargmax(ary: NDArray[D]) -> tuple[np.intp, ...]:
     (1, 1, 1)
 
     """
-    return np.unravel_index(ary.argmax(), ary.shape)
+    return np.unravel_index(ary.argmax(), ary.shape)  # type: ignore[no-any-return]
 
 
 def normal_vector_field(
-    data: NDArray[D], rows: int, cols: int, dx: float = 1, dy: float = 1
+    data: NDArray[np.generic], rows: int, cols: int, dx: float = 1, dy: float = 1
 ) -> NDArray[np.float64]:
+    r"""Creates equally spaced vectors normal to the data.
+
+    Parameters
+    ----------
+    data : :obj:`NDArray <numpy.typing.NDArray>`
+        Input data. Plot with :obj:`plt.imshow <matplotlib.pyplot.imshow>` ``(data.T)``.
+    rows : int
+        Number of rows.
+    cols : int
+        Number of columns.
+    dx : float, optional
+        Spacing in the ``axis=0`` direction, by default 1
+    dy : float, optional
+        Spacing in the ``axis=1`` direction, by default 1
+
+    Returns
+    -------
+    :obj:`NDArray <numpy.typing.NDArray>` [:obj:`numpy.float64`]
+        Normal vectors shaped ``(nrows, ncols, 2)``
+    """
     kvecs: NDArray[np.float64] = np.empty((rows, cols, 2), dtype=float)
     d_split: list[list[NDArray[D]]] = array_split_nd(data.T, rows, cols)
 
