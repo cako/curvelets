@@ -46,11 +46,14 @@ pylint:
 
 doc:
 	make uvcheck
-	cd docs && rm -rf source && $(UV) tool run --from sphinx --with sphinx-autodoc-typehints sphinx-apidoc -f -M -o source/ ../src && cd .. && $(UV) tool run nox -s docs
+	cd docs && rm -rf source && sphinx-apidoc -f -M -o source/ ../src && cd .. && $(UV) tool run nox -s docs
 
 servedocs:
 	make uvcheck
 	$(UV) tool run nox -s docs -- --serve --port 1234
+
+watchdoc:
+	while inotifywait -q -r src/ examples/ -e create,delete,modify; do { make doc; }; done
 
 precommitupdate:
 	make uvcheck
