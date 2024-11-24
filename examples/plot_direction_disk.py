@@ -42,7 +42,7 @@ ax.set(xlabel="Position [km]", ylabel="Depth [km]", title="Data")
 # %%
 # UDCT
 # ####
-Cop = SimpleUDCT(data.shape, nscales=3, nbands_per_direction=3, transpose=True)
+Cop = SimpleUDCT(data.shape, nscales=3, nbands_per_direction=3)
 d_c = Cop.forward(data)
 
 # %%
