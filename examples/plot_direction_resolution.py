@@ -118,10 +118,8 @@ def plot_disk(
 
     nscales = len(C.windows)
     wedge_height = 1 / (nscales - 1)
-    wedge_bottom = wedge_height
     ax.bar(x=0, height=wedge_height, width=deg_360, bottom=0, color=color_low)
     for iscale, s in enumerate(C.windows[1:], start=1):
-        wedge_height = 2 ** (iscale - 1) / (nscales - 1)
         ndir = len(s)
         assert ndir == 2
         for idir, d in enumerate(s):
@@ -136,6 +134,7 @@ def plot_disk(
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
                     wedge_x = offset + pm * angles_per_wedge * (0.5 + iwedge)
                     wedge_width = angles_per_wedge
+                    wedge_bottom = iscale * wedge_height
                     ax.bar(
                         x=wedge_x,
                         height=wedge_height,
@@ -143,39 +142,38 @@ def plot_disk(
                         bottom=wedge_bottom,
                         color=color,
                     )
-        wedge_bottom += wedge_height
 
-    # linewidth = 0.05 * wedge_height
-    # linecolor = color_bg
-    # # Plot after so they are on top
-    # for iscale, s in enumerate(C.windows):
-    #     # Scale separators
-    #     ax.bar(
-    #         x=0,
-    #         height=linewidth,
-    #         width=deg_360,
-    #         bottom=(iscale + 1 - linewidth / 2) / (nscales - 1),
-    #         color=linecolor,
-    #     )
-    #     if iscale == 0:
-    #         continue
-    #     # Wedge separators
-    #     for idir, d in enumerate(s):
-    #         nwedges = len(d)
-    #         angles_per_wedge = deg_90 / nwedges
-    #         pm = (-1) ** idir
-    #         for iwedge in range(nwedges):
-    #             for offset in [deg_135, deg_n45]:  # top-left, bottom-right
-    #                 wedge_x = offset + pm * angles_per_wedge * (0.5 + iwedge)
-    #                 wedge_width = angles_per_wedge
-    #                 wedge_bottom = iscale * wedge_height
-    #                 ax.bar(
-    #                     x=wedge_x - wedge_width / 2,
-    #                     height=wedge_height,
-    #                     width=linewidth,
-    #                     bottom=wedge_bottom,
-    #                     color=linecolor,
-    #                 )
+    linewidth = 0.05 * wedge_height
+    linecolor = color_bg
+    # Plot after so they are on top
+    for iscale, s in enumerate(C.windows):
+        # Scale separators
+        ax.bar(
+            x=0,
+            height=linewidth,
+            width=deg_360,
+            bottom=(iscale + 1 - linewidth / 2) / (nscales - 1),
+            color=linecolor,
+        )
+        if iscale == 0:
+            continue
+        # Wedge separators
+        for idir, d in enumerate(s):
+            nwedges = len(d)
+            angles_per_wedge = deg_90 / nwedges
+            pm = (-1) ** idir
+            for iwedge in range(nwedges):
+                for offset in [deg_135, deg_n45]:  # top-left, bottom-right
+                    wedge_x = offset + pm * angles_per_wedge * (0.5 + iwedge)
+                    wedge_width = angles_per_wedge
+                    wedge_bottom = iscale * wedge_height
+                    ax.bar(
+                        x=wedge_x - wedge_width / 2,
+                        height=wedge_height,
+                        width=linewidth,
+                        bottom=wedge_bottom,
+                        color=linecolor,
+                    )
 
 
 # %%
