@@ -114,7 +114,6 @@ def array_split_nd(ary: NDArray[D], *args: int) -> list[Any]:
     >>> array_split_nd(ary, 2, 3)
     [[array([[2]]), array([[3]]), array([[4]])],
      [array([[4]]), array([[6]]), array([[8]])]]
-    >>> from curvelets.utils import array_split_nd
     >>> ary = np.outer(np.arange(3), np.arange(5))
     >>> array_split_nd(ary, 2, 3)
     [[array([[0, 0],
