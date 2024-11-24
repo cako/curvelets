@@ -65,14 +65,14 @@ Probably not! This library is a work in progress, pre-alpha library for a very s
 
 Consider using other, more mature projects.
 
-|                                                             | Description                         | License                                  | N-D?       | Shape       | Invertible? |
-| ----------------------------------------------------------- | ----------------------------------- | ---------------------------------------- | ---------- | ----------- | ----------- |
-| curvelets                                                   | UDCT in Python                      | MIT                                      | N-D        | Powers of 2 | Exact       |
-| [Curvelab](https://curvelet.org/software.php)               | FDCT in C++ and Matlab              | Proprietary (free for academic use only) | 2D, 3D     | Any         | Exact       |
-| [curvelops](https://github.com/PyLops/curvelops)            | Curvelab Python wrapper             | MIT, depedends on Curvelab               | 2D, 3D     | Any         | Exact       |
-| [Kymatio](https://www.kymat.io/)                            | Wavelet scattering transform        | BSD 3-clause                             | 1D, 2D, 3D | Any         | Approximate |
-| [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform | Custom BSD 2-clause                      | 1D, 2D, 3D | Any         | Exact       |
-| [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io) | Discrete WT and Dual-Tree CWT       | MIT                                      | 2D         | Any         | Exact       |
+|                                                             | Description                         | License                                  | N-D?       | Invertible? |
+| ----------------------------------------------------------- | ----------------------------------- | ---------------------------------------- | ---------- | ----------- |
+| curvelets                                                   | UDCT in Python                      | MIT                                      | N-D        | Exact       |
+| [Curvelab](https://curvelet.org/software.php)               | FDCT in C++ and Matlab              | Proprietary (free for academic use only) | 2D, 3D     | Exact       |
+| [curvelops](https://github.com/PyLops/curvelops)            | Curvelab Python wrapper             | MIT, depedends on Curvelab               | 2D, 3D     | Exact       |
+| [Kymatio](https://www.kymat.io/)                            | Wavelet scattering transform        | BSD 3-clause                             | 1D, 2D, 3D | Approximate |
+| [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform | Custom BSD 2-clause                      | 1D, 2D, 3D | Exact       |
+| [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io) | Discrete WT and Dual-Tree CWT       | MIT                                      | 2D         | Exact       |
 
 
 
