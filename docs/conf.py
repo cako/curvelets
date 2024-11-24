@@ -36,6 +36,8 @@ myst_enable_extensions = [
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "matplotlib": ("https://matplotlib.org/", None),
 }
 
 nitpick_ignore = [
@@ -49,3 +51,5 @@ sphinx_gallery_conf = {
     "examples_dirs": "../examples",  # path to your example scripts
     "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
 }
+
+copybutton_prompt_text = ">>> "

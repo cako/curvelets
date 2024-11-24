@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from math import prod
 
 import numpy as np
@@ -85,15 +86,17 @@ class UDCT:
         alpha: float = 0.15,
         r: tuple[float, float, float, float] | None = None,
         winthresh: float = 1e-5,
+        transpose: bool = False,
     ) -> None:
-        self.shape = shape
-        dim = len(shape)
+        self.transpose = transpose
+        self.shape = shape[::-1] if self.transpose else shape
+        dim = len(self.shape)
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
         r1: tuple[float, float, float, float] = (
             tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r
         )
         self.params = ParamUDCT(
-            dim=dim, size=shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
+            dim=dim, size=self.shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
         )
 
         self.windows, self.decimation, self.indices = udctmdwin(self.params)
@@ -102,8 +105,10 @@ class UDCT:
         coeffs_vec = []
         for c in coeffs:
             for d in c:
-                for a in d:
-                    coeffs_vec.append(a.ravel())
+                for w in d:
+                    if self.transpose:
+                        w = np.transpose(w)  # noqa: PLW2901
+                    coeffs_vec.append(w.ravel())
         return np.concatenate(coeffs_vec)
 
     def struct(self, coeffs_vec: npt.NDArray[np.complexfloating]) -> UDCTCoefficients:
@@ -116,17 +121,36 @@ class UDCT:
                 for _ in self.windows[ires][idir]:
                     shape_decim = self.shape // decdir
                     iend = ibeg + prod(shape_decim)
-                    coeffs[ires][idir].append(
-                        coeffs_vec[ibeg:iend].reshape(shape_decim)
-                    )
+                    wedge = coeffs_vec[ibeg:iend].reshape(shape_decim)
+                    if self.transpose:
+                        wedge = np.transpose(wedge)
+                    coeffs[ires][idir].append(wedge)
                     ibeg = iend
         return coeffs
 
     def forward(self, x: np.ndarray) -> UDCTCoefficients:
-        return udctmddec(x, self.params, self.windows, self.decimation)
+        if self.transpose:
+            x = np.transpose(x)
+        np.testing.assert_equal(self.shape, x.shape)
+        c = udctmddec(x, self.params, self.windows, self.decimation)
+        if self.transpose:
+            for iscale, s in enumerate(c):
+                for idir, d in enumerate(s):
+                    for iwedge, w in enumerate(d):
+                        c[iscale][idir][iwedge] = np.transpose(w)
+        return c
 
     def backward(self, c: UDCTCoefficients) -> np.ndarray:
-        return udctmdrec(c, self.params, self.windows, self.decimation)
+        if self.transpose:
+            c = deepcopy(c)
+            for iscale, s in enumerate(c):
+                for idir, d in enumerate(s):
+                    for iwedge, w in enumerate(d):
+                        c[iscale][idir][iwedge] = np.transpose(w)
+        x = udctmdrec(c, self.params, self.windows, self.decimation)
+        if self.transpose:
+            x = np.transpose(x)
+        return x
 
 
 class SimpleUDCT(UDCT):
@@ -137,6 +161,7 @@ class SimpleUDCT(UDCT):
         nbands_per_direction: int = 3,
         alpha: float | None = None,
         winthresh: float = 1e-5,
+        transpose: bool = False,
     ) -> None:
         assert nscales > 1
         assert nbands_per_direction >= 3
@@ -156,12 +181,22 @@ class SimpleUDCT(UDCT):
             else:
                 alpha = 0.5
         for i, nb in enumerate(nbands, start=1):
-            if 2**i * (1 + 2 * alpha) * (1 + alpha) >= nb:
-                msg = f"alpha={alpha:.3f} does not respect respect the relationship (2^{i}/{nb})(1+2α)(1+α) < 1 for scale {i+1}"  # noqa: RUF001
+            if (const := 2 ** (i / nb) * (1 + 2 * alpha) * (1 + alpha)) >= nb:
+                msg = (
+                    f"alpha={alpha:.3f} does not respect the relationship "
+                    f"(2^{i}/{nb})(1+2α)(1+α) = {const:.3f} = < 1 for scale {i+1}"  # noqa: RUF001
+                )
                 logging.warning(msg)
         cfg = np.tile(nbands[:, None], dim)
         r: tuple[float, float, float, float] = tuple(
             np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
         )
 
-        super().__init__(shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+        super().__init__(
+            shape=shape,
+            cfg=cfg,
+            alpha=alpha,
+            r=r,
+            winthresh=winthresh,
+            transpose=transpose,
+        )
