@@ -105,8 +105,10 @@ class UDCT:
         coeffs_vec = []
         for c in coeffs:
             for d in c:
-                for a in d:
-                    coeffs_vec.append(a.ravel())
+                for w in d:
+                    if self.transpose:
+                        w = np.transpose(w)  # noqa: PLW2901
+                    coeffs_vec.append(w.ravel())
         return np.concatenate(coeffs_vec)
 
     def struct(self, coeffs_vec: npt.NDArray[np.complexfloating]) -> UDCTCoefficients:
@@ -119,9 +121,10 @@ class UDCT:
                 for _ in self.windows[ires][idir]:
                     shape_decim = self.shape // decdir
                     iend = ibeg + prod(shape_decim)
-                    coeffs[ires][idir].append(
-                        coeffs_vec[ibeg:iend].reshape(shape_decim)
-                    )
+                    wedge = coeffs_vec[ibeg:iend].reshape(shape_decim)
+                    if self.transpose:
+                        wedge = np.transpose(wedge)
+                    coeffs[ires][idir].append(wedge)
                     ibeg = iend
         return coeffs
 
