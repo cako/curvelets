@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 from math import ceil, prod
+from typing import TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -147,9 +148,14 @@ def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
     return out
 
 
-def to_sparse_new(arr: np.ndarray, thresh: float) -> list[np.ndarray]:
+D = TypeVar("D", bound=np.floating)
+
+
+def to_sparse_new(
+    arr: npt.NDArray[D], thresh: float
+) -> tuple[npt.NDArray[np.intp], npt.NDArray[D]]:
     idx = np.argwhere(arr.ravel() > thresh)
-    return [idx, arr.ravel()[idx]]
+    return (idx, arr.ravel()[idx])
 
 
 def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
