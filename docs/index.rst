@@ -7,6 +7,9 @@
     auto_examples/index.rst
     API <source/modules.rst>
 
+.. image:: montage_all_border.png
+  :alt: Four scales of curvelets
+
 
 Overview
 ========
