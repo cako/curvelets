@@ -16,6 +16,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "sphinx_gallery.gen_gallery",
+    "sphinxcontrib.bibtex",
 ]
 
 source_suffix = [".rst", ".md"]
@@ -58,4 +59,7 @@ sphinx_gallery_conf = {
     "within_subsection_order": "FileNameSortKey",
 }
 
-copybutton_prompt_text = ">>> "
+# sphinxcontrib.bibtex
+bibtex_bibfiles = ["references.bib"]
+bibtex_reference_style = "author_year"
+# bibtex_default_style = "plain"
