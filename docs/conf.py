@@ -50,6 +50,7 @@ always_document_param_types = True
 sphinx_gallery_conf = {
     "examples_dirs": "../examples",  # path to your example scripts
     "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
+    "within_subsection_order": "FileNameSortKey",
 }
 
 copybutton_prompt_text = ">>> "
