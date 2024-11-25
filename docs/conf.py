@@ -16,6 +16,7 @@ extensions = [
     "sphinx_autodoc_typehints",
     "sphinx_copybutton",
     "sphinx_gallery.gen_gallery",
+    "sphinxcontrib.bibtex",
 ]
 
 source_suffix = [".rst", ".md"]
@@ -34,12 +35,6 @@ myst_enable_extensions = [
     "colon_fence",
 ]
 
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
-    "matplotlib": ("https://matplotlib.org/", None),
-}
-
 nitpick_ignore = [
     ("py:class", "_io.StringIO"),
     ("py:class", "_io.BytesIO"),
@@ -47,9 +42,24 @@ nitpick_ignore = [
 
 always_document_param_types = True
 
+# sphinx.ext.intersphinx
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
+    "matplotlib": ("https://matplotlib.org/", None),
+}
+
+# sphinx_copybutton
+copybutton_prompt_text = ">>> "
+
+# sphinx_gallery.gen_gallery
 sphinx_gallery_conf = {
     "examples_dirs": "../examples",  # path to your example scripts
     "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
+    "within_subsection_order": "FileNameSortKey",
 }
 
-copybutton_prompt_text = ">>> "
+# sphinxcontrib.bibtex
+bibtex_bibfiles = ["references.bib"]
+bibtex_reference_style = "author_year"
+# bibtex_default_style = "plain"
