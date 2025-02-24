@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-__all__ = ["ParamUDCT", "udctmddec", "udctmdrec", "udctmdwin", "UDCT", "SimpleUDCT"]
+__all__ = ["UDCT", "ParamUDCT", "SimpleUDCT", "udctmddec", "udctmdrec", "udctmdwin"]
 
 from curvelets.numpy.udct import UDCT, SimpleUDCT, udctmddec, udctmdrec
 from curvelets.numpy.udctmdwin import udctmdwin

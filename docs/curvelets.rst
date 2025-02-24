@@ -48,7 +48,7 @@ Another expected to consider is the availability of high-performance, GPU-accele
 
 Related Projects
 ################
-
+.. COMMENT: use table.csv to automatically generate table.md
 .. include:: table.md
    :parser: myst_parser.sphinx_
 

@@ -40,8 +40,8 @@ test = ["pytest >=6", "pytest-cov >=3"]
 dev = ["pytest >=6", "pytest-cov >=3"]
 matplotlib = ["matplotlib"]
 docs = [
-  "sphinx>=7.0",
-  "myst_parser>=0.13",
+  "sphinx>=8.2.1",
+  "myst_parser",
   "sphinx_copybutton",
   "sphinx_autodoc_typehints",
   "sphinxcontrib-bibtex",
@@ -91,6 +91,8 @@ enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 warn_unreachable = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+# plugins = ["numpy.typing.mypy_plugin"]
+
 
 [[tool.mypy.overrides]]
 module = "curvelets.*"
