@@ -11,9 +11,9 @@ from .util import fun_meyer
 def combinations(lst, r):
     if r == 0:
         return [()]
-    elif len(lst) < r:
+    if len(lst) < r:
         return []
-    elif len(lst) == r:
+    if len(lst) == r:
         return [tuple(lst)]
 
     result = []
@@ -183,7 +183,6 @@ alpha = 0.1
 class udct:
     def __init__(self, sz, cfg, complex=False, sparse=False, high="curvelet"):
         self.name = "ucurv"
-        #
         if high != "curvelet":
             self.sz = tuple(np.array(sz) // 2)
         else:
@@ -427,7 +426,6 @@ def ucurvinv(imband, udct):
     else:
         recon = np.real(np.fft.ifftn(np.fft.fftn(imlow) * FL))
     for id, subwin in Msubwin.items():
-        #
         if udct.high != "curvelet" and id[0] == udct.res:
             continue
 

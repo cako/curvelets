@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import curvelets.ucurv as ucurv
+from curvelets import ucurv
 
 eps = 1e-6
 shapes = [
