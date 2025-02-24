@@ -3,8 +3,8 @@ curvelets package
 
 .. automodule:: curvelets
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Subpackages
 -----------
