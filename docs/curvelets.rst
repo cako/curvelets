@@ -11,15 +11,19 @@ Curvelets are like wavelets, but in 2D (3D, 4D, etc.). But so are steerable wave
 
 What separates curvelets from the other X-lets are their interesting properties, including:
 
-* The curvelet transform has an exact inverse,
+* The curvelet transform has an *exact inverse*,
 
-* The discrete curvelet transform has efficient decomposition ("analysis") and reconstruction ("synthesis") implementations :cite:`Candes2006a,Nguyen2010`,
+* Forward and inverse discrete curvelet transforms are *efficient* :cite:`Candes2006a,Nguyen2010`,
 
-* The curvelet transform is naturally N-dimensional,
+* The curvelet transform is *N-dimensional*,
 
-* Curvelet basis functions yield an optimally sparse representation of wave phenomena (seismic data, ultrasound data, etc.) :cite:`Candes2005`,
+* Curvelets are *optimally sparse* for wave phenomena (seismic, ultrasound, electromagnetic, etc.) :cite:`Candes2005`,
 
-* Curvelets have little redundancy, forming a *tight frame* :cite:`Candes2004`.
+.. |tight_frame_link| raw:: html
+
+   <i><a href="https://en.wikipedia.org/wiki/Frame_(linear_algebra)#Tight_frames">tight frame</a></i>
+
+* Curvelets have little redundancy, forming a |tight_frame_link| :cite:`Candes2004`.
 
 Why do we need another curvelet transform library?
 ##################################################
