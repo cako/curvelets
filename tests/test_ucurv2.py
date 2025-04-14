@@ -117,7 +117,8 @@ import curvelets.ucurv as udct
 
 
 @pytest.mark.parametrize("dim", list(range(2, 4)))
-def test_round_trip_absolute(dim):
+@pytest.mark.parametrize("high", ["curvelet", "wavelet"])
+def test_round_trip_absolute(dim, high):
     rng = np.random.default_rng()
 
     # For these specific parameters, we can guarantee an absolute precision of
@@ -133,7 +134,7 @@ def test_round_trip_absolute(dim):
         np.array([[3, 3], [6, 6], [12, 6]])
         if dim == 2
         else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
-    )
+    ).astype(int)
     alpha = 0.15
     r = tuple(np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3)
     winthresh = 1e-5
@@ -142,6 +143,7 @@ def test_round_trip_absolute(dim):
         shape=size,
         cfg=cfg,
         # alpha=alpha, r=r, winthresh=winthresh
+        high=high,
     )
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
@@ -172,7 +174,8 @@ def test_round_trip_absolute(dim):
 
 
 @pytest.mark.parametrize("dim", list(range(2, 5)))
-def test_round_trip_rel(dim):
+@pytest.mark.parametrize("high", ["curvelet", "wavelet"])
+def test_round_trip_rel(dim, high):
     rng = np.random.default_rng()
 
     # For random parameters in the range below, we can guarantee an relative precision of
@@ -196,6 +199,7 @@ def test_round_trip_rel(dim):
         shape=size,
         cfg=cfg,
         # alpha=alpha, r=r, winthresh=winthresh
+        high=high,
     )
     im = rng.normal(size=size)
     coeffs = my_udct.forward(im)
