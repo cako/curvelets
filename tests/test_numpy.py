@@ -231,7 +231,7 @@ def test_vect_struct(dim):
         np.array([[3, 3], [6, 6], [12, 6]])
         if dim == 2
         else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
-    )
+    ).astype(int)
     alpha = 0.3 * rng.uniform(size=1).item()
     r: tuple[float, float, float, float] = tuple(
         np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
