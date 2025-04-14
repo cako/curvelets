@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import curvelets.ucurv as udct
+from curvelets.ucurv import udct
 
 # import curvelets.reference as udct_ref
 # from curvelets.numpy.utils import from_sparse, from_sparse_new
