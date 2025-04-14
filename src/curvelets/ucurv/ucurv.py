@@ -3,12 +3,13 @@ from __future__ import annotations
 import math
 
 import numpy as np
+import numpy.typing as npt
 
 from .meyerwavelet import meyerfwdmd, meyerinvmd
 from .util import fun_meyer
 
 
-def combinations(lst, r):
+def combinations(lst: list[int], r: int) -> list[tuple[int, ...]]:
     if r == 0:
         return [()]
     if len(lst) < r:
@@ -23,12 +24,12 @@ def combinations(lst, r):
     return result
 
 
-def generate_combinations(dim):
+def generate_combinations(dim: int) -> list[tuple[int, ...]]:
     lst = list(range(dim))
     return combinations(lst, dim - 1)
 
 
-def tan_theta_grid(S1, S2):
+def tan_theta_grid(S1: npt.NDArray, S2: npt.NDArray) -> npt.NDArray:
     """
     Create a grid approximate the tan theta function as described in (28) of the paper
     """
@@ -52,7 +53,7 @@ def tan_theta_grid(S1, S2):
     return M2
 
 
-def fftflip(F, dirlist=None):
+def fftflip(F: npt.NDArray, dirlist: int | list[int] | None = None) -> npt.NDArray:
     """
     Return a fftflip of array F, either on a list of dimension, or a single dimension.
     A fftflip use to produce a X(-omega) representation of X(omega) in a FFT representation
@@ -77,18 +78,28 @@ def fftflip(F, dirlist=None):
     return Fc
 
 
-def angle_fun(Mgrid, n, alpha, dir, bandpass=None):
+def angle_fun(
+    Mgrid: npt.NDArray,
+    n: int,
+    alpha: float,
+    dir: int,
+    bandpass: npt.NDArray | None = None,
+) -> list[npt.NDArray]:
     """
     Return the angle meyer window as in Figure 8 of the paper
     """
     angd = 2 / n
     ang = angd * np.array([-alpha, alpha, 1 - alpha, 1 + alpha])
-    Mang = [[] for i in range(n)]
-    tmp = []
+    Mang: list[npt.NDArray] = [
+        np.empty(
+            0,
+        )
+        for i in range(n)
+    ]
     sp = np.array(Mgrid.shape)
     for id in range(math.ceil(n / 2)):
         ang2 = -1 + id * angd + ang
-        x = fun_meyer(Mgrid, ang2)
+        x = fun_meyer(Mgrid, ang2.tolist())
         if bandpass is not None:
             x = x * bandpass
         x = np.roll(x, 3 * sp // 4, (0, 1))
@@ -98,7 +109,7 @@ def angle_fun(Mgrid, n, alpha, dir, bandpass=None):
     return Mang
 
 
-def angle_kron(F, dr, sz):
+def angle_kron(F: npt.NDArray, dr: tuple[int, int], sz: tuple[int, int]) -> npt.NDArray:
     """
     This function replicate the 2D array F at dimension dr to match the size sz
     """
@@ -113,11 +124,14 @@ def angle_kron(F, dr, sz):
     Fk = np.reshape(np.kron(F.flatten(), np.ones(sp2)), sp)
 
     # Move the dimensions 0,1 to dr
-    Fk = np.moveaxis(Fk, [0, 1], dr)
-    return Fk
+    return np.moveaxis(Fk, [0, 1], dr)
 
 
-def downsamp(band, samp, shift=None):
+def downsamp(
+    band: npt.NDArray,
+    samp: tuple[int, ...],
+    shift: npt.NDArray[np.integer] | None = None,
+) -> npt.NDArray:
     """
     Downsample a N-D array by length N of power-2 integers
     """
@@ -142,9 +156,15 @@ def downsamp(band, samp, shift=None):
             shift[3] :: samp[3],
             shift[4] :: samp[4],
         ]
+    err = "ndim > 5 not supported"
+    raise NotImplementedError(err)
 
 
-def upsamp(band, samp, shift=None):
+def upsamp(
+    band: npt.NDArray,
+    samp: tuple[int, ...],
+    shift: npt.NDArray[np.integer] | None = None,
+) -> npt.NDArray:
     """
     Upsample a N-D array by length N of power-2 integers
     """
@@ -181,7 +201,14 @@ alpha = 0.1
 
 ####  class to hold all curvelet windows and other based on transform configuration
 class udct:
-    def __init__(self, sz, cfg, complex=False, sparse=False, high="curvelet"):
+    def __init__(
+        self,
+        sz: npt.NDArray[np.integer],
+        cfg: npt.NDArray[np.integer],
+        complex: bool = False,
+        sparse: bool = False,
+        high: str = "curvelet",
+    ):
         self.name = "ucurv"
         if high != "curvelet":
             self.sz = tuple(np.array(sz) // 2)
@@ -198,7 +225,7 @@ class udct:
         dim = len(sz)
         res = len(cfg)
 
-        self.Sampling = {}
+        self.Sampling: dict[tuple[int, ...], npt.NDArray[np.integer]] = {}
         # calculate output len
         clen = np.prod(np.array(self.sz)) // ((2**self.dim) ** (self.res - 1))
         self.len = clen
@@ -209,10 +236,10 @@ class udct:
             )
 
         # create the subsampling vectors
-        self.Sampling[(0)] = 2 ** (res - 1) * np.ones(dim, dtype=int)
+        self.Sampling[(0,)] = 2 ** (res - 1) * np.ones(dim, dtype=int)
         for rs in range(res):
             for ipyr in range(dim):
-                dmat = []
+                dmat: list[int] = []
                 for idir in range(dim):
                     if idir == ipyr:
                         dmat.append(2 ** (res - rs))
@@ -220,7 +247,7 @@ class udct:
                         dmat.append(2 * (cfg[rs][idir] // 3) * 2 ** (res - rs - 1))
                 self.Sampling[(rs, ipyr)] = np.array(dmat, dtype=int)
 
-        Sgrid = [[] for i in range(dim)]
+        Sgrid = [np.empty(0) for i in range(dim)]
 
         for ind in range(dim):
             Sgrid[ind] = np.linspace(
@@ -238,7 +265,7 @@ class udct:
 
             f1d[(res, ind)] = fun_meyer(np.abs(Sgrid[ind]), [-2, -1, r[2], r[3]])
 
-        SLgrid = [[] for i in range(dim)]
+        SLgrid = [np.empty(0) for i in range(dim)]
         for ind in range(dim):
             SLgrid[ind] = np.linspace(
                 -np.pi, np.pi - np.pi / (self.sz[ind] / 2), self.sz[ind]
@@ -299,7 +326,7 @@ class udct:
             for x in dlists:
                 new_list = [[i] for i in range(cfg[rs][x[0]])]
                 for i in range(1, len(x)):
-                    new_list = [z + [j] for z in new_list for j in range(cfg[rs][x[i]])]
+                    new_list = [[*z, j] for z in new_list for j in range(cfg[rs][x[i]])]
                 id_angle_lists.append(new_list)
             # print(dlists)
             # print(id_angle_lists)
@@ -316,17 +343,17 @@ class udct:
                     for idir, aid in enumerate(alist):
                         angkron = angle_kron(
                             Mang2[(rs, ipyr, dlist[idir])][aid],
-                            [ipyr, dlist[idir]],
+                            (ipyr, dlist[idir]),
                             self.sz,
                         )
                         subband = subband * angkron
                         cnt += 1
 
-                    Msubwin[tuple([rs, ipyr] + alist)] = subband.copy()
+                    Msubwin[(rs, ipyr, *alist)] = subband.copy()
 
         #################################
         sumall = np.zeros(self.sz)
-        for id, subwin in Msubwin.items():
+        for subwin in Msubwin.values():
             sumall = sumall + subwin
             # print(id, np.max(subwin), np.max(sumall))
 
@@ -342,7 +369,7 @@ class udct:
                 self.Msubwin[id] = (np.nonzero(win), win[np.nonzero(win)])
             else:
                 self.Msubwin[id] = win
-        win = np.sqrt(np.prod(self.Sampling[(0)])) * np.fft.fftshift(
+        win = np.sqrt(np.prod(self.Sampling[(0,)])) * np.fft.fftshift(
             np.sqrt(FL / sumall)
         )
         if sparse:
@@ -351,7 +378,7 @@ class udct:
             self.FL = win
 
 
-def ucurvfwd(img, udct):
+def ucurvfwd(img: npt.NDArray, udct: udct) -> dict[tuple[int, ...], npt.NDArray]:
     if udct.high == "curvelet":
         assert img.shape == udct.sz
     Msubwin = udct.Msubwin
@@ -362,7 +389,7 @@ def ucurvfwd(img, udct):
         FL[udct.FL[0]] = udct.FL[1]
     else:
         FL = udct.FL
-    imband = {}
+    imband: dict[tuple[int, ...], npt.NDArray] = {}
     if udct.high == "wavelet":
         band = meyerfwdmd(img)
         for i, band in enumerate(band):
@@ -375,7 +402,7 @@ def ucurvfwd(img, udct):
 
     if udct.complex:
         bandfilt = np.fft.ifftn(imf * FL)
-        imband[(0,)] = downsamp(bandfilt, Sampling[(0)])
+        imband[(0,)] = downsamp(bandfilt, Sampling[(0,)])
         for id, subwin in Msubwin.items():
             if udct.sparse:
                 sbwin = np.zeros(udct.sz)
@@ -391,7 +418,7 @@ def ucurvfwd(img, udct):
     else:
         bandfilt = np.real(np.fft.ifftn(imf * FL))
         imband[(0,)] = downsamp(
-            bandfilt, Sampling[(0)]
+            bandfilt, Sampling[(0,)]
         )  # np.real(np.fft.ifftn(imf*FL))
         for id, subwin in Msubwin.items():
             if udct.sparse:
@@ -409,11 +436,11 @@ def ucurvfwd(img, udct):
 
 
 ##############
-def ucurvinv(imband, udct):
+def ucurvinv(imband: dict[tuple[int, ...], npt.NDArray], udct: udct) -> npt.NDArray:
     Msubwin = udct.Msubwin
     Sampling = udct.Sampling
     # imlow = imband[0]
-    imlow = upsamp(imband[(0,)], Sampling[(0)])
+    imlow = upsamp(imband[(0,)], Sampling[(0,)])
 
     if udct.sparse:
         FL = np.zeros(udct.sz)

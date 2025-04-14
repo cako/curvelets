@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from .util import fun_meyer
 
 
-def meyer_wavelet(N):
+def meyer_wavelet(N: int) -> tuple[npt.NDArray, npt.NDArray]:
     step = 2 * np.pi / N
     x = np.linspace(0, 2 * np.pi - step, N) - np.pi / 2
     prm = np.pi * np.array([-1 / 3, 1 / 3, 2 / 3, 4 / 3])
@@ -14,7 +15,7 @@ def meyer_wavelet(N):
     return f1, f2
 
 
-def meyerfwd1d(img, dim):
+def meyerfwd1d(img: npt.NDArray, dim: int) -> tuple[npt.NDArray, npt.NDArray]:
     ldim = img.ndim - 1
     img = np.swapaxes(img, dim, ldim)
     sp = img.shape
@@ -32,7 +33,7 @@ def meyerfwd1d(img, dim):
     return h1, h2
 
 
-def meyerinv1d(h1, h2, dim):
+def meyerinv1d(h1: npt.NDArray, h2: npt.NDArray, dim: int) -> npt.NDArray:
     ldim = h1.ndim - 1
     h1 = np.swapaxes(h1, dim, ldim)
     h2 = np.swapaxes(h2, dim, ldim)
@@ -49,11 +50,10 @@ def meyerinv1d(h1, h2, dim):
     f2 = np.reshape(f2, (1, N))
     imfsum = f1 * np.fft.fft(g1, axis=ldim) + f2 * np.fft.fft(g2, axis=ldim)
     imrecon = 2 * np.real(np.fft.ifft(imfsum, axis=ldim))
-    imrecon = np.swapaxes(imrecon, dim, ldim)
-    return imrecon
+    return np.swapaxes(imrecon, dim, ldim)
 
 
-def meyerfwdmd(img):
+def meyerfwdmd(img: npt.NDArray) -> list[npt.NDArray]:
     band = [img]
     dim = len(img.shape)
     for i in range(dim):
@@ -66,7 +66,7 @@ def meyerfwdmd(img):
     return cband
 
 
-def meyerinvmd(band):
+def meyerinvmd(band: list[npt.NDArray]) -> npt.NDArray:
     dim = len(band[0].shape)
     for i in range(dim - 1, -1, -1):
         cband = []
