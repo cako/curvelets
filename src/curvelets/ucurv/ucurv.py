@@ -483,3 +483,20 @@ def ucurvinv(imband: dict[tuple[int, ...], npt.NDArray], udct: udct) -> npt.NDAr
         recon = meyerinvmd(band)
 
     return recon
+
+
+class UDCT:
+    def __init__(
+        self, shape: npt.NDArray[np.integer], cfg: npt.NDArray[np.integer]
+    ) -> None:
+        self.udct = udct(shape, cfg)
+
+    def forward(
+        self, data: npt.NDArray
+    ) -> dict[tuple[int, ...], npt.NDArray[np.integer]]:
+        return ucurvfwd(data, self.udct)
+
+    def backward(
+        self, band: dict[tuple[int, ...], npt.NDArray[np.integer]]
+    ) -> npt.NDArray:
+        return ucurvinv(band, self.udct)
