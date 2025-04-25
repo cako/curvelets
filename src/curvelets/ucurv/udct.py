@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 import numpy.typing as npt
+from matplotlib.patches import Wedge
 
+from curvelets.numpy.typing import UDCTCoefficients
 from curvelets.ucurv.meyerwavelet import meyerfwdmd, meyerinvmd
 from curvelets.ucurv.ucurv import (
     alpha,
@@ -198,9 +200,9 @@ class UDCT:
         else:
             self.FL = win
 
-    def forward(
-        self, img: npt.NDArray
-    ) -> dict[tuple[int, ...], npt.NDArray[np.integer]]:
+    def _forward(
+        self, img: npt.NDArray[np.complexfloating]
+    ) -> dict[tuple[int, ...], npt.NDArray[np.complexfloating]]:
         if self.high == "curvelet":
             assert img.shape == self.sz
         Msubwin = self.Msubwin
@@ -211,7 +213,7 @@ class UDCT:
             FL[self.FL[0]] = self.FL[1]
         else:
             FL = self.FL
-        imband: dict[tuple[int, ...], npt.NDArray] = {}
+        imband: dict[tuple[int, ...], npt.NDArray[np.complexfloating]] = {}
         if self.high == "wavelet":
             band = meyerfwdmd(img)
             for i, band in enumerate(band):
@@ -256,9 +258,67 @@ class UDCT:
 
         return imband
 
-    def backward(
-        self, imband: dict[tuple[int, ...], npt.NDArray[np.integer]]
-    ) -> npt.NDArray:
+    def forward(self, img: npt.NDArray) -> UDCTCoefficients:
+        coeffs_dict = self._forward(img)
+        coeffs_high = {k: v for k, v in coeffs_dict.items() if len(k) > 1}
+        # coeffs = [[[coeffs_dict[(0,)]]]] + [
+        #     [
+        #         [
+        #             v_
+        #             for w_, v_ in sorted(
+        #                 [
+        #                     (w, v)
+        #                     for (s, d, w), v in coeffs_high.items()
+        #                     if s == iscale and d == idir
+        #                 ],
+        #                 key=lambda x: x[0],
+        #             )
+        #         ]
+        #         for idir in range(
+        #             1 + max(d for (s, d, _) in coeffs_high if s == iscale)
+        #         )
+        #     ]
+        #     for iscale in range(1 + max(s for (s, d, _) in coeffs_high))
+        # ]
+        coeffs = [[[coeffs_dict[(0,)]]]] + [
+            [
+                [
+                    coeffs_high[(iscale, idir, w)]
+                    for w in range(
+                        1
+                        + max(
+                            w for (s, d, w) in coeffs_high if s == iscale and d == idir
+                        )
+                    )
+                ]
+                for idir in range(
+                    1 + max(d for (s, d, _) in coeffs_high if s == iscale)
+                )
+            ]
+            for iscale in range(1 + max(s for (s, _, _) in coeffs_high))
+        ]
+        # for scale_dir_wedge_tuple in sorted(
+        #     coeffs_dict,
+        #     key=lambda k: (k[0], k[1] if len(k) > 1 else 0, k[2] if len(k) > 1 else 0),
+        # ):
+        #     if len(scale_dir_wedge_tuple) == 1:
+        #         (scale,) = scale_dir_wedge_tuple
+        #         assert scale == 0
+        #         coeffs.append([[coeffs_dict[scale_dir_wedge_tuple]]])
+        #         continue
+
+        #     scale, dir, wedge = scale_dir_wedge_tuple
+        #     if dir == 0 and wedge == 0:
+        #         coeffs.append([[coeffs_dict[scale_dir_wedge_tuple]]])
+        #     elif wedge == 0:
+        #         coeffs[scale].append([coeffs_dict[scale_dir_wedge_tuple]])
+        #     else:
+        #         coeffs[scale][dir].append(coeffs_dict[scale_dir_wedge_tuple])
+        return coeffs
+
+    def _backward(
+        self, imband: dict[tuple[int, ...], npt.NDArray[np.complexfloating]]
+    ) -> npt.NDArray[np.complexfloating]:
         Msubwin = self.Msubwin
         Sampling = self.Sampling
         # imlow = imband[0]
@@ -307,3 +367,12 @@ class UDCT:
             recon = meyerinvmd(band)
 
         return recon
+
+    def backward(self, imband: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
+        coeffs_dict: dict[tuple[int, ...], npt.NDArray[np.complexfloating]] = {}
+        for iscale, scale in enumerate(imband):
+            for idir, dir in enumerate(scale):
+                for iwedge, wedge in enumerate(dir):
+                    key = (iscale,) if iscale == 0 else (iscale - 1, idir, iwedge)
+                    coeffs_dict[key] = wedge
+        return self._backward(coeffs_dict)
