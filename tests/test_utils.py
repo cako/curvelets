@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from curvelets.utils import array_split_nd, deepflatten, ndargmax
+from curvelets.numpy import SimpleUDCT
+from curvelets.utils import apply_along_wedges, array_split_nd, deepflatten, ndargmax
 
 
 def test_ndargmax():
@@ -33,11 +34,6 @@ def test_array_split_nd():
 
 
 def test_apply_along_wedges():
-    import numpy as np
-
-    from curvelets.numpy import SimpleUDCT
-    from curvelets.utils import apply_along_wedges
-
     x = np.zeros((32, 32))
     C = SimpleUDCT(x.shape, nscales=3, nbands_per_direction=3)
     y = C.forward(x)

@@ -76,6 +76,11 @@ xfail_strict = true
 filterwarnings = ["error"]
 log_cli_level = "INFO"
 testpaths = ["tests"]
+markers = [
+    "round_trip: Tests for forward+backward round-trip functionality",
+    "forward_consistency: Tests comparing forward outputs across implementations",
+    "window_consistency: Tests comparing windows across implementations",
+]
 
 
 [tool.coverage]
