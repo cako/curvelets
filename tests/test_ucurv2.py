@@ -119,28 +119,10 @@ from curvelets.ucurv import udct
 @pytest.mark.parametrize(
     "dim,high",
     [
-        pytest.param(2, "curvelet", marks=[]),
-        pytest.param(
-            3,
-            "curvelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: too many values to unpack (expected 3) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
-        pytest.param(
-            2,
-            "wavelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: too many values to unpack (expected 3) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
-        pytest.param(
-            3,
-            "wavelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: not enough values to unpack (expected 3, got 2) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
+        (2, "curvelet"),
+        (3, "curvelet"),
+        (2, "wavelet"),
+        (3, "wavelet"),
     ],
 )
 def test_round_trip_absolute(dim, high):
@@ -201,42 +183,12 @@ def test_round_trip_absolute(dim, high):
 @pytest.mark.parametrize(
     "dim,high",
     [
-        pytest.param(2, "curvelet", marks=[]),
-        pytest.param(
-            3,
-            "curvelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: too many values to unpack (expected 3) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
-        pytest.param(
-            4,
-            "curvelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: too many values to unpack (expected 3) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
-        pytest.param(
-            2,
-            "wavelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: not enough values to unpack (expected 3, got 2) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
-        pytest.param(
-            3,
-            "wavelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: not enough values to unpack (expected 3, got 2) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
-        pytest.param(
-            4,
-            "wavelet",
-            marks=pytest.mark.xfail(
-                reason="ucurv2 forward method has ValueError: not enough values to unpack (expected 3, got 2) - code bug in src/curvelets/ucurv/udct.py line 298"
-            ),
-        ),
+        (2, "curvelet"),
+        (3, "curvelet"),
+        (4, "curvelet"),
+        (2, "wavelet"),
+        (3, "wavelet"),
+        (4, "wavelet"),
     ],
 )
 def test_round_trip_rel(dim, high):

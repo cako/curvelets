@@ -99,7 +99,6 @@ def test_forward_numpy_vs_ucurv(dim):
 
 @pytest.mark.forward_consistency
 @pytest.mark.parametrize("dim", [2, 3, 4])
-@pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking")
 def test_forward_numpy_vs_ucurv2(dim):
     """
     Compare NumPy forward vs ucurv2 forward using identical explicit parameters.
@@ -160,7 +159,6 @@ def test_forward_numpy_vs_ucurv2(dim):
 
 @pytest.mark.forward_consistency
 @pytest.mark.parametrize("dim", [2, 3, 4])
-@pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking")
 def test_forward_ucurv_vs_ucurv2(dim):
     """
     Compare ucurv vs ucurv2 forward using identical explicit parameters.

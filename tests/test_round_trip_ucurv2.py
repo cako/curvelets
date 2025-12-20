@@ -12,12 +12,12 @@ from tests.conftest import get_test_configs, get_test_shapes, setup_ucurv2_trans
 @pytest.mark.parametrize(
     "dim,high",
     [
-        pytest.param(2, "curvelet", marks=[]),  # This case passes, no xfail
-        pytest.param(3, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(4, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(2, "wavelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(3, "wavelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(4, "wavelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
+        (2, "curvelet"),
+        (3, "curvelet"),
+        (4, "curvelet"),
+        (2, "wavelet"),
+        (3, "wavelet"),
+        (4, "wavelet"),
     ],
 )
 def test_ucurv2_round_trip_absolute(dim, high, rng):
@@ -41,12 +41,12 @@ def test_ucurv2_round_trip_absolute(dim, high, rng):
 @pytest.mark.parametrize(
     "dim,high",
     [
-        pytest.param(2, "curvelet", marks=[]),  # This case passes, no xfail
-        pytest.param(3, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(4, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(2, "wavelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(3, "wavelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(4, "wavelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
+        (2, "curvelet"),
+        (3, "curvelet"),
+        (4, "curvelet"),
+        (2, "wavelet"),
+        (3, "wavelet"),
+        (4, "wavelet"),
     ],
 )
 def test_ucurv2_round_trip_relative(dim, high, rng):
@@ -75,11 +75,11 @@ def test_ucurv2_round_trip_relative(dim, high, rng):
 @pytest.mark.parametrize(
     "dim,shape_idx,high",
     [
-        pytest.param(2, 0, "curvelet", marks=[]),  # This case passes, no xfail
-        pytest.param(2, 1, "curvelet", marks=[]),  # This case passes, no xfail
-        pytest.param(3, 0, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(3, 1, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
-        pytest.param(4, 0, "curvelet", marks=pytest.mark.xfail(reason="ucurv2 forward method has issues with key unpacking for some configurations")),
+        (2, 0, "curvelet"),
+        (2, 1, "curvelet"),
+        (3, 0, "curvelet"),
+        (3, 1, "curvelet"),
+        (4, 0, "curvelet"),
     ],
 )
 def test_ucurv2_round_trip_parametrized(dim, shape_idx, high, rng):
