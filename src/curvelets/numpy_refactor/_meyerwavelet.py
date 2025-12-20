@@ -8,12 +8,12 @@ from .utils import fun_meyer
 
 class MeyerWavelet:
     """
-    Multi-dimensional Meyer wavelet transform with filter caching.
+    Multi-dimensional Meyer wavelet transform with pre-computed filters.
 
     This class provides forward and backward Meyer wavelet transforms with
-    automatic filter caching for improved performance. The class stores
-    highpass bands internally after forward transform, eliminating the need
-    for external state management.
+    filters pre-computed during initialization for improved performance. The
+    class stores highpass bands internally after forward transform, eliminating
+    the need for external state management.
 
     Parameters
     ----------
@@ -46,10 +46,15 @@ class MeyerWavelet:
         """
         Initialize Meyer wavelet transform.
 
+        All required filters are pre-computed during initialization based on
+        the input shape. This ensures optimal performance during forward and
+        backward transforms.
+
         Parameters
         ----------
         shape : tuple[int, ...]
-            Expected shape of input signals. Used for validation.
+            Expected shape of input signals. Used for validation and to
+            determine which filters to pre-compute.
 
         Examples
         --------
@@ -60,20 +65,49 @@ class MeyerWavelet:
         (64, 64)
         >>> wavelet.dimension
         2
+        >>> len(wavelet._filter_cache)
+        1
         """
         self.shape = shape
         self.dimension = len(shape)
         self._highpass_bands: list[npt.NDArray] | None = None
-        self._filter_cache: dict[int, tuple[npt.NDArray, npt.NDArray]] = {}
+        self._filters: dict[int, tuple[npt.NDArray, npt.NDArray]] = {}
         self._is_complex: bool | None = None
 
-    def _compute_wavelet_filters(
+        # Pre-compute all required filters
+        self._initialize_filters()
+
+    def _initialize_filters(self) -> None:
+        """
+        Pre-compute all filters needed for the transform.
+
+        Determines unique filter sizes from the input shape and pre-computes
+        all required filters. Filters are stored in `_filter_cache` for
+        direct access during forward and backward transforms.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64, 64))
+        >>> len(wavelet._filter_cache)
+        1
+        >>> 64 in wavelet._filter_cache
+        True
+        """
+        # Determine unique filter sizes (one per unique dimension size)
+        required_filter_sizes = set(self.shape)
+
+        # Pre-compute all filters
+        for signal_length in required_filter_sizes:
+            self._filters[signal_length] = self._compute_single_filter(signal_length)
+
+    def _compute_single_filter(
         self, signal_length: int
     ) -> tuple[npt.NDArray, npt.NDArray]:
         """
-        Compute Meyer wavelet filters for given signal length.
+        Compute a single Meyer wavelet filter pair for given signal length.
 
-        Filters are cached by signal length to avoid redundant computation.
         The lowpass filter is fftshifted, while the highpass filter is not.
 
         Parameters
@@ -91,16 +125,12 @@ class MeyerWavelet:
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64,))
-        >>> lowpass, highpass = wavelet._compute_wavelet_filters(64)
+        >>> lowpass, highpass = wavelet._compute_single_filter(64)
         >>> lowpass.shape
         (64,)
         >>> highpass.shape
         (64,)
         """
-        # Check cache first
-        if signal_length in self._filter_cache:
-            return self._filter_cache[signal_length]
-
         # Compute frequency grid
         frequency_step = 2 * np.pi / signal_length
         frequency_grid = (
@@ -124,9 +154,6 @@ class MeyerWavelet:
 
         # Highpass filter: not shifted, square-rooted
         highpass_filter = np.sqrt(meyer_window)
-
-        # Cache the filters
-        self._filter_cache[signal_length] = (lowpass_filter, highpass_filter)
 
         return lowpass_filter, highpass_filter
 
@@ -166,8 +193,8 @@ class MeyerWavelet:
         signal_shape = signal.shape
         signal_length = signal_shape[-1]
 
-        # Get cached filters
-        lowpass_filter, highpass_filter = self._compute_wavelet_filters(signal_length)
+        # Get pre-computed filters
+        lowpass_filter, highpass_filter = self._filters[signal_length]
 
         # Reshape filters for broadcasting
         lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
@@ -258,8 +285,8 @@ class MeyerWavelet:
 
         signal_length = upsampled_shape[-1]
 
-        # Get cached filters
-        lowpass_filter, highpass_filter = self._compute_wavelet_filters(signal_length)
+        # Get pre-computed filters
+        lowpass_filter, highpass_filter = self._filters[signal_length]
 
         # Reshape filters for broadcasting
         lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
