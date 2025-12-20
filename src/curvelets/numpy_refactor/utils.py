@@ -106,9 +106,9 @@ def angle_kron(
     krsz[2] = np.prod(param_udct.size[nper[1] : param_udct.dim])
 
     tmp1 = np.kron(np.ones((krsz[1], 1), dtype=int), angle_arr)
-    tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), travel(tmp1)).ravel()
-    tmp3 = travel(np.kron(tmp2, np.ones((krsz[0], 1), dtype=int)))
-    return tmp3.reshape(*param_udct.size[::-1]).T
+    tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), tmp1.ravel()).ravel()
+    tmp3 = np.kron(tmp2, np.ones((krsz[0], 1), dtype=int)).ravel()
+    return tmp3.reshape(*param_udct.size)
 
 
 def downsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
@@ -165,37 +165,11 @@ def fun_meyer(x: np.ndarray, p1: float, p2: float, p3: float, p4: float) -> np.n
     return y
 
 
-def travel(arr: np.ndarray) -> np.ndarray:
-    return arr.T.ravel()
-
-
-def travel_new(arr: np.ndarray) -> np.ndarray:
-    return arr.ravel()
-
-
-def to_sparse(arr: np.ndarray, thresh: float) -> np.ndarray:
-    idx = np.argwhere(travel(arr) > thresh)
-    out: npt.NDArray[np.floating] = np.c_[idx + 1, travel(arr)[idx]]
-    return out
-
-
 def to_sparse_new(
     arr: npt.NDArray[D_T], thresh: float
 ) -> tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]:
     idx = np.argwhere(arr.ravel() > thresh)
     return (idx, arr.ravel()[idx])
-
-
-def from_sparse(arr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    idx = arr[:, 0].astype(int) - 1
-    val = arr[:, 1]
-    return idx, val
-
-
-def from_sparse_new(
-    arr_list: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
-) -> tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]:
-    return arr_list
 
 
 def upsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:

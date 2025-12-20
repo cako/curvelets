@@ -12,7 +12,7 @@ from ._forward_transform import _apply_forward_transform
 from ._meyerwavelet import meyerfwdmd, meyerinvmd
 from ._window_computation import _window_computation
 from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT, from_sparse_new, upsamp
+from .utils import ParamUDCT, upsamp
 
 
 class UDCT:
@@ -311,7 +311,7 @@ class UDCT:
         >>> dense.shape
         (64, 64)
         """
-        idx, val = from_sparse_new(arr_sparse)
+        idx, val = arr_sparse
         arr_full = np.zeros(self.parameters.size, dtype=val.dtype)
         arr_full.flat[idx] += val
         return arr_full

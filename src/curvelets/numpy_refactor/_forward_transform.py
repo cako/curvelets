@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT, _fftflip_all_axes, downsamp, from_sparse_new
+from .utils import ParamUDCT, _fftflip_all_axes, downsamp
 
 
 def _apply_forward_transform(
@@ -143,7 +143,7 @@ def _apply_forward_transform(
 
     # Low frequency band processing
     frequency_band = np.zeros_like(image_frequency)
-    idx, val = from_sparse_new(windows[0][0][0])
+    idx, val = windows[0][0][0]
     frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
 
     if use_complex_transform:
@@ -173,9 +173,7 @@ def _apply_forward_transform(
                 coefficients[scale_idx].append([])
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     # Convert sparse window to dense for manipulation
-                    idx, val = from_sparse_new(
-                        windows[scale_idx][direction_idx][wedge_idx]
-                    )
+                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
                     subwindow = np.zeros(parameters.size, dtype=val.dtype)
                     subwindow.flat[idx] = val
 
@@ -197,9 +195,7 @@ def _apply_forward_transform(
                 coefficients[scale_idx].append([])
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     # Convert sparse window to dense for manipulation
-                    idx, val = from_sparse_new(
-                        windows[scale_idx][direction_idx][wedge_idx]
-                    )
+                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
                     subwindow = np.zeros(parameters.size, dtype=val.dtype)
                     subwindow.flat[idx] = val
 
@@ -226,9 +222,7 @@ def _apply_forward_transform(
                 coefficients[scale_idx].append([])
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     frequency_band = np.zeros_like(image_frequency)
-                    idx, val = from_sparse_new(
-                        windows[scale_idx][direction_idx][wedge_idx]
-                    )
+                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
                     frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(
                         complex_dtype
                     )

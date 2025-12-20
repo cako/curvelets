@@ -4,7 +4,7 @@ import numpy as np
 import numpy.typing as npt
 
 from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT, _fftflip_all_axes, from_sparse_new, upsamp
+from .utils import ParamUDCT, _fftflip_all_axes, upsamp
 
 
 def _apply_backward_transform(
@@ -170,9 +170,7 @@ def _apply_backward_transform(
             for direction_idx in range(parameters.dim):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     # Convert sparse window to dense
-                    idx, val = from_sparse_new(
-                        windows[scale_idx][direction_idx][wedge_idx]
-                    )
+                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
                     subwindow = np.zeros(parameters.size, dtype=val.dtype)
                     subwindow.flat[idx] = val
 
@@ -195,9 +193,7 @@ def _apply_backward_transform(
             for direction_idx in range(parameters.dim):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     # Convert sparse window to dense
-                    idx, val = from_sparse_new(
-                        windows[scale_idx][direction_idx][wedge_idx]
-                    )
+                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
                     subwindow = np.zeros(parameters.size, dtype=val.dtype)
                     subwindow.flat[idx] = val
 
@@ -228,7 +224,7 @@ def _apply_backward_transform(
         decimation_ratio = decimation_ratios[0][0]
         curvelet_band = upsamp(coefficients[0][0][0], decimation_ratio)
         curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
-        idx, val = from_sparse_new(windows[0][0][0])
+        idx, val = windows[0][0][0]
         image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(
             complex_dtype
         )
@@ -248,7 +244,7 @@ def _apply_backward_transform(
                 )
                 curvelet_band /= np.sqrt(2 * np.prod(decimation_ratio))
                 curvelet_band = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band)
-                idx, val = from_sparse_new(windows[scale_idx][direction_idx][wedge_idx])
+                idx, val = windows[scale_idx][direction_idx][wedge_idx]
                 image_frequency.flat[idx] += curvelet_band.flat[idx] * val.astype(
                     complex_dtype
                 )
@@ -257,7 +253,7 @@ def _apply_backward_transform(
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsamp(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
-    idx, val = from_sparse_new(windows[0][0][0])
+    idx, val = windows[0][0][0]
     image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
     image_frequency = 2 * image_frequency + image_frequency_low
     return np.fft.ifftn(image_frequency).real

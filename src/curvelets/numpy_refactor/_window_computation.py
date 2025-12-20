@@ -14,7 +14,6 @@ from .utils import (
     angle_kron,
     circshift,
     fftflip,
-    from_sparse_new,
     fun_meyer,
     to_sparse_new,
 )
@@ -25,6 +24,34 @@ def _create_bandpass_windows(
     shape: tuple[int, ...],
     radial_frequency_params: tuple[float, float, float, float],
 ) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
+    """
+    Create bandpass windows using Meyer wavelets for radial frequency decomposition.
+
+    This function generates frequency-domain bandpass filters by constructing
+    Meyer wavelet windows for each dimension and scale, then combining them
+    using Kronecker products to create multi-dimensional bandpass filters.
+
+    Parameters
+    ----------
+    num_scales : int
+        Number of resolution scales for the transform.
+    shape : tuple[int, ...]
+        Shape of the input data, determines frequency grid size.
+    radial_frequency_params : tuple[float, float, float, float]
+        Four parameters defining radial frequency bands:
+        - params[0], params[1]: Lower frequency band boundaries
+        - params[2], params[3]: Upper frequency band boundaries
+
+    Returns
+    -------
+    frequency_grid : dict[int, np.ndarray]
+        Dictionary mapping dimension index to frequency grid array.
+        Each grid spans [-1.5*pi, 0.5*pi) with size matching shape[dimension].
+    bandpass_windows : dict[int, np.ndarray]
+        Dictionary mapping scale index to bandpass window array.
+        Scale 0 is low-frequency, scales 1..num_scales are high-frequency bands.
+        Each window has shape matching input `shape`.
+    """
     dimension = len(shape)
     frequency_grid: dict[int, np.ndarray] = {}
     meyer_windows: dict[tuple[int, int], np.ndarray] = {}
@@ -74,10 +101,46 @@ def _create_bandpass_windows(
 
 
 def _nchoosek(n: Any, k: Any) -> np.ndarray:
+    """
+    Generate all combinations of k elements from n.
+
+    Parameters
+    ----------
+    n : Any
+        Iterable containing elements to choose from.
+    k : Any
+        Number of elements to choose in each combination.
+
+    Returns
+    -------
+    np.ndarray
+        Array of shape (C(n,k), k) containing all combinations.
+    """
     return np.asarray(list(combinations(n, k)))
 
 
 def _create_mdirs(dimension: int, num_resolutions: int) -> list[np.ndarray]:
+    """
+    Create direction mappings for each resolution scale.
+
+    For each resolution, creates a mapping indicating which dimensions
+    need angle function calculations on each hyperpyramid. This is used
+    to determine which dimensions are used for angular decomposition
+    at each scale.
+
+    Parameters
+    ----------
+    dimension : int
+        Dimensionality of the transform.
+    num_resolutions : int
+        Number of resolution scales.
+
+    Returns
+    -------
+    list[np.ndarray]
+        List of arrays, one per resolution. Each array has shape (dimension, dimension-1)
+        and contains indices of dimensions used for angle calculations on each hyperpyramid.
+    """
     # Mdir is dimension of need to calculate angle function on each
     # hyperpyramid
     return [
@@ -151,25 +214,25 @@ def _inplace_normalize_windows(
     windows: UDCTWindows, size: tuple[int, ...], dimension: int, num_resolutions: int
 ) -> None:
     sum_squared_windows = np.zeros(size)
-    idx, val = from_sparse_new(windows[0][0][0])
+    idx, val = windows[0][0][0]
     sum_squared_windows.flat[idx] += val**2
     for scale_idx in range(1, num_resolutions + 1):
         for direction_idx in range(dimension):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 temp_window = np.zeros(size)
-                idx, val = from_sparse_new(windows[scale_idx][direction_idx][wedge_idx])
+                idx, val = windows[scale_idx][direction_idx][wedge_idx]
                 temp_window.flat[idx] += val**2
                 sum_squared_windows += temp_window
                 temp_window = fftflip(temp_window, direction_idx)
                 sum_squared_windows += temp_window
 
     sum_squared_windows = np.sqrt(sum_squared_windows)
-    idx, val = from_sparse_new(windows[0][0][0])
+    idx, val = windows[0][0][0]
     val /= sum_squared_windows.ravel()[idx]
     for scale_idx in range(1, num_resolutions + 1):
         for direction_idx in range(dimension):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                idx, val = from_sparse_new(windows[scale_idx][direction_idx][wedge_idx])
+                idx, val = windows[scale_idx][direction_idx][wedge_idx]
                 val /= sum_squared_windows.ravel()[idx]
 
 
