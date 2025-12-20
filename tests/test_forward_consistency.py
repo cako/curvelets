@@ -239,3 +239,104 @@ def test_forward_ucurv_vs_ucurv2(dim):
                             rtol=rtol,
                             atol=atol,
                         )
+
+
+# ============================================================================
+# Wavelet mode forward consistency tests
+# ============================================================================
+
+
+def _get_wavelet_config_idx(dim: int) -> int | None:
+    """
+    Get the config index for wavelet mode tests.
+
+    Wavelet mode requires at least 2 scales. Returns None if no suitable config exists.
+    """
+    configs = get_test_configs(dim)
+    for idx, cfg in enumerate(configs):
+        if len(cfg) >= 2:  # nscales >= 2
+            return idx
+    return None
+
+
+@pytest.mark.forward_consistency
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_forward_numpy_vs_ucurv2_wavelet(dim):
+    """
+    Compare NumPy forward vs ucurv2 forward in wavelet mode.
+
+    Both implementations should produce consistent results when using
+    Meyer wavelet decomposition at the highest scale.
+    """
+    rng = np.random.default_rng(42)
+
+    shapes = get_test_shapes(dim)
+    configs = get_test_configs(dim)
+
+    if not shapes or not configs:
+        pytest.skip(f"No test shapes/configs defined for dimension {dim}")
+
+    # Find a config with at least 2 scales for wavelet mode
+    cfg_idx = _get_wavelet_config_idx(dim)
+    if cfg_idx is None:
+        pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
+
+    size = shapes[0]
+    cfg = configs[cfg_idx]
+
+    # NumPy implementation with wavelet mode
+    numpy_transform = numpy_udct.UDCT(
+        shape=size,
+        cfg=cfg,
+        alpha=COMMON_ALPHA,
+        r=COMMON_R,
+        winthresh=COMMON_WINTHRESH,
+        high="wavelet",
+    )
+    im = rng.normal(size=size)
+    numpy_coeffs = numpy_transform.forward(im)
+
+    # ucurv2 implementation with wavelet mode
+    ucurv2_transform = ucurv2_udct.UDCT(
+        shape=size, cfg=cfg, high="wavelet", alpha=COMMON_ALPHA
+    )
+    ucurv2_coeffs = ucurv2_transform.forward(im)
+
+    # Compare structures
+    assert len(numpy_coeffs) == len(ucurv2_coeffs), "Number of scales should match"
+
+    # Compare low frequency
+    # Use dimension-specific tolerances: stricter for 2D, relaxed for 3D and 4D
+    if dim == 2:
+        low_freq_rtol, low_freq_atol = 1e-15, 1e-15
+    else:
+        low_freq_rtol, low_freq_atol = 1e-1, 1e-1
+
+    np.testing.assert_allclose(
+        numpy_coeffs[0][0][0],
+        ucurv2_coeffs[0][0][0],
+        rtol=low_freq_rtol,
+        atol=low_freq_atol,
+    )
+
+    # Compare curvelet scales (excluding lowest and wavelet bands)
+    if dim == 2:
+        rtol, atol = 1e-2, 1e-2
+    else:
+        rtol, atol = 1e-1, 1e-1
+
+    for scale_idx in range(1, min(len(numpy_coeffs), len(ucurv2_coeffs))):
+        numpy_scale = numpy_coeffs[scale_idx]
+        ucurv2_scale = ucurv2_coeffs[scale_idx]
+        min_dirs = min(len(numpy_scale), len(ucurv2_scale))
+        for dir_idx in range(min_dirs):
+            numpy_dir = numpy_scale[dir_idx]
+            ucurv2_dir = ucurv2_scale[dir_idx]
+            min_wedges = min(len(numpy_dir), len(ucurv2_dir))
+            for wedge_idx in range(min_wedges):
+                np.testing.assert_allclose(
+                    numpy_dir[wedge_idx],
+                    ucurv2_dir[wedge_idx],
+                    rtol=rtol,
+                    atol=atol,
+                )

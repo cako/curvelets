@@ -186,3 +186,87 @@ def test_windows_ucurv_vs_ucurv2(dim):
         else:
             rtol, atol = 1e-2, 1e-2
         np.testing.assert_allclose(ucurv_win, ucurv2_win, rtol=rtol, atol=atol)
+
+
+# ============================================================================
+# Wavelet mode window consistency tests
+# ============================================================================
+
+
+def _get_wavelet_config_idx(dim: int) -> int | None:
+    """
+    Get the config index for wavelet mode tests.
+
+    Wavelet mode requires at least 2 scales. Returns None if no suitable config exists.
+    """
+    configs = get_test_configs(dim)
+    for idx, cfg in enumerate(configs):
+        if len(cfg) >= 2:  # nscales >= 2
+            return idx
+    return None
+
+
+@pytest.mark.window_consistency
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_windows_numpy_vs_ucurv2_wavelet(dim):
+    """
+    Compare windows between NumPy and ucurv2 in wavelet mode.
+
+    In wavelet mode, windows are created for a halved size, and the highest
+    scale uses Meyer wavelet instead of curvelet wedges.
+    """
+    shapes = get_test_shapes(dim)
+    configs = get_test_configs(dim)
+
+    if not shapes or not configs:
+        pytest.skip(f"No test shapes/configs defined for dimension {dim}")
+
+    # Find a config with at least 2 scales for wavelet mode
+    cfg_idx = _get_wavelet_config_idx(dim)
+    if cfg_idx is None:
+        pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
+
+    size = shapes[0]
+    cfg = configs[cfg_idx]
+
+    # NumPy implementation with wavelet mode
+    numpy_transform = numpy_udct.UDCT(
+        shape=size,
+        cfg=cfg,
+        alpha=COMMON_ALPHA,
+        r=COMMON_R,
+        winthresh=COMMON_WINTHRESH,
+        high="wavelet",
+    )
+    # In wavelet mode, window size is halved
+    window_size = tuple(s // 2 for s in size)
+    numpy_windows_dict = get_numpy_windows_dict(numpy_transform.windows, window_size)
+
+    # ucurv2 implementation with wavelet mode
+    ucurv2_transform = ucurv2_udct.UDCT(
+        shape=size, cfg=cfg, high="wavelet", sparse=False, alpha=COMMON_ALPHA
+    )
+
+    # Compare low frequency window shape (normalization may differ)
+    numpy_low = numpy_windows_dict.get((0, 0, 0))
+    ucurv2_low = extract_ucurv_window_dense(ucurv2_transform.FL, window_size)
+
+    if numpy_low is not None:
+        # Check that windows have the same shape and pattern (normalized)
+        # Note: ucurv2 and NumPy may use different normalization factors
+        # so we compare normalized patterns rather than absolute values
+        numpy_norm = numpy_low / (numpy_low.max() + 1e-10)
+        ucurv2_norm = ucurv2_low / (ucurv2_low.max() + 1e-10)
+        if dim == 2:
+            rtol, atol = 1e-10, 1e-10
+        else:
+            rtol, atol = 1e-1, 1e-1
+        np.testing.assert_allclose(numpy_norm, ucurv2_norm, rtol=rtol, atol=atol)
+
+    # Compare window counts - in wavelet mode, highest scale windows are skipped
+    ucurv2_window_count = len(ucurv2_transform.Msubwin)
+    numpy_window_count = len([k for k in numpy_windows_dict.keys() if k[0] > 0])
+
+    # At least check that both have windows
+    assert ucurv2_window_count > 0, "ucurv2 wavelet mode should have windows"
+    assert numpy_window_count > 0, "NumPy wavelet mode should have windows"

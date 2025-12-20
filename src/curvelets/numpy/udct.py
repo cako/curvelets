@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import logging
 from math import prod
+from typing import Literal
 
 import numpy as np
 import numpy.typing as npt
+
+from curvelets.ucurv.meyerwavelet import meyerfwdmd, meyerinvmd
 
 from .typing import UDCTCoefficients, UDCTWindows
 from .udctmdwin import udctmdwin
@@ -85,18 +88,41 @@ class UDCT:
         alpha: float = 0.15,
         r: tuple[float, float, float, float] | None = None,
         winthresh: float = 1e-5,
+        high: Literal["curvelet", "wavelet"] = "curvelet",
     ) -> None:
         self.shape = shape
+        self.high = high
         dim = len(self.shape)
         cfg1 = np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T if cfg is None else cfg
+
+        # Validate wavelet mode requirements
+        nscales = len(cfg1)
+        if high == "wavelet" and nscales < 2:
+            msg = "Wavelet mode requires at least 2 scales (nscales >= 2)"
+            raise ValueError(msg)
+
+        # In wavelet mode, the working size is halved (Meyer wavelet decomposition)
+        if high == "wavelet":
+            self._internal_shape = tuple(s // 2 for s in self.shape)
+        else:
+            self._internal_shape = self.shape
+
         r1: tuple[float, float, float, float] = (
             tuple(np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3) if r is None else r
         )
         self.params = ParamUDCT(
-            dim=dim, size=self.shape, cfg=cfg1, alpha=alpha, r=r1, winthresh=winthresh
+            dim=dim,
+            size=self._internal_shape,
+            cfg=cfg1,
+            alpha=alpha,
+            r=r1,
+            winthresh=winthresh,
         )
 
         self.windows, self.decimation, self.indices = udctmdwin(self.params)
+
+        # Store wavelet coefficients between forward and backward (for reference)
+        self._wavelet_bands: list[np.ndarray] = []
 
     def from_sparse(
         self, arr_sparse: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
@@ -117,12 +143,13 @@ class UDCT:
     def struct(self, coeffs_vec: npt.NDArray[np.complexfloating]) -> UDCTCoefficients:
         ibeg = 0
         coeffs: UDCTCoefficients = []
+        internal_shape = np.array(self._internal_shape)
         for ires, decres in enumerate(self.decimation):
             coeffs.append([])
             for idir, decdir in enumerate(decres):
                 coeffs[ires].append([])
                 for _ in self.windows[ires][idir]:
-                    shape_decim = self.shape // decdir
+                    shape_decim = internal_shape // decdir
                     iend = ibeg + prod(shape_decim)
                     wedge = coeffs_vec[ibeg:iend].reshape(shape_decim)
                     coeffs[ires][idir].append(wedge)
@@ -131,10 +158,29 @@ class UDCT:
 
     def forward(self, x: np.ndarray) -> UDCTCoefficients:
         np.testing.assert_equal(self.shape, x.shape)
-        return udctmddec(x, self.params, self.windows, self.decimation)
+
+        if self.high == "wavelet":
+            # Apply Meyer wavelet decomposition
+            # meyerfwdmd returns 2^dim bands: first is lowpass, rest are highpass
+            bands = meyerfwdmd(x)
+            lowpass = bands[0]
+            self._wavelet_bands = bands[1:]  # Store highpass bands for backward
+
+            # Apply curvelet transform to lowpass only
+            return udctmddec(lowpass, self.params, self.windows, self.decimation)
+        else:
+            return udctmddec(x, self.params, self.windows, self.decimation)
 
     def backward(self, c: UDCTCoefficients) -> np.ndarray:
-        return udctmdrec(c, self.params, self.windows, self.decimation)
+        if self.high == "wavelet":
+            # Reconstruct lowpass from curvelet coefficients
+            lowpass_recon = udctmdrec(c, self.params, self.windows, self.decimation)
+
+            # Combine with wavelet highpass bands and apply Meyer inverse
+            all_bands = [lowpass_recon] + self._wavelet_bands
+            return meyerinvmd(all_bands)
+        else:
+            return udctmdrec(c, self.params, self.windows, self.decimation)
 
 
 class SimpleUDCT(UDCT):
@@ -145,9 +191,15 @@ class SimpleUDCT(UDCT):
         nbands_per_direction: int = 3,
         alpha: float | None = None,
         winthresh: float = 1e-5,
+        high: Literal["curvelet", "wavelet"] = "curvelet",
     ) -> None:
         assert nscales > 1
         assert nbands_per_direction >= 3
+
+        # Validate wavelet mode requirements
+        if high == "wavelet" and nscales < 2:
+            msg = "Wavelet mode requires at least 2 scales (nscales >= 2)"
+            raise ValueError(msg)
 
         dim = len(shape)
         nbands: npt.NDArray[np.int_] = (
@@ -175,4 +227,6 @@ class SimpleUDCT(UDCT):
             np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
         )
 
-        super().__init__(shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh)
+        super().__init__(
+            shape=shape, cfg=cfg, alpha=alpha, r=r, winthresh=winthresh, high=high
+        )
