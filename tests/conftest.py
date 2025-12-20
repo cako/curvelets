@@ -342,12 +342,22 @@ class TransformWrapper:
         return self._backward(coeffs)
 
 
-def _create_numpy_transform(size: tuple[int, ...], cfg: np.ndarray) -> TransformWrapper:
+def _create_numpy_transform(
+    size: tuple[int, ...],
+    cfg: np.ndarray,
+    high: str = "curvelet",
+    alpha: float = COMMON_ALPHA,
+) -> TransformWrapper:
     """Create NumPy UDCT transform."""
     import curvelets.numpy as numpy_udct
 
     transform_obj = numpy_udct.UDCT(
-        shape=size, cfg=cfg, alpha=COMMON_ALPHA, r=COMMON_R, winthresh=COMMON_WINTHRESH
+        shape=size,
+        cfg=cfg,
+        alpha=alpha,
+        r=COMMON_R,
+        winthresh=COMMON_WINTHRESH,
+        high=high,
     )
 
     def forward(data):
@@ -394,7 +404,11 @@ def _create_ucurv2_transform(
 
 
 def setup_numpy_transform(
-    dim: int, shape_idx: int = 0, cfg_idx: int = 0
+    dim: int,
+    shape_idx: int = 0,
+    cfg_idx: int = 0,
+    high: str = "curvelet",
+    alpha: float = COMMON_ALPHA,
 ) -> TransformWrapper:
     """
     Set up NumPy UDCT transform for round-trip tests.
@@ -407,6 +421,10 @@ def setup_numpy_transform(
         Index into shapes list. Default is 0.
     cfg_idx : int, optional
         Index into configs list. Default is 0.
+    high : str, optional
+        High frequency mode ("curvelet" or "wavelet"). Default is "curvelet".
+    alpha : float, optional
+        Alpha parameter for window overlap. Default is COMMON_ALPHA.
 
     Returns
     -------
@@ -422,7 +440,7 @@ def setup_numpy_transform(
 
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
-    return _create_numpy_transform(size, cfg)
+    return _create_numpy_transform(size, cfg, high=high, alpha=alpha)
 
 
 def setup_ucurv_transform(
