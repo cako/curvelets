@@ -6,195 +6,408 @@ import numpy.typing as npt
 from .utils import fun_meyer
 
 
-def _meyer_wavelet(N: int) -> tuple[npt.NDArray, npt.NDArray]:
-    step = 2 * np.pi / N
-    x = np.linspace(0, 2 * np.pi - step, N) - np.pi / 2
-    prm = np.pi * np.array([-1 / 3, 1 / 3, 2 / 3, 4 / 3])
-    f1 = np.sqrt(np.fft.fftshift(fun_meyer(x, prm[0], prm[1], prm[2], prm[3])))
-    f2 = np.sqrt(fun_meyer(x, prm[0], prm[1], prm[2], prm[3]))
-    return f1, f2
-
-
-def _meyer_wavelet_forward_1d(
-    img: npt.NDArray, dim: int
-) -> tuple[npt.NDArray, npt.NDArray]:
+class MeyerWavelet:
     """
-    Apply 1D Meyer wavelet forward transform along specified dimension.
+    Multi-dimensional Meyer wavelet transform with filter caching.
+
+    This class provides forward and backward Meyer wavelet transforms with
+    automatic filter caching for improved performance. The class stores
+    highpass bands internally after forward transform, eliminating the need
+    for external state management.
 
     Parameters
     ----------
-    img : npt.NDArray
-        Input array (real or complex).
-    dim : int
-        Dimension along which to apply the transform.
+    shape : tuple[int, ...]
+        Expected shape of input signals. Used for validation and to determine
+        the number of dimensions.
 
-    Returns
-    -------
-    tuple[npt.NDArray, npt.NDArray]
-        Lowpass (h1) and highpass (h2) subbands. Output dtype matches input:
-        real input produces real output, complex input produces complex output.
+    Attributes
+    ----------
+    shape : tuple[int, ...]
+        Expected signal shape.
+    dimension : int
+        Number of dimensions.
 
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward_1d
-    >>> img = np.random.randn(64, 64)
-    >>> h1, h2 = _meyer_wavelet_forward_1d(img, 0)
-    >>> h1.shape
-    (32, 64)
-    >>> h2.shape
-    (32, 64)
-    """
-    ldim = img.ndim - 1
-    img = np.swapaxes(img, dim, ldim)
-    sp = img.shape
-    N = sp[-1]
-    f1, f2 = _meyer_wavelet(N)
-    f1 = np.reshape(f1, (1, N))
-    f2 = np.reshape(f2, (1, N))
-
-    imgf = np.fft.fft(img, axis=ldim)
-    h1_full = np.fft.ifft(f1 * imgf, axis=ldim)
-    h2_full = np.fft.ifft(f2 * imgf, axis=ldim)
-
-    # Preserve complex values for complex input, take real for real input
-    if not np.iscomplexobj(img):
-        h1_full = h1_full.real
-        h2_full = h2_full.real
-
-    h1 = h1_full[..., ::2]
-    h2 = h2_full[..., 1::2]
-    h1 = np.swapaxes(h1, dim, ldim)
-    h2 = np.swapaxes(h2, dim, ldim)
-
-    return h1, h2
-
-
-def _meyer_wavelet_inverse_1d(
-    h1: npt.NDArray, h2: npt.NDArray, dim: int
-) -> npt.NDArray:
-    """
-    Apply 1D Meyer wavelet inverse transform along specified dimension.
-
-    Parameters
-    ----------
-    h1 : npt.NDArray
-        Lowpass subband (real or complex).
-    h2 : npt.NDArray
-        Highpass subband (real or complex).
-    dim : int
-        Dimension along which to apply the transform.
-
-    Returns
-    -------
-    npt.NDArray
-        Reconstructed array. Output dtype matches input: real input produces
-        real output, complex input produces complex output.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward_1d, _meyer_wavelet_inverse_1d
-    >>> img = np.random.randn(64, 64)
-    >>> h1, h2 = _meyer_wavelet_forward_1d(img, 0)
-    >>> recon = _meyer_wavelet_inverse_1d(h1, h2, 0)
-    >>> np.allclose(img, recon, atol=1e-10)
-    True
-    """
-    ldim = h1.ndim - 1
-    h1 = np.swapaxes(h1, dim, ldim)
-    h2 = np.swapaxes(h2, dim, ldim)
-
-    sp = list(h1.shape)
-    sp[-1] = 2 * sp[-1]
-
-    # Use appropriate dtype for complex or real input
-    is_complex = np.iscomplexobj(h1) or np.iscomplexobj(h2)
-    dtype = h1.dtype if is_complex else float
-
-    g1 = np.zeros(sp, dtype=dtype)
-    g2 = np.zeros(sp, dtype=dtype)
-    g1[..., ::2] = h1
-    g2[..., 1::2] = h2
-    N = sp[-1]
-    f1, f2 = _meyer_wavelet(N)
-    f1 = np.reshape(f1, (1, N))
-    f2 = np.reshape(f2, (1, N))
-    imfsum = f1 * np.fft.fft(g1, axis=ldim) + f2 * np.fft.fft(g2, axis=ldim)
-    imrecon_full = np.fft.ifft(imfsum, axis=ldim)
-
-    # Preserve complex values for complex input, take real for real input
-    imrecon = 2 * (imrecon_full if is_complex else imrecon_full.real)
-
-    return np.swapaxes(imrecon, dim, ldim)
-
-
-def _meyer_wavelet_forward(img: npt.NDArray) -> list[npt.NDArray]:
-    """
-    Apply multi-dimensional Meyer wavelet forward transform.
-
-    Parameters
-    ----------
-    img : npt.NDArray
-        Input array (real or complex).
-
-    Returns
-    -------
-    list[npt.NDArray]
-        List of 2^dim subbands. First is lowpass, rest are highpass.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward
-    >>> img = np.random.randn(64, 64)
-    >>> bands = _meyer_wavelet_forward(img)
-    >>> len(bands)
-    4
-    >>> bands[0].shape
+    >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+    >>> wavelet = MeyerWavelet(shape=(64, 64))
+    >>> signal = np.random.randn(64, 64)
+    >>> lowpass = wavelet.forward(signal)
+    >>> lowpass.shape
     (32, 32)
-    """
-    band = [img]
-    dim = len(img.shape)
-    for i in range(dim):
-        cband: list[npt.NDArray] = []
-        for j in range(len(band)):
-            h1, h2 = _meyer_wavelet_forward_1d(band[j], i)
-            cband.append(h1)
-            cband.append(h2)
-        band = cband
-    return cband
-
-
-def _meyer_wavelet_inverse(band: list[npt.NDArray]) -> npt.NDArray:
-    """
-    Apply multi-dimensional Meyer wavelet inverse transform.
-
-    Parameters
-    ----------
-    band : list[npt.NDArray]
-        List of 2^dim subbands from _meyer_wavelet_forward.
-
-    Returns
-    -------
-    npt.NDArray
-        Reconstructed array.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward, _meyer_wavelet_inverse
-    >>> img = np.random.randn(64, 64)
-    >>> bands = _meyer_wavelet_forward(img)
-    >>> recon = _meyer_wavelet_inverse(bands)
-    >>> np.allclose(img, recon, atol=1e-10)
+    >>> reconstructed = wavelet.backward(lowpass)
+    >>> np.allclose(signal, reconstructed, atol=1e-10)
     True
     """
-    dim = len(band[0].shape)
-    for i in range(dim - 1, -1, -1):
-        cband: list[npt.NDArray] = []
-        for j in range(len(band) // 2):
-            imrecon = _meyer_wavelet_inverse_1d(band[2 * j], band[2 * j + 1], i)
-            cband.append(imrecon)
-        band = cband
-    return band[0]
+
+    def __init__(self, shape: tuple[int, ...]) -> None:
+        """
+        Initialize Meyer wavelet transform.
+
+        Parameters
+        ----------
+        shape : tuple[int, ...]
+            Expected shape of input signals. Used for validation.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64, 64))
+        >>> wavelet.shape
+        (64, 64)
+        >>> wavelet.dimension
+        2
+        """
+        self.shape = shape
+        self.dimension = len(shape)
+        self._highpass_bands: list[npt.NDArray] | None = None
+        self._filter_cache: dict[int, tuple[npt.NDArray, npt.NDArray]] = {}
+        self._is_complex: bool | None = None
+
+    def _compute_wavelet_filters(
+        self, signal_length: int
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Compute Meyer wavelet filters for given signal length.
+
+        Filters are cached by signal length to avoid redundant computation.
+        The lowpass filter is fftshifted, while the highpass filter is not.
+
+        Parameters
+        ----------
+        signal_length : int
+            Length of the signal along the transform dimension.
+
+        Returns
+        -------
+        tuple[npt.NDArray, npt.NDArray]
+            Lowpass and highpass filters as 1D arrays of length signal_length.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64,))
+        >>> lowpass, highpass = wavelet._compute_wavelet_filters(64)
+        >>> lowpass.shape
+        (64,)
+        >>> highpass.shape
+        (64,)
+        """
+        # Check cache first
+        if signal_length in self._filter_cache:
+            return self._filter_cache[signal_length]
+
+        # Compute frequency grid
+        frequency_step = 2 * np.pi / signal_length
+        frequency_grid = (
+            np.linspace(0, 2 * np.pi - frequency_step, signal_length) - np.pi / 2
+        )
+
+        # Meyer frequency parameters: [-pi/3, pi/3, 2*pi/3, 4*pi/3]
+        meyer_frequency_parameters = np.pi * np.array([-1 / 3, 1 / 3, 2 / 3, 4 / 3])
+
+        # Compute Meyer window function
+        meyer_window = fun_meyer(
+            frequency_grid,
+            meyer_frequency_parameters[0],
+            meyer_frequency_parameters[1],
+            meyer_frequency_parameters[2],
+            meyer_frequency_parameters[3],
+        )
+
+        # Lowpass filter: fftshifted and square-rooted
+        lowpass_filter = np.sqrt(np.fft.fftshift(meyer_window))
+
+        # Highpass filter: not shifted, square-rooted
+        highpass_filter = np.sqrt(meyer_window)
+
+        # Cache the filters
+        self._filter_cache[signal_length] = (lowpass_filter, highpass_filter)
+
+        return lowpass_filter, highpass_filter
+
+    def _forward_transform_1d(
+        self, signal: npt.NDArray, axis_index: int
+    ) -> tuple[npt.NDArray, npt.NDArray]:
+        """
+        Apply 1D Meyer wavelet forward transform along specified axis.
+
+        Parameters
+        ----------
+        signal : npt.NDArray
+            Input array (real or complex).
+        axis_index : int
+            Axis along which to apply the transform.
+
+        Returns
+        -------
+        tuple[npt.NDArray, npt.NDArray]
+            Lowpass and highpass subbands. Output dtype matches input:
+            real input produces real output, complex input produces complex output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64, 64))
+        >>> signal = np.random.randn(64, 64)
+        >>> lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
+        >>> lowpass.shape
+        (32, 64)
+        >>> highpass.shape
+        (32, 64)
+        """
+        last_axis_index = signal.ndim - 1
+        signal = np.swapaxes(signal, axis_index, last_axis_index)
+        signal_shape = signal.shape
+        signal_length = signal_shape[-1]
+
+        # Get cached filters
+        lowpass_filter, highpass_filter = self._compute_wavelet_filters(signal_length)
+
+        # Reshape filters for broadcasting
+        lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
+        highpass_filter = np.reshape(highpass_filter, (1, signal_length))
+
+        # Transform to frequency domain
+        signal_frequency_domain = np.fft.fft(signal, axis=last_axis_index)
+
+        # Apply filters and transform back
+        lowpass_full_resolution = np.fft.ifft(
+            lowpass_filter * signal_frequency_domain, axis=last_axis_index
+        )
+        highpass_full_resolution = np.fft.ifft(
+            highpass_filter * signal_frequency_domain, axis=last_axis_index
+        )
+
+        # Preserve complex values for complex input, take real for real input
+        if not np.iscomplexobj(signal):
+            lowpass_full_resolution = lowpass_full_resolution.real
+            highpass_full_resolution = highpass_full_resolution.real
+
+        # Downsample by factor of 2 (take every other sample)
+        lowpass_subband = lowpass_full_resolution[..., ::2]
+        highpass_subband = highpass_full_resolution[..., 1::2]
+
+        # Swap axes back to original order
+        lowpass_subband = np.swapaxes(lowpass_subband, axis_index, last_axis_index)
+        highpass_subband = np.swapaxes(highpass_subband, axis_index, last_axis_index)
+
+        return lowpass_subband, highpass_subband
+
+    def _inverse_transform_1d(
+        self,
+        lowpass_subband: npt.NDArray,
+        highpass_subband: npt.NDArray,
+        axis_index: int,
+    ) -> npt.NDArray:
+        """
+        Apply 1D Meyer wavelet inverse transform along specified axis.
+
+        Parameters
+        ----------
+        lowpass_subband : npt.NDArray
+            Lowpass subband (real or complex).
+        highpass_subband : npt.NDArray
+            Highpass subband (real or complex).
+        axis_index : int
+            Axis along which to apply the transform.
+
+        Returns
+        -------
+        npt.NDArray
+            Reconstructed array. Output dtype matches input: real input produces
+            real output, complex input produces complex output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64, 64))
+        >>> signal = np.random.randn(64, 64)
+        >>> lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
+        >>> reconstructed = wavelet._inverse_transform_1d(lowpass, highpass, 0)
+        >>> np.allclose(signal, reconstructed, atol=1e-10)
+        True
+        """
+        last_axis_index = lowpass_subband.ndim - 1
+        lowpass_subband = np.swapaxes(lowpass_subband, axis_index, last_axis_index)
+        highpass_subband = np.swapaxes(highpass_subband, axis_index, last_axis_index)
+
+        # Compute upsampled shape
+        upsampled_shape = list(lowpass_subband.shape)
+        upsampled_shape[-1] = 2 * upsampled_shape[-1]
+
+        # Determine dtype based on input
+        is_complex = np.iscomplexobj(lowpass_subband) or np.iscomplexobj(
+            highpass_subband
+        )
+        dtype = lowpass_subband.dtype if is_complex else float
+
+        # Pre-allocate upsampled arrays
+        lowpass_upsampled = np.zeros(upsampled_shape, dtype=dtype)
+        highpass_upsampled = np.zeros(upsampled_shape, dtype=dtype)
+
+        # Interleave subbands (upsample by inserting zeros)
+        lowpass_upsampled[..., ::2] = lowpass_subband
+        highpass_upsampled[..., 1::2] = highpass_subband
+
+        signal_length = upsampled_shape[-1]
+
+        # Get cached filters
+        lowpass_filter, highpass_filter = self._compute_wavelet_filters(signal_length)
+
+        # Reshape filters for broadcasting
+        lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
+        highpass_filter = np.reshape(highpass_filter, (1, signal_length))
+
+        # Transform to frequency domain and combine
+        combined_frequency_domain = lowpass_filter * np.fft.fft(
+            lowpass_upsampled, axis=last_axis_index
+        ) + highpass_filter * np.fft.fft(highpass_upsampled, axis=last_axis_index)
+
+        # Transform back to spatial domain
+        reconstructed_full_resolution = np.fft.ifft(
+            combined_frequency_domain, axis=last_axis_index
+        )
+
+        # Preserve complex values for complex input, take real for real input
+        reconstructed_signal = 2 * (
+            reconstructed_full_resolution
+            if is_complex
+            else reconstructed_full_resolution.real
+        )
+
+        return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
+
+    def forward(self, signal: npt.NDArray) -> npt.NDArray:
+        """
+        Apply multi-dimensional Meyer wavelet forward transform.
+
+        Decomposes the input signal into 2^dimension subbands. The first subband
+        (lowpass) is returned, while the remaining highpass subbands are stored
+        internally for use in backward().
+
+        Parameters
+        ----------
+        signal : npt.NDArray
+            Input array (real or complex). Must match the shape specified
+            during initialization.
+
+        Returns
+        -------
+        npt.NDArray
+            Lowpass subband (first of 2^dimension subbands). Shape is
+            approximately half the input shape in each dimension.
+
+        Raises
+        ------
+        ValueError
+            If signal shape does not match expected shape.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64, 64))
+        >>> signal = np.random.randn(64, 64)
+        >>> lowpass = wavelet.forward(signal)
+        >>> lowpass.shape
+        (32, 32)
+        >>> len(wavelet._highpass_bands)
+        3
+        """
+        # Validate input shape
+        if signal.shape != self.shape:
+            error_msg = f"Signal shape {signal.shape} does not match expected shape {self.shape}"
+            raise ValueError(error_msg)
+
+        # Track if input is complex
+        self._is_complex = np.iscomplexobj(signal)
+
+        # Start with the full signal
+        current_bands = [signal]
+
+        # Apply 1D transform along each dimension
+        for dimension_index in range(self.dimension):
+            new_bands: list[npt.NDArray] = []
+            for band in current_bands:
+                lowpass_subband, highpass_subband = self._forward_transform_1d(
+                    band, dimension_index
+                )
+                new_bands.append(lowpass_subband)
+                new_bands.append(highpass_subband)
+            current_bands = new_bands
+
+        # Store highpass bands (all except the first)
+        self._highpass_bands = current_bands[1:]
+
+        # Return only the lowpass subband (first band)
+        return current_bands[0]
+
+    def backward(self, lowpass_subband: npt.NDArray) -> npt.NDArray:
+        """
+        Apply multi-dimensional Meyer wavelet inverse transform.
+
+        Reconstructs the original signal from the lowpass subband and the
+        highpass bands stored during forward().
+
+        Parameters
+        ----------
+        lowpass_subband : npt.NDArray
+            Lowpass subband from forward transform. Must match the shape
+            returned by forward().
+
+        Returns
+        -------
+        npt.NDArray
+            Reconstructed signal with shape matching the original input.
+
+        Raises
+        ------
+        RuntimeError
+            If forward() has not been called first.
+        ValueError
+            If lowpass_subband shape does not match expected shape.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._meyerwavelet import MeyerWavelet
+        >>> wavelet = MeyerWavelet(shape=(64, 64))
+        >>> signal = np.random.randn(64, 64)
+        >>> lowpass = wavelet.forward(signal)
+        >>> reconstructed = wavelet.backward(lowpass)
+        >>> np.allclose(signal, reconstructed, atol=1e-10)
+        True
+        """
+        # Validate that forward() was called first
+        if self._highpass_bands is None:
+            error_msg = (
+                "forward() must be called before backward(). "
+                "Highpass bands are not available."
+            )
+            raise RuntimeError(error_msg)
+
+        # Combine lowpass with stored highpass bands
+        all_bands = [lowpass_subband, *self._highpass_bands]
+
+        # Apply inverse transform along each dimension in reverse order
+        current_bands = all_bands
+        for dimension_index in range(self.dimension - 1, -1, -1):
+            new_bands: list[npt.NDArray] = []
+            for band_index in range(len(current_bands) // 2):
+                reconstructed = self._inverse_transform_1d(
+                    current_bands[2 * band_index],
+                    current_bands[2 * band_index + 1],
+                    dimension_index,
+                )
+                new_bands.append(reconstructed)
+            current_bands = new_bands
+
+        # Return the fully reconstructed signal
+        return current_bands[0]

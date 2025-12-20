@@ -9,7 +9,7 @@ import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
-from ._meyerwavelet import _meyer_wavelet_forward, _meyer_wavelet_inverse
+from ._meyerwavelet import MeyerWavelet
 from ._window_computation import _window_computation
 from .typing import UDCTCoefficients, UDCTWindows
 from .utils import ParamUDCT
@@ -135,8 +135,10 @@ class UDCT:
         # Calculate windows
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
 
-        # Initialize state
-        self._wavelet_bands: list[np.ndarray] = []
+        # Initialize Meyer wavelet if needed
+        self._meyer_wavelet: MeyerWavelet | None = None
+        if self.high_frequency_mode == "wavelet":
+            self._meyer_wavelet = MeyerWavelet(shape=shape)
 
     def _initialize_parameters(
         self,
@@ -391,10 +393,11 @@ class UDCT:
 
         if self.high_frequency_mode == "wavelet":
             # Apply Meyer wavelet decomposition
-            # meyerfwdmd returns 2^dim bands: first is lowpass, rest are highpass
-            bands = _meyer_wavelet_forward(image)
-            lowpass = bands[0]
-            self._wavelet_bands = bands[1:]  # Store highpass bands for backward
+            # forward() returns lowpass subband and stores highpass internally
+            if self._meyer_wavelet is None:
+                error_msg = "MeyerWavelet not initialized"
+                raise RuntimeError(error_msg)
+            lowpass = self._meyer_wavelet.forward(image)
 
             # Apply curvelet transform to lowpass only
             return _apply_forward_transform(
@@ -450,9 +453,11 @@ class UDCT:
                 use_complex_transform=self.use_complex_transform,
             )
 
-            # Combine with wavelet highpass bands and apply Meyer inverse
-            all_bands = [lowpass_recon, *self._wavelet_bands]
-            return _meyer_wavelet_inverse(all_bands)
+            # Apply Meyer inverse using stored highpass bands
+            if self._meyer_wavelet is None:
+                error_msg = "MeyerWavelet not initialized"
+                raise RuntimeError(error_msg)
+            return self._meyer_wavelet.backward(lowpass_recon)
 
         return _apply_backward_transform(
             coefficients,
