@@ -78,6 +78,7 @@ log_cli_level = "INFO"
 testpaths = ["tests"]
 markers = [
     "round_trip: Tests for forward+backward round-trip functionality",
+    "slow: Slow-running tests that should be run separately",
 ]
 
 
