@@ -39,6 +39,7 @@ class UDCT:
         self.high = high
         self.dim = len(shape)
         self.res = len(cfg)
+        self._wavelet_keys: dict[tuple[int, ...], npt.NDArray[np.complexfloating]] = {}
         self.create_windows()
 
     def create_windows(self) -> None:
@@ -260,60 +261,74 @@ class UDCT:
 
     def forward(self, img: npt.NDArray) -> UDCTCoefficients:
         coeffs_dict = self._forward(img)
-        coeffs_high = {k: v for k, v in coeffs_dict.items() if len(k) > 1}
-        # coeffs = [[[coeffs_dict[(0,)]]]] + [
-        #     [
-        #         [
-        #             v_
-        #             for w_, v_ in sorted(
-        #                 [
-        #                     (w, v)
-        #                     for (s, d, w), v in coeffs_high.items()
-        #                     if s == iscale and d == idir
-        #                 ],
-        #                 key=lambda x: x[0],
-        #             )
-        #         ]
-        #         for idir in range(
-        #             1 + max(d for (s, d, _) in coeffs_high if s == iscale)
-        #         )
-        #     ]
-        #     for iscale in range(1 + max(s for (s, d, _) in coeffs_high))
-        # ]
-        coeffs = [[[coeffs_dict[(0,)]]]] + [
-            [
-                [
-                    coeffs_high[(iscale, idir, w)]
-                    for w in range(
-                        1
-                        + max(
-                            w for (s, d, w) in coeffs_high if s == iscale and d == idir
-                        )
-                    )
-                ]
-                for idir in range(
-                    1 + max(d for (s, d, _) in coeffs_high if s == iscale)
-                )
-            ]
-            for iscale in range(1 + max(s for (s, _, _) in coeffs_high))
-        ]
-        # for scale_dir_wedge_tuple in sorted(
-        #     coeffs_dict,
-        #     key=lambda k: (k[0], k[1] if len(k) > 1 else 0, k[2] if len(k) > 1 else 0),
-        # ):
-        #     if len(scale_dir_wedge_tuple) == 1:
-        #         (scale,) = scale_dir_wedge_tuple
-        #         assert scale == 0
-        #         coeffs.append([[coeffs_dict[scale_dir_wedge_tuple]]])
-        #         continue
 
-        #     scale, dir, wedge = scale_dir_wedge_tuple
-        #     if dir == 0 and wedge == 0:
-        #         coeffs.append([[coeffs_dict[scale_dir_wedge_tuple]]])
-        #     elif wedge == 0:
-        #         coeffs[scale].append([coeffs_dict[scale_dir_wedge_tuple]])
-        #     else:
-        #         coeffs[scale][dir].append(coeffs_dict[scale_dir_wedge_tuple])
+        # Separate low frequency, curvelet, and wavelet coefficients
+        low_freq = coeffs_dict.get((0,), None)
+        if low_freq is None:
+            raise ValueError("Low frequency coefficient (0,) not found")
+
+        # Wavelet mode keys have format (res, i) where res == self.res
+        # Store them for later use in backward()
+        self._wavelet_keys = {
+            k: v for k, v in coeffs_dict.items() if len(k) == 2 and k[0] == self.res
+        }
+
+        # Curvelet keys have format (scale, dir, *wedge_indices) with len >= 3
+        curvelet_keys = {
+            k: v
+            for k, v in coeffs_dict.items()
+            if len(k) > 1 and k not in self._wavelet_keys
+        }
+
+        # Build nested structure for curvelet coefficients
+        # Group by scale, then direction, then by wedge indices (flattened to single index)
+        if not curvelet_keys:
+            # No curvelet coefficients, just return low frequency
+            coeffs: UDCTCoefficients = [[[low_freq]]]
+        else:
+            # Find all scales and directions
+            scales = sorted(set(k[0] for k in curvelet_keys))
+            max_scale = max(scales) if scales else 0
+
+            coeffs: UDCTCoefficients = [[[low_freq]]]
+
+            # Process each scale
+            for iscale in scales:
+                scale_coeffs = []
+
+                # Find all directions for this scale
+                dirs = sorted(set(k[1] for k in curvelet_keys if k[0] == iscale))
+                max_dir = max(dirs) if dirs else 0
+
+                # Process each direction
+                for idir in range(max_dir + 1):
+                    dir_coeffs = []
+
+                    # Find all keys for this scale and direction
+                    scale_dir_keys = [
+                        k
+                        for k in curvelet_keys.keys()
+                        if k[0] == iscale and k[1] == idir
+                    ]
+
+                    if scale_dir_keys:
+                        # Sort keys by wedge indices (all elements after scale and dir)
+                        # This ensures consistent ordering
+                        scale_dir_keys_sorted = sorted(
+                            scale_dir_keys,
+                            key=lambda k: k[2:],  # Sort by wedge indices
+                        )
+
+                        # Extract coefficients in sorted order
+                        for key in scale_dir_keys_sorted:
+                            dir_coeffs.append(curvelet_keys[key])
+
+                    scale_coeffs.append(dir_coeffs)
+
+                coeffs.append(scale_coeffs)
+
+        # Note: Wavelet coefficients are handled separately in _backward
+        # They are stored with keys (res, i) and processed during reconstruction
         return coeffs
 
     def _backward(
@@ -370,9 +385,58 @@ class UDCT:
 
     def backward(self, imband: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
         coeffs_dict: dict[tuple[int, ...], npt.NDArray[np.complexfloating]] = {}
+
+        # Build a mapping from (scale, direction) to sorted list of Msubwin keys
+        # This helps us reconstruct the full key structure with all wedge indices
+        msubwin_keys_by_scale_dir: dict[tuple[int, int], list[tuple[int, ...]]] = {}
+        for key in self.Msubwin.keys():
+            if len(key) >= 2:
+                scale = key[0]
+                dir = key[1]
+                scale_dir = (scale, dir)
+                if scale_dir not in msubwin_keys_by_scale_dir:
+                    msubwin_keys_by_scale_dir[scale_dir] = []
+                msubwin_keys_by_scale_dir[scale_dir].append(key)
+
+        # Sort keys for each (scale, direction) pair to ensure consistent ordering
+        for scale_dir in msubwin_keys_by_scale_dir:
+            msubwin_keys_by_scale_dir[scale_dir].sort(key=lambda k: k[2:])
+
+        # Process the nested structure
         for iscale, scale in enumerate(imband):
-            for idir, dir in enumerate(scale):
-                for iwedge, wedge in enumerate(dir):
-                    key = (iscale,) if iscale == 0 else (iscale - 1, idir, iwedge)
-                    coeffs_dict[key] = wedge
+            if iscale == 0:
+                # Low frequency coefficient
+                if len(scale) > 0 and len(scale[0]) > 0:
+                    coeffs_dict[(0,)] = scale[0][0]
+            else:
+                # Map from nested structure index (iscale) to actual scale in Msubwin
+                # The nested structure has scale 0 at index 0, then scales 0, 1, 2, ... at indices 1, 2, 3, ...
+                # So iscale=1 corresponds to scale=0, iscale=2 corresponds to scale=1, etc.
+                actual_scale = iscale - 1
+
+                for idir, dir in enumerate(scale):
+                    for iwedge, wedge in enumerate(dir):
+                        scale_dir = (actual_scale, idir)
+
+                        if scale_dir in msubwin_keys_by_scale_dir:
+                            # Find the key with the correct wedge index
+                            sorted_keys = msubwin_keys_by_scale_dir[scale_dir]
+                            if iwedge < len(sorted_keys):
+                                key = sorted_keys[iwedge]
+                                coeffs_dict[key] = wedge
+                            else:
+                                raise ValueError(
+                                    f"Wedge index {iwedge} out of range for scale {actual_scale}, "
+                                    f"direction {idir}. Available keys: {len(sorted_keys)}"
+                                )
+                        else:
+                            # Fallback: construct key assuming 3 elements (for 2D case)
+                            key = (actual_scale, idir, iwedge)
+                            coeffs_dict[key] = wedge
+
+        # Add wavelet coefficients back if in wavelet mode
+        # These are needed by _backward for reconstruction
+        if self.high == "wavelet" and self._wavelet_keys:
+            coeffs_dict.update(self._wavelet_keys)
+
         return self._backward(coeffs_dict)
