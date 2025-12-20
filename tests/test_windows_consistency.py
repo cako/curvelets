@@ -53,8 +53,13 @@ def test_windows_numpy_vs_ucurv(dim):
     ucurv_low = extract_ucurv_window_dense(ucurv_transform.FL, size)
 
     if numpy_low is not None:
-        # Use relaxed tolerance due to different alpha/r parameters
-        np.testing.assert_allclose(numpy_low, ucurv_low, rtol=1e-1, atol=1e-1)
+        # Use dimension-specific tolerance for dim==2
+        if dim == 2:
+            rtol, atol = 1e-14, 1e-14
+        else:
+            # Use relaxed tolerance due to different alpha/r parameters
+            rtol, atol = 1e-1, 1e-1
+        np.testing.assert_allclose(numpy_low, ucurv_low, rtol=rtol, atol=atol)
 
     # Compare other windows
     # Note: ucurv uses different indexing, so we compare what we can
@@ -104,8 +109,13 @@ def test_windows_numpy_vs_ucurv2(dim):
     ucurv2_low = extract_ucurv_window_dense(ucurv2_transform.FL, size)
 
     if numpy_low is not None:
-        # Use relaxed tolerance due to different r parameters
-        np.testing.assert_allclose(numpy_low, ucurv2_low, rtol=1e-1, atol=1e-1)
+        # Use dimension-specific tolerance for dim==2
+        if dim == 2:
+            rtol, atol = 1e-14, 1e-14
+        else:
+            # Use relaxed tolerance due to different r parameters
+            rtol, atol = 1e-1, 1e-1
+        np.testing.assert_allclose(numpy_low, ucurv2_low, rtol=rtol, atol=atol)
 
     # Compare other windows
     # Note: ucurv2 uses different indexing, so we compare what we can
@@ -148,7 +158,11 @@ def test_windows_ucurv_vs_ucurv2(dim):
     ucurv_low = extract_ucurv_window_dense(ucurv_transform.FL, size)
     ucurv2_low = extract_ucurv_window_dense(ucurv2_transform.FL, size)
 
-    np.testing.assert_allclose(ucurv_low, ucurv2_low, rtol=1e-3, atol=1e-3)
+    if dim == 2:
+        rtol, atol = 1e-3, 1e-3
+    else:
+        rtol, atol = 1e-3, 1e-3
+    np.testing.assert_allclose(ucurv_low, ucurv2_low, rtol=rtol, atol=atol)
 
     # Compare Msubwin dictionaries
     # Both should have the same keys and similar windows
@@ -166,4 +180,9 @@ def test_windows_ucurv_vs_ucurv2(dim):
     for key in list(common_keys)[:5]:  # Compare first 5 common windows
         ucurv_win = extract_ucurv_window_dense(ucurv_transform.Msubwin[key], size)
         ucurv2_win = extract_ucurv_window_dense(ucurv2_transform.Msubwin[key], size)
-        np.testing.assert_allclose(ucurv_win, ucurv2_win, rtol=1e-2, atol=1e-2)
+        # Use dimension-specific tolerance for dim==2
+        if dim == 2:
+            rtol, atol = 1e-2, 1e-2
+        else:
+            rtol, atol = 1e-2, 1e-2
+        np.testing.assert_allclose(ucurv_win, ucurv2_win, rtol=rtol, atol=atol)

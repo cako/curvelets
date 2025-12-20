@@ -34,7 +34,8 @@ def test_ucurv2_round_trip_absolute(dim, high, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    np.testing.assert_allclose(data, recon, atol=1e-4)
+    atol = 1e-5
+    np.testing.assert_allclose(data, recon, atol=atol)
 
 
 @pytest.mark.round_trip
@@ -68,7 +69,8 @@ def test_ucurv2_round_trip_relative(dim, high, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    np.testing.assert_allclose(data, recon, atol=0.005 * data.max())
+    atol = 1e-4
+    np.testing.assert_allclose(data, recon, atol=atol * data.max())
 
 
 @pytest.mark.round_trip
@@ -94,4 +96,5 @@ def test_ucurv2_round_trip_parametrized(dim, shape_idx, high, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    np.testing.assert_allclose(data, recon, atol=1e-3)
+    atol = 1e-4
+    np.testing.assert_allclose(data, recon, atol=atol)

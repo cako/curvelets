@@ -24,8 +24,7 @@ def test_numpy_round_trip_absolute(dim, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    # 4D tests need slightly relaxed tolerance due to numerical precision
-    atol = 2e-4 if dim == 4 else 1e-4
+    atol = 1e-4 if dim in {2, 3} else 1e-3
     np.testing.assert_allclose(data, recon, atol=atol)
 
 
@@ -49,7 +48,8 @@ def test_numpy_round_trip_relative(dim, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    np.testing.assert_allclose(data, recon, atol=0.005 * data.max())
+    atol = 1e-4
+    np.testing.assert_allclose(data, recon, atol=atol * data.max())
 
 
 @pytest.mark.round_trip
@@ -67,4 +67,5 @@ def test_numpy_round_trip_parametrized(dim, shape_idx, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    np.testing.assert_allclose(data, recon, atol=1e-3)
+    atol = 1e-4 if dim in {2, 3} else 1e-3
+    np.testing.assert_allclose(data, recon, atol=atol)

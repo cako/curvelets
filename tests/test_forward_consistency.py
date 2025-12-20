@@ -66,7 +66,7 @@ def test_forward_numpy_vs_ucurv(dim):
     # Use dimension-specific tolerances: stricter for 2D, relaxed for 3D and 4D
     # due to larger differences from parameter mismatches
     if dim == 2:
-        low_freq_rtol, low_freq_atol = 1e-2, 1e-2
+        low_freq_rtol, low_freq_atol = 1e-15, 1e-15
     else:  # dim == 3 or 4
         low_freq_rtol, low_freq_atol = 1e-1, 1e-1
 
@@ -78,6 +78,11 @@ def test_forward_numpy_vs_ucurv(dim):
         atol=low_freq_atol,
     )
 
+    # Use dimension-specific tolerance for dim==2
+    if dim == 2:
+        rtol, atol = 1e-20, 1e-20
+    else:
+        rtol, atol = 1e-1, 1e-1
     # Compare other scales (may have different structures due to parameter differences)
     # We use relaxed tolerance due to different alpha/r parameters
     for scale_idx in range(1, min_scales):
@@ -95,8 +100,8 @@ def test_forward_numpy_vs_ucurv(dim):
                         np.testing.assert_allclose(
                             numpy_dir[wedge_idx],
                             ucurv_dir[wedge_idx],
-                            rtol=1e-1,
-                            atol=1e-1,
+                            rtol=rtol,
+                            atol=atol,
                         )
 
 
@@ -139,7 +144,7 @@ def test_forward_numpy_vs_ucurv2(dim):
     # Use dimension-specific tolerances: stricter for 2D, relaxed for 3D and 4D
     # due to larger numerical differences from implementation details
     if dim == 2:
-        low_freq_rtol, low_freq_atol = 1e-2, 1e-2
+        low_freq_rtol, low_freq_atol = 1e-15, 1e-15
     else:  # dim == 3 or 4
         low_freq_rtol, low_freq_atol = 1e-1, 1e-1
 
@@ -150,8 +155,14 @@ def test_forward_numpy_vs_ucurv2(dim):
         atol=low_freq_atol,
     )
 
+    # Use dimension-specific tolerance for dim==2
+    if dim == 2:
+        rtol, atol = 1e-2, 1e-2
+    else:
+        rtol, atol = 1e-1, 1e-1
     # Compare other scales (may have different structures due to implementation differences)
     # We use relaxed tolerance due to implementation differences
+
     for scale_idx in range(1, min(len(numpy_coeffs), len(ucurv2_coeffs))):
         if scale_idx < len(numpy_coeffs) and scale_idx < len(ucurv2_coeffs):
             numpy_scale = numpy_coeffs[scale_idx]
@@ -166,8 +177,8 @@ def test_forward_numpy_vs_ucurv2(dim):
                         np.testing.assert_allclose(
                             numpy_dir[wedge_idx],
                             ucurv2_dir[wedge_idx],
-                            rtol=1e-1,
-                            atol=1e-1,
+                            rtol=rtol,
+                            atol=atol,
                         )
 
 
@@ -207,9 +218,18 @@ def test_forward_ucurv_vs_ucurv2(dim):
     assert len(ucurv_coeffs) == len(ucurv2_coeffs), "Number of scales should match"
 
     # Compare low frequency
+    if dim == 2:
+        rtol, atol = 1e-3, 1e-3
+    else:
+        rtol, atol = 1e-3, 1e-3
     np.testing.assert_allclose(
-        ucurv_coeffs[0][0][0], ucurv2_coeffs[0][0][0], rtol=1e-3, atol=1e-3
+        ucurv_coeffs[0][0][0], ucurv2_coeffs[0][0][0], rtol=rtol, atol=atol
     )
+    # Use dimension-specific tolerance for dim==2
+    if dim == 2:
+        rtol, atol = 1e-2, 1e-2
+    else:
+        rtol, atol = 1e-2, 1e-2
 
     # Compare other scales
     for scale_idx in range(1, min(len(ucurv_coeffs), len(ucurv2_coeffs))):
@@ -226,6 +246,6 @@ def test_forward_ucurv_vs_ucurv2(dim):
                         np.testing.assert_allclose(
                             ucurv_dir[wedge_idx],
                             ucurv2_dir[wedge_idx],
-                            rtol=1e-2,
-                            atol=1e-2,
+                            rtol=rtol,
+                            atol=atol,
                         )
