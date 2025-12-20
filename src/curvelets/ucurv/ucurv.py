@@ -195,7 +195,7 @@ def upsamp(
     return bandup
 
 
-r = np.pi * np.array([1 / 3, 2 / 3, 2 / 3, 4 / 3])
+r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
 alpha = 0.1
 
 

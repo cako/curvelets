@@ -77,8 +77,7 @@ def test_windows_numpy_vs_ucurv2(dim):
     """
     Compare windows between NumPy and ucurv2 using identical explicit parameters.
 
-    Note: ucurv2 uses hardcoded r values, so we cannot match NumPy's r parameter
-    exactly. This test documents the difference.
+    Both implementations now use the same hardcoded r values and configurable alpha.
     """
     shapes = get_test_shapes(dim)
     configs = get_test_configs(dim)
