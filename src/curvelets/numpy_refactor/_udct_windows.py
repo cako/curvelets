@@ -26,7 +26,7 @@ class UDCTWindow:
     --------
     >>> import numpy as np
     >>> from curvelets.numpy_refactor.utils import ParamUDCT
-    >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+    >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
     >>>
     >>> # Create parameters for 2D transform with 3 scales
     >>> params = ParamUDCT(
@@ -71,7 +71,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> S1 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
         >>> S2 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
         >>> M2, M1 = UDCTWindow._adapt_grid(S1, S2)
@@ -138,7 +138,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> Mgrid = np.linspace(-2, 2, 64)
         >>> angle_funcs = UDCTWindow._angle_fun(Mgrid, 1, 3, 0.15)
         >>> angle_funcs.shape[0]
@@ -187,7 +187,7 @@ class UDCTWindow:
         --------
         >>> import numpy as np
         >>> from curvelets.numpy_refactor.utils import ParamUDCT
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> params = ParamUDCT(
         ...     size=(64, 64), res=3, dim=2,
         ...     angular_wedges_config=np.array([[3], [6], [12]]),
@@ -230,7 +230,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> arr = np.array([[1, 2], [3, 4]])
         >>> flipped = UDCTWindow._fftflip(arr, 0)
         >>> flipped.shape
@@ -265,7 +265,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> arr = np.array([0.1, 0.5, 0.01, 0.8])
         >>> idx, vals = UDCTWindow._to_sparse(arr, 0.2)
         >>> len(vals)
@@ -294,7 +294,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> idx = np.array([[0], [2]])
         >>> vals = np.array([0.5, 0.8])
         >>> result = UDCTWindow._from_sparse((idx, vals))
@@ -323,7 +323,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> result = UDCTWindow._nchoosek([0, 1, 2], 2)
         >>> result.shape
         (3, 2)
@@ -367,7 +367,7 @@ class UDCTWindow:
             Examples
             --------
             >>> import numpy as np
-            >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+            >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
             >>> freq_grid, bandpass = UDCTWindow._create_bandpass_windows(
             ...     3, (64, 64), (np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
             ... )
@@ -449,7 +449,7 @@ class UDCTWindow:
             Examples
             --------
             >>> import numpy as np
-            >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+            >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
             >>> mappings = UDCTWindow._create_mdirs(2, 3)
             >>> len(mappings)
             3
@@ -506,7 +506,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> freq_grid = {0: np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False),
         ...              1: np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)}
         >>> angle_funcs, angle_indices = UDCTWindow._create_angle_info(
@@ -586,7 +586,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> from curvelets.numpy_refactor.typing import UDCTWindows
         >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
         >>> UDCTWindow._inplace_normalize_windows(windows, (64, 64), 2, 3)
@@ -642,7 +642,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> mappings = UDCTWindow._create_mdirs(2, 3)
         >>> ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
         ...     3, 2, np.array([[3], [6], [12]]), mappings
@@ -695,7 +695,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> from curvelets.numpy_refactor.typing import UDCTWindows
         >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
         >>> indices = {1: {0: np.array([[0]])}}
@@ -805,7 +805,7 @@ class UDCTWindow:
         --------
         >>> import numpy as np
         >>> from curvelets.numpy_refactor.utils import ParamUDCT
-        >>> from curvelets.numpy_refactor._window_computation import UDCTWindow
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>>
         >>> # Create parameters for 2D transform with 3 scales
         >>> params = ParamUDCT(

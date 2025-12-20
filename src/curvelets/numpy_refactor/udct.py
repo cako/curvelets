@@ -10,7 +10,7 @@ import numpy.typing as npt
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
 from ._meyerwavelet import MeyerWavelet
-from ._window_computation import UDCTWindow
+from ._udct_windows import UDCTWindow
 from .typing import UDCTCoefficients, UDCTWindows
 from .utils import ParamUDCT, _fftflip_all_axes, circshift, downsamp, upsamp
 

@@ -103,7 +103,7 @@ def _apply_backward_transform(
     --------
     >>> import numpy as np
     >>> from curvelets.numpy_refactor.utils import ParamUDCT
-    >>> from curvelets.numpy_refactor._window_computation import _window_computation
+    >>> from curvelets.numpy_refactor._udct_windows import _udct_windows
     >>> from curvelets.numpy_refactor._forward_transform import _apply_forward_transform
     >>> from curvelets.numpy_refactor._backward_transform import _apply_backward_transform
     >>>
@@ -118,7 +118,7 @@ def _apply_backward_transform(
     ... )
     >>>
     >>> # Compute windows (typically done once and reused)
-    >>> windows, decimation_ratios, _ = _window_computation(params)
+    >>> windows, decimation_ratios, _ = _udct_windows(params)
     >>>
     >>> # Create test image
     >>> image = np.random.randn(64, 64)

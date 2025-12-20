@@ -36,7 +36,7 @@ def _apply_forward_transform(
             Shape of the input data
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
-        `_window_computation`. Structure is:
+        `_udct_windows`. Structure is:
         windows[scale][direction][wedge] = (indices, values) tuple
     decimation_ratios : list[npt.NDArray[np.int_]]
         Decimation ratios for each scale and direction. Structure:
@@ -95,7 +95,7 @@ def _apply_forward_transform(
     --------
     >>> import numpy as np
     >>> from curvelets.numpy_refactor.utils import ParamUDCT
-    >>> from curvelets.numpy_refactor._window_computation import _window_computation
+    >>> from curvelets.numpy_refactor._udct_windows import _udct_windows
     >>> from curvelets.numpy_refactor._forward_transform import _apply_forward_transform
     >>>
     >>> # Create parameters for 2D transform
@@ -109,7 +109,7 @@ def _apply_forward_transform(
     ... )
     >>>
     >>> # Compute windows (typically done once and reused)
-    >>> windows, decimation_ratios, _ = _window_computation(params)
+    >>> windows, decimation_ratios, _ = _udct_windows(params)
     >>>
     >>> # Create test image
     >>> image = np.random.randn(64, 64)
