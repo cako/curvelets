@@ -9,10 +9,10 @@ import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
-from ._meyerwavelet import meyerfwdmd, meyerinvmd
+from ._meyerwavelet import _meyer_wavelet_forward, _meyer_wavelet_inverse
 from ._window_computation import _window_computation
 from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT, upsamp
+from .utils import ParamUDCT
 
 
 class UDCT:
@@ -111,7 +111,7 @@ class UDCT:
         self.use_complex_transform = use_complex_transform
 
         # Calculate necessary parameters
-        params_dict = self._calculate_necessary_parameters(
+        params_dict = self._initialize_parameters(
             shape=shape,
             angular_wedges_config=angular_wedges_config,
             num_scales=num_scales,
@@ -133,12 +133,12 @@ class UDCT:
         )
 
         # Calculate windows
-        self.windows, self.decimation_ratios, self.indices = self._calculate_windows()
+        self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
 
         # Initialize state
         self._wavelet_bands: list[np.ndarray] = []
 
-    def _calculate_necessary_parameters(
+    def _initialize_parameters(
         self,
         shape: tuple[int, ...],
         angular_wedges_config: np.ndarray | None,
@@ -185,7 +185,7 @@ class UDCT:
                 raise ValueError(msg)
             # Use provided angular_wedges_config directly
             computed_angular_wedges_config = angular_wedges_config
-            num_scales_computed = len(angular_wedges_config)
+
             # Use provided window_overlap or default
             computed_window_overlap = (
                 window_overlap if window_overlap is not None else 0.15
@@ -211,7 +211,6 @@ class UDCT:
             computed_angular_wedges_config = np.tile(
                 wedges_per_scale[:, None], dimension
             )
-            num_scales_computed = num_scales
 
             # Auto-select window_overlap if not provided
             if window_overlap is None:
@@ -270,7 +269,7 @@ class UDCT:
             "window_threshold": window_threshold,
         }
 
-    def _calculate_windows(
+    def _initialize_windows(
         self,
     ) -> tuple[
         UDCTWindows, list[npt.NDArray[np.int_]], dict[int, dict[int, np.ndarray]]
@@ -284,37 +283,6 @@ class UDCT:
             (windows, decimation_ratios, indices)
         """
         return _window_computation(self.parameters)
-
-    def from_sparse(
-        self, arr_sparse: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-    ) -> npt.NDArray[np.floating]:
-        """
-        Convert sparse array representation to dense array.
-
-        Parameters
-        ----------
-        arr_sparse : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-            Sparse array as (indices, values) tuple.
-
-        Returns
-        -------
-        np.ndarray
-            Dense array representation.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy_refactor import UDCT
-        >>> transform = UDCT(shape=(64, 64))
-        >>> sparse = (np.array([0, 100]), np.array([1.0, 2.0]))
-        >>> dense = transform.from_sparse(sparse)
-        >>> dense.shape
-        (64, 64)
-        """
-        idx, val = arr_sparse
-        arr_full = np.zeros(self.parameters.size, dtype=val.dtype)
-        arr_full.flat[idx] += val
-        return arr_full
 
     def vect(self, coefficients: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
         """
@@ -424,7 +392,7 @@ class UDCT:
         if self.high_frequency_mode == "wavelet":
             # Apply Meyer wavelet decomposition
             # meyerfwdmd returns 2^dim bands: first is lowpass, rest are highpass
-            bands = meyerfwdmd(image)
+            bands = _meyer_wavelet_forward(image)
             lowpass = bands[0]
             self._wavelet_bands = bands[1:]  # Store highpass bands for backward
 
@@ -484,7 +452,7 @@ class UDCT:
 
             # Combine with wavelet highpass bands and apply Meyer inverse
             all_bands = [lowpass_recon, *self._wavelet_bands]
-            return meyerinvmd(all_bands)
+            return _meyer_wavelet_inverse(all_bands)
 
         return _apply_backward_transform(
             coefficients,

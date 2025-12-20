@@ -6,7 +6,7 @@ import numpy.typing as npt
 from .utils import fun_meyer
 
 
-def meyer_wavelet(N: int) -> tuple[npt.NDArray, npt.NDArray]:
+def _meyer_wavelet(N: int) -> tuple[npt.NDArray, npt.NDArray]:
     step = 2 * np.pi / N
     x = np.linspace(0, 2 * np.pi - step, N) - np.pi / 2
     prm = np.pi * np.array([-1 / 3, 1 / 3, 2 / 3, 4 / 3])
@@ -15,7 +15,9 @@ def meyer_wavelet(N: int) -> tuple[npt.NDArray, npt.NDArray]:
     return f1, f2
 
 
-def meyerfwd1d(img: npt.NDArray, dim: int) -> tuple[npt.NDArray, npt.NDArray]:
+def _meyer_wavelet_forward_1d(
+    img: npt.NDArray, dim: int
+) -> tuple[npt.NDArray, npt.NDArray]:
     """
     Apply 1D Meyer wavelet forward transform along specified dimension.
 
@@ -35,9 +37,9 @@ def meyerfwd1d(img: npt.NDArray, dim: int) -> tuple[npt.NDArray, npt.NDArray]:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import meyerfwd1d
+    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward_1d
     >>> img = np.random.randn(64, 64)
-    >>> h1, h2 = meyerfwd1d(img, 0)
+    >>> h1, h2 = _meyer_wavelet_forward_1d(img, 0)
     >>> h1.shape
     (32, 64)
     >>> h2.shape
@@ -47,7 +49,7 @@ def meyerfwd1d(img: npt.NDArray, dim: int) -> tuple[npt.NDArray, npt.NDArray]:
     img = np.swapaxes(img, dim, ldim)
     sp = img.shape
     N = sp[-1]
-    f1, f2 = meyer_wavelet(N)
+    f1, f2 = _meyer_wavelet(N)
     f1 = np.reshape(f1, (1, N))
     f2 = np.reshape(f2, (1, N))
 
@@ -68,7 +70,9 @@ def meyerfwd1d(img: npt.NDArray, dim: int) -> tuple[npt.NDArray, npt.NDArray]:
     return h1, h2
 
 
-def meyerinv1d(h1: npt.NDArray, h2: npt.NDArray, dim: int) -> npt.NDArray:
+def _meyer_wavelet_inverse_1d(
+    h1: npt.NDArray, h2: npt.NDArray, dim: int
+) -> npt.NDArray:
     """
     Apply 1D Meyer wavelet inverse transform along specified dimension.
 
@@ -90,10 +94,10 @@ def meyerinv1d(h1: npt.NDArray, h2: npt.NDArray, dim: int) -> npt.NDArray:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import meyerfwd1d, meyerinv1d
+    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward_1d, _meyer_wavelet_inverse_1d
     >>> img = np.random.randn(64, 64)
-    >>> h1, h2 = meyerfwd1d(img, 0)
-    >>> recon = meyerinv1d(h1, h2, 0)
+    >>> h1, h2 = _meyer_wavelet_forward_1d(img, 0)
+    >>> recon = _meyer_wavelet_inverse_1d(h1, h2, 0)
     >>> np.allclose(img, recon, atol=1e-10)
     True
     """
@@ -113,22 +117,19 @@ def meyerinv1d(h1: npt.NDArray, h2: npt.NDArray, dim: int) -> npt.NDArray:
     g1[..., ::2] = h1
     g2[..., 1::2] = h2
     N = sp[-1]
-    f1, f2 = meyer_wavelet(N)
+    f1, f2 = _meyer_wavelet(N)
     f1 = np.reshape(f1, (1, N))
     f2 = np.reshape(f2, (1, N))
     imfsum = f1 * np.fft.fft(g1, axis=ldim) + f2 * np.fft.fft(g2, axis=ldim)
     imrecon_full = np.fft.ifft(imfsum, axis=ldim)
 
     # Preserve complex values for complex input, take real for real input
-    if is_complex:
-        imrecon = 2 * imrecon_full
-    else:
-        imrecon = 2 * imrecon_full.real
+    imrecon = 2 * (imrecon_full if is_complex else imrecon_full.real)
 
     return np.swapaxes(imrecon, dim, ldim)
 
 
-def meyerfwdmd(img: npt.NDArray) -> list[npt.NDArray]:
+def _meyer_wavelet_forward(img: npt.NDArray) -> list[npt.NDArray]:
     """
     Apply multi-dimensional Meyer wavelet forward transform.
 
@@ -145,9 +146,9 @@ def meyerfwdmd(img: npt.NDArray) -> list[npt.NDArray]:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import meyerfwdmd
+    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward
     >>> img = np.random.randn(64, 64)
-    >>> bands = meyerfwdmd(img)
+    >>> bands = _meyer_wavelet_forward(img)
     >>> len(bands)
     4
     >>> bands[0].shape
@@ -156,23 +157,23 @@ def meyerfwdmd(img: npt.NDArray) -> list[npt.NDArray]:
     band = [img]
     dim = len(img.shape)
     for i in range(dim):
-        cband = []
+        cband: list[npt.NDArray] = []
         for j in range(len(band)):
-            h1, h2 = meyerfwd1d(band[j], i)
+            h1, h2 = _meyer_wavelet_forward_1d(band[j], i)
             cband.append(h1)
             cband.append(h2)
         band = cband
     return cband
 
 
-def meyerinvmd(band: list[npt.NDArray]) -> npt.NDArray:
+def _meyer_wavelet_inverse(band: list[npt.NDArray]) -> npt.NDArray:
     """
     Apply multi-dimensional Meyer wavelet inverse transform.
 
     Parameters
     ----------
     band : list[npt.NDArray]
-        List of 2^dim subbands from meyerfwdmd.
+        List of 2^dim subbands from _meyer_wavelet_forward.
 
     Returns
     -------
@@ -182,19 +183,18 @@ def meyerinvmd(band: list[npt.NDArray]) -> npt.NDArray:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy.meyerwavelet import meyerfwdmd, meyerinvmd
+    >>> from curvelets.numpy.meyerwavelet import _meyer_wavelet_forward, _meyer_wavelet_inverse
     >>> img = np.random.randn(64, 64)
-    >>> bands = meyerfwdmd(img)
-    >>> recon = meyerinvmd(bands)
+    >>> bands = _meyer_wavelet_forward(img)
+    >>> recon = _meyer_wavelet_inverse(bands)
     >>> np.allclose(img, recon, atol=1e-10)
     True
     """
     dim = len(band[0].shape)
     for i in range(dim - 1, -1, -1):
-        cband = []
+        cband: list[npt.NDArray] = []
         for j in range(len(band) // 2):
-            imrecon = meyerinv1d(band[2 * j], band[2 * j + 1], i)
+            imrecon = _meyer_wavelet_inverse_1d(band[2 * j], band[2 * j + 1], i)
             cband.append(imrecon)
         band = cband
     return band[0]
-

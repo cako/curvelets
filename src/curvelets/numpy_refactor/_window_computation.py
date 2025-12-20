@@ -15,7 +15,7 @@ from .utils import (
     circshift,
     fftflip,
     fun_meyer,
-    to_sparse_new,
+    to_sparse,
 )
 
 
@@ -418,7 +418,7 @@ def _window_computation(
     windows: UDCTWindows = []
     windows.append([])
     windows[0].append([])
-    windows[0][0] = [to_sparse_new(low_frequency_window, parameters.window_threshold)]
+    windows[0][0] = [to_sparse(low_frequency_window, parameters.window_threshold)]
 
     # `indices` gets stored as `parameters.ind` in the original.
     indices: dict[int, dict[int, np.ndarray]] = {}
@@ -535,7 +535,7 @@ def _window_computation(
                     angle_index_array = angle_indices_2d
                     for func_idx in range(angle_index_array.shape[0]):
                         windows[scale_idx][dimension_idx].append(
-                            to_sparse_new(
+                            to_sparse(
                                 window_functions[func_idx], parameters.window_threshold
                             )
                         )
@@ -547,7 +547,7 @@ def _window_computation(
                     new_size = angle_index_array.shape[0]
                     for func_idx in range(old_size, new_size):
                         windows[scale_idx][dimension_idx].append(
-                            to_sparse_new(
+                            to_sparse(
                                 window_functions[func_idx - old_size],
                                 parameters.window_threshold,
                             )

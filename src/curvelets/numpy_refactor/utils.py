@@ -165,7 +165,7 @@ def fun_meyer(x: np.ndarray, p1: float, p2: float, p3: float, p4: float) -> np.n
     return y
 
 
-def to_sparse_new(
+def to_sparse(
     arr: npt.NDArray[D_T], thresh: float
 ) -> tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]:
     idx = np.argwhere(arr.ravel() > thresh)
