@@ -9,8 +9,8 @@ import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
+from ._meyerwavelet import meyerfwdmd, meyerinvmd
 from ._window_computation import _window_computation
-from .meyerwavelet import meyerfwdmd, meyerinvmd
 from .typing import UDCTCoefficients, UDCTWindows
 from .utils import ParamUDCT, from_sparse_new, upsamp
 
