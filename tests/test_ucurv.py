@@ -3,7 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from curvelets import ucurv
+from curvelets.ucurv import ucurv
+from curvelets.ucurv.util import bands2vec, vec2bands
 
 eps = 1e-6
 shapes = [
@@ -68,8 +69,8 @@ def test_vectorize(shape, cfg):
     data = np.random.rand(*shape)
     udct = ucurv.udct(shape, cfg)
     band = ucurv.ucurvfwd(data, udct)
-    flat = ucurv.bands2vec(band)
-    unflat = ucurv.vec2bands(flat, udct)
+    flat = bands2vec(band)
+    unflat = vec2bands(flat, udct)
     recon = ucurv.ucurvinv(unflat, udct)
     are_close = np.all(np.isclose(data, recon, atol=eps))
     assert are_close == True
