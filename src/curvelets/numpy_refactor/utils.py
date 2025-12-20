@@ -125,6 +125,31 @@ def fftflip(F: np.ndarray, axis: int) -> np.ndarray:
     return circshift(Fc, tuple(shiftvec))
 
 
+def _fftflip_all_axes(F: np.ndarray) -> np.ndarray:
+    """
+    Apply fftflip to all axes of an array.
+
+    This produces X(-omega) from X(omega) in FFT representation.
+    After flipping, the array is circshifted by 1 in each dimension
+    to maintain proper frequency alignment.
+
+    Parameters
+    ----------
+    F : np.ndarray
+        Input array in FFT representation.
+
+    Returns
+    -------
+    np.ndarray
+        Flipped array representing negative frequencies.
+    """
+    Fc = F.copy()
+    for axis in range(F.ndim):
+        Fc = np.flip(Fc, axis)
+    shiftvec = tuple(1 for _ in range(F.ndim))
+    return circshift(Fc, shiftvec)
+
+
 def fun_meyer(x: np.ndarray, p1: float, p2: float, p3: float, p4: float) -> np.ndarray:
     p = np.array([-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0])
     y = np.zeros_like(x)
