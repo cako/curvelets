@@ -10,9 +10,9 @@ import numpy.typing as npt
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
 from ._meyerwavelet import MeyerWavelet
-from ._window_computation import _window_computation
+from ._window_computation import UDCTWindow
 from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT
+from .utils import ParamUDCT, _fftflip_all_axes, circshift, downsamp, upsamp
 
 
 class UDCT:
@@ -284,7 +284,7 @@ class UDCT:
         tuple
             (windows, decimation_ratios, indices)
         """
-        return _window_computation(self.parameters)
+        return UDCTWindow.compute(self.parameters)
 
     def vect(self, coefficients: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
         """
