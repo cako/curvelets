@@ -103,8 +103,8 @@ def test_forward_numpy_vs_ucurv2(dim):
     """
     Compare NumPy forward vs ucurv2 forward using identical explicit parameters.
 
-    Note: ucurv2 uses hardcoded alpha=0.1 and r values, so we cannot match NumPy's
-    parameters exactly. This test documents the difference.
+    Note: ucurv2 uses hardcoded r values, so we cannot match NumPy's r parameter
+    exactly. This test documents the difference.
     """
     rng = np.random.default_rng(42)
 
@@ -124,8 +124,8 @@ def test_forward_numpy_vs_ucurv2(dim):
     im = rng.normal(size=size)
     numpy_coeffs = numpy_transform.forward(im)
 
-    # ucurv2 implementation (uses hardcoded alpha=0.1, r values)
-    ucurv2_transform = ucurv2_udct.UDCT(shape=size, cfg=cfg, high="curvelet")
+    # ucurv2 implementation (uses hardcoded r values)
+    ucurv2_transform = ucurv2_udct.UDCT(shape=size, cfg=cfg, high="curvelet", alpha=COMMON_ALPHA)
     ucurv2_coeffs = ucurv2_transform.forward(im)
 
     # Compare structures

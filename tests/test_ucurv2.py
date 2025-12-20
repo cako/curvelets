@@ -143,13 +143,11 @@ def test_round_trip_absolute(dim, high):
         else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
     ).astype(int)
     alpha = 0.15
-    r = tuple(np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3)
-    winthresh = 1e-5
 
     my_udct = udct.UDCT(
         shape=size,
         cfg=cfg,
-        # alpha=alpha, r=r, winthresh=winthresh
+        alpha=alpha,
         high=high,
     )
     im = rng.normal(size=size)
@@ -207,14 +205,12 @@ def test_round_trip_rel(dim, high):
         if dim == 2
         else np.c_[np.ones((dim,)) * 3, np.ones((dim,)) * 6].T
     ).astype(int)
-    alpha = 0.3 * rng.uniform(size=1)
-    r = np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3
-    winthresh = 10.0 ** (-rng.integers(low=4, high=6, size=1))
+    alpha = 0.3 * rng.uniform(size=1).item()
 
     my_udct = udct.UDCT(
         shape=size,
         cfg=cfg,
-        # alpha=alpha, r=r, winthresh=winthresh
+        alpha=alpha,
         high=high,
     )
     im = rng.normal(size=size)

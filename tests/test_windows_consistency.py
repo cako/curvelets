@@ -77,8 +77,8 @@ def test_windows_numpy_vs_ucurv2(dim):
     """
     Compare windows between NumPy and ucurv2 using identical explicit parameters.
 
-    Note: ucurv2 uses hardcoded alpha=0.1 and r values, so we cannot match NumPy's
-    parameters exactly. This test documents the difference.
+    Note: ucurv2 uses hardcoded r values, so we cannot match NumPy's r parameter
+    exactly. This test documents the difference.
     """
     shapes = get_test_shapes(dim)
     configs = get_test_configs(dim)
@@ -95,9 +95,9 @@ def test_windows_numpy_vs_ucurv2(dim):
     )
     numpy_windows_dict = get_numpy_windows_dict(numpy_transform.windows, size)
 
-    # ucurv2 implementation (uses hardcoded alpha=0.1, r values)
+    # ucurv2 implementation (uses hardcoded r values)
     ucurv2_transform = ucurv2_udct.UDCT(
-        shape=size, cfg=cfg, high="curvelet", sparse=False
+        shape=size, cfg=cfg, high="curvelet", sparse=False, alpha=COMMON_ALPHA
     )
 
     # Compare low frequency window
@@ -105,7 +105,7 @@ def test_windows_numpy_vs_ucurv2(dim):
     ucurv2_low = extract_ucurv_window_dense(ucurv2_transform.FL, size)
 
     if numpy_low is not None:
-        # Use relaxed tolerance due to different alpha/r parameters
+        # Use relaxed tolerance due to different r parameters
         np.testing.assert_allclose(numpy_low, ucurv2_low, rtol=1e-1, atol=1e-1)
 
     # Compare other windows

@@ -331,12 +331,12 @@ def _create_ucurv_transform(size: tuple[int, ...], cfg: np.ndarray) -> Transform
 
 
 def _create_ucurv2_transform(
-    size: tuple[int, ...], cfg: np.ndarray, high: str = "curvelet"
+    size: tuple[int, ...], cfg: np.ndarray, high: str = "curvelet", alpha: float = COMMON_ALPHA
 ) -> TransformWrapper:
     """Create ucurv2 transform."""
     from curvelets.ucurv import udct as ucurv2_udct
 
-    transform_obj = ucurv2_udct.UDCT(shape=size, cfg=cfg, high=high)
+    transform_obj = ucurv2_udct.UDCT(shape=size, cfg=cfg, high=high, alpha=alpha)
 
     def forward(data):
         return transform_obj.forward(data)
@@ -412,7 +412,7 @@ def setup_ucurv_transform(
 
 
 def setup_ucurv2_transform(
-    dim: int, shape_idx: int = 0, cfg_idx: int = 0, high: str = "curvelet"
+    dim: int, shape_idx: int = 0, cfg_idx: int = 0, high: str = "curvelet", alpha: float = COMMON_ALPHA
 ) -> TransformWrapper:
     """
     Set up ucurv2 transform for round-trip tests.
@@ -427,6 +427,8 @@ def setup_ucurv2_transform(
         Index into configs list. Default is 0.
     high : str, optional
         High frequency mode. Default is "curvelet".
+    alpha : float, optional
+        Alpha parameter. Default is COMMON_ALPHA.
 
     Returns
     -------
@@ -442,4 +444,4 @@ def setup_ucurv2_transform(
 
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
-    return _create_ucurv2_transform(size, cfg, high)
+    return _create_ucurv2_transform(size, cfg, high, alpha)

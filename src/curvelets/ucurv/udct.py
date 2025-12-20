@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 import numpy.typing as npt
-from matplotlib.patches import Wedge
 
 from curvelets.numpy.typing import UDCTCoefficients
 from curvelets.ucurv.meyerwavelet import meyerfwdmd, meyerinvmd
 from curvelets.ucurv.ucurv import (
-    alpha,
     angle_fun,
     angle_kron,
     downsamp,
@@ -28,6 +26,7 @@ class UDCT:
         complex: bool = False,
         sparse: bool = False,
         high: str = "curvelet",
+        alpha: float = 0.1,
     ) -> None:
         if high == "wavelet":
             self.sz = tuple(np.array(shape) // 2)
@@ -37,6 +36,7 @@ class UDCT:
         self.complex = complex
         self.sparse = sparse
         self.high = high
+        self.alpha = alpha
         self.dim = len(shape)
         self.res = len(cfg)
         self._wavelet_keys: dict[tuple[int, ...], npt.NDArray[np.complexfloating]] = {}
@@ -136,7 +136,7 @@ class UDCT:
 
                     # create the 2D angle function, in the vertical 2D pyramid
                     Mang2[(rs, ind, idir)] = angle_fun(
-                        Mg0, cfg[rs][idir], alpha, 1, bandpass
+                        Mg0, cfg[rs][idir], self.alpha, 1, bandpass
                     )
 
         #################################
