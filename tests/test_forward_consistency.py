@@ -155,14 +155,13 @@ def test_forward_numpy_vs_ucurv2(dim):
         atol=low_freq_atol,
     )
 
+    # Compare other scales (may have different structures due to implementation differences)
+    # We use relaxed tolerance due to implementation differences
     # Use dimension-specific tolerance for dim==2
     if dim == 2:
         rtol, atol = 1e-2, 1e-2
     else:
         rtol, atol = 1e-1, 1e-1
-    # Compare other scales (may have different structures due to implementation differences)
-    # We use relaxed tolerance due to implementation differences
-
     for scale_idx in range(1, min(len(numpy_coeffs), len(ucurv2_coeffs))):
         if scale_idx < len(numpy_coeffs) and scale_idx < len(ucurv2_coeffs):
             numpy_scale = numpy_coeffs[scale_idx]
@@ -218,19 +217,10 @@ def test_forward_ucurv_vs_ucurv2(dim):
     assert len(ucurv_coeffs) == len(ucurv2_coeffs), "Number of scales should match"
 
     # Compare low frequency
-    if dim == 2:
-        rtol, atol = 1e-3, 1e-3
-    else:
-        rtol, atol = 1e-3, 1e-3
+    rtol, atol = 1e-20, 1e-20
     np.testing.assert_allclose(
         ucurv_coeffs[0][0][0], ucurv2_coeffs[0][0][0], rtol=rtol, atol=atol
     )
-    # Use dimension-specific tolerance for dim==2
-    if dim == 2:
-        rtol, atol = 1e-2, 1e-2
-    else:
-        rtol, atol = 1e-2, 1e-2
-
     # Compare other scales
     for scale_idx in range(1, min(len(ucurv_coeffs), len(ucurv2_coeffs))):
         if scale_idx < len(ucurv_coeffs) and scale_idx < len(ucurv2_coeffs):
