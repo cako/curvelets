@@ -12,7 +12,7 @@ from ._forward_transform import _apply_forward_transform
 from ._meyerwavelet import MeyerWavelet
 from ._udct_windows import UDCTWindow
 from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT, _fftflip_all_axes, circshift, downsamp, upsamp
+from .utils import ParamUDCT
 
 
 class UDCT:

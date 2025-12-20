@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import Any, TypeVar
+from typing import TypeVar
 
 import numpy as np
 import numpy.typing as npt
@@ -52,6 +53,41 @@ class UDCTWindow:
     """
 
     @staticmethod
+    def _compute_angle_component(
+        x_primary: np.ndarray, x_secondary: np.ndarray
+    ) -> np.ndarray:
+        """
+        Compute one angle component from meshgrid coordinates.
+
+        Parameters
+        ----------
+        x_primary : np.ndarray
+            Primary coordinate grid (used for conditions).
+        x_secondary : np.ndarray
+            Secondary coordinate grid.
+
+        Returns
+        -------
+        np.ndarray
+            Angle component array.
+        """
+        t1: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
+        ind = (x_primary != 0) & (np.abs(x_secondary) <= np.abs(x_primary))
+        t1[ind] = -x_secondary[ind] / x_primary[ind]
+
+        t2: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
+        ind = (x_secondary != 0) & (np.abs(x_primary) < np.abs(x_secondary))
+        t2[ind] = x_primary[ind] / x_secondary[ind]
+
+        t3 = t2.copy()
+        t3[t2 < 0] = t2[t2 < 0] + 2
+        t3[t2 > 0] = t2[t2 > 0] - 2
+
+        result = t1 + t3
+        result[x_primary >= 0] = -2
+        return result
+
+    @staticmethod
     def _adapt_grid(S1: np.ndarray, S2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Adapt frequency grids for angle computation.
@@ -80,35 +116,11 @@ class UDCTWindow:
         """
         x1, x2 = np.meshgrid(S2, S1)
 
-        t1: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
-        ind = (x1 != 0) & (np.abs(x2) <= np.abs(x1))
-        t1[ind] = -x2[ind] / x1[ind]
+        # Compute M1 using x1 as primary, x2 as secondary
+        M1 = UDCTWindow._compute_angle_component(x1, x2)
 
-        t2: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
-        ind = (x2 != 0) & (np.abs(x1) < np.abs(x2))
-        t2[ind] = x1[ind] / x2[ind]
-
-        t3 = t2.copy()
-        t3[t2 < 0] = t2[t2 < 0] + 2
-        t3[t2 > 0] = t2[t2 > 0] - 2
-
-        M1 = t1 + t3
-        M1[x1 >= 0] = -2
-
-        t1 = np.zeros_like(x1, dtype=float)
-        ind = (x2 != 0) & (abs(x1) <= abs(x2))
-        t1[ind] = -x1[ind] / x2[ind]
-
-        t2 = np.zeros_like(x1, dtype=float)
-        ind = (x1 != 0) & (abs(x2) < abs(x1))
-        t2[ind] = x2[ind] / x1[ind]
-
-        t3 = t2.copy()
-        t3[t2 < 0] = t2[t2 < 0] + 2
-        t3[t2 > 0] = t2[t2 > 0] - 2
-
-        M2 = t1 + t3
-        M2[x2 >= 0] = -2
+        # Compute M2 using x2 as primary, x1 as secondary (swapped)
+        M2 = UDCTWindow._compute_angle_component(x2, x1)
 
         return M2, M1
 
@@ -144,21 +156,24 @@ class UDCTWindow:
         >>> angle_funcs.shape[0]
         2
         """
-        # angle meyer window
+        # Compute angular window spacing and boundaries
         angd = 2 / n
         ang = angd * np.array(
             [-window_overlap, window_overlap, 1 - window_overlap, 1 + window_overlap]
         )
 
+        # Generate angle functions using Meyer windows
+        # Note: Both direction 1 and 2 use the same computation because the
+        # angle function is symmetric with respect to direction. The direction
+        # parameter is kept for API consistency and potential future extensions.
         Mang = []
-        # This is weird, both directions are the same code
         if direction in (1, 2):
             for jn in range(1, ceil(n / 2) + 1):
                 ang2 = -1 + (jn - 1) * angd + ang
                 fang = fun_meyer(Mgrid, *ang2)
                 Mang.append(fang[None, :])
         else:
-            error_msg = "Unrecognized direction"
+            error_msg = f"Unrecognized direction: {direction}. Must be 1 or 2."
             raise ValueError(error_msg)
         return np.concatenate(Mang, axis=0)
 
@@ -200,13 +215,20 @@ class UDCTWindow:
         >>> result.shape
         (64, 64)
         """
-        krsz: npt.NDArray[np.int_] = np.ones(3, dtype=int)
-        krsz[0] = np.prod(param_udct.size[: nper[0] - 1])
-        krsz[1] = np.prod(param_udct.size[nper[0] : nper[1] - 1])
-        krsz[2] = np.prod(param_udct.size[nper[1] : param_udct.dim])
+        # Pre-compute dimension sizes for Kronecker product
+        krsz: npt.NDArray[np.int_] = np.array(
+            [
+                np.prod(param_udct.size[: nper[0] - 1]),
+                np.prod(param_udct.size[nper[0] : nper[1] - 1]),
+                np.prod(param_udct.size[nper[1] : param_udct.dim]),
+            ],
+            dtype=int,
+        )
 
+        # Optimize: cache ravel() result to avoid recomputation
         tmp1 = np.kron(np.ones((krsz[1], 1), dtype=int), angle_arr)
-        tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), tmp1.ravel()).ravel()
+        tmp1_flat = tmp1.ravel()
+        tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), tmp1_flat).ravel()
         tmp3 = np.kron(tmp2, np.ones((krsz[0], 1), dtype=int)).ravel()
         return tmp3.reshape(*param_udct.size)
 
@@ -271,53 +293,27 @@ class UDCTWindow:
         >>> len(vals)
         2
         """
-        idx = np.argwhere(arr.ravel() > thresh)
-        return (idx, arr.ravel()[idx])
+        arr_flat = arr.ravel()
+        idx = np.argwhere(arr_flat > thresh)
+        return (idx, arr_flat[idx])
 
     @staticmethod
-    def _from_sparse(
-        arr_list: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
-    ) -> tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]:
-        """
-        Convert from sparse format (identity function for new format).
-
-        Parameters
-        ----------
-        arr_list : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-            Sparse format tuple of (indices, values).
-
-        Returns
-        -------
-        tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-            Same tuple (new format is already a tuple).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-        >>> idx = np.array([[0], [2]])
-        >>> vals = np.array([0.5, 0.8])
-        >>> result = UDCTWindow._from_sparse((idx, vals))
-        >>> len(result)
-        2
-        """
-        return arr_list
-
-    @staticmethod
-    def _nchoosek(n: Any, k: Any) -> np.ndarray:
+    def _nchoosek(
+        n: Iterable[int] | npt.NDArray[np.int_], k: int
+    ) -> npt.NDArray[np.int_]:
         """
         Generate all combinations of k elements from n.
 
         Parameters
         ----------
-        n : Any
-            Iterable containing elements to choose from.
-        k : Any
+        n : Iterable[int] | npt.NDArray[np.int_]
+            Iterable containing elements to choose from (list, array, range, etc.).
+        k : int
             Number of elements to choose in each combination.
 
         Returns
         -------
-        np.ndarray
+        npt.NDArray[np.int_]
             Array of shape (C(n,k), k) containing all combinations.
 
         Examples
@@ -328,7 +324,7 @@ class UDCTWindow:
         >>> result.shape
         (3, 2)
         """
-        return np.asarray(list(combinations(n, k)))
+        return np.asarray(list(combinations(n, k)), dtype=int)
 
     @staticmethod
     def _create_bandpass_windows(
@@ -593,25 +589,36 @@ class UDCTWindow:
         """
         sum_squared_windows = np.zeros(size)
         idx, val = windows[0][0][0]
-        sum_squared_windows.flat[idx] += val**2
+        idx_flat = idx.ravel()
+        val_flat = val.ravel()
+        sum_squared_windows.flat[idx_flat] += val_flat**2
         for scale_idx in range(1, num_resolutions + 1):
             for direction_idx in range(dimension):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    temp_window = np.zeros(size)
                     idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                    temp_window.flat[idx] += val**2
-                    sum_squared_windows += temp_window
+                    idx_flat = idx.ravel()
+                    val_flat = val.ravel()
+                    # Accumulate directly from sparse format (no temp array needed)
+                    sum_squared_windows.flat[idx_flat] += val_flat**2
+                    # For flipped version, still need temp array but create it only once
+                    temp_window = np.zeros(size)
+                    temp_window.flat[idx_flat] = val_flat**2
                     temp_window = UDCTWindow._fftflip(temp_window, direction_idx)
                     sum_squared_windows += temp_window
 
         sum_squared_windows = np.sqrt(sum_squared_windows)
+        sum_squared_windows_flat = sum_squared_windows.ravel()
         idx, val = windows[0][0][0]
-        val /= sum_squared_windows.ravel()[idx]
+        idx_flat = idx.ravel()
+        val_flat = val.ravel()
+        val_flat[:] /= sum_squared_windows_flat[idx_flat]
         for scale_idx in range(1, num_resolutions + 1):
             for direction_idx in range(dimension):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                    val /= sum_squared_windows.ravel()[idx]
+                    idx_flat = idx.ravel()
+                    val_flat = val.ravel()
+                    val_flat[:] /= sum_squared_windows_flat[idx_flat]
 
     @staticmethod
     def _calculate_decimation_ratios_with_lowest(
