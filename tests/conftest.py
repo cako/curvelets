@@ -347,6 +347,7 @@ def _create_numpy_transform(
     cfg: np.ndarray,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
+    complex: bool = False,
 ) -> TransformWrapper:
     """Create NumPy UDCT transform."""
     import curvelets.numpy as numpy_udct
@@ -358,6 +359,7 @@ def _create_numpy_transform(
         r=COMMON_R,
         winthresh=COMMON_WINTHRESH,
         high=high,
+        complex=complex,
     )
 
     def forward(data):
@@ -387,12 +389,18 @@ def _create_ucurv_transform(size: tuple[int, ...], cfg: np.ndarray) -> Transform
 
 
 def _create_ucurv2_transform(
-    size: tuple[int, ...], cfg: np.ndarray, high: str = "curvelet", alpha: float = COMMON_ALPHA
+    size: tuple[int, ...],
+    cfg: np.ndarray,
+    high: str = "curvelet",
+    alpha: float = COMMON_ALPHA,
+    complex: bool = False,
 ) -> TransformWrapper:
     """Create ucurv2 transform."""
     from curvelets.ucurv import udct as ucurv2_udct
 
-    transform_obj = ucurv2_udct.UDCT(shape=size, cfg=cfg, high=high, alpha=alpha)
+    transform_obj = ucurv2_udct.UDCT(
+        shape=size, cfg=cfg, high=high, alpha=alpha, complex=complex
+    )
 
     def forward(data):
         return transform_obj.forward(data)
@@ -409,6 +417,7 @@ def setup_numpy_transform(
     cfg_idx: int = 0,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
+    complex: bool = False,
 ) -> TransformWrapper:
     """
     Set up NumPy UDCT transform for round-trip tests.
@@ -425,6 +434,9 @@ def setup_numpy_transform(
         High frequency mode ("curvelet" or "wavelet"). Default is "curvelet".
     alpha : float, optional
         Alpha parameter for window overlap. Default is COMMON_ALPHA.
+    complex : bool, optional
+        If True, use complex transform (separate +/- frequency bands).
+        If False, use real transform (combined +/- frequencies). Default is False.
 
     Returns
     -------
@@ -440,7 +452,7 @@ def setup_numpy_transform(
 
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
-    return _create_numpy_transform(size, cfg, high=high, alpha=alpha)
+    return _create_numpy_transform(size, cfg, high=high, alpha=alpha, complex=complex)
 
 
 def setup_ucurv_transform(
@@ -476,7 +488,12 @@ def setup_ucurv_transform(
 
 
 def setup_ucurv2_transform(
-    dim: int, shape_idx: int = 0, cfg_idx: int = 0, high: str = "curvelet", alpha: float = COMMON_ALPHA
+    dim: int,
+    shape_idx: int = 0,
+    cfg_idx: int = 0,
+    high: str = "curvelet",
+    alpha: float = COMMON_ALPHA,
+    complex: bool = False,
 ) -> TransformWrapper:
     """
     Set up ucurv2 transform for round-trip tests.
@@ -493,6 +510,9 @@ def setup_ucurv2_transform(
         High frequency mode. Default is "curvelet".
     alpha : float, optional
         Alpha parameter. Default is COMMON_ALPHA.
+    complex : bool, optional
+        If True, use complex transform (separate +/- frequency bands).
+        If False, use real transform (combined +/- frequencies). Default is False.
 
     Returns
     -------
@@ -508,4 +528,4 @@ def setup_ucurv2_transform(
 
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
-    return _create_ucurv2_transform(size, cfg, high, alpha)
+    return _create_ucurv2_transform(size, cfg, high, alpha, complex)

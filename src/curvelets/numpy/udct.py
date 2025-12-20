@@ -174,13 +174,16 @@ def udctmdrec(
     decimation_ratio : list[npt.NDArray[np.int_]]
         Decimation ratios for each scale/direction.
     complex : bool, optional
-        If True, use complex transform (separate +/- frequency bands).
-        If False, use real transform (combined +/- frequencies). Default is False.
+        If True, use complex transform (separate +/- frequency bands) and
+        return complex output. This is required for complex-valued inputs.
+        If False, use real transform (combined +/- frequencies) and return
+        real output. Default is False.
 
     Returns
     -------
     np.ndarray
-        Reconstructed image/volume.
+        Reconstructed image/volume. Returns complex array when complex=True,
+        real array when complex=False.
     """
     rdtype = coeff[0][0][0].real.dtype
     cdtype = (np.ones(1, dtype=rdtype) + 1j * np.ones(1, dtype=rdtype)).dtype
@@ -234,7 +237,8 @@ def udctmdrec(
 
         # Combine: low frequency + high frequency contributions
         imf = 2 * imf + imfl
-        return np.fft.ifftn(imf).real
+        # Complex transform: preserve complex output for complex inputs
+        return np.fft.ifftn(imf)
     else:
         # Real transform: combined +/- frequencies
         for ires in range(1, 1 + param_udct.res):
@@ -445,6 +449,8 @@ class UDCT:
         -------
         np.ndarray
             Reconstructed data with shape matching self.shape.
+            Returns complex array when complex=True (required for complex inputs),
+            real array when complex=False.
         """
         if self.high == "wavelet":
             # Reconstruct lowpass from curvelet coefficients
