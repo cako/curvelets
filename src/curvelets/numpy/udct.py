@@ -7,7 +7,7 @@ from typing import Literal
 import numpy as np
 import numpy.typing as npt
 
-from curvelets.ucurv.meyerwavelet import meyerfwdmd, meyerinvmd
+from .meyerwavelet import meyerfwdmd, meyerinvmd
 
 from .typing import UDCTCoefficients, UDCTWindows
 from .udctmdwin import udctmdwin

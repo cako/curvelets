@@ -14,5 +14,4 @@ Subpackages
 
    curvelets.numpy
    curvelets.plot
-   curvelets.reference
    curvelets.utils

@@ -78,8 +78,6 @@ log_cli_level = "INFO"
 testpaths = ["tests"]
 markers = [
     "round_trip: Tests for forward+backward round-trip functionality",
-    "forward_consistency: Tests comparing forward outputs across implementations",
-    "window_consistency: Tests comparing windows across implementations",
 ]
 
 
@@ -152,7 +150,7 @@ isort.required-imports = ["from __future__ import annotations"]
 
 [tool.pylint]
 py-version = "3.9"
-ignore-paths = [".*/_version.py", '.*/curvelets/reference/.*$']
+ignore-paths = [".*/_version.py"]
 reports.output-format = "colorized"
 similarities.ignore-imports = "yes"
 messages_control.disable = [
