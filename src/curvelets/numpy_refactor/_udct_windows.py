@@ -71,73 +71,78 @@ class UDCTWindow:
         np.ndarray
             Angle component array.
         """
-        t1: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
-        ind = (x_primary != 0) & (np.abs(x_secondary) <= np.abs(x_primary))
-        t1[ind] = -x_secondary[ind] / x_primary[ind]
+        # Compute angle component using piecewise function:
+        # When primary coordinate dominates (|x_secondary| <= |x_primary|), use -x_secondary/x_primary
+        primary_ratio: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
+        mask = (x_primary != 0) & (np.abs(x_secondary) <= np.abs(x_primary))
+        primary_ratio[mask] = -x_secondary[mask] / x_primary[mask]
 
-        t2: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
-        ind = (x_secondary != 0) & (np.abs(x_primary) < np.abs(x_secondary))
-        t2[ind] = x_primary[ind] / x_secondary[ind]
+        # When secondary coordinate dominates (|x_primary| < |x_secondary|), use x_primary/x_secondary
+        secondary_ratio: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
+        mask = (x_secondary != 0) & (np.abs(x_primary) < np.abs(x_secondary))
+        secondary_ratio[mask] = x_primary[mask] / x_secondary[mask]
 
-        t3 = t2.copy()
-        t3[t2 < 0] = t2[t2 < 0] + 2
-        t3[t2 > 0] = t2[t2 > 0] - 2
+        # Wrap secondary_ratio to the correct range by adding/subtracting 2
+        wrapped_ratio = secondary_ratio.copy()
+        wrapped_ratio[secondary_ratio < 0] = secondary_ratio[secondary_ratio < 0] + 2
+        wrapped_ratio[secondary_ratio > 0] = secondary_ratio[secondary_ratio > 0] - 2
 
-        result = t1 + t3
-        result[x_primary >= 0] = -2
-        return result
+        # Combine ratios and set special case for x_primary >= 0
+        angle_component = primary_ratio + wrapped_ratio
+        angle_component[x_primary >= 0] = -2
+        return angle_component
 
     @staticmethod
-    def _adapt_grid(S1: np.ndarray, S2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _create_angle_grids_from_frequency_grids(frequency_grid_1: np.ndarray, frequency_grid_2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """
         Adapt frequency grids for angle computation.
 
         Parameters
         ----------
-        S1 : np.ndarray
+        frequency_grid_1 : np.ndarray
             First frequency grid.
-        S2 : np.ndarray
+        frequency_grid_2 : np.ndarray
             Second frequency grid.
 
         Returns
         -------
         tuple[np.ndarray, np.ndarray]
-            Adapted grid arrays M2 and M1.
+            Adapted grid arrays angle_grid_2 and angle_grid_1.
 
         Examples
         --------
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-        >>> S1 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
-        >>> S2 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
-        >>> M2, M1 = UDCTWindow._adapt_grid(S1, S2)
-        >>> M2.shape
+        >>> frequency_grid_1 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
+        >>> frequency_grid_2 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
+        >>> angle_grid_2, angle_grid_1 = UDCTWindow._create_angle_grids_from_frequency_grids(frequency_grid_1, frequency_grid_2)
+        >>> angle_grid_2.shape
         (64, 64)
         """
-        x1, x2 = np.meshgrid(S2, S1)
+        meshgrid_dim1, meshgrid_dim2 = np.meshgrid(frequency_grid_2, frequency_grid_1)
 
-        # Compute M1 using x1 as primary, x2 as secondary
-        M1 = UDCTWindow._compute_angle_component(x1, x2)
+        # Compute angle_grid_1 using meshgrid_dim1 as primary, meshgrid_dim2 as secondary
+        angle_grid_1 = UDCTWindow._compute_angle_component(meshgrid_dim1, meshgrid_dim2)
 
-        # Compute M2 using x2 as primary, x1 as secondary (swapped)
-        M2 = UDCTWindow._compute_angle_component(x2, x1)
+        # Compute angle_grid_2 using meshgrid_dim2 as primary, meshgrid_dim1 as secondary (swapped)
+        angle_grid_2 = UDCTWindow._compute_angle_component(meshgrid_dim2, meshgrid_dim1)
 
-        return M2, M1
+        return angle_grid_2, angle_grid_1
 
     @staticmethod
-    def _angle_fun(
-        Mgrid: np.ndarray, direction: int, n: int, window_overlap: float
+    def _create_angle_functions(
+        angle_grid: np.ndarray, direction: int, num_angular_wedges: int, window_overlap: float
     ) -> np.ndarray:
         """
         Create angle functions using Meyer windows.
 
         Parameters
         ----------
-        Mgrid : np.ndarray
+        angle_grid : np.ndarray
             Angle grid.
         direction : int
             Direction index (1 or 2).
-        n : int
+        num_angular_wedges : int
             Number of angular wedges.
         window_overlap : float
             Window overlap parameter.
@@ -151,14 +156,14 @@ class UDCTWindow:
         --------
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-        >>> Mgrid = np.linspace(-2, 2, 64)
-        >>> angle_funcs = UDCTWindow._angle_fun(Mgrid, 1, 3, 0.15)
+        >>> angle_grid = np.linspace(-2, 2, 64)
+        >>> angle_funcs = UDCTWindow._create_angle_functions(angle_grid, 1, 3, 0.15)
         >>> angle_funcs.shape[0]
         2
         """
         # Compute angular window spacing and boundaries
-        angd = 2 / n
-        ang = angd * np.array(
+        angular_spacing = 2 / num_angular_wedges
+        angular_boundaries = angular_spacing * np.array(
             [-window_overlap, window_overlap, 1 - window_overlap, 1 + window_overlap]
         )
 
@@ -166,29 +171,29 @@ class UDCTWindow:
         # Note: Both direction 1 and 2 use the same computation because the
         # angle function is symmetric with respect to direction. The direction
         # parameter is kept for API consistency and potential future extensions.
-        Mang = []
+        angle_functions_list = []
         if direction in (1, 2):
-            for jn in range(1, ceil(n / 2) + 1):
-                ang2 = -1 + (jn - 1) * angd + ang
-                fang = fun_meyer(Mgrid, *ang2)
-                Mang.append(fang[None, :])
+            for wedge_index in range(1, ceil(num_angular_wedges / 2) + 1):
+                ang2 = -1 + (wedge_index - 1) * angular_spacing + angular_boundaries
+                meyer_window = fun_meyer(angle_grid, *ang2)
+                angle_functions_list.append(meyer_window[None, :])
         else:
             error_msg = f"Unrecognized direction: {direction}. Must be 1 or 2."
             raise ValueError(error_msg)
-        return np.concatenate(Mang, axis=0)
+        return np.concatenate(angle_functions_list, axis=0)
 
     @staticmethod
-    def _angle_kron(
-        angle_arr: np.ndarray, nper: np.ndarray, param_udct: ParamUDCT
+    def _compute_angle_kronecker_product(
+        angle_function_1d: np.ndarray, dimension_permutation: np.ndarray, param_udct: ParamUDCT
     ) -> np.ndarray:
         """
         Compute Kronecker product for angle functions.
 
         Parameters
         ----------
-        angle_arr : np.ndarray
+        angle_function_1d : np.ndarray
             Angle function array.
-        nper : np.ndarray
+        dimension_permutation : np.ndarray
             Dimension permutation indices.
         param_udct : ParamUDCT
             UDCT parameters.
@@ -209,37 +214,38 @@ class UDCTWindow:
         ...     window_overlap=0.15, window_threshold=1e-5,
         ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
         ... )
-        >>> angle_arr = np.ones(64)
-        >>> nper = np.array([1, 2])
-        >>> result = UDCTWindow._angle_kron(angle_arr, nper, params)
+        >>> angle_function_1d = np.ones(64)
+        >>> dimension_permutation = np.array([1, 2])
+        >>> result = UDCTWindow._compute_angle_kronecker_product(angle_function_1d, dimension_permutation, params)
         >>> result.shape
         (64, 64)
         """
         # Pre-compute dimension sizes for Kronecker product
-        krsz: npt.NDArray[np.int_] = np.array(
+        kronecker_dimension_sizes: npt.NDArray[np.int_] = np.array(
             [
-                np.prod(param_udct.size[: nper[0] - 1]),
-                np.prod(param_udct.size[nper[0] : nper[1] - 1]),
-                np.prod(param_udct.size[nper[1] : param_udct.dim]),
+                np.prod(param_udct.size[: dimension_permutation[0] - 1]),
+                np.prod(param_udct.size[dimension_permutation[0] : dimension_permutation[1] - 1]),
+                np.prod(param_udct.size[dimension_permutation[1] : param_udct.dim]),
             ],
             dtype=int,
         )
 
-        # Optimize: cache ravel() result to avoid recomputation
-        tmp1 = np.kron(np.ones((krsz[1], 1), dtype=int), angle_arr)
-        tmp1_flat = tmp1.ravel()
-        tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), tmp1_flat).ravel()
-        tmp3 = np.kron(tmp2, np.ones((krsz[0], 1), dtype=int)).ravel()
-        return tmp3.reshape(*param_udct.size)
+        # Expand 1D angle function to N-D using multi-step Kronecker products:
+        # Step 1: Expand along dimension 1 (kronecker_dimension_sizes[1])
+        kron_step1 = np.kron(np.ones((kronecker_dimension_sizes[1], 1), dtype=int), angle_function_1d)
+        kron_step1_flat = kron_step1.ravel()
+        kron_step2 = np.kron(np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_flat).ravel()
+        kron_step3 = np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int)).ravel()
+        return kron_step3.reshape(*param_udct.size)
 
     @staticmethod
-    def _fftflip(F: np.ndarray, axis: int) -> np.ndarray:
+    def _flip_with_fft_shift(input_array: np.ndarray, axis: int) -> np.ndarray:
         """
         Flip array along specified axis with frequency domain shift.
 
         Parameters
         ----------
-        F : np.ndarray
+        input_array : np.ndarray
             Input array.
         axis : int
             Axis along which to flip.
@@ -254,19 +260,19 @@ class UDCTWindow:
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> arr = np.array([[1, 2], [3, 4]])
-        >>> flipped = UDCTWindow._fftflip(arr, 0)
+        >>> flipped = UDCTWindow._flip_with_fft_shift(arr, 0)
         >>> flipped.shape
         (2, 2)
         """
-        dim = F.ndim
-        shiftvec: npt.NDArray[np.int_] = np.zeros((dim,), dtype=int)
-        shiftvec[axis] = 1
-        Fc = np.flip(F, axis)
-        return circshift(Fc, tuple(shiftvec))
+        num_dimensions = input_array.ndim
+        shift_vector: npt.NDArray[np.int_] = np.zeros((num_dimensions,), dtype=int)
+        shift_vector[axis] = 1
+        flipped_array = np.flip(input_array, axis)
+        return circshift(flipped_array, tuple(shift_vector))
 
     @staticmethod
     def _to_sparse(
-        arr: npt.NDArray[D_T], thresh: float
+        arr: npt.NDArray[D_T], threshold: float
     ) -> tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]:
         """
         Convert array to sparse format.
@@ -275,7 +281,7 @@ class UDCTWindow:
         ----------
         arr : npt.NDArray[D_T]
             Input array.
-        thresh : float
+        threshold : float
             Threshold for sparse storage (values above threshold are kept).
 
         Returns
@@ -289,13 +295,13 @@ class UDCTWindow:
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> arr = np.array([0.1, 0.5, 0.01, 0.8])
-        >>> idx, vals = UDCTWindow._to_sparse(arr, 0.2)
-        >>> len(vals)
+        >>> indices, values = UDCTWindow._to_sparse(arr, 0.2)
+        >>> len(values)
         2
         """
         arr_flat = arr.ravel()
-        idx = np.argwhere(arr_flat > thresh)
-        return (idx, arr_flat[idx])
+        indices = np.argwhere(arr_flat > threshold)
+        return (indices, arr_flat[indices])
 
     @staticmethod
     def _nchoosek(
@@ -376,30 +382,29 @@ class UDCTWindow:
         frequency_grid: dict[int, np.ndarray] = {}
         meyer_windows: dict[tuple[int, int], np.ndarray] = {}
         for dimension_idx in range(dimension):
-            # Don't take the np.pi out of the linspace
             frequency_grid[dimension_idx] = np.linspace(
                 -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx], endpoint=False
             )
 
-            params = np.array([-2, -1, *radial_frequency_params[:2]])
+            meyer_params = np.array([-2, -1, *radial_frequency_params[:2]])
             abs_frequency_grid = np.abs(frequency_grid[dimension_idx])
             meyer_windows[(num_scales, dimension_idx)] = fun_meyer(
-                abs_frequency_grid, *params
+                abs_frequency_grid, *meyer_params
             )
             if num_scales == 1:
                 meyer_windows[(num_scales, dimension_idx)] += fun_meyer(
-                    np.abs(frequency_grid[dimension_idx] + 2 * np.pi), *params
+                    np.abs(frequency_grid[dimension_idx] + 2 * np.pi), *meyer_params
                 )
-            params[2:] = radial_frequency_params[2:]
+            meyer_params[2:] = radial_frequency_params[2:]
             meyer_windows[(num_scales + 1, dimension_idx)] = fun_meyer(
-                abs_frequency_grid, *params
+                abs_frequency_grid, *meyer_params
             )
 
             for scale_idx in range(num_scales - 1, 0, -1):
-                params[2:] = radial_frequency_params[:2]
-                params[2:] /= 2 ** (num_scales - scale_idx)
+                meyer_params[2:] = radial_frequency_params[:2]
+                meyer_params[2:] /= 2 ** (num_scales - scale_idx)
                 meyer_windows[(scale_idx, dimension_idx)] = fun_meyer(
-                    abs_frequency_grid, *params
+                    abs_frequency_grid, *meyer_params
                 )
 
         bandpass_windows: dict[int, np.ndarray] = {}
@@ -420,7 +425,7 @@ class UDCTWindow:
         return frequency_grid, bandpass_windows
 
     @staticmethod
-    def _create_mdirs(dimension: int, num_resolutions: int) -> list[np.ndarray]:
+    def _create_direction_mappings(dimension: int, num_resolutions: int) -> list[np.ndarray]:
         """
             Create direction mappings for each resolution scale.
 
@@ -446,14 +451,12 @@ class UDCTWindow:
             --------
             >>> import numpy as np
             >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-            >>> mappings = UDCTWindow._create_mdirs(2, 3)
+            >>> mappings = UDCTWindow._create_direction_mappings(2, 3)
             >>> len(mappings)
             3
             >>> mappings[0].shape
             (2, 1)
         """
-        # Mdir is dimension of need to calculate angle function on each
-        # hyperpyramid
         return [
             np.c_[
                 [
@@ -511,36 +514,30 @@ class UDCTWindow:
         >>> len(angle_funcs)
         3
         """
-        # every combination of 2 dimension out of 1:dimension
         dimension_permutations = UDCTWindow._nchoosek(np.arange(dimension), 2)
         angle_grid: dict[tuple[int, int], np.ndarray] = {}
-        for perm_idx, perm in enumerate(dimension_permutations):
-            out = UDCTWindow._adapt_grid(
-                frequency_grid[perm[0]], frequency_grid[perm[1]]
+        for pair_index, dimension_pair in enumerate(dimension_permutations):
+            angle_grids = UDCTWindow._create_angle_grids_from_frequency_grids(
+                frequency_grid[dimension_pair[0]], frequency_grid[dimension_pair[1]]
             )
-            angle_grid[(perm_idx, 0)] = out[0]
-            angle_grid[(perm_idx, 1)] = out[1]
+            angle_grid[(pair_index, 0)] = angle_grids[0]
+            angle_grid[(pair_index, 1)] = angle_grids[1]
 
-        # gather angle function for each pyramid
         angle_functions: dict[int, dict[tuple[int, int], np.ndarray]] = {}
         angle_indices: dict[int, dict[tuple[int, int], np.ndarray]] = {}
         for scale_idx in range(num_resolutions):
             angle_functions[scale_idx] = {}
             angle_indices[scale_idx] = {}
-            # for each resolution
             for dimension_idx in range(dimension):
-                # for each pyramid in resolution res
-                angle_count = 0
-                # angle_count is number of angle function required for each pyramid
-                # now loop through dimension_permutations
+                angle_function_index = 0
                 for hyperpyramid_idx in range(dimension_permutations.shape[0]):
                     for direction_idx in range(dimension_permutations.shape[1]):
                         if (
                             dimension_permutations[hyperpyramid_idx, direction_idx]
                             == dimension_idx
                         ):
-                            angle_functions[scale_idx][(dimension_idx, angle_count)] = (
-                                UDCTWindow._angle_fun(
+                            angle_functions[scale_idx][(dimension_idx, angle_function_index)] = (
+                                UDCTWindow._create_angle_functions(
                                     angle_grid[(hyperpyramid_idx, direction_idx)],
                                     direction_idx + 1,
                                     angular_wedges_config[
@@ -552,10 +549,10 @@ class UDCTWindow:
                                     window_overlap,
                                 )
                             )
-                            angle_indices[scale_idx][(dimension_idx, angle_count)] = (
+                            angle_indices[scale_idx][(dimension_idx, angle_function_index)] = (
                                 dimension_permutations[hyperpyramid_idx, :] + 1
                             )
-                            angle_count += 1
+                            angle_function_index += 1
         return angle_functions, angle_indices
 
     @staticmethod
@@ -587,37 +584,40 @@ class UDCTWindow:
         >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
         >>> UDCTWindow._inplace_normalize_windows(windows, (64, 64), 2, 3)
         """
+        # Phase 1: Compute sum of squares of all windows (including flipped versions)
+        # This ensures the tight frame property: sum of squares equals 1 at each frequency
         sum_squared_windows = np.zeros(size)
-        idx, val = windows[0][0][0]
-        idx_flat = idx.ravel()
-        val_flat = val.ravel()
+        indices, values = windows[0][0][0]
+        idx_flat = indices.ravel()
+        val_flat = values.ravel()
         sum_squared_windows.flat[idx_flat] += val_flat**2
         for scale_idx in range(1, num_resolutions + 1):
             for direction_idx in range(dimension):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = idx.ravel()
-                    val_flat = val.ravel()
-                    # Accumulate directly from sparse format (no temp array needed)
+                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = indices.ravel()
+                    val_flat = values.ravel()
                     sum_squared_windows.flat[idx_flat] += val_flat**2
-                    # For flipped version, still need temp array but create it only once
+                    # Also accumulate flipped version for symmetry
                     temp_window = np.zeros(size)
                     temp_window.flat[idx_flat] = val_flat**2
-                    temp_window = UDCTWindow._fftflip(temp_window, direction_idx)
+                    temp_window = UDCTWindow._flip_with_fft_shift(temp_window, direction_idx)
                     sum_squared_windows += temp_window
 
+        # Phase 2: Normalize each window by dividing by sqrt(sum of squares)
+        # This ensures perfect reconstruction (tight frame property)
         sum_squared_windows = np.sqrt(sum_squared_windows)
         sum_squared_windows_flat = sum_squared_windows.ravel()
-        idx, val = windows[0][0][0]
-        idx_flat = idx.ravel()
-        val_flat = val.ravel()
+        indices, values = windows[0][0][0]
+        idx_flat = indices.ravel()
+        val_flat = values.ravel()
         val_flat[:] /= sum_squared_windows_flat[idx_flat]
         for scale_idx in range(1, num_resolutions + 1):
             for direction_idx in range(dimension):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = idx.ravel()
-                    val_flat = val.ravel()
+                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = indices.ravel()
+                    val_flat = values.ravel()
                     val_flat[:] /= sum_squared_windows_flat[idx_flat]
 
     @staticmethod
@@ -710,21 +710,21 @@ class UDCTWindow:
         """
         for scale_idx in range(1, num_resolutions + 1):
             for dimension_idx in range(dimension):
-                index_list = indices[scale_idx][dimension_idx]
+                angular_index_array = indices[scale_idx][dimension_idx]
 
-                max_val = index_list.max() + 1
-                sort_indices = np.argsort(
+                max_index_value = angular_index_array.max() + 1
+                sorted_indices = np.argsort(
                     sum(
-                        max_val**power * index_list[:, col_idx]
-                        for col_idx, power in enumerate(
-                            range(index_list.shape[1] - 1, -1, -1)
+                        max_index_value**position_weight * angular_index_array[:, column_index]
+                        for column_index, position_weight in enumerate(
+                            range(angular_index_array.shape[1] - 1, -1, -1)
                         )
                     )
                 )
 
-                indices[scale_idx][dimension_idx] = index_list[sort_indices]
+                indices[scale_idx][dimension_idx] = angular_index_array[sorted_indices]
                 windows[scale_idx][dimension_idx] = [
-                    windows[scale_idx][dimension_idx][idx] for idx in sort_indices
+                    windows[scale_idx][dimension_idx][idx] for idx in sorted_indices
                 ]
 
     @staticmethod
@@ -863,11 +863,10 @@ class UDCTWindow:
             UDCTWindow._to_sparse(low_frequency_window, parameters.window_threshold)
         ]
 
-        # `indices` gets stored as `parameters.ind` in the original.
         indices: dict[int, dict[int, np.ndarray]] = {}
         indices[0] = {}
         indices[0][0] = np.zeros((1, 1), dtype=int)
-        direction_mappings = UDCTWindow._create_mdirs(
+        direction_mappings = UDCTWindow._create_direction_mappings(
             dimension=parameters.dim, num_resolutions=parameters.res
         )
         angle_functions, angle_indices = UDCTWindow._create_angle_info(
@@ -878,7 +877,6 @@ class UDCTWindow:
             window_overlap=parameters.window_overlap,
         )
 
-        # decimation ratio for each band
         decimation_ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
             num_resolutions=parameters.res,
             dimension=parameters.dim,
@@ -886,15 +884,17 @@ class UDCTWindow:
             direction_mappings=direction_mappings,
         )
 
-        # angle_functions is 1-d angle function for each hyper pyramid (row) and each angle
-        # dimension (column)
+        # Generate windows for each high-frequency scale
+        # For each scale, direction, and wedge combination:
+        #   1. Build window by combining angle functions with bandpass filter
+        #   2. Generate flipped versions for symmetry
+        #   3. Convert to sparse format and store
         for scale_idx in range(1, parameters.res + 1):  # pylint: disable=too-many-nested-blocks
-            # for each resolution
             windows.append([])
             indices[scale_idx] = {}
             for dimension_idx in range(parameters.dim):
                 windows[scale_idx].append([])
-                # for each hyperpyramid
+                # Build multi-dimensional angle index combinations using Kronecker products
                 angle_indices_1d = np.arange(
                     len(angle_functions[scale_idx - 1][(dimension_idx, 0)])
                 )[:, None]
@@ -921,19 +921,13 @@ class UDCTWindow:
                 max_angles_per_dim = parameters.angular_wedges_config[
                     scale_idx - 1, direction_mappings[scale_idx - 1][dimension_idx, :]
                 ]
-                # num_windows is the smallest number of windows need to calculated on each
-                # pyramid
-                # max_angles_per_dim is M-1 vector contain number of angle function per each
-                # dimension of the hyperpyramid
-                for window_idx in range(num_windows):
-                    # for each calculated windows function, estimated all the other
-                    # flipped window functions
+                for window_index in range(num_windows):
                     window: npt.NDArray[np.floating] = np.ones(
                         parameters.size, dtype=float
                     )
                     for angle_dim_idx in range(parameters.dim - 1):
                         angle_idx = angle_indices_1d.reshape(len(angle_indices_1d), -1)[
-                            window_idx, angle_dim_idx
+                            window_index, angle_dim_idx
                         ]
                         angle_func = angle_functions[scale_idx - 1][
                             (dimension_idx, angle_dim_idx)
@@ -941,7 +935,7 @@ class UDCTWindow:
                         angle_idx_mapping = angle_indices[scale_idx - 1][
                             (dimension_idx, angle_dim_idx)
                         ]
-                        kron_angle = UDCTWindow._angle_kron(
+                        kron_angle = UDCTWindow._compute_angle_kronecker_product(
                             angle_func, angle_idx_mapping, parameters
                         )
                         window *= kron_angle
@@ -950,70 +944,71 @@ class UDCTWindow:
                         circshift(window, tuple(s // 4 for s in parameters.size))
                     )
 
-                    # first windows function
                     window_functions = []
                     window_functions.append(window)
 
-                    # index of current angle
                     angle_indices_2d = (
-                        angle_indices_1d[window_idx : window_idx + 1, :] + 1
+                        angle_indices_1d[window_index : window_index + 1, :] + 1
                     )
 
-                    # all possible flip along different dimension
-                    for flip_dim_idx in range(parameters.dim - 2, -1, -1):
-                        for func_idx in range(angle_indices_2d.shape[0]):
+                    # Generate flipped window versions for symmetry
+                    # For each dimension, if the angle index is in the first half,
+                    # create a flipped version by reflecting across the midpoint
+                    for flip_dimension_index in range(parameters.dim - 2, -1, -1):
+                        for function_index in range(angle_indices_2d.shape[0]):
                             if (
-                                2 * angle_indices_2d[func_idx, flip_dim_idx]
-                                <= max_angles_per_dim[flip_dim_idx]
+                                2 * angle_indices_2d[function_index, flip_dimension_index]
+                                <= max_angles_per_dim[flip_dimension_index]
                             ):
-                                angle_indices_tmp = angle_indices_2d[
-                                    func_idx : func_idx + 1, :
+                                # Compute reflected angle index
+                                flipped_angle_indices = angle_indices_2d[
+                                    function_index : function_index + 1, :
                                 ].copy()
-                                angle_indices_tmp[0, flip_dim_idx] = (
-                                    max_angles_per_dim[flip_dim_idx]
+                                flipped_angle_indices[0, flip_dimension_index] = (
+                                    max_angles_per_dim[flip_dimension_index]
                                     + 1
-                                    - angle_indices_2d[func_idx, flip_dim_idx]
+                                    - angle_indices_2d[function_index, flip_dimension_index]
                                 )
                                 angle_indices_2d = np.r_[
-                                    angle_indices_2d, angle_indices_tmp
+                                    angle_indices_2d, flipped_angle_indices
                                 ]
-                                flip_axis = int(
+                                # Flip the window function along the appropriate axis
+                                flip_axis_dimension = int(
                                     direction_mappings[scale_idx - 1][
-                                        dimension_idx, flip_dim_idx
+                                        dimension_idx, flip_dimension_index
                                     ]
                                 )
-                                window = UDCTWindow._fftflip(
-                                    window_functions[func_idx], flip_axis
+                                window = UDCTWindow._flip_with_fft_shift(
+                                    window_functions[function_index], flip_axis_dimension
                                 )
                                 window_functions.append(window)
-                    angle_indices_2d -= 1  # Adjust so that `indices` is 0-based
+                    angle_indices_2d -= 1
                     window_functions = np.c_[window_functions]
 
-                    if window_idx == 0:
+                    if window_index == 0:
                         angle_index_array = angle_indices_2d
-                        for func_idx in range(angle_index_array.shape[0]):
+                        for function_index in range(angle_index_array.shape[0]):
                             windows[scale_idx][dimension_idx].append(
                                 UDCTWindow._to_sparse(
-                                    window_functions[func_idx],
+                                    window_functions[function_index],
                                     parameters.window_threshold,
                                 )
                             )
                     else:
-                        old_size = angle_index_array.shape[0]
+                        previous_array_size = angle_index_array.shape[0]
                         angle_index_array = np.concatenate(
                             (angle_index_array, angle_indices_2d), axis=0
                         )
-                        new_size = angle_index_array.shape[0]
-                        for func_idx in range(old_size, new_size):
+                        new_array_size = angle_index_array.shape[0]
+                        for function_index in range(previous_array_size, new_array_size):
                             windows[scale_idx][dimension_idx].append(
                                 UDCTWindow._to_sparse(
-                                    window_functions[func_idx - old_size],
+                                    window_functions[function_index - previous_array_size],
                                     parameters.window_threshold,
                                 )
                             )
                         indices[scale_idx][dimension_idx] = angle_index_array.copy()
 
-        # Normalization
         UDCTWindow._inplace_normalize_windows(
             windows,
             size=parameters.size,
@@ -1021,7 +1016,6 @@ class UDCTWindow:
             num_resolutions=parameters.res,
         )
 
-        # sort the window
         UDCTWindow._inplace_sort_windows(
             windows=windows,
             indices=indices,
