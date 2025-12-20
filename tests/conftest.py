@@ -102,7 +102,9 @@ def coeffs_dict_to_udct(
     Parameters
     ----------
     coeffs_dict : dict[tuple[int, ...], np.ndarray]
-        Dictionary with keys like (scale, dir, wedge) and coefficient arrays as values.
+        Dictionary with keys like (scale, dir, wedge) for 2D or (scale, dir0, dir1, wedge) for 3D, etc.
+        Note: ucurv uses scale 0 for curvelet coefficients, which are mapped to scale 1
+        in the output to match ucurv2's structure.
 
     Returns
     -------
@@ -112,32 +114,76 @@ def coeffs_dict_to_udct(
     Examples
     --------
     >>> import numpy as np
-    >>> coeffs_dict = {(0,): np.array([1.0]), (1, 0, 0): np.array([2.0])}
+    >>> coeffs_dict = {(0,): np.array([1.0]), (0, 0, 0): np.array([2.0])}
     >>> coeffs = coeffs_dict_to_udct(coeffs_dict)
     >>> len(coeffs) > 0
     True
     """
-    # Find max scale, dir, wedge
-    max_scale = max(k[0] for k in coeffs_dict.keys() if len(k) > 1)
-    max_dir = max(k[1] for k in coeffs_dict.keys() if len(k) > 1)
-
-    # Initialize structure
-    coeffs: UDCTCoefficients = [[[coeffs_dict[(0,)]]]]  # Low frequency
-
-    # Process each scale
-    for scale in range(1, max_scale + 1):
+    # Find all curvelet coefficient keys (length > 1, excluding low freq key (0,))
+    curvelet_keys = [k for k in coeffs_dict.keys() if len(k) > 1]
+    
+    if not curvelet_keys:
+        # No curvelet coefficients, just return low frequency
+        coeffs: UDCTCoefficients = [[[coeffs_dict[(0,)]]]]
+        return coeffs
+    
+    # Determine key structure: for ucurv, keys are (scale, *dir_indices, wedge)
+    # The last element is the wedge index, everything between scale and wedge are direction indices
+    first_key = curvelet_keys[0]
+    num_dir_indices = len(first_key) - 2  # Total length - scale - wedge
+    
+    # Find max direction index (for 2D: k[1], for 3D: max(k[1], k[2]), etc.)
+    # We'll use the first direction index to group by direction
+    max_dir = max(k[1] for k in curvelet_keys)
+    
+    # Initialize structure with low frequency
+    coeffs: UDCTCoefficients = [[[coeffs_dict[(0,)]]]]
+    
+    # Check if curvelet coefficients are at scale 0 (ucurv format)
+    scales_in_keys = set(k[0] for k in curvelet_keys)
+    
+    if scales_in_keys == {0}:
+        # ucurv format: curvelet coefficients are at scale 0, map them to scale 1 in output
+        # ucurv2 groups by scale, then direction (k[1]), then sorts by remaining indices (k[2:])
         coeffs.append([])
         for dir_idx in range(max_dir + 1):
-            coeffs[scale].append([])
-            # Find all wedges for this scale and direction
-            wedges = [
-                (k[2], coeffs_dict[k])
-                for k in coeffs_dict.keys()
-                if len(k) == 3 and k[0] == scale and k[1] == dir_idx
+            coeffs[1].append([])
+            # Find all keys for this direction (scale is 0 in input)
+            # Sort by remaining indices (k[2:]) to match ucurv2's behavior
+            scale_dir_keys = [
+                k
+                for k in curvelet_keys
+                if k[0] == 0 and k[1] == dir_idx
             ]
-            wedges.sort(key=lambda x: x[0])  # Sort by wedge index
-            for _, wedge_coeff in wedges:
-                coeffs[scale][dir_idx].append(wedge_coeff)
+            scale_dir_keys_sorted = sorted(
+                scale_dir_keys,
+                key=lambda k: k[2:],  # Sort by all indices after scale and direction
+            )
+            # Extract coefficients in sorted order
+            for key in scale_dir_keys_sorted:
+                coeffs[1][dir_idx].append(coeffs_dict[key])
+    else:
+        # Other formats: process each scale >= 1
+        for scale in sorted(scales_in_keys):
+            if scale == 0:
+                continue  # Skip scale 0, it's only for low frequency
+            coeffs.append([])
+            for dir_idx in range(max_dir + 1):
+                coeffs[scale].append([])
+                # Find all keys for this scale and direction
+                # Sort by remaining indices (k[2:]) to match ucurv2's behavior
+                scale_dir_keys = [
+                    k
+                    for k in curvelet_keys
+                    if k[0] == scale and k[1] == dir_idx
+                ]
+                scale_dir_keys_sorted = sorted(
+                    scale_dir_keys,
+                    key=lambda k: k[2:],  # Sort by all indices after scale and direction
+                )
+                # Extract coefficients in sorted order
+                for key in scale_dir_keys_sorted:
+                    coeffs[scale][dir_idx].append(coeffs_dict[key])
 
     return coeffs
 
