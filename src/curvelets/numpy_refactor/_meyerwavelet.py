@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
-from ._utils import fun_meyer
+from ._utils import meyer_window
 
 
 class MeyerWavelet:
@@ -141,19 +141,19 @@ class MeyerWavelet:
         meyer_frequency_parameters = np.pi * np.array([-1 / 3, 1 / 3, 2 / 3, 4 / 3])
 
         # Compute Meyer window function
-        meyer_window = fun_meyer(
+        window_values = meyer_window(
             frequency_grid,
-            meyer_frequency_parameters[0],
-            meyer_frequency_parameters[1],
-            meyer_frequency_parameters[2],
-            meyer_frequency_parameters[3],
+            meyer_frequency_parameters[0],  # transition_start
+            meyer_frequency_parameters[1],  # plateau_start
+            meyer_frequency_parameters[2],  # plateau_end
+            meyer_frequency_parameters[3],  # transition_end
         )
 
         # Lowpass filter: fftshifted and square-rooted
-        lowpass_filter = np.sqrt(np.fft.fftshift(meyer_window))
+        lowpass_filter = np.sqrt(np.fft.fftshift(window_values))
 
         # Highpass filter: not shifted, square-rooted
-        highpass_filter = np.sqrt(meyer_window)
+        highpass_filter = np.sqrt(window_values)
 
         return lowpass_filter, highpass_filter
 
