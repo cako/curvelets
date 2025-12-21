@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
-from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT, _fftflip_all_axes, upsamp
+from ._typing import UDCTCoefficients, UDCTWindows
+from ._utils import ParamUDCT, _fftflip_all_axes, upsamp
 
 
 def _apply_backward_transform(
@@ -102,7 +102,7 @@ def _apply_backward_transform(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor.utils import ParamUDCT
+    >>> from curvelets.numpy_refactor._utils import ParamUDCT
     >>> from curvelets.numpy_refactor._udct_windows import _udct_windows
     >>> from curvelets.numpy_refactor._forward_transform import _apply_forward_transform
     >>> from curvelets.numpy_refactor._backward_transform import _apply_backward_transform

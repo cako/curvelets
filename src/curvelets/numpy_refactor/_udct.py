@@ -11,8 +11,8 @@ from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
 from ._meyerwavelet import MeyerWavelet
 from ._udct_windows import UDCTWindow
-from .typing import UDCTCoefficients, UDCTWindows
-from .utils import ParamUDCT
+from ._typing import UDCTCoefficients, UDCTWindows
+from ._utils import ParamUDCT
 
 
 class UDCT:
