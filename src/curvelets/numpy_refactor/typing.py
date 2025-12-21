@@ -23,3 +23,11 @@ else:
     UDCTWindows: TypeAlias = list[
         list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
     ]
+
+# Type aliases for common NDArray types
+# Note: np.floating does NOT include np.complexfloating - they are separate base classes
+FloatingNDArray: TypeAlias = npt.NDArray[np.floating]
+ComplexFloatingNDArray: TypeAlias = npt.NDArray[np.complexfloating]
+IntegerNDArray: TypeAlias = npt.NDArray[np.int_]
+IntpNDArray: TypeAlias = npt.NDArray[np.intp]
+BoolNDArray: TypeAlias = npt.NDArray[np.bool_]

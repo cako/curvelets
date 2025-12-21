@@ -8,7 +8,12 @@ from typing import TypeVar
 import numpy as np
 import numpy.typing as npt
 
-from .typing import UDCTWindows
+from .typing import (
+    FloatingNDArray,
+    IntegerNDArray,
+    IntpNDArray,
+    UDCTWindows,
+)
 from .utils import ParamUDCT, circshift, fun_meyer
 
 D_T = TypeVar("D_T", bound=np.floating)
@@ -54,21 +59,21 @@ class UDCTWindow:
 
     @staticmethod
     def _compute_angle_component(
-        x_primary: np.ndarray, x_secondary: np.ndarray
-    ) -> np.ndarray:
+        x_primary: FloatingNDArray, x_secondary: FloatingNDArray
+    ) -> FloatingNDArray:
         """
         Compute one angle component from meshgrid coordinates.
 
         Parameters
         ----------
-        x_primary : np.ndarray
+        x_primary : FloatingNDArray
             Primary coordinate grid (used for conditions).
-        x_secondary : np.ndarray
+        x_secondary : FloatingNDArray
             Secondary coordinate grid.
 
         Returns
         -------
-        np.ndarray
+        FloatingNDArray
             Angle component array.
         """
         # Compute angle component using piecewise function:
@@ -93,20 +98,22 @@ class UDCTWindow:
         return angle_component
 
     @staticmethod
-    def _create_angle_grids_from_frequency_grids(frequency_grid_1: np.ndarray, frequency_grid_2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def _create_angle_grids_from_frequency_grids(
+        frequency_grid_1: FloatingNDArray, frequency_grid_2: FloatingNDArray
+    ) -> tuple[FloatingNDArray, FloatingNDArray]:
         """
         Adapt frequency grids for angle computation.
 
         Parameters
         ----------
-        frequency_grid_1 : np.ndarray
+        frequency_grid_1 : FloatingNDArray
             First frequency grid.
-        frequency_grid_2 : np.ndarray
+        frequency_grid_2 : FloatingNDArray
             Second frequency grid.
 
         Returns
         -------
-        tuple[np.ndarray, np.ndarray]
+        tuple[FloatingNDArray, FloatingNDArray]
             Adapted grid arrays angle_grid_2 and angle_grid_1.
 
         Examples
@@ -131,14 +138,17 @@ class UDCTWindow:
 
     @staticmethod
     def _create_angle_functions(
-        angle_grid: np.ndarray, direction: int, num_angular_wedges: int, window_overlap: float
-    ) -> np.ndarray:
+        angle_grid: FloatingNDArray,
+        direction: int,
+        num_angular_wedges: int,
+        window_overlap: float,
+    ) -> FloatingNDArray:
         """
         Create angle functions using Meyer windows.
 
         Parameters
         ----------
-        angle_grid : np.ndarray
+        angle_grid : FloatingNDArray
             Angle grid.
         direction : int
             Direction index (1 or 2).
@@ -149,7 +159,7 @@ class UDCTWindow:
 
         Returns
         -------
-        np.ndarray
+        FloatingNDArray
             Array of angle functions.
 
         Examples
@@ -184,23 +194,25 @@ class UDCTWindow:
 
     @staticmethod
     def _compute_angle_kronecker_product(
-        angle_function_1d: np.ndarray, dimension_permutation: np.ndarray, param_udct: ParamUDCT
-    ) -> np.ndarray:
+        angle_function_1d: FloatingNDArray,
+        dimension_permutation: IntegerNDArray,
+        param_udct: ParamUDCT,
+    ) -> FloatingNDArray:
         """
         Compute Kronecker product for angle functions.
 
         Parameters
         ----------
-        angle_function_1d : np.ndarray
+        angle_function_1d : FloatingNDArray
             Angle function array.
-        dimension_permutation : np.ndarray
+        dimension_permutation : IntegerNDArray
             Dimension permutation indices.
         param_udct : ParamUDCT
             UDCT parameters.
 
         Returns
         -------
-        np.ndarray
+        FloatingNDArray
             Kronecker product result with shape matching param_udct.size.
 
         Examples
@@ -239,20 +251,20 @@ class UDCTWindow:
         return kron_step3.reshape(*param_udct.size)
 
     @staticmethod
-    def _flip_with_fft_shift(input_array: np.ndarray, axis: int) -> np.ndarray:
+    def _flip_with_fft_shift(input_array: FloatingNDArray, axis: int) -> FloatingNDArray:
         """
         Flip array along specified axis with frequency domain shift.
 
         Parameters
         ----------
-        input_array : np.ndarray
+        input_array : FloatingNDArray
             Input array.
         axis : int
             Axis along which to flip.
 
         Returns
         -------
-        np.ndarray
+        FloatingNDArray
             Flipped and shifted array.
 
         Examples
@@ -273,7 +285,7 @@ class UDCTWindow:
     @staticmethod
     def _to_sparse(
         arr: npt.NDArray[D_T], threshold: float
-    ) -> tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]:
+    ) -> tuple[IntpNDArray, npt.NDArray[D_T]]:
         """
         Convert array to sparse format.
 
@@ -286,7 +298,7 @@ class UDCTWindow:
 
         Returns
         -------
-        tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]
+        tuple[IntpNDArray, npt.NDArray[D_T]]
             Tuple of (indices, values) where indices are positions and values
             are the array values at those positions.
 
@@ -305,8 +317,8 @@ class UDCTWindow:
 
     @staticmethod
     def _nchoosek(
-        n: Iterable[int] | npt.NDArray[np.int_], k: int
-    ) -> npt.NDArray[np.int_]:
+        n: Iterable[int] | IntegerNDArray, k: int
+    ) -> IntegerNDArray:
         """
         Generate all combinations of k elements from n.
 
@@ -337,7 +349,7 @@ class UDCTWindow:
         num_scales: int,
         shape: tuple[int, ...],
         radial_frequency_params: tuple[float, float, float, float],
-    ) -> tuple[dict[int, np.ndarray], dict[int, np.ndarray]]:
+    ) -> tuple[dict[int, FloatingNDArray], dict[int, FloatingNDArray]]:
         """
             Create bandpass windows using Meyer wavelets for radial frequency decomposition.
 
@@ -358,10 +370,10 @@ class UDCTWindow:
 
         Returns
         -------
-        frequency_grid : dict[int, np.ndarray]
+        frequency_grid : dict[int, FloatingNDArray]
             Dictionary mapping dimension index to frequency grid array.
             Each grid spans [-1.5*pi, 0.5*pi) with size matching shape[dimension].
-        bandpass_windows : dict[int, np.ndarray]
+        bandpass_windows : dict[int, FloatingNDArray]
             Dictionary mapping scale index to bandpass window array.
             Scale 0 is low-frequency, scales 1..num_scales are high-frequency bands.
             Each window has shape matching input `shape`.
@@ -379,8 +391,8 @@ class UDCTWindow:
             (64, 64)
         """
         dimension = len(shape)
-        frequency_grid: dict[int, np.ndarray] = {}
-        meyer_windows: dict[tuple[int, int], np.ndarray] = {}
+        frequency_grid: dict[int, FloatingNDArray] = {}
+        meyer_windows: dict[tuple[int, int], FloatingNDArray] = {}
         for dimension_idx in range(dimension):
             frequency_grid[dimension_idx] = np.linspace(
                 -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx], endpoint=False
@@ -407,7 +419,7 @@ class UDCTWindow:
                     abs_frequency_grid, *meyer_params
                 )
 
-        bandpass_windows: dict[int, np.ndarray] = {}
+        bandpass_windows: dict[int, FloatingNDArray] = {}
         for scale_idx in range(num_scales, 0, -1):
             low_freq = np.array([1.0])
             high_freq = np.array([1.0])
@@ -425,7 +437,9 @@ class UDCTWindow:
         return frequency_grid, bandpass_windows
 
     @staticmethod
-    def _create_direction_mappings(dimension: int, num_resolutions: int) -> list[np.ndarray]:
+    def _create_direction_mappings(
+        dimension: int, num_resolutions: int
+    ) -> list[IntegerNDArray]:
         """
             Create direction mappings for each resolution scale.
 
@@ -443,7 +457,7 @@ class UDCTWindow:
 
         Returns
         -------
-        list[np.ndarray]
+        list[IntegerNDArray]
             List of arrays, one per resolution. Each array has shape (dimension, dimension-1)
             and contains indices of dimensions used for angle calculations on each hyperpyramid.
 
@@ -472,34 +486,34 @@ class UDCTWindow:
 
     @staticmethod
     def _create_angle_info(
-        frequency_grid: dict[int, np.ndarray],
+        frequency_grid: dict[int, FloatingNDArray],
         dimension: int,
         num_resolutions: int,
-        angular_wedges_config: np.ndarray,
+        angular_wedges_config: IntegerNDArray,
         window_overlap: float,
     ) -> tuple[
-        dict[int, dict[tuple[int, int], np.ndarray]],
-        dict[int, dict[tuple[int, int], np.ndarray]],
+        dict[int, dict[tuple[int, int], FloatingNDArray]],
+        dict[int, dict[tuple[int, int], IntegerNDArray]],
     ]:
         """
         Create angle functions and indices for window computation.
 
         Parameters
         ----------
-        frequency_grid : dict[int, np.ndarray]
+        frequency_grid : dict[int, FloatingNDArray]
             Dictionary mapping dimension index to frequency grid.
         dimension : int
             Dimensionality of the transform.
         num_resolutions : int
             Number of resolution scales.
-        angular_wedges_config : np.ndarray
+        angular_wedges_config : IntegerNDArray
             Configuration array specifying number of angular wedges per scale and dimension.
         window_overlap : float
             Window overlap parameter.
 
         Returns
         -------
-        tuple[dict, dict]
+        tuple[dict[int, dict[tuple[int, int], FloatingNDArray]], dict[int, dict[tuple[int, int], IntegerNDArray]]]
             Tuple of (angle_functions, angle_indices) dictionaries.
 
         Examples
@@ -515,7 +529,7 @@ class UDCTWindow:
         3
         """
         dimension_permutations = UDCTWindow._nchoosek(np.arange(dimension), 2)
-        angle_grid: dict[tuple[int, int], np.ndarray] = {}
+        angle_grid: dict[tuple[int, int], FloatingNDArray] = {}
         for pair_index, dimension_pair in enumerate(dimension_permutations):
             angle_grids = UDCTWindow._create_angle_grids_from_frequency_grids(
                 frequency_grid[dimension_pair[0]], frequency_grid[dimension_pair[1]]
@@ -523,8 +537,8 @@ class UDCTWindow:
             angle_grid[(pair_index, 0)] = angle_grids[0]
             angle_grid[(pair_index, 1)] = angle_grids[1]
 
-        angle_functions: dict[int, dict[tuple[int, int], np.ndarray]] = {}
-        angle_indices: dict[int, dict[tuple[int, int], np.ndarray]] = {}
+        angle_functions: dict[int, dict[tuple[int, int], FloatingNDArray]] = {}
+        angle_indices: dict[int, dict[tuple[int, int], IntegerNDArray]] = {}
         for scale_idx in range(num_resolutions):
             angle_functions[scale_idx] = {}
             angle_indices[scale_idx] = {}
@@ -624,9 +638,9 @@ class UDCTWindow:
     def _calculate_decimation_ratios_with_lowest(
         num_resolutions: int,
         dimension: int,
-        angular_wedges_config: np.ndarray,
-        direction_mappings: list[np.ndarray],
-    ) -> list[npt.NDArray[np.int_]]:
+        angular_wedges_config: IntegerNDArray,
+        direction_mappings: list[IntegerNDArray],
+    ) -> list[IntegerNDArray]:
         """
         Calculate decimation ratios for each scale and direction.
 
@@ -636,14 +650,14 @@ class UDCTWindow:
             Number of resolution scales.
         dimension : int
             Dimensionality of the transform.
-        angular_wedges_config : np.ndarray
+        angular_wedges_config : IntegerNDArray
             Configuration array specifying number of angular wedges.
-        direction_mappings : list[np.ndarray]
+        direction_mappings : list[IntegerNDArray]
             Direction mappings for each resolution.
 
         Returns
         -------
-        list[npt.NDArray[np.int_]]
+        list[IntegerNDArray]
             List of decimation ratio arrays, one per scale.
 
         Examples
@@ -657,7 +671,7 @@ class UDCTWindow:
         >>> len(ratios)
         4
         """
-        decimation_ratios: list[npt.NDArray[np.int_]] = [
+        decimation_ratios: list[IntegerNDArray] = [
             np.full((1, dimension), fill_value=2 ** (num_resolutions - 1), dtype=int)
         ]
         for scale_idx in range(1, num_resolutions + 1):
@@ -681,7 +695,7 @@ class UDCTWindow:
     @staticmethod
     def _inplace_sort_windows(
         windows: UDCTWindows,
-        indices: dict[int, dict[int, np.ndarray]],
+        indices: dict[int, dict[int, IntegerNDArray]],
         num_resolutions: int,
         dimension: int,
     ) -> None:
@@ -692,7 +706,7 @@ class UDCTWindow:
         ----------
         windows : UDCTWindows
             Windows to sort (modified in-place).
-        indices : dict[int, dict[int, np.ndarray]]
+        indices : dict[int, dict[int, IntegerNDArray]]
             Angular indices dictionary (modified in-place).
         num_resolutions : int
             Number of resolution scales.
@@ -731,7 +745,7 @@ class UDCTWindow:
     def compute(
         parameters: ParamUDCT,
     ) -> tuple[
-        UDCTWindows, list[npt.NDArray[np.int_]], dict[int, dict[int, np.ndarray]]
+        UDCTWindows, list[IntegerNDArray], dict[int, dict[int, IntegerNDArray]]
     ]:
         """
         Compute curvelet windows in frequency domain for UDCT transform.
@@ -754,7 +768,7 @@ class UDCTWindow:
                 Dimensionality of the transform
             - radial_frequency_params : tuple[float, float, float, float]
                 Parameters defining radial frequency bands
-            - angular_wedges_config : np.ndarray
+            - angular_wedges_config : IntegerNDArray
                 Configuration array specifying number of angular wedges per scale
                 and dimension, shape (num_scales, dimension)
             - window_overlap : float
@@ -768,11 +782,11 @@ class UDCTWindow:
             Curvelet windows in sparse format. Structure is:
             windows[scale][direction][wedge] = (indices, values) tuple
             where scale 0 is low-frequency, scales 1..res are high-frequency bands
-        decimation_ratios : list[npt.NDArray[np.int_]]
+        decimation_ratios : list[IntegerNDArray]
             Decimation ratios for each scale and direction. Structure:
             - decimation_ratios[0]: shape (1, dim) for low-frequency band
             - decimation_ratios[scale]: shape (dim, dim) for scale > 0
-        indices : dict[int, dict[int, np.ndarray]]
+        indices : dict[int, dict[int, IntegerNDArray]]
             Angular indices for each window. Structure:
             indices[scale][direction] = array of shape (num_wedges, dim-1)
             containing angular indices for each wedge
@@ -863,7 +877,7 @@ class UDCTWindow:
             UDCTWindow._to_sparse(low_frequency_window, parameters.window_threshold)
         ]
 
-        indices: dict[int, dict[int, np.ndarray]] = {}
+        indices: dict[int, dict[int, IntegerNDArray]] = {}
         indices[0] = {}
         indices[0][0] = np.zeros((1, 1), dtype=int)
         direction_mappings = UDCTWindow._create_direction_mappings(
@@ -922,7 +936,7 @@ class UDCTWindow:
                     scale_idx - 1, direction_mappings[scale_idx - 1][dimension_idx, :]
                 ]
                 for window_index in range(num_windows):
-                    window: npt.NDArray[np.floating] = np.ones(
+                    window: FloatingNDArray = np.ones(
                         parameters.size, dtype=float
                     )
                     for angle_dim_idx in range(parameters.dim - 1):

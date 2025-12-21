@@ -158,9 +158,8 @@ def _apply_backward_transform(
     >>> True
     """
     real_dtype = coefficients[0][0][0].real.dtype
-    complex_dtype = (
-        np.ones(1, dtype=real_dtype) + 1j * np.ones(1, dtype=real_dtype)
-    ).dtype
+    # NumPy 2.0 compatible: explicit dtype mapping ensures float32 → complex64, not complex128
+    complex_dtype = np.complex64 if real_dtype == np.float32 else np.complex128
     image_frequency = np.zeros(parameters.size, dtype=complex_dtype)
 
     if use_complex_transform:
