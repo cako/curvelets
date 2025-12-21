@@ -8,13 +8,13 @@ from typing import TypeVar
 import numpy as np
 import numpy.typing as npt
 
-from .typing import (
+from ._typing import (
     FloatingNDArray,
     IntegerNDArray,
     IntpNDArray,
     UDCTWindows,
 )
-from .utils import ParamUDCT, circshift, fun_meyer
+from ._utils import ParamUDCT, circshift, fun_meyer
 
 D_T = TypeVar("D_T", bound=np.floating)
 
@@ -31,7 +31,7 @@ class UDCTWindow:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor.utils import ParamUDCT
+    >>> from curvelets.numpy_refactor._utils import ParamUDCT
     >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
     >>>
     >>> # Create parameters for 2D transform with 3 scales
@@ -218,7 +218,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor.utils import ParamUDCT
+        >>> from curvelets.numpy_refactor._utils import ParamUDCT
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>> params = ParamUDCT(
         ...     size=(64, 64), res=3, dim=2,
@@ -594,7 +594,7 @@ class UDCTWindow:
         --------
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-        >>> from curvelets.numpy_refactor.typing import UDCTWindows
+        >>> from curvelets.numpy_refactor._typing import UDCTWindows
         >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
         >>> UDCTWindow._inplace_normalize_windows(windows, (64, 64), 2, 3)
         """
@@ -717,7 +717,7 @@ class UDCTWindow:
         --------
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-        >>> from curvelets.numpy_refactor.typing import UDCTWindows
+        >>> from curvelets.numpy_refactor._typing import UDCTWindows
         >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
         >>> indices = {1: {0: np.array([[0]])}}
         >>> UDCTWindow._inplace_sort_windows(windows, indices, 3, 2)
@@ -825,7 +825,7 @@ class UDCTWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor.utils import ParamUDCT
+        >>> from curvelets.numpy_refactor._utils import ParamUDCT
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
         >>>
         >>> # Create parameters for 2D transform with 3 scales
