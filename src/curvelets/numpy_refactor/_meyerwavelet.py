@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import overload
+
 import numpy as np
 import numpy.typing as npt
 
+from ._typing import ComplexFloatingNDArray, FloatingNDArray
 from ._utils import meyer_window
 
 
@@ -200,6 +203,10 @@ class MeyerWavelet:
         lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
         highpass_filter = np.reshape(highpass_filter, (1, signal_length))
 
+        # Preserve input dtype
+        input_dtype = signal.dtype
+        is_complex_input = np.iscomplexobj(signal)
+
         # Transform to frequency domain
         signal_frequency_domain = np.fft.fft(signal, axis=last_axis_index)
 
@@ -212,9 +219,13 @@ class MeyerWavelet:
         )
 
         # Preserve complex values for complex input, take real for real input
-        if not np.iscomplexobj(signal):
+        # Preserve the original dtype when taking real part or casting complex
+        if not is_complex_input:
+            # Take real part and cast back to original real dtype
             lowpass_full_resolution = lowpass_full_resolution.real
             highpass_full_resolution = highpass_full_resolution.real
+        lowpass_full_resolution = lowpass_full_resolution.astype(input_dtype)
+        highpass_full_resolution = highpass_full_resolution.astype(input_dtype)
 
         # Downsample by factor of 2 (take every other sample)
         lowpass_subband = lowpass_full_resolution[..., ::2]
@@ -269,11 +280,13 @@ class MeyerWavelet:
         upsampled_shape = list(lowpass_subband.shape)
         upsampled_shape[-1] = 2 * upsampled_shape[-1]
 
-        # Determine dtype based on input
+        # Determine dtype based on input - preserve the original dtype
         is_complex = np.iscomplexobj(lowpass_subband) or np.iscomplexobj(
             highpass_subband
         )
-        dtype = lowpass_subband.dtype if is_complex else float
+        # Preserve the input dtype (use lowpass_subband as reference)
+        input_dtype = lowpass_subband.dtype
+        dtype = input_dtype
 
         # Pre-allocate upsampled arrays
         lowpass_upsampled = np.zeros(upsampled_shape, dtype=dtype)
@@ -303,15 +316,26 @@ class MeyerWavelet:
         )
 
         # Preserve complex values for complex input, take real for real input
-        reconstructed_signal = 2 * (
-            reconstructed_full_resolution
-            if is_complex
-            else reconstructed_full_resolution.real
-        )
+        # Preserve the original dtype when taking real part or casting complex
+        if is_complex:
+            # Cast back to original complex dtype (FFT may promote complex64 to complex128)
+            reconstructed_signal = 2 * reconstructed_full_resolution
+        else:
+            # Take real part and cast back to original real dtype
+            reconstructed_signal = 2 * reconstructed_full_resolution.real
+        reconstructed_signal = reconstructed_signal.astype(input_dtype)
 
         return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
 
-    def forward(self, signal: npt.NDArray) -> npt.NDArray:
+    @overload
+    def forward(self, signal: ComplexFloatingNDArray) -> ComplexFloatingNDArray: ...
+
+    @overload
+    def forward(self, signal: FloatingNDArray) -> FloatingNDArray: ...  # type: ignore[overload-cannot-match]
+
+    def forward(
+        self, signal: FloatingNDArray | ComplexFloatingNDArray
+    ) -> FloatingNDArray | ComplexFloatingNDArray:
         """
         Apply multi-dimensional Meyer wavelet forward transform.
 
@@ -376,7 +400,17 @@ class MeyerWavelet:
         # Return only the lowpass subband (first band)
         return current_bands[0]
 
-    def backward(self, lowpass_subband: npt.NDArray) -> npt.NDArray:
+    @overload
+    def backward(
+        self, lowpass_subband: ComplexFloatingNDArray
+    ) -> ComplexFloatingNDArray: ...
+
+    @overload
+    def backward(self, lowpass_subband: FloatingNDArray) -> FloatingNDArray: ...  # type: ignore[overload-cannot-match]
+
+    def backward(
+        self, lowpass_subband: FloatingNDArray | ComplexFloatingNDArray
+    ) -> FloatingNDArray | ComplexFloatingNDArray:
         """
         Apply multi-dimensional Meyer wavelet inverse transform.
 

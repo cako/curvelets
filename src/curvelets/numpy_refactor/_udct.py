@@ -10,8 +10,13 @@ import numpy.typing as npt
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import _apply_forward_transform
 from ._meyerwavelet import MeyerWavelet
+from ._typing import (
+    ComplexFloatingNDArray,
+    FloatingNDArray,
+    UDCTCoefficients,
+    UDCTWindows,
+)
 from ._udct_windows import UDCTWindow
-from ._typing import UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT
 
 
@@ -357,7 +362,7 @@ class UDCT:
                 num_directions = 2 * self.parameters.dim
             else:
                 num_directions = len(decimation_ratios_scale)
-            
+
             for direction_idx in range(num_directions):
                 coefficients[scale_idx].append([])
                 # In complex transform mode, directions >= dim reuse windows and decimation ratios
@@ -369,11 +374,13 @@ class UDCT:
                     and direction_idx >= self.parameters.dim
                 ):
                     window_direction_idx = direction_idx % self.parameters.dim
-                    decimation_ratio_dir = decimation_ratios_scale[window_direction_idx, :]
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        window_direction_idx, :
+                    ]
                 else:
                     window_direction_idx = direction_idx
                     decimation_ratio_dir = decimation_ratios_scale[direction_idx, :]
-                
+
                 for _ in self.windows[scale_idx][window_direction_idx]:
                     shape_decimated = internal_shape // decimation_ratio_dir
                     end_idx = begin_idx + prod(shape_decimated)
@@ -382,7 +389,9 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
-    def forward(self, image: np.ndarray) -> UDCTCoefficients:
+    def forward(
+        self, image: FloatingNDArray | ComplexFloatingNDArray
+    ) -> UDCTCoefficients:
         """
         Apply forward curvelet transform.
 
@@ -419,21 +428,23 @@ class UDCT:
             lowpass = self._meyer_wavelet.forward(image)
 
             # Apply curvelet transform to lowpass only
-            return _apply_forward_transform(
+            result = _apply_forward_transform(
                 lowpass,
                 self.parameters,
                 self.windows,
                 self.decimation_ratios,
-                use_complex_transform=self.use_complex_transform,
+                use_complex_transform=self.use_complex_transform,  # type: ignore[arg-type]
             )
+            return result  # type: ignore[return-value]
 
-        return _apply_forward_transform(
+        result = _apply_forward_transform(
             image,
             self.parameters,
             self.windows,
             self.decimation_ratios,
-            use_complex_transform=self.use_complex_transform,
+            use_complex_transform=self.use_complex_transform,  # type: ignore[arg-type]
         )
+        return result  # type: ignore[return-value]
 
     def backward(self, coefficients: UDCTCoefficients) -> np.ndarray:
         """
