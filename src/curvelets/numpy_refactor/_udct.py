@@ -2,19 +2,24 @@ from __future__ import annotations
 
 import logging
 from math import prod
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
-from ._forward_transform import _apply_forward_transform
+from ._forward_transform import (
+    _apply_forward_transform_complex,
+    _apply_forward_transform_real,
+)
 from ._meyerwavelet import MeyerWavelet
 from ._typing import (
     ComplexFloatingNDArray,
     FloatingNDArray,
     UDCTCoefficients,
     UDCTWindows,
+    _is_complex_array,
+    _is_floating_array,
 )
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
@@ -155,7 +160,7 @@ class UDCT:
         radial_frequency_params: tuple[float, float, float, float] | None,
         window_threshold: float,
         high_frequency_mode: Literal["curvelet", "wavelet"],
-    ) -> dict:
+    ) -> dict[str, Any]:
         """
         Calculate all necessary parameters for UDCT initialization.
 
@@ -419,32 +424,45 @@ class UDCT:
         """
         np.testing.assert_equal(self.shape, image.shape)
 
-        if self.high_frequency_mode == "wavelet":
-            # Apply Meyer wavelet decomposition
-            # forward() returns lowpass subband and stores highpass internally
-            if self._meyer_wavelet is None:
-                error_msg = "MeyerWavelet not initialized"
-                raise RuntimeError(error_msg)
-            lowpass = self._meyer_wavelet.forward(image)
+        # Apply Meyer wavelet decomposition if enabled
+        # forward() returns lowpass subband and stores highpass internally
+        if self._meyer_wavelet is not None:
+            image = self._meyer_wavelet.forward(image)
 
-            # Apply curvelet transform to lowpass only
-            result = _apply_forward_transform(
-                lowpass,
+        # Apply curvelet transform
+        # Use type guards to narrow the type and call appropriate implementation
+        if self.use_complex_transform:
+            if _is_complex_array(image):
+                result = _apply_forward_transform_complex(
+                    image,
+                    self.parameters,
+                    self.windows,
+                    self.decimation_ratios,
+                )
+            else:
+                # Convert real to complex for complex transform
+                result = _apply_forward_transform_complex(
+                    image.astype(np.complex128),
+                    self.parameters,
+                    self.windows,
+                    self.decimation_ratios,
+                )
+        elif _is_floating_array(image):
+            result = _apply_forward_transform_real(
+                image,
                 self.parameters,
                 self.windows,
                 self.decimation_ratios,
-                use_complex_transform=self.use_complex_transform,  # type: ignore[arg-type]
             )
-            return result  # type: ignore[return-value]
-
-        result = _apply_forward_transform(
-            image,
-            self.parameters,
-            self.windows,
-            self.decimation_ratios,
-            use_complex_transform=self.use_complex_transform,  # type: ignore[arg-type]
-        )
-        return result  # type: ignore[return-value]
+        else:
+            # Convert complex to real for real transform
+            result = _apply_forward_transform_real(
+                image.real,
+                self.parameters,
+                self.windows,
+                self.decimation_ratios,
+            )
+        return result
 
     def backward(self, coefficients: UDCTCoefficients) -> np.ndarray:
         """
