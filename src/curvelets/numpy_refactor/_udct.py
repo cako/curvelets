@@ -351,11 +351,30 @@ class UDCT:
         internal_shape = np.array(self.parameters.size)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             coefficients.append([])
-            for direction_idx, decimation_ratio_dir in enumerate(
-                decimation_ratios_scale
-            ):
+            # In complex transform mode, we have 2*dim directions per scale (for scale > 0)
+            # but decimation_ratios_scale only has dim rows, so we need to handle this
+            if self.use_complex_transform and scale_idx > 0:
+                num_directions = 2 * self.parameters.dim
+            else:
+                num_directions = len(decimation_ratios_scale)
+            
+            for direction_idx in range(num_directions):
                 coefficients[scale_idx].append([])
-                for _ in self.windows[scale_idx][direction_idx]:
+                # In complex transform mode, directions >= dim reuse windows and decimation ratios
+                # from directions < dim. Negative frequency directions (dim..2*dim-1) use the same
+                # windows and decimation ratios as positive frequency directions (0..dim-1)
+                if (
+                    self.use_complex_transform
+                    and scale_idx > 0
+                    and direction_idx >= self.parameters.dim
+                ):
+                    window_direction_idx = direction_idx % self.parameters.dim
+                    decimation_ratio_dir = decimation_ratios_scale[window_direction_idx, :]
+                else:
+                    window_direction_idx = direction_idx
+                    decimation_ratio_dir = decimation_ratios_scale[direction_idx, :]
+                
+                for _ in self.windows[scale_idx][window_direction_idx]:
                     shape_decimated = internal_shape // decimation_ratio_dir
                     end_idx = begin_idx + prod(shape_decimated)
                     wedge = coefficients_vec[begin_idx:end_idx].reshape(shape_decimated)
