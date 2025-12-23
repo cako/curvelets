@@ -16,6 +16,137 @@ from ._typing import (
 from ._utils import ParamUDCT, _fftflip_all_axes, downsamp
 
 
+def _process_wedge_real(
+    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+    decimation_ratio: npt.NDArray[np.int_],
+    image_frequency: npt.NDArray[np.complexfloating],
+    freq_band: npt.NDArray[np.complexfloating],
+    complex_dtype: npt.DTypeLike,
+) -> npt.NDArray[np.complexfloating]:
+    """
+    Process a single wedge for real transform mode.
+
+    This function applies a frequency-domain window to extract a specific
+    curvelet band, transforms it to spatial domain, downsamples it, and applies
+    normalization.
+
+    Parameters
+    ----------
+    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
+        Sparse window representation as (indices, values) tuple.
+    decimation_ratio : npt.NDArray[np.int_]
+        Decimation ratio for this wedge (1D array with length equal to dimensions).
+    image_frequency : npt.NDArray[np.complexfloating]
+        Input image in frequency domain (from FFT).
+    freq_band : npt.NDArray[np.complexfloating]
+        Reusable frequency band buffer (will be cleared and filled).
+    complex_dtype : npt.DTypeLike
+        Complex dtype matching image_frequency.
+
+    Returns
+    -------
+    npt.NDArray[np.complexfloating]
+        Downsampled and normalized coefficient array for this wedge.
+
+    Notes
+    -----
+    The real transform combines positive and negative frequencies, so no
+    sqrt(0.5) scaling is applied. The normalization factor ensures proper
+    energy preservation.
+    """
+    # Clear the frequency band buffer for reuse
+    freq_band.fill(0)
+
+    # Get the sparse window representation (indices and values)
+    idx, val = window
+
+    # Apply the window to the frequency domain: multiply image frequencies
+    # by the window values at the specified indices
+    freq_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
+
+    # Transform back to spatial domain using inverse FFT
+    curvelet_band = np.fft.ifftn(freq_band)
+
+    # Downsample the curvelet band according to the decimation ratio
+    coeff = downsamp(curvelet_band, decimation_ratio)
+
+    # Apply normalization factor: sqrt(2 * product of decimation ratios)
+    # This ensures proper energy preservation in the transform
+    coeff *= np.sqrt(2 * np.prod(decimation_ratio))
+
+    return coeff
+
+
+def _process_wedge_complex(
+    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+    decimation_ratio: npt.NDArray[np.int_],
+    image_frequency: npt.NDArray[np.complexfloating],
+    parameters: ParamUDCT,
+    complex_dtype: npt.DTypeLike,
+    flip_window: bool = False,
+) -> npt.NDArray[np.complexfloating]:
+    """
+    Process a single wedge for complex transform mode.
+
+    This function applies a frequency-domain window (optionally flipped for
+    negative frequencies) to extract a specific curvelet band, transforms it
+    to spatial domain with sqrt(0.5) scaling, downsamples it, and applies
+    normalization.
+
+    Parameters
+    ----------
+    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
+        Sparse window representation as (indices, values) tuple.
+    decimation_ratio : npt.NDArray[np.int_]
+        Decimation ratio for this wedge (1D array with length equal to dimensions).
+    image_frequency : npt.NDArray[np.complexfloating]
+        Input image in frequency domain (from FFT).
+    parameters : ParamUDCT
+        UDCT parameters containing size information.
+    complex_dtype : npt.DTypeLike
+        Complex dtype matching image_frequency.
+    flip_window : bool, optional
+        If True, flip the window for negative frequency processing.
+        Default is False.
+
+    Returns
+    -------
+    npt.NDArray[np.complexfloating]
+        Downsampled and normalized coefficient array for this wedge.
+
+    Notes
+    -----
+    The complex transform separates positive and negative frequencies, so
+    sqrt(0.5) scaling is applied to each band. The normalization factor ensures
+    proper energy preservation.
+    """
+    # Get the sparse window representation (indices and values)
+    idx, val = window
+
+    # Convert sparse window to dense for manipulation
+    subwindow = np.zeros(parameters.size, dtype=val.dtype)
+    subwindow.flat[idx] = val
+
+    # Optionally flip the window for negative frequency processing
+    if flip_window:
+        subwindow = _fftflip_all_axes(subwindow)
+
+    # Apply window to frequency domain and transform to spatial domain
+    # Apply sqrt(0.5) scaling for complex transform (separates +/- frequencies)
+    band_filtered = np.sqrt(0.5) * np.fft.ifftn(
+        image_frequency * subwindow.astype(complex_dtype)
+    )
+
+    # Downsample the curvelet band according to the decimation ratio
+    coeff = downsamp(band_filtered, decimation_ratio)
+
+    # Apply normalization factor: sqrt(2 * product of decimation ratios)
+    # This ensures proper energy preservation in the transform
+    coeff *= np.sqrt(2 * np.prod(decimation_ratio))
+
+    return coeff
+
+
 def _apply_forward_transform_real(
     image: FloatingNDArray,
     parameters: ParamUDCT,
@@ -108,42 +239,42 @@ def _apply_forward_transform_real(
     image_frequency = np.fft.fftn(image)
     complex_dtype = image_frequency.dtype
 
-    # Low frequency band processing
+    # Allocate frequency_band once for reuse
     frequency_band = np.zeros_like(image_frequency)
+
+    # Low frequency band processing
     idx, val = windows[0][0][0]
     frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
 
     # Real transform: take real part
     curvelet_band = np.fft.ifftn(frequency_band)
 
-    coefficients: UDCTCoefficients = [
-        [[downsamp(curvelet_band, decimation_ratios[0][0])]]
-    ]
+    low_freq_coeff = downsamp(curvelet_band, decimation_ratios[0][0])
     norm = np.sqrt(
         np.prod(np.full((parameters.dim,), fill_value=2 ** (parameters.res - 1)))
     )
-    coefficients[0][0][0] *= norm
+    low_freq_coeff *= norm
 
-    # Real transform: combined +/- frequencies
-    for scale_idx in range(1, 1 + parameters.res):
-        coefficients.append([])
-        for direction_idx in range(parameters.dim):
-            coefficients[scale_idx].append([])
-            for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                frequency_band = np.zeros_like(image_frequency)
-                idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(
-                    complex_dtype
+    # Real transform: combined +/- frequencies using nested list comprehensions
+    # Build entire structure with list comprehensions
+    coefficients: UDCTCoefficients = [
+        [[low_freq_coeff]]  # Scale 0: 1 direction, 1 wedge
+    ] + [
+        [
+            [
+                _process_wedge_real(
+                    windows[scale_idx][direction_idx][wedge_idx],
+                    decimation_ratios[scale_idx][direction_idx, :],
+                    image_frequency,
+                    frequency_band,
+                    complex_dtype,
                 )
-
-                curvelet_band = np.fft.ifftn(frequency_band)
-                decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
-                coefficients[scale_idx][direction_idx].append(
-                    downsamp(curvelet_band, decimation_ratio)
-                )
-                coefficients[scale_idx][direction_idx][wedge_idx] *= np.sqrt(
-                    2 * np.prod(decimation_ratio)
-                )
+                for wedge_idx in range(len(windows[scale_idx][direction_idx]))
+            ]
+            for direction_idx in range(parameters.dim)
+        ]
+        for scale_idx in range(1, 1 + parameters.res)
+    ]
     return coefficients
 
 
@@ -259,58 +390,43 @@ def _apply_forward_transform_complex(
     )
     coefficients[0][0][0] *= norm
 
-    # Complex transform: separate +/- frequency bands
+    # Complex transform: separate +/- frequency bands using nested list comprehensions
     # Structure: [scale][direction][wedge]
     # Directions 0..dim-1 are positive frequencies
     # Directions dim..2*dim-1 are negative frequencies
-    for scale_idx in range(1, 1 + parameters.res):
-        coefficients.append([])
-        # Positive frequency bands (directions 0..dim-1)
-        for direction_idx in range(parameters.dim):
-            coefficients[scale_idx].append([])
-            for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                # Convert sparse window to dense for manipulation
-                idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                subwindow = np.zeros(parameters.size, dtype=val.dtype)
-                subwindow.flat[idx] = val
-
-                # Apply window to frequency domain
-                band_filtered = np.sqrt(0.5) * np.fft.ifftn(
-                    image_frequency * subwindow.astype(complex_dtype)
+    coefficients = coefficients + [
+        [
+            # Positive frequency bands (directions 0..dim-1)
+            [
+                _process_wedge_complex(
+                    windows[scale_idx][direction_idx][wedge_idx],
+                    decimation_ratios[scale_idx][direction_idx, :],
+                    image_frequency,
+                    parameters,
+                    complex_dtype,
+                    flip_window=False,
                 )
-
-                decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
-                coefficients[scale_idx][direction_idx].append(
-                    downsamp(band_filtered, decimation_ratio)
+                for wedge_idx in range(len(windows[scale_idx][direction_idx]))
+            ]
+            for direction_idx in range(parameters.dim)
+        ]
+        + [
+            # Negative frequency bands (directions dim..2*dim-1)
+            [
+                _process_wedge_complex(
+                    windows[scale_idx][direction_idx][wedge_idx],
+                    decimation_ratios[scale_idx][direction_idx, :],
+                    image_frequency,
+                    parameters,
+                    complex_dtype,
+                    flip_window=True,
                 )
-                coefficients[scale_idx][direction_idx][wedge_idx] *= np.sqrt(
-                    2 * np.prod(decimation_ratio)
-                )
-
-        # Negative frequency bands (directions dim..2*dim-1)
-        for direction_idx in range(parameters.dim):
-            coefficients[scale_idx].append([])
-            for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                # Convert sparse window to dense for manipulation
-                idx, val = windows[scale_idx][direction_idx][wedge_idx]
-                subwindow = np.zeros(parameters.size, dtype=val.dtype)
-                subwindow.flat[idx] = val
-
-                # Apply fftflip to get negative frequency window
-                subwindow_flipped = _fftflip_all_axes(subwindow)
-
-                # Apply flipped window to frequency domain
-                band_filtered = np.sqrt(0.5) * np.fft.ifftn(
-                    image_frequency * subwindow_flipped.astype(complex_dtype)
-                )
-
-                decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
-                coefficients[scale_idx][direction_idx + parameters.dim].append(
-                    downsamp(band_filtered, decimation_ratio)
-                )
-                coefficients[scale_idx][direction_idx + parameters.dim][wedge_idx] *= (
-                    np.sqrt(2 * np.prod(decimation_ratio))
-                )
+                for wedge_idx in range(len(windows[scale_idx][direction_idx]))
+            ]
+            for direction_idx in range(parameters.dim)
+        ]
+        for scale_idx in range(1, 1 + parameters.res)
+    ]
     return coefficients
 
 
