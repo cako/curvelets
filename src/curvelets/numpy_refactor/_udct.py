@@ -150,6 +150,137 @@ class UDCT:
         if self.high_frequency_mode == "wavelet":
             self._meyer_wavelet = MeyerWavelet(shape=shape)
 
+    @staticmethod
+    def _compute_from_angular_wedges_config(
+        angular_wedges_config: np.ndarray,
+        window_overlap: float | None,
+    ) -> tuple[np.ndarray, float]:
+        """
+        Compute angular wedges configuration and window overlap from provided config.
+
+        Parameters
+        ----------
+        angular_wedges_config : np.ndarray
+            Configuration array specifying the number of angular wedges per scale
+            and dimension. Shape is (num_scales, dimension).
+        window_overlap : float | None
+            Window overlap parameter. If None, defaults to 0.15.
+
+        Returns
+        -------
+        tuple[np.ndarray, float]
+            Tuple of (computed_angular_wedges_config, computed_window_overlap).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor import UDCT
+        >>> cfg = np.array([[3, 3], [6, 6]])
+        >>> config, overlap = UDCT._compute_from_angular_wedges_config(cfg, None)
+        >>> config.shape
+        (2, 2)
+        >>> overlap
+        0.15
+        """
+        # Use provided angular_wedges_config directly
+        computed_angular_wedges_config = angular_wedges_config
+
+        # Use provided window_overlap or default
+        computed_window_overlap = window_overlap if window_overlap is not None else 0.15
+
+        return computed_angular_wedges_config, computed_window_overlap
+
+    @staticmethod
+    def _compute_from_num_scales(
+        num_scales: int | None,
+        wedges_per_direction: int | None,
+        window_overlap: float | None,
+        dimension: int,
+    ) -> tuple[np.ndarray, float]:
+        """
+        Compute angular wedges configuration and window overlap from num_scales.
+
+        Parameters
+        ----------
+        num_scales : int | None
+            Number of scales. Must be > 1. If None, defaults to 3.
+        wedges_per_direction : int | None
+            Number of angular wedges per direction at the coarsest scale.
+            Must be >= 3. If None, defaults to 3.
+        window_overlap : float | None
+            Window overlap parameter. If None, auto-selected based on
+            wedges_per_direction.
+        dimension : int
+            Number of dimensions.
+
+        Returns
+        -------
+        tuple[np.ndarray, float]
+            Tuple of (computed_angular_wedges_config, computed_window_overlap).
+
+        Raises
+        ------
+        ValueError
+            If num_scales <= 1 or wedges_per_direction < 3.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor import UDCT
+        >>> config, overlap = UDCT._compute_from_num_scales(3, 3, None, 2)
+        >>> config.shape
+        (2, 2)
+        >>> overlap
+        0.15
+        """
+        # Use num_scales/wedges_per_direction (SimpleUDCT style)
+        if num_scales is None:
+            num_scales = 3
+        if wedges_per_direction is None:
+            wedges_per_direction = 3
+
+        if num_scales <= 1:
+            msg = "num_scales must be > 1"
+            raise ValueError(msg)
+        if wedges_per_direction < 3:
+            msg = "wedges_per_direction must be >= 3"
+            raise ValueError(msg)
+
+        # Convert to angular_wedges_config
+        wedges_per_scale: npt.NDArray[np.int_] = (
+            wedges_per_direction * 2 ** np.arange(num_scales - 1)
+        ).astype(int)
+        computed_angular_wedges_config = np.tile(wedges_per_scale[:, None], dimension)
+
+        # Auto-select window_overlap if not provided
+        if window_overlap is None:
+            if wedges_per_direction == 3:
+                computed_window_overlap = 0.15
+            elif wedges_per_direction == 4:
+                computed_window_overlap = 0.3
+            elif wedges_per_direction == 5:
+                computed_window_overlap = 0.5
+            else:
+                computed_window_overlap = 0.5
+        else:
+            computed_window_overlap = window_overlap
+
+        # Validate window_overlap
+        for scale_idx, num_wedges in enumerate(wedges_per_scale, start=1):
+            const = (
+                2 ** (scale_idx / num_wedges)
+                * (1 + 2 * computed_window_overlap)
+                * (1 + computed_window_overlap)
+            )
+            if const >= num_wedges:
+                msg = (
+                    f"window_overlap={computed_window_overlap:.3f} does not respect the relationship "
+                    f"(2^{scale_idx}/{num_wedges})(1+2α)(1+α) = {const:.3f} < 1 for scale {scale_idx + 1}"
+                )
+                logging.warning(msg)
+
+        return computed_angular_wedges_config, computed_window_overlap
+
     def _initialize_parameters(
         self,
         shape: tuple[int, ...],
@@ -195,61 +326,17 @@ class UDCT:
             if num_scales is not None or wedges_per_direction is not None:
                 msg = "Cannot specify both angular_wedges_config and num_scales/wedges_per_direction"
                 raise ValueError(msg)
-            # Use provided angular_wedges_config directly
-            computed_angular_wedges_config = angular_wedges_config
-
-            # Use provided window_overlap or default
-            computed_window_overlap = (
-                window_overlap if window_overlap is not None else 0.15
+            computed_angular_wedges_config, computed_window_overlap = (
+                self._compute_from_angular_wedges_config(
+                    angular_wedges_config, window_overlap
+                )
             )
         else:
-            # Use num_scales/wedges_per_direction (SimpleUDCT style)
-            if num_scales is None:
-                num_scales = 3
-            if wedges_per_direction is None:
-                wedges_per_direction = 3
-
-            if num_scales <= 1:
-                msg = "num_scales must be > 1"
-                raise ValueError(msg)
-            if wedges_per_direction < 3:
-                msg = "wedges_per_direction must be >= 3"
-                raise ValueError(msg)
-
-            # Convert to angular_wedges_config
-            wedges_per_scale: npt.NDArray[np.int_] = (
-                wedges_per_direction * 2 ** np.arange(num_scales - 1)
-            ).astype(int)
-            computed_angular_wedges_config = np.tile(
-                wedges_per_scale[:, None], dimension
-            )
-
-            # Auto-select window_overlap if not provided
-            if window_overlap is None:
-                if wedges_per_direction == 3:
-                    computed_window_overlap = 0.15
-                elif wedges_per_direction == 4:
-                    computed_window_overlap = 0.3
-                elif wedges_per_direction == 5:
-                    computed_window_overlap = 0.5
-                else:
-                    computed_window_overlap = 0.5
-            else:
-                computed_window_overlap = window_overlap
-
-            # Validate window_overlap
-            for scale_idx, num_wedges in enumerate(wedges_per_scale, start=1):
-                const = (
-                    2 ** (scale_idx / num_wedges)
-                    * (1 + 2 * computed_window_overlap)
-                    * (1 + computed_window_overlap)
+            computed_angular_wedges_config, computed_window_overlap = (
+                self._compute_from_num_scales(
+                    num_scales, wedges_per_direction, window_overlap, dimension
                 )
-                if const >= num_wedges:
-                    msg = (
-                        f"window_overlap={computed_window_overlap:.3f} does not respect the relationship "
-                        f"(2^{scale_idx}/{num_wedges})(1+2α)(1+α) = {const:.3f} < 1 for scale {scale_idx + 1}"
-                    )
-                    logging.warning(msg)
+            )
 
         # Validate wavelet mode requirements
         # For wavelet mode, we need at least 2 scales total, which means
@@ -426,7 +513,10 @@ class UDCT:
 
         # Apply Meyer wavelet decomposition if enabled
         # forward() returns lowpass subband and stores highpass internally
-        if self._meyer_wavelet is not None:
+        if self.high_frequency_mode == "wavelet":
+            if self._meyer_wavelet is None:
+                error_msg = "MeyerWavelet not initialized"
+                raise RuntimeError(error_msg)
             image = self._meyer_wavelet.forward(image)
 
         # Apply curvelet transform
@@ -441,8 +531,10 @@ class UDCT:
                 )
             else:
                 # Convert real to complex for complex transform
+                # Preserve input dtype: float32 -> complex64, float64 -> complex128
+                complex_dtype = np.result_type(image, 1j)
                 result = _apply_forward_transform_complex(
-                    image.astype(np.complex128),
+                    image.astype(complex_dtype),
                     self.parameters,
                     self.windows,
                     self.decimation_ratios,
