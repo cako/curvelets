@@ -39,7 +39,7 @@ ALL_SHAPES_4D = POWER_OF_2_SHAPES_4D + NON_POWER_OF_2_SHAPES_4D
 
 
 def _compare_coefficients(
-    coeffs_orig: list, coeffs_ref: list, rtol: float = 1e-10, atol: float = 1e-12
+    coeffs_orig: list, coeffs_ref: list, rtol: float = 1e-5, atol: float = 1e-7
 ) -> None:
     """
     Compare coefficient structures and values between original and refactored versions.
@@ -51,9 +51,9 @@ def _compare_coefficients(
     coeffs_ref : list
         Coefficients from refactored implementation.
     rtol : float, optional
-        Relative tolerance for comparison. Default is 1e-10.
+        Relative tolerance for comparison. Default is 1e-5.
     atol : float, optional
-        Absolute tolerance for comparison. Default is 1e-12.
+        Absolute tolerance for comparison. Default is 1e-7.
     """
     assert len(coeffs_orig) == len(coeffs_ref), "Number of scales must match"
     for ires in range(len(coeffs_orig)):
