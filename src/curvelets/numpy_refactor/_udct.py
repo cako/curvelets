@@ -20,6 +20,7 @@ from ._typing import (
     UDCTWindows,
     _is_complex_array,
     _is_floating_array,
+    _to_complex_dtype,
 )
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
@@ -532,7 +533,7 @@ class UDCT:
             else:
                 # Convert real to complex for complex transform
                 # Preserve input dtype: float32 -> complex64, float64 -> complex128
-                complex_dtype = np.result_type(image, 1j)
+                complex_dtype = _to_complex_dtype(image.dtype)
                 result = _apply_forward_transform_complex(
                     image.astype(complex_dtype),
                     self.parameters,

@@ -5,7 +5,7 @@ from typing import Literal, overload
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import UDCTCoefficients, UDCTWindows
+from ._typing import UDCTCoefficients, UDCTWindows, _to_complex_dtype, _to_real_dtype
 from ._utils import ParamUDCT, _fftflip_all_axes, upsamp
 
 
@@ -204,9 +204,8 @@ def _apply_backward_transform_real(
     True
     """
     # Determine dtype from coefficients
-    real_dtype = coefficients[0][0][0].real.dtype
-    # NumPy 2.0 compatible: explicit dtype mapping ensures float32 → complex64, not complex128
-    complex_dtype = np.complex64 if real_dtype == np.float32 else np.complex128
+    real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
+    complex_dtype = _to_complex_dtype(real_dtype)
 
     # Initialize frequency domain
     image_frequency = np.zeros(parameters.size, dtype=complex_dtype)
@@ -314,9 +313,8 @@ def _apply_backward_transform_complex(
     True
     """
     # Determine dtype from coefficients
-    real_dtype = coefficients[0][0][0].real.dtype
-    # NumPy 2.0 compatible: explicit dtype mapping ensures float32 → complex64, not complex128
-    complex_dtype = np.complex64 if real_dtype == np.float32 else np.complex128
+    real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
+    complex_dtype = _to_complex_dtype(real_dtype)
 
     # Initialize frequency domain
     image_frequency = np.zeros(parameters.size, dtype=complex_dtype)
