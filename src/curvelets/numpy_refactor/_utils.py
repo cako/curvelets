@@ -2,28 +2,124 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
-from math import ceil, prod
-from typing import TypeVar
+from math import prod
+
+if sys.version_info >= (3, 10):
+    from typing import TypeVar, overload
+else:
+    from typing import TypeVar
+
+    from typing_extensions import overload
 
 import numpy as np
 import numpy.typing as npt
+
+from ._typing import (
+    ComplexFloatingNDArray,
+    FloatingNDArray,
+    IntegerNDArray,
+    IntpNDArray,
+)
 
 D_T = TypeVar("D_T", bound=np.floating)
 
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
 class ParamUDCT:
+    """
+    Parameters for Uniform Discrete Curvelet Transform (UDCT).
+
+    This dataclass stores all configuration parameters needed for the UDCT
+    transform, including dimensionality, size, angular wedge configuration,
+    window parameters, and optional indexing/decimation information.
+
+    Parameters
+    ----------
+    dim : int
+        Dimensionality of the transform (e.g., 2 for 2D, 3 for 3D).
+    size : tuple[int, ...]
+        Shape of the input data. Must have length equal to `dim`.
+    angular_wedges_config : IntegerNDArray
+        Configuration array specifying the number of angular wedges per scale
+        and dimension. Shape is (num_scales, dim). The last dimension must
+        equal `dim`. Each row corresponds to a scale, each column to a dimension.
+    window_overlap : float
+        Window overlap parameter controlling the smoothness of window transitions.
+        Typically between 0.1 and 0.3. Higher values create smoother transitions
+        but may reduce directional selectivity.
+    radial_frequency_params : tuple[float, float, float, float]
+        Four parameters defining radial frequency bands for Meyer wavelet
+        decomposition: (transition_start, plateau_start, plateau_end, transition_end).
+        These define the frequency ranges for the bandpass filters.
+    window_threshold : float
+        Threshold for sparse window storage. Window values below this threshold
+        are stored in sparse format. Typically 1e-5 to 1e-6.
+
+    Attributes
+    ----------
+    len : int
+        Total number of elements in the input (product of `size`). Computed
+        automatically in `__post_init__`.
+    res : int
+        Number of resolution scales. Computed automatically from the first
+        dimension of `angular_wedges_config`.
+    decim : IntegerNDArray
+        Decimation ratios for each scale and dimension. Computed automatically
+        as 2 * (angular_wedges_config // 3). Shape matches `angular_wedges_config`.
+    ind : dict[int, dict[int, np.ndarray]] | None, optional
+        Optional indexing information for sparse storage. Structure:
+        ind[scale][direction] = index array. Default is None.
+    dec : dict[int, np.ndarray] | None, optional
+        Optional decimation information. Structure: dec[scale] = decimation array.
+        Default is None.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy_refactor._utils import ParamUDCT
+    >>>
+    >>> # Create parameters for 2D transform with 3 scales
+    >>> params = ParamUDCT(
+    ...     dim=2,
+    ...     size=(64, 64),
+    ...     angular_wedges_config=np.array([[3], [6], [12]]),
+    ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
+    ...     window_threshold=1e-5
+    ... )
+    >>> params.res  # Number of scales
+    3
+    >>> params.len  # Total elements
+    4096
+    >>> params.decim.shape  # Decimation ratios shape
+    (3, 1)
+    >>>
+    >>> # Create parameters for 3D transform
+    >>> params_3d = ParamUDCT(
+    ...     dim=3,
+    ...     size=(32, 32, 32),
+    ...     angular_wedges_config=np.array([[3, 3, 3], [6, 6, 6]]),
+    ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
+    ...     window_threshold=1e-5
+    ... )
+    >>> params_3d.dim
+    3
+    >>> params_3d.size
+    (32, 32, 32)
+    """
+
     dim: int
     size: tuple[int, ...]
-    angular_wedges_config: npt.NDArray[np.int_]  # last dimension  == dim
+    angular_wedges_config: IntegerNDArray  # last dimension  == dim
     window_overlap: float
     radial_frequency_params: tuple[float, float, float, float]
     window_threshold: float
     len: int = field(init=False)
     res: int = field(init=False)
-    decim: npt.NDArray[np.int_] = field(init=False)
-    ind: dict[int, dict[int, np.ndarray]] | None = None
-    dec: dict[int, np.ndarray] | None = None
+    decim: IntegerNDArray = field(init=False)
+    ind: dict[int, dict[int, IntpNDArray]] | None = None
+    dec: dict[int, IntpNDArray] | None = None
 
     def __post_init__(self) -> None:
         self.len = prod(self.size)
@@ -31,141 +127,241 @@ class ParamUDCT:
         self.decim = 2 * (np.asarray(self.angular_wedges_config, dtype=int) // 3)
 
 
-def circshift(arr: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
-    assert arr.ndim == len(shape)
-    return np.roll(arr, shape, axis=tuple(range(len(shape))))
+@overload
+def circular_shift(
+    array: FloatingNDArray, shift: tuple[int, ...]
+) -> FloatingNDArray: ...
 
 
-def adapt_grid(S1: np.ndarray, S2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    x1, x2 = np.meshgrid(S2, S1)
-
-    t1: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
-    ind = (x1 != 0) & (np.abs(x2) <= np.abs(x1))
-    t1[ind] = -x2[ind] / x1[ind]
-
-    t2: npt.NDArray[np.floating] = np.zeros_like(x1, dtype=float)
-    ind = (x2 != 0) & (np.abs(x1) < np.abs(x2))
-    t2[ind] = x1[ind] / x2[ind]
-
-    t3 = t2.copy()
-    t3[t2 < 0] = t2[t2 < 0] + 2
-    t3[t2 > 0] = t2[t2 > 0] - 2
-
-    M1 = t1 + t3
-    M1[x1 >= 0] = -2
-
-    t1 = np.zeros_like(x1, dtype=float)
-    ind = (x2 != 0) & (abs(x1) <= abs(x2))
-    t1[ind] = -x1[ind] / x2[ind]
-
-    t2 = np.zeros_like(x1, dtype=float)
-    ind = (x1 != 0) & (abs(x2) < abs(x1))
-    t2[ind] = x2[ind] / x1[ind]
-
-    t3 = t2.copy()
-    t3[t2 < 0] = t2[t2 < 0] + 2
-    t3[t2 > 0] = t2[t2 > 0] - 2
-
-    M2 = t1 + t3
-    M2[x2 >= 0] = -2
-
-    return M2, M1
+@overload  # type: ignore[overload-overlap]
+def circular_shift(
+    array: ComplexFloatingNDArray, shift: tuple[int, ...]
+) -> ComplexFloatingNDArray: ...
 
 
-def angle_fun(
-    Mgrid: np.ndarray, direction: int, n: int, window_overlap: float
-) -> np.ndarray:
-    # % create 2-D grid function-------------------------------------------------
-
-    # angle meyer window
-    angd = 2 / n
-    ang = angd * np.array(
-        [-window_overlap, window_overlap, 1 - window_overlap, 1 + window_overlap]
-    )
-
-    Mang = []
-    # This is weird, both directions are the same code
-    if direction in (1, 2):
-        for jn in range(1, ceil(n / 2) + 1):
-            ang2 = -1 + (jn - 1) * angd + ang
-            fang = meyer_window(Mgrid, *ang2)
-            Mang.append(fang[None, :])
-    else:
-        msg = "Unrecognized direction"
-        raise ValueError(msg)
-    return np.concatenate(Mang, axis=0)
-
-
-def angle_kron(
-    angle_arr: np.ndarray, nper: np.ndarray, param_udct: ParamUDCT
-) -> np.ndarray:
-    # , nper, param_udct
-    krsz: npt.NDArray[np.int_] = np.ones(3, dtype=int)
-    krsz[0] = np.prod(param_udct.size[: nper[0] - 1])
-    krsz[1] = np.prod(param_udct.size[nper[0] : nper[1] - 1])
-    krsz[2] = np.prod(param_udct.size[nper[1] : param_udct.dim])
-
-    tmp1 = np.kron(np.ones((krsz[1], 1), dtype=int), angle_arr)
-    tmp2 = np.kron(np.ones((krsz[2], 1), dtype=int), tmp1.ravel()).ravel()
-    tmp3 = np.kron(tmp2, np.ones((krsz[0], 1), dtype=int)).ravel()
-    return tmp3.reshape(*param_udct.size)
-
-
-def downsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
-    assert F.ndim == len(decim)
-    return F[tuple(slice(None, None, d) for d in decim)]
-
-
-def fftflip(F: np.ndarray, axis: int) -> np.ndarray:
-    Fc = F
-    dim = F.ndim
-    shiftvec: npt.NDArray[np.int_] = np.zeros((dim,), dtype=int)
-    shiftvec[axis] = 1
-    Fc = np.flip(F, axis)
-    return circshift(Fc, tuple(shiftvec))
-
-
-def _fftflip_all_axes(F: np.ndarray) -> np.ndarray:
+def circular_shift(
+    array: npt.NDArray[np.generic], shift: tuple[int, ...]
+) -> npt.NDArray[np.generic]:
     """
-    Apply fftflip to all axes of an array.
+    Circularly shift array along all axes.
 
-    This produces X(-omega) from X(omega) in FFT representation.
-    After flipping, the array is circshifted by 1 in each dimension
-    to maintain proper frequency alignment.
+    This function performs a circular shift (also known as cyclic shift) of
+    the input array along all dimensions. The shift amount is specified per
+    dimension in the `shift` tuple. Positive values shift in one direction,
+    negative values shift in the opposite direction.
 
     Parameters
     ----------
-    F : np.ndarray
-        Input array in FFT representation.
+    array : FloatingNDArray | ComplexFloatingNDArray
+        Input array to shift. Can be real-valued (FloatingNDArray) or
+        complex-valued (ComplexFloatingNDArray). The array is shifted along
+        all axes simultaneously.
+    shift : tuple[int, ...]
+        Shift amounts for each dimension. Must have length equal to `array.ndim`.
+        Each element specifies the number of positions to shift along the
+        corresponding axis. Positive values shift forward, negative values
+        shift backward.
 
     Returns
     -------
-    np.ndarray
-        Flipped array representing negative frequencies.
+    FloatingNDArray | ComplexFloatingNDArray
+        Circularly shifted array with the same shape and dtype as input.
+        Returns FloatingNDArray if input is real, ComplexFloatingNDArray if
+        input is complex.
+
+    Notes
+    -----
+    The circular shift wraps around: elements shifted beyond the array boundary
+    appear at the opposite end. This is implemented using `np.roll`, which
+    performs the shift along each axis sequentially.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy_refactor._utils import circular_shift
+    >>>
+    >>> # 1D array shift
+    >>> arr = np.array([1, 2, 3, 4, 5])
+    >>> shifted = circular_shift(arr, (2,))
+    >>> shifted
+    array([4, 5, 1, 2, 3])
+    >>>
+    >>> # 2D array shift
+    >>> arr_2d = np.array([[1, 2], [3, 4]])
+    >>> shifted_2d = circular_shift(arr_2d, (1, 1))
+    >>> shifted_2d
+    array([[4, 3],
+           [2, 1]])
+    >>>
+    >>> # Complex array (preserves dtype)
+    >>> arr_complex = np.array([1+2j, 3+4j, 5+6j])
+    >>> shifted_complex = circular_shift(arr_complex, (1,))
+    >>> shifted_complex.dtype
+    dtype('complex128')
     """
-    Fc = F.copy()
-    for axis in range(F.ndim):
-        Fc = np.flip(Fc, axis)
-    shiftvec = tuple(1 for _ in range(F.ndim))
-    return circshift(Fc, shiftvec)
+    assert array.ndim == len(shift)
+    # np.roll preserves dtype, so return type matches input type via overloads
+    return np.roll(array, shift, axis=tuple(range(len(shift))))
+
+
+def downsample(
+    array: npt.NDArray[np.generic], decimation_ratios: IntegerNDArray
+) -> npt.NDArray[np.generic]:
+    """
+    Downsample array by selecting every Nth element along each dimension.
+
+    This function downsamples an array by selecting elements at regular intervals
+    specified by the decimation ratios. For each dimension, every `decimation_ratios[i]`-th
+    element is selected, effectively reducing the array size.
+
+    Parameters
+    ----------
+    array : npt.NDArray[npt.DTypeLike]
+        Input array to downsample. Can be any dtype. The array is downsampled
+        along all dimensions simultaneously.
+    decimation_ratios : IntegerNDArray
+        Decimation ratios for each dimension. Must have length equal to `array.ndim`.
+        Each element specifies the step size for selecting elements along the
+        corresponding axis. For example, a value of 2 means every 2nd element
+        is selected.
+
+    Returns
+    -------
+    npt.NDArray[npt.DTypeLike]
+        Downsampled array with the same dtype as input. The shape is reduced
+        by the decimation ratios: output_shape[i] = ceil(input_shape[i] / decimation_ratios[i]).
+
+    Notes
+    -----
+    The downsampling is performed using slice notation with step sizes. This is
+    equivalent to `array[::d0, ::d1, ...]` where `d0, d1, ...` are the decimation
+    ratios. The output preserves the dtype of the input array.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy_refactor._utils import downsample
+    >>>
+    >>> # 1D downsampling
+    >>> arr = np.array([1, 2, 3, 4, 5, 6, 7, 8])
+    >>> decim = np.array([2])
+    >>> downsampled = downsample(arr, decim)
+    >>> downsampled
+    array([1, 3, 5, 7])
+    >>>
+    >>> # 2D downsampling
+    >>> arr_2d = np.arange(16).reshape(4, 4)
+    >>> decim_2d = np.array([2, 2])
+    >>> downsampled_2d = downsample(arr_2d, decim_2d)
+    >>> downsampled_2d.shape
+    (2, 2)
+    >>> downsampled_2d
+    array([[ 0,  2],
+           [ 8, 10]])
+    >>>
+    >>> # Preserves dtype
+    >>> arr_float32 = np.array([1.0, 2.0, 3.0], dtype=np.float32)
+    >>> downsampled_float32 = downsample(arr_float32, np.array([2]))
+    >>> downsampled_float32.dtype
+    dtype('float32')
+    """
+    assert array.ndim == len(decimation_ratios)
+    return array[tuple(slice(None, None, d) for d in decimation_ratios)]
+
+
+@overload
+def flip_fft_all_axes(array: FloatingNDArray) -> FloatingNDArray: ...  # type: ignore[misc]
+
+
+@overload
+def flip_fft_all_axes(array: ComplexFloatingNDArray) -> ComplexFloatingNDArray: ...  # type: ignore[overload-cannot-match]
+
+
+def flip_fft_all_axes(
+    array: npt.NDArray[np.generic],
+) -> npt.NDArray[np.generic]:
+    """
+    Apply fftflip to all axes of an array.
+
+    This function transforms the frequency domain representation X(omega) to
+    X(-omega) by flipping all axes and applying a circular shift. This is
+    commonly used in curvelet transforms to handle negative frequency
+    components.
+
+    The operation consists of:
+    1. Flipping the array along all axes (reversing each dimension)
+    2. Circularly shifting by 1 position along all axes to maintain proper
+       frequency alignment
+
+    Parameters
+    ----------
+    array : FloatingNDArray | ComplexFloatingNDArray
+        Input array in FFT representation. Can be real-valued (FloatingNDArray)
+        or complex-valued (ComplexFloatingNDArray). The array is flipped and
+        shifted along all dimensions simultaneously.
+
+    Returns
+    -------
+    FloatingNDArray | ComplexFloatingNDArray
+        Flipped array representing negative frequencies. Returns FloatingNDArray
+        if input is real, ComplexFloatingNDArray if input is complex. The output
+        has the same shape and dtype as the input.
+
+    Notes
+    -----
+    This operation is the frequency-domain equivalent of time-reversal. After
+    flipping and shifting, the array represents the negative frequency
+    components of the original signal. The circular shift by 1 ensures that
+    the zero frequency component is properly aligned.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy_refactor._utils import flip_fft_all_axes
+    >>>
+    >>> # 1D array
+    >>> arr = np.array([1, 2, 3, 4, 5])
+    >>> flipped = flip_fft_all_axes(arr)
+    >>> flipped
+    array([5, 1, 2, 3, 4])
+    >>>
+    >>> # 2D array
+    >>> arr_2d = np.array([[1, 2], [3, 4]])
+    >>> flipped_2d = flip_fft_all_axes(arr_2d)
+    >>> flipped_2d
+    array([[4, 3],
+           [2, 1]])
+    >>>
+    >>> # Complex array (preserves dtype)
+    >>> arr_complex = np.array([1+2j, 3+4j, 5+6j])
+    >>> flipped_complex = flip_fft_all_axes(arr_complex)
+    >>> flipped_complex.dtype
+    dtype('complex128')
+    """
+    flipped_array = array.copy()
+    for axis in range(array.ndim):
+        flipped_array = np.flip(flipped_array, axis)
+    shift_vector = tuple(1 for _ in range(array.ndim))
+    # Overloads handle type narrowing at call sites
+    return circular_shift(flipped_array, shift_vector)
 
 
 # Meyer transition polynomial coefficients for smooth window transitions
 # This is a 7th-degree polynomial (with trailing zeros) used to create
 # smooth transitions in the Meyer wavelet window function. The polynomial
 # provides C^infinity smoothness at the transition boundaries.
-MEYER_TRANSITION_POLYNOMIAL: npt.NDArray[np.floating] = np.array(
+MEYER_TRANSITION_POLYNOMIAL: npt.NDArray[np.floating[object]] = np.array(
     [-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0], dtype=float
 )
 
 
 def meyer_window(
-    frequency: np.ndarray,
+    frequency: npt.NDArray[np.generic],
     transition_start: float,
     plateau_start: float,
     plateau_end: float,
     transition_end: float,
-) -> np.ndarray:
+) -> FloatingNDArray:
     """
     Compute Meyer wavelet window function with polynomial transitions.
 
@@ -260,16 +456,73 @@ def meyer_window(
     return window_values
 
 
-def to_sparse(
-    arr: npt.NDArray[D_T], thresh: float
-) -> tuple[npt.NDArray[np.intp], npt.NDArray[D_T]]:
-    idx = np.argwhere(arr.ravel() > thresh)
-    return (idx, arr.ravel()[idx])
+def upsample(
+    array: npt.NDArray[np.generic], decimation_ratios: IntegerNDArray
+) -> npt.NDArray[np.generic]:
+    """
+    Upsample array by inserting zeros at regular intervals.
 
+    This function upsamples an array by creating a larger array and placing
+    the original array elements at positions specified by the decimation ratios.
+    All other positions are filled with zeros. The output shape is the input
+    shape multiplied by the decimation ratios.
 
-def upsamp(F: np.ndarray, decim: np.ndarray) -> np.ndarray:
-    assert F.ndim == len(decim)
-    upsamp_shape = tuple(s * d for s, d in zip(F.shape, decim))
-    D = np.zeros(upsamp_shape, dtype=F.dtype)
-    D[tuple(slice(None, None, d) for d in decim)] = F[...]
-    return D
+    Parameters
+    ----------
+    array : npt.NDArray[npt.DTypeLike]
+        Input array to upsample. Can be any dtype. The array is upsampled
+        along all dimensions simultaneously.
+    decimation_ratios : IntegerNDArray
+        Upsampling ratios for each dimension. Must have length equal to `array.ndim`.
+        Each element specifies the spacing between original elements in the
+        upsampled array. For example, a value of 2 means original elements
+        are placed every 2nd position, with zeros in between.
+
+    Returns
+    -------
+    npt.NDArray[npt.DTypeLike]
+        Upsampled array with the same dtype as input. The shape is increased
+        by the decimation ratios: output_shape[i] = input_shape[i] * decimation_ratios[i].
+
+    Notes
+    -----
+    The upsampling is performed by creating a zero-filled array of the target
+    size, then placing the original array elements at positions `[::d0, ::d1, ...]`
+    where `d0, d1, ...` are the decimation ratios. This is the inverse operation
+    of `downsample` when applied with the same ratios.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy_refactor._utils import upsample
+    >>>
+    >>> # 1D upsampling
+    >>> arr = np.array([1, 2, 3, 4])
+    >>> decim = np.array([2])
+    >>> upsampled = upsample(arr, decim)
+    >>> upsampled
+    array([1, 0, 2, 0, 3, 0, 4, 0])
+    >>>
+    >>> # 2D upsampling
+    >>> arr_2d = np.array([[1, 2], [3, 4]])
+    >>> decim_2d = np.array([2, 2])
+    >>> upsampled_2d = upsample(arr_2d, decim_2d)
+    >>> upsampled_2d.shape
+    (4, 4)
+    >>> upsampled_2d
+    array([[1, 0, 2, 0],
+           [0, 0, 0, 0],
+           [3, 0, 4, 0],
+           [0, 0, 0, 0]])
+    >>>
+    >>> # Preserves dtype
+    >>> arr_complex = np.array([1+2j, 3+4j], dtype=np.complex64)
+    >>> upsampled_complex = upsample(arr_complex, np.array([2]))
+    >>> upsampled_complex.dtype
+    dtype('complex64')
+    """
+    assert array.ndim == len(decimation_ratios)
+    upsampled_shape = tuple(s * d for s, d in zip(array.shape, decimation_ratios))
+    upsampled_array = np.zeros(upsampled_shape, dtype=array.dtype)
+    upsampled_array[tuple(slice(None, None, d) for d in decimation_ratios)] = array[...]
+    return upsampled_array

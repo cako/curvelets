@@ -14,7 +14,7 @@ from ._typing import (
     IntpNDArray,
     UDCTWindows,
 )
-from ._utils import ParamUDCT, circshift, meyer_window
+from ._utils import ParamUDCT, circular_shift, meyer_window
 
 D_T = TypeVar("D_T", bound=np.floating)
 
@@ -294,7 +294,7 @@ class UDCTWindow:
         shift_vector: npt.NDArray[np.int_] = np.zeros((num_dimensions,), dtype=int)
         shift_vector[axis] = 1
         flipped_array = np.flip(input_array, axis)
-        return circshift(flipped_array, tuple(shift_vector))
+        return circular_shift(flipped_array, tuple(shift_vector))
 
     @staticmethod
     def _to_sparse(
@@ -979,7 +979,7 @@ class UDCTWindow:
         # Apply frequency shift (size//4 in each dimension) and square root
         # The shift centers the window in frequency space, and square root
         # ensures proper normalization for the partition of unity condition
-        window = np.sqrt(circshift(window, tuple(s // 4 for s in parameters.size)))
+        window = np.sqrt(circular_shift(window, tuple(s // 4 for s in parameters.size)))
 
         # Step 2: Generate symmetric flipped versions for partition of unity
         # The partition of unity requires: |W_0(ω)|² + ∑|W_{j,l}(ω)|² + ∑|W_{j,l}(-ω)|² = 1
@@ -1226,7 +1226,7 @@ class UDCTWindow:
             shape=parameters.size,
             radial_frequency_params=parameters.radial_frequency_params,
         )
-        low_frequency_window = circshift(
+        low_frequency_window = circular_shift(
             np.sqrt(bandpass_windows[0]), tuple(s // 4 for s in parameters.size)
         )
 

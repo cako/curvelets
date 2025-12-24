@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._typing import UDCTCoefficients, UDCTWindows, _to_complex_dtype, _to_real_dtype
-from ._utils import ParamUDCT, _fftflip_all_axes, upsamp
+from ._utils import ParamUDCT, flip_fft_all_axes, upsample
 
 
 def _process_wedge_backward_real(
@@ -44,7 +44,7 @@ def _process_wedge_backward_real(
     efficient accumulation using sparse indexing in the real transform mode.
     """
     # Upsample coefficient to full size
-    curvelet_band = upsamp(coefficient, decimation_ratio)
+    curvelet_band = upsample(coefficient, decimation_ratio)
 
     # Undo normalization: divide by sqrt(2 * prod(decimation_ratio))
     curvelet_band /= np.sqrt(2 * np.prod(decimation_ratio))
@@ -113,10 +113,10 @@ def _process_wedge_backward_complex(
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
-        subwindow = _fftflip_all_axes(subwindow)
+        subwindow = flip_fft_all_axes(subwindow)
 
     # Upsample coefficient to full size
-    curvelet_band = upsamp(coefficient, decimation_ratio)
+    curvelet_band = upsample(coefficient, decimation_ratio)
 
     # Undo normalization: divide by sqrt(2 * prod(decimation_ratio))
     curvelet_band /= np.sqrt(2 * np.prod(decimation_ratio))
@@ -227,7 +227,7 @@ def _apply_backward_transform_real(
     # Process low-frequency band
     image_frequency_low = np.zeros(parameters.size, dtype=complex_dtype)
     decimation_ratio = decimation_ratios[0][0]
-    curvelet_band = upsamp(coefficients[0][0][0], decimation_ratio)
+    curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
     idx, val = windows[0][0][0]
     image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
@@ -350,7 +350,7 @@ def _apply_backward_transform_complex(
     # Process low-frequency band
     image_frequency_low = np.zeros(parameters.size, dtype=complex_dtype)
     decimation_ratio = decimation_ratios[0][0]
-    curvelet_band = upsamp(coefficients[0][0][0], decimation_ratio)
+    curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
     idx, val = windows[0][0][0]
     image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
@@ -462,7 +462,7 @@ def _apply_backward_transform(
     For complex transform mode, positive and negative frequencies are
     processed separately and combined. The negative frequency windows
     are obtained by flipping the positive frequency windows using
-    `_fftflip_all_axes`.
+    `flip_fft_all_axes`.
 
     The transform provides perfect reconstruction when used with the
     corresponding forward transform, due to the tight frame property

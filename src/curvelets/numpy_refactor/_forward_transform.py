@@ -13,7 +13,7 @@ from ._typing import (
     _is_complex_array,
     _is_floating_array,
 )
-from ._utils import ParamUDCT, _fftflip_all_axes, downsamp
+from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 
 
 def _process_wedge_real(
@@ -68,7 +68,7 @@ def _process_wedge_real(
     curvelet_band = np.fft.ifftn(freq_band)
 
     # Downsample the curvelet band according to the decimation ratio
-    coeff = downsamp(curvelet_band, decimation_ratio)
+    coeff = downsample(curvelet_band, decimation_ratio)
 
     # Apply normalization factor: sqrt(2 * product of decimation ratios)
     # This ensures proper energy preservation in the transform
@@ -129,7 +129,7 @@ def _process_wedge_complex(
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
-        subwindow = _fftflip_all_axes(subwindow)
+        subwindow = flip_fft_all_axes(subwindow)
 
     # Apply window to frequency domain and transform to spatial domain
     # Apply sqrt(0.5) scaling for complex transform (separates +/- frequencies)
@@ -138,7 +138,7 @@ def _process_wedge_complex(
     )
 
     # Downsample the curvelet band according to the decimation ratio
-    coeff = downsamp(band_filtered, decimation_ratio)
+    coeff = downsample(band_filtered, decimation_ratio)
 
     # Apply normalization factor: sqrt(2 * product of decimation ratios)
     # This ensures proper energy preservation in the transform
@@ -249,7 +249,7 @@ def _apply_forward_transform_real(
     # Real transform: take real part
     curvelet_band = np.fft.ifftn(frequency_band)
 
-    low_freq_coeff = downsamp(curvelet_band, decimation_ratios[0][0])
+    low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = np.sqrt(
         np.prod(np.full((parameters.dim,), fill_value=2 ** (parameters.res - 1)))
     )
@@ -330,7 +330,7 @@ def _apply_forward_transform_complex(
     The complex transform separates positive and negative frequencies into
     different directions. Each band is scaled by sqrt(0.5) to maintain energy
     preservation. The negative frequency windows are obtained by flipping the
-    positive frequency windows using `_fftflip_all_axes`.
+    positive frequency windows using `flip_fft_all_axes`.
 
     This mode is required for complex-valued inputs and provides full frequency
     information.
@@ -383,7 +383,7 @@ def _apply_forward_transform_complex(
     curvelet_band = np.fft.ifftn(frequency_band)
 
     coefficients: UDCTCoefficients = [
-        [[downsamp(curvelet_band, decimation_ratios[0][0])]]
+        [[downsample(curvelet_band, decimation_ratios[0][0])]]
     ]
     norm = np.sqrt(
         np.prod(np.full((parameters.dim,), fill_value=2 ** (parameters.res - 1)))
@@ -530,7 +530,7 @@ def _apply_forward_transform(
 
     For complex transform mode, positive and negative frequencies are
     processed separately. The negative frequency windows are obtained by
-    flipping the positive frequency windows using `_fftflip_all_axes`.
+    flipping the positive frequency windows using `flip_fft_all_axes`.
 
     The transform provides a tight frame, meaning perfect reconstruction
     is possible using the corresponding backward transform.
