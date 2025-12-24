@@ -5,7 +5,7 @@ from typing import Literal, overload
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import UDCTCoefficients, UDCTWindows, _to_complex_dtype, _to_real_dtype
+from ._typing import C, UDCTWindows, _to_complex_dtype, _to_real_dtype
 from ._utils import ParamUDCT, flip_fft_all_axes, upsample
 
 
@@ -131,7 +131,7 @@ def _process_wedge_backward_complex(
 
 
 def _apply_backward_transform_real(
-    coefficients: UDCTCoefficients,
+    coefficients: list[list[list[npt.NDArray[C]]]],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -146,7 +146,7 @@ def _apply_backward_transform_real(
 
     Parameters
     ----------
-    coefficients : UDCTCoefficients
+    coefficients : list[list[list[npt.NDArray[C]]]]
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -238,7 +238,7 @@ def _apply_backward_transform_real(
 
 
 def _apply_backward_transform_complex(
-    coefficients: UDCTCoefficients,
+    coefficients: list[list[list[npt.NDArray[C]]]],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -253,7 +253,7 @@ def _apply_backward_transform_complex(
 
     Parameters
     ----------
-    coefficients : UDCTCoefficients
+    coefficients : list[list[list[npt.NDArray[C]]]]
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -362,7 +362,7 @@ def _apply_backward_transform_complex(
 
 @overload
 def _apply_backward_transform(
-    coefficients: UDCTCoefficients,
+    coefficients: list[list[list[npt.NDArray[C]]]],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -372,7 +372,7 @@ def _apply_backward_transform(
 
 @overload
 def _apply_backward_transform(
-    coefficients: UDCTCoefficients,
+    coefficients: list[list[list[npt.NDArray[C]]]],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -381,7 +381,7 @@ def _apply_backward_transform(
 
 
 def _apply_backward_transform(
-    coefficients: UDCTCoefficients,
+    coefficients: list[list[list[npt.NDArray[C]]]],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -397,7 +397,7 @@ def _apply_backward_transform(
 
     Parameters
     ----------
-    coefficients : UDCTCoefficients
+    coefficients : list[list[list[npt.NDArray[C]]]]
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)

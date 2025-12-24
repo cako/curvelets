@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from math import prod
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 import numpy as np
 import numpy.typing as npt
@@ -14,12 +14,9 @@ from ._forward_transform import (
 )
 from ._meyerwavelet import MeyerWavelet
 from ._typing import (
-    ComplexFloatingNDArray,
-    FloatingNDArray,
-    UDCTCoefficients,
+    C,
+    F,
     UDCTWindows,
-    _is_complex_array,
-    _is_floating_array,
     _to_complex_dtype,
 )
 from ._udct_windows import UDCTWindow
@@ -384,13 +381,15 @@ class UDCT:
         """
         return UDCTWindow.compute(self.parameters)
 
-    def vect(self, coefficients: UDCTCoefficients) -> npt.NDArray[np.complexfloating]:
+    def vect(
+        self, coefficients: list[list[list[npt.NDArray[C]]]]
+    ) -> npt.NDArray[np.complexfloating]:
         """
         Convert structured coefficients to vector representation.
 
         Parameters
         ----------
-        coefficients : UDCTCoefficients
+        coefficients : list[list[list[npt.NDArray[C]]]]
             Structured curvelet coefficients.
 
         Returns
@@ -418,7 +417,7 @@ class UDCT:
 
     def struct(
         self, coefficients_vec: npt.NDArray[np.complexfloating]
-    ) -> UDCTCoefficients:
+    ) -> list[list[list[npt.NDArray[C]]]]:
         """
         Convert vector representation to structured coefficients.
 
@@ -429,7 +428,7 @@ class UDCT:
 
         Returns
         -------
-        UDCTCoefficients
+        list[list[list[npt.NDArray[C]]]]
             Structured curvelet coefficients.
 
         Examples
@@ -445,7 +444,7 @@ class UDCT:
         True
         """
         begin_idx = 0
-        coefficients: UDCTCoefficients = []
+        coefficients: list[list[list[npt.NDArray[C]]]] = []
         internal_shape = np.array(self.parameters.size)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             coefficients.append([])
@@ -482,23 +481,49 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
+    @overload
     def forward(
-        self, image: FloatingNDArray | ComplexFloatingNDArray
-    ) -> UDCTCoefficients:
+        self, image: npt.NDArray[np.float32]
+    ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+
+    @overload
+    def forward(
+        self, image: npt.NDArray[np.float64]
+    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+
+    @overload
+    def forward(
+        self, image: npt.NDArray[np.complex64]
+    ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+
+    @overload
+    def forward(
+        self, image: npt.NDArray[np.complex128]
+    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+
+    def forward(
+        self, image: npt.NDArray[F] | npt.NDArray[C]
+    ) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
         """
         Apply forward curvelet transform.
 
         Parameters
         ----------
-        image : np.ndarray
-            Input data with shape matching self.shape.
+        image : npt.NDArray[F] | npt.NDArray[C]
+            Input data with shape matching self.shape. Can be real-valued
+            (npt.NDArray[F]) or complex-valued (npt.NDArray[C]).
 
         Returns
         -------
-        UDCTCoefficients
+        list[list[list[npt.NDArray[C]]]]
             Curvelet coefficients as nested list structure.
             When use_complex_transform=True, directions are doubled (first dim directions
             for positive frequencies, next dim for negative).
+            Coefficients have complex dtype matching the input:
+            - np.float32 input -> np.complex64 coefficients
+            - np.float64 input -> np.complex128 coefficients
+            - np.complex64 input -> np.complex64 coefficients
+            - np.complex128 input -> np.complex128 coefficients
 
         Examples
         --------
@@ -521,9 +546,9 @@ class UDCT:
             image = self._meyer_wavelet.forward(image)
 
         # Apply curvelet transform
-        # Use type guards to narrow the type and call appropriate implementation
+        # Runtime checks determine the appropriate transform path
         if self.use_complex_transform:
-            if _is_complex_array(image):
+            if np.iscomplexobj(image):
                 result = _apply_forward_transform_complex(
                     image,
                     self.parameters,
@@ -540,7 +565,7 @@ class UDCT:
                     self.windows,
                     self.decimation_ratios,
                 )
-        elif _is_floating_array(image):
+        elif not np.iscomplexobj(image):
             result = _apply_forward_transform_real(
                 image,
                 self.parameters,
@@ -557,13 +582,13 @@ class UDCT:
             )
         return result
 
-    def backward(self, coefficients: UDCTCoefficients) -> np.ndarray:
+    def backward(self, coefficients: list[list[list[npt.NDArray[C]]]]) -> np.ndarray:
         """
         Apply backward curvelet transform (reconstruction).
 
         Parameters
         ----------
-        coefficients : UDCTCoefficients
+        coefficients : list[list[list[npt.NDArray[C]]]]
             Curvelet coefficients from forward transform.
 
         Returns

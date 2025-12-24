@@ -6,12 +6,10 @@ import numpy as np
 import numpy.typing as npt
 
 from ._typing import (
-    ComplexFloatingNDArray,
-    FloatingNDArray,
+    C,
+    F,
     UDCTCoefficients,
     UDCTWindows,
-    _is_complex_array,
-    _is_floating_array,
 )
 from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 
@@ -147,12 +145,30 @@ def _process_wedge_complex(
     return coeff
 
 
+@overload
 def _apply_forward_transform_real(
-    image: FloatingNDArray,
+    image: npt.NDArray[np.float32],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
-) -> UDCTCoefficients:
+) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+
+
+@overload
+def _apply_forward_transform_real(
+    image: npt.NDArray[np.float64],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+
+
+def _apply_forward_transform_real(
+    image: npt.NDArray[F],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
     """
     Apply forward Uniform Discrete Curvelet Transform in real mode.
 
@@ -162,7 +178,7 @@ def _apply_forward_transform_real(
 
     Parameters
     ----------
-    image : FloatingNDArray
+    image : npt.NDArray[F]
         Input image or volume to decompose. Must have shape matching
         `parameters.size`. Must be real-valued (floating point dtype).
     parameters : ParamUDCT
@@ -184,13 +200,15 @@ def _apply_forward_transform_real(
 
     Returns
     -------
-    UDCTCoefficients
+    list[list[list[npt.NDArray[C]]]]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..res: High-frequency bands (dim directions per scale)
         Each coefficient array has shape determined by decimation ratios.
-        All coefficients are real-valued.
+        Coefficients are complex dtype matching the complex version of input dtype:
+        - np.float32 input -> np.complex64 coefficients
+        - np.float64 input -> np.complex128 coefficients
 
     Notes
     -----
@@ -278,12 +296,30 @@ def _apply_forward_transform_real(
     return coefficients
 
 
+@overload
 def _apply_forward_transform_complex(
-    image: ComplexFloatingNDArray,
+    image: npt.NDArray[np.complex64],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
-) -> UDCTCoefficients:
+) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+
+
+@overload
+def _apply_forward_transform_complex(
+    image: npt.NDArray[np.complex128],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+
+
+def _apply_forward_transform_complex(
+    image: npt.NDArray[C],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
     """
     Apply forward Uniform Discrete Curvelet Transform in complex mode.
 
@@ -293,7 +329,7 @@ def _apply_forward_transform_complex(
 
     Parameters
     ----------
-    image : ComplexFloatingNDArray
+    image : npt.NDArray[C]
         Input image or volume to decompose. Must have shape matching
         `parameters.size`. Must be complex-valued (complex floating point dtype).
     parameters : ParamUDCT
@@ -315,7 +351,7 @@ def _apply_forward_transform_complex(
 
     Returns
     -------
-    UDCTCoefficients
+    list[list[list[npt.NDArray[C]]]]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -323,7 +359,7 @@ def _apply_forward_transform_complex(
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
         Each coefficient array has shape determined by decimation ratios.
-        All coefficients are complex-valued.
+        Coefficients have the same complex dtype as input (C).
 
     Notes
     -----
@@ -432,31 +468,51 @@ def _apply_forward_transform_complex(
 
 @overload
 def _apply_forward_transform(
-    image: ComplexFloatingNDArray,
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-    use_complex_transform: Literal[True],
-) -> UDCTCoefficients: ...
-
-
-@overload
-def _apply_forward_transform(
-    image: FloatingNDArray,
+    image: npt.NDArray[np.float32],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[False] = False,
-) -> UDCTCoefficients: ...
+) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+
+
+@overload
+def _apply_forward_transform(
+    image: npt.NDArray[np.float64],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+    use_complex_transform: Literal[False] = False,
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+
+
+@overload
+def _apply_forward_transform(
+    image: npt.NDArray[np.complex64],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+    use_complex_transform: Literal[True],
+) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+
+
+@overload
+def _apply_forward_transform(
+    image: npt.NDArray[np.complex128],
+    parameters: ParamUDCT,
+    windows: UDCTWindows,
+    decimation_ratios: list[npt.NDArray[np.int_]],
+    use_complex_transform: Literal[True],
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
 
 
 def _apply_forward_transform(
-    image: FloatingNDArray | ComplexFloatingNDArray,
+    image: npt.NDArray[F] | npt.NDArray[C],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: bool = False,
-) -> UDCTCoefficients:
+) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
     """
     Apply forward Uniform Discrete Curvelet Transform (decomposition).
 
@@ -466,10 +522,10 @@ def _apply_forward_transform(
 
     Parameters
     ----------
-    image : FloatingNDArray | ComplexFloatingNDArray
+    image : npt.NDArray[F] | npt.NDArray[C]
         Input image or volume to decompose. Must have shape matching
-        `parameters.size`. Must be either real-valued (FloatingNDArray) or
-        complex-valued (ComplexFloatingNDArray).
+        `parameters.size`. Must be either real-valued (npt.NDArray[F]) or
+        complex-valued (npt.NDArray[C]).
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - res : int
@@ -499,7 +555,7 @@ def _apply_forward_transform(
 
     Returns
     -------
-    UDCTCoefficients
+    list[list[list[npt.NDArray[C]]]]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -507,6 +563,11 @@ def _apply_forward_transform(
           * Real mode: dim directions per scale
           * Complex mode: 2*dim directions per scale
         Each coefficient array has shape determined by decimation ratios.
+        Coefficients have complex dtype matching the input:
+        - np.float32 input -> np.complex64 coefficients
+        - np.float64 input -> np.complex128 coefficients
+        - np.complex64 input -> np.complex64 coefficients
+        - np.complex128 input -> np.complex128 coefficients
 
     Notes
     -----
@@ -583,13 +644,13 @@ def _apply_forward_transform(
     True
     """
     if use_complex_transform:
-        # Type guard narrows the type for the type checker
+        # Runtime check for complex arrays
         # The overloads ensure type safety at call sites
-        if _is_complex_array(image):
+        if np.iscomplexobj(image):
             return _apply_forward_transform_complex(
                 image, parameters, windows, decimation_ratios
             )
-        # Fall through if type guard doesn't match - try anyway for runtime flexibility
+        # Fall through if not complex - try anyway for runtime flexibility
         # This handles edge cases where overloads can't determine type
         return _apply_forward_transform_complex(
             image,
@@ -599,14 +660,14 @@ def _apply_forward_transform(
         )
 
     # Real transform mode
-    # Type guard narrows the type for the type checker
+    # Runtime check for real arrays
     # The overloads ensure type safety at call sites
-    if _is_floating_array(image):
+    if not np.iscomplexobj(image):
         return _apply_forward_transform_real(
             image, parameters, windows, decimation_ratios
         )
 
-    # Fall through if type guard doesn't match - try anyway for runtime flexibility
+    # Fall through if not real - try anyway for runtime flexibility
     # This handles edge cases where overloads can't determine type
     return _apply_forward_transform_real(
         image,

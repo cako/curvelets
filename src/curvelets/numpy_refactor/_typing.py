@@ -3,9 +3,9 @@ from __future__ import annotations
 import sys
 
 if sys.version_info >= (3, 10):
-    from typing import TypeAlias, TypeGuard
+    from typing import TypeAlias, TypeVar
 else:
-    from typing_extensions import TypeAlias, TypeGuard
+    from typing_extensions import TypeAlias, TypeVar
 
 
 import numpy as np
@@ -24,73 +24,29 @@ else:
         list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
     ]
 
+# TypeVars for numpy array dtypes
+# F: Real floating point types
+F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
+
+# C: Complex floating point types
+C = TypeVar("C", np.complex64, np.complex128, np.complex256)
+
+# A: Any numpy array type (includes all numpy scalar types: floating, complex, integer, bool, etc.)
+A = TypeVar("A", bound=np.generic)
+
 # Type aliases for common NDArray types
-# Note: np.floating does NOT include np.complexfloating - they are separate base classes
-FloatingNDArray: TypeAlias = npt.NDArray[np.floating]
-ComplexFloatingNDArray: TypeAlias = npt.NDArray[np.complexfloating]
+# Note: These are kept for backward compatibility but new code should use TypeVars directly
 IntegerNDArray: TypeAlias = npt.NDArray[np.int_]
 IntpNDArray: TypeAlias = npt.NDArray[np.intp]
 BoolNDArray: TypeAlias = npt.NDArray[np.bool_]
 
-
-def _is_complex_array(
-    image: FloatingNDArray | ComplexFloatingNDArray,
-) -> TypeGuard[ComplexFloatingNDArray]:
-    """
-    Type guard to check if an array is complex-valued.
-
-    Parameters
-    ----------
-    image : FloatingNDArray | ComplexFloatingNDArray
-        Array to check.
-
-    Returns
-    -------
-    TypeGuard[ComplexFloatingNDArray]
-        True if the array is complex-valued, False otherwise.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy_refactor._typing import _is_complex_array
-    >>> arr_complex = np.array([1+2j, 3+4j])
-    >>> arr_real = np.array([1.0, 2.0])
-    >>> _is_complex_array(arr_complex)
-    True
-    >>> _is_complex_array(arr_real)
-    False
-    """
-    return np.iscomplexobj(image)
-
-
-def _is_floating_array(
-    image: FloatingNDArray | ComplexFloatingNDArray,
-) -> TypeGuard[FloatingNDArray]:
-    """
-    Type guard to check if an array is real-valued (floating point).
-
-    Parameters
-    ----------
-    image : FloatingNDArray | ComplexFloatingNDArray
-        Array to check.
-
-    Returns
-    -------
-    TypeGuard[FloatingNDArray]
-        True if the array is real-valued, False otherwise.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy_refactor._typing import _is_floating_array
-    >>> arr_real = np.array([1.0, 2.0])
-    >>> arr_complex = np.array([1+2j, 3+4j])
-    >>> _is_floating_array(arr_real)
-    True
-    >>> _is_floating_array(arr_complex)
-    False
-    """
-    return not np.iscomplexobj(image)
+# Note: UDCTCoefficients is always complex dtype (even in "real" transform mode)
+# For generic usage, use list[list[list[npt.NDArray[C]]]] directly in function signatures
+# where C is the complex TypeVar matching the input dtype precision:
+# - NDArray[np.float32] -> list[list[list[npt.NDArray[np.complex64]]]]
+# - NDArray[np.float64] -> list[list[list[npt.NDArray[np.complex128]]]]
+# - NDArray[np.complex64] -> list[list[list[npt.NDArray[np.complex64]]]]
+# - NDArray[np.complex128] -> list[list[list[npt.NDArray[np.complex128]]]]
 
 
 def _to_real_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:

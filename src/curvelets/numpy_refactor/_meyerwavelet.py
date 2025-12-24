@@ -5,7 +5,7 @@ from typing import overload
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import ComplexFloatingNDArray, FloatingNDArray
+from ._typing import C, F
 from ._utils import meyer_window
 
 
@@ -328,14 +328,14 @@ class MeyerWavelet:
         return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
 
     @overload
-    def forward(self, signal: ComplexFloatingNDArray) -> ComplexFloatingNDArray: ...
+    def forward(self, signal: npt.NDArray[C]) -> npt.NDArray[C]: ...
 
     @overload
-    def forward(self, signal: FloatingNDArray) -> FloatingNDArray: ...  # type: ignore[overload-cannot-match]
+    def forward(self, signal: npt.NDArray[F]) -> npt.NDArray[F]: ...
 
     def forward(
-        self, signal: FloatingNDArray | ComplexFloatingNDArray
-    ) -> FloatingNDArray | ComplexFloatingNDArray:
+        self, signal: npt.NDArray[F] | npt.NDArray[C]
+    ) -> npt.NDArray[F] | npt.NDArray[C]:
         """
         Apply multi-dimensional Meyer wavelet forward transform.
 
@@ -402,15 +402,15 @@ class MeyerWavelet:
 
     @overload
     def backward(
-        self, lowpass_subband: ComplexFloatingNDArray
-    ) -> ComplexFloatingNDArray: ...
+        self, lowpass_subband: npt.NDArray[C]
+    ) -> npt.NDArray[C]: ...
 
     @overload
-    def backward(self, lowpass_subband: FloatingNDArray) -> FloatingNDArray: ...  # type: ignore[overload-cannot-match]
+    def backward(self, lowpass_subband: npt.NDArray[F]) -> npt.NDArray[F]: ...
 
     def backward(
-        self, lowpass_subband: FloatingNDArray | ComplexFloatingNDArray
-    ) -> FloatingNDArray | ComplexFloatingNDArray:
+        self, lowpass_subband: npt.NDArray[F] | npt.NDArray[C]
+    ) -> npt.NDArray[F] | npt.NDArray[C]:
         """
         Apply multi-dimensional Meyer wavelet inverse transform.
 

@@ -15,8 +15,9 @@ import numpy as np
 import numpy.typing as npt
 
 from ._typing import (
-    ComplexFloatingNDArray,
-    FloatingNDArray,
+    A,
+    C,
+    F,
     IntegerNDArray,
     IntpNDArray,
 )
@@ -128,15 +129,11 @@ class ParamUDCT:
 
 
 @overload
-def circular_shift(
-    array: FloatingNDArray, shift: tuple[int, ...]
-) -> FloatingNDArray: ...
+def circular_shift(array: npt.NDArray[F], shift: tuple[int, ...]) -> npt.NDArray[F]: ...
 
 
-@overload  # type: ignore[overload-overlap]
-def circular_shift(
-    array: ComplexFloatingNDArray, shift: tuple[int, ...]
-) -> ComplexFloatingNDArray: ...
+@overload
+def circular_shift(array: npt.NDArray[C], shift: tuple[int, ...]) -> npt.NDArray[C]: ...
 
 
 def circular_shift(
@@ -152,9 +149,9 @@ def circular_shift(
 
     Parameters
     ----------
-    array : FloatingNDArray | ComplexFloatingNDArray
-        Input array to shift. Can be real-valued (FloatingNDArray) or
-        complex-valued (ComplexFloatingNDArray). The array is shifted along
+    array : npt.NDArray[F] | npt.NDArray[C]
+        Input array to shift. Can be real-valued (npt.NDArray[F]) or
+        complex-valued (npt.NDArray[C]). The array is shifted along
         all axes simultaneously.
     shift : tuple[int, ...]
         Shift amounts for each dimension. Must have length equal to `array.ndim`.
@@ -164,9 +161,9 @@ def circular_shift(
 
     Returns
     -------
-    FloatingNDArray | ComplexFloatingNDArray
+    npt.NDArray[F] | npt.NDArray[C]
         Circularly shifted array with the same shape and dtype as input.
-        Returns FloatingNDArray if input is real, ComplexFloatingNDArray if
+        Returns npt.NDArray[F] if input is real, npt.NDArray[C] if
         input is complex.
 
     Notes
@@ -270,11 +267,11 @@ def downsample(
 
 
 @overload
-def flip_fft_all_axes(array: FloatingNDArray) -> FloatingNDArray: ...  # type: ignore[misc]
+def flip_fft_all_axes(array: npt.NDArray[F]) -> npt.NDArray[F]: ...
 
 
 @overload
-def flip_fft_all_axes(array: ComplexFloatingNDArray) -> ComplexFloatingNDArray: ...  # type: ignore[overload-cannot-match]
+def flip_fft_all_axes(array: npt.NDArray[C]) -> npt.NDArray[C]: ...
 
 
 def flip_fft_all_axes(
@@ -295,16 +292,16 @@ def flip_fft_all_axes(
 
     Parameters
     ----------
-    array : FloatingNDArray | ComplexFloatingNDArray
-        Input array in FFT representation. Can be real-valued (FloatingNDArray)
-        or complex-valued (ComplexFloatingNDArray). The array is flipped and
+    array : npt.NDArray[F] | npt.NDArray[C]
+        Input array in FFT representation. Can be real-valued (npt.NDArray[F])
+        or complex-valued (npt.NDArray[C]). The array is flipped and
         shifted along all dimensions simultaneously.
 
     Returns
     -------
-    FloatingNDArray | ComplexFloatingNDArray
-        Flipped array representing negative frequencies. Returns FloatingNDArray
-        if input is real, ComplexFloatingNDArray if input is complex. The output
+    npt.NDArray[F] | npt.NDArray[C]
+        Flipped array representing negative frequencies. Returns npt.NDArray[F]
+        if input is real, npt.NDArray[C] if input is complex. The output
         has the same shape and dtype as the input.
 
     Notes
@@ -361,7 +358,7 @@ def meyer_window(
     plateau_start: float,
     plateau_end: float,
     transition_end: float,
-) -> FloatingNDArray:
+) -> npt.NDArray[F]:
     """
     Compute Meyer wavelet window function with polynomial transitions.
 
