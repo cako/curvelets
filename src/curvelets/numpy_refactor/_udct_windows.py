@@ -757,6 +757,190 @@ class UDCTWindow:
                 ]
 
     @staticmethod
+    def _build_angle_indices_1d(
+        scale_idx: int,
+        dimension_idx: int,
+        angle_functions: dict[int, dict[tuple[int, int], FloatingNDArray]],
+        parameters: ParamUDCT,
+    ) -> IntegerNDArray:
+        """
+        Build multi-dimensional angle index combinations using Kronecker products.
+
+        Parameters
+        ----------
+        scale_idx : int
+            Scale index (1-based).
+        dimension_idx : int
+            Dimension index (0-based).
+        angle_functions : dict[int, dict[tuple[int, int], FloatingNDArray]]
+            Dictionary of angle functions by scale and dimension.
+        parameters : ParamUDCT
+            UDCT parameters.
+
+        Returns
+        -------
+        IntegerNDArray
+            Array of shape (num_windows, dim-1) containing angle index combinations.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._utils import ParamUDCT
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
+        >>> params = ParamUDCT(
+        ...     size=(64, 64), res=3, dim=2,
+        ...     angular_wedges_config=np.array([[3], [6], [12]]),
+        ...     window_overlap=0.15, window_threshold=1e-5,
+        ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
+        ... )
+        >>> # This would be called internally by compute()
+        """
+        angle_indices_1d = np.arange(
+            len(angle_functions[scale_idx - 1][(dimension_idx, 0)])
+        )[:, None]
+        for angle_dim_idx in range(1, parameters.dim - 1):
+            num_angles = len(
+                angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)]
+            )
+            angle_indices_2d = np.arange(
+                len(angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)])
+            )[:, None]
+            kron_1 = np.kron(angle_indices_1d, np.ones((num_angles, 1), dtype=int))
+            kron_2 = np.kron(
+                np.ones((angle_indices_1d.shape[0], 1), dtype=int),
+                angle_indices_2d,
+            )
+            angle_indices_1d = np.c_[kron_1, kron_2]
+        return angle_indices_1d
+
+    @staticmethod
+    def _process_single_window(
+        scale_idx: int,
+        dimension_idx: int,
+        window_index: int,
+        angle_indices_1d: IntegerNDArray,
+        angle_functions: dict[int, dict[tuple[int, int], FloatingNDArray]],
+        angle_indices: dict[int, dict[tuple[int, int], IntegerNDArray]],
+        bandpass_windows: dict[int, FloatingNDArray],
+        direction_mappings: list[IntegerNDArray],
+        max_angles_per_dim: IntegerNDArray,
+        parameters: ParamUDCT,
+    ) -> tuple[list[tuple[IntpNDArray, FloatingNDArray]], IntegerNDArray]:
+        """
+        Process a single window_index value completely independently.
+
+        This method processes one window_index, building the window, generating
+        flipped versions for symmetry, and converting to sparse format. Each
+        call is completely independent with no shared state.
+
+        Parameters
+        ----------
+        scale_idx : int
+            Scale index (1-based).
+        dimension_idx : int
+            Dimension index (0-based).
+        window_index : int
+            Window index to process.
+        angle_indices_1d : IntegerNDArray
+            Pre-computed angle index combinations.
+        angle_functions : dict[int, dict[tuple[int, int], FloatingNDArray]]
+            Dictionary of angle functions by scale and dimension.
+        angle_indices : dict[int, dict[tuple[int, int], IntegerNDArray]]
+            Dictionary of angle indices by scale and dimension.
+        bandpass_windows : dict[int, FloatingNDArray]
+            Dictionary of bandpass windows by scale.
+        direction_mappings : list[IntegerNDArray]
+            Direction mappings for each resolution.
+        max_angles_per_dim : IntegerNDArray
+            Maximum angles per dimension.
+        parameters : ParamUDCT
+            UDCT parameters.
+
+        Returns
+        -------
+        tuple[list[tuple[IntpNDArray, FloatingNDArray]], IntegerNDArray]]
+            Tuple containing:
+            - List of window tuples (indices, values) for this window_index
+              (including original and flipped versions)
+            - angle_indices_2d array for this window_index
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy_refactor._utils import ParamUDCT
+        >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
+        >>> # This would be called internally by compute()
+        """
+        # Build window for the given window_index
+        window: FloatingNDArray = np.ones(parameters.size, dtype=float)
+        for angle_dim_idx in range(parameters.dim - 1):
+            angle_idx = angle_indices_1d.reshape(len(angle_indices_1d), -1)[
+                window_index, angle_dim_idx
+            ]
+            angle_func = angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)][
+                angle_idx
+            ]
+            angle_idx_mapping = angle_indices[scale_idx - 1][
+                (dimension_idx, angle_dim_idx)
+            ]
+            kron_angle = UDCTWindow._compute_angle_kronecker_product(
+                angle_func, angle_idx_mapping, parameters
+            )
+            window *= kron_angle
+        window *= bandpass_windows[scale_idx]
+        window = np.sqrt(circshift(window, tuple(s // 4 for s in parameters.size)))
+
+        window_functions = []
+        window_functions.append(window)
+
+        angle_indices_2d = angle_indices_1d[window_index : window_index + 1, :] + 1
+
+        # Generate flipped window versions for symmetry
+        # For each dimension, if the angle index is in the first half,
+        # create a flipped version by reflecting across the midpoint
+        for flip_dimension_index in range(parameters.dim - 2, -1, -1):
+            for function_index in range(angle_indices_2d.shape[0]):
+                if (
+                    2 * angle_indices_2d[function_index, flip_dimension_index]
+                    <= max_angles_per_dim[flip_dimension_index]
+                ):
+                    # Compute reflected angle index
+                    flipped_angle_indices = angle_indices_2d[
+                        function_index : function_index + 1, :
+                    ].copy()
+                    flipped_angle_indices[0, flip_dimension_index] = (
+                        max_angles_per_dim[flip_dimension_index]
+                        + 1
+                        - angle_indices_2d[function_index, flip_dimension_index]
+                    )
+                    angle_indices_2d = np.r_[angle_indices_2d, flipped_angle_indices]
+                    # Flip the window function along the appropriate axis
+                    flip_axis_dimension = int(
+                        direction_mappings[scale_idx - 1][
+                            dimension_idx, flip_dimension_index
+                        ]
+                    )
+                    window = UDCTWindow._flip_with_fft_shift(
+                        window_functions[function_index],
+                        flip_axis_dimension,
+                    )
+                    window_functions.append(window)
+        angle_indices_2d -= 1
+        window_functions = np.c_[window_functions]
+
+        # Convert all window functions to sparse format
+        window_tuples = []
+        for function_index in range(window_functions.shape[0]):
+            window_tuples.append(
+                UDCTWindow._to_sparse(
+                    window_functions[function_index],
+                    parameters.window_threshold,
+                )
+            )
+
+        return window_tuples, angle_indices_2d
+
+    @staticmethod
     def compute(
         parameters: ParamUDCT,
     ) -> tuple[UDCTWindows, list[IntegerNDArray], dict[int, dict[int, IntegerNDArray]]]:
@@ -916,131 +1100,55 @@ class UDCTWindow:
         #   1. Build window by combining angle functions with bandpass filter
         #   2. Generate flipped versions for symmetry
         #   3. Convert to sparse format and store
-        for scale_idx in range(1, parameters.res + 1):  # pylint: disable=too-many-nested-blocks
+        for scale_idx in range(1, parameters.res + 1):
             windows.append([])
             indices[scale_idx] = {}
+
             for dimension_idx in range(parameters.dim):
-                windows[scale_idx].append([])
-                # Build multi-dimensional angle index combinations using Kronecker products
-                angle_indices_1d = np.arange(
-                    len(angle_functions[scale_idx - 1][(dimension_idx, 0)])
-                )[:, None]
-                for angle_dim_idx in range(1, parameters.dim - 1):
-                    num_angles = len(
-                        angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)]
-                    )
-                    angle_indices_2d = np.arange(
-                        len(
-                            angle_functions[scale_idx - 1][
-                                (dimension_idx, angle_dim_idx)
-                            ]
-                        )
-                    )[:, None]
-                    kron_1 = np.kron(
-                        angle_indices_1d, np.ones((num_angles, 1), dtype=int)
-                    )
-                    kron_2 = np.kron(
-                        np.ones((angle_indices_1d.shape[0], 1), dtype=int),
-                        angle_indices_2d,
-                    )
-                    angle_indices_1d = np.c_[kron_1, kron_2]
+                # Build angle_indices_1d once per (scale_idx, dimension_idx)
+                angle_indices_1d = UDCTWindow._build_angle_indices_1d(
+                    scale_idx=scale_idx,
+                    dimension_idx=dimension_idx,
+                    angle_functions=angle_functions,
+                    parameters=parameters,
+                )
                 num_windows = angle_indices_1d.shape[0]
                 max_angles_per_dim = parameters.angular_wedges_config[
                     scale_idx - 1, direction_mappings[scale_idx - 1][dimension_idx, :]
                 ]
-                for window_index in range(num_windows):
-                    window: FloatingNDArray = np.ones(parameters.size, dtype=float)
-                    for angle_dim_idx in range(parameters.dim - 1):
-                        angle_idx = angle_indices_1d.reshape(len(angle_indices_1d), -1)[
-                            window_index, angle_dim_idx
-                        ]
-                        angle_func = angle_functions[scale_idx - 1][
-                            (dimension_idx, angle_dim_idx)
-                        ][angle_idx]
-                        angle_idx_mapping = angle_indices[scale_idx - 1][
-                            (dimension_idx, angle_dim_idx)
-                        ]
-                        kron_angle = UDCTWindow._compute_angle_kronecker_product(
-                            angle_func, angle_idx_mapping, parameters
-                        )
-                        window *= kron_angle
-                    window *= bandpass_windows[scale_idx]
-                    window = np.sqrt(
-                        circshift(window, tuple(s // 4 for s in parameters.size))
+
+                # Process each window_index independently
+                window_results = [
+                    UDCTWindow._process_single_window(
+                        scale_idx=scale_idx,
+                        dimension_idx=dimension_idx,
+                        window_index=window_index,
+                        angle_indices_1d=angle_indices_1d,
+                        angle_functions=angle_functions,
+                        angle_indices=angle_indices,
+                        bandpass_windows=bandpass_windows,
+                        direction_mappings=direction_mappings,
+                        max_angles_per_dim=max_angles_per_dim,
+                        parameters=parameters,
                     )
+                    for window_index in range(num_windows)
+                ]
 
-                    window_functions = []
-                    window_functions.append(window)
+                # Flatten windows and concatenate angle indices
+                all_windows = [
+                    window
+                    for window_list, _ in window_results
+                    for window in window_list
+                ]
+                all_angle_indices = [angle_idx for _, angle_idx in window_results]
+                angle_index_array = (
+                    np.concatenate(all_angle_indices, axis=0)
+                    if all_angle_indices
+                    else np.zeros((0, parameters.dim - 1), dtype=int)
+                )
 
-                    angle_indices_2d = (
-                        angle_indices_1d[window_index : window_index + 1, :] + 1
-                    )
-
-                    # Generate flipped window versions for symmetry
-                    # For each dimension, if the angle index is in the first half,
-                    # create a flipped version by reflecting across the midpoint
-                    for flip_dimension_index in range(parameters.dim - 2, -1, -1):
-                        for function_index in range(angle_indices_2d.shape[0]):
-                            if (
-                                2
-                                * angle_indices_2d[function_index, flip_dimension_index]
-                                <= max_angles_per_dim[flip_dimension_index]
-                            ):
-                                # Compute reflected angle index
-                                flipped_angle_indices = angle_indices_2d[
-                                    function_index : function_index + 1, :
-                                ].copy()
-                                flipped_angle_indices[0, flip_dimension_index] = (
-                                    max_angles_per_dim[flip_dimension_index]
-                                    + 1
-                                    - angle_indices_2d[
-                                        function_index, flip_dimension_index
-                                    ]
-                                )
-                                angle_indices_2d = np.r_[
-                                    angle_indices_2d, flipped_angle_indices
-                                ]
-                                # Flip the window function along the appropriate axis
-                                flip_axis_dimension = int(
-                                    direction_mappings[scale_idx - 1][
-                                        dimension_idx, flip_dimension_index
-                                    ]
-                                )
-                                window = UDCTWindow._flip_with_fft_shift(
-                                    window_functions[function_index],
-                                    flip_axis_dimension,
-                                )
-                                window_functions.append(window)
-                    angle_indices_2d -= 1
-                    window_functions = np.c_[window_functions]
-
-                    if window_index == 0:
-                        angle_index_array = angle_indices_2d
-                        for function_index in range(angle_index_array.shape[0]):
-                            windows[scale_idx][dimension_idx].append(
-                                UDCTWindow._to_sparse(
-                                    window_functions[function_index],
-                                    parameters.window_threshold,
-                                )
-                            )
-                    else:
-                        previous_array_size = angle_index_array.shape[0]
-                        angle_index_array = np.concatenate(
-                            (angle_index_array, angle_indices_2d), axis=0
-                        )
-                        new_array_size = angle_index_array.shape[0]
-                        for function_index in range(
-                            previous_array_size, new_array_size
-                        ):
-                            windows[scale_idx][dimension_idx].append(
-                                UDCTWindow._to_sparse(
-                                    window_functions[
-                                        function_index - previous_array_size
-                                    ],
-                                    parameters.window_threshold,
-                                )
-                            )
-                        indices[scale_idx][dimension_idx] = angle_index_array.copy()
+                windows[scale_idx].append(all_windows)
+                indices[scale_idx][dimension_idx] = angle_index_array
 
         UDCTWindow._inplace_normalize_windows(
             windows,
