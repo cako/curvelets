@@ -826,117 +826,287 @@ class UDCTWindow:
         max_angles_per_dim: IntegerNDArray,
         parameters: ParamUDCT,
     ) -> tuple[list[tuple[IntpNDArray, FloatingNDArray]], IntegerNDArray]:
-        """
-        Process a single window_index value completely independently.
+        r"""
+        Process a single window_index value, constructing curvelet windows with symmetry.
 
-        This method processes one window_index, building the window, generating
-        flipped versions for symmetry, and converting to sparse format. Each
-        call is completely independent with no shared state.
+        This method implements the window construction algorithm from Nguyen & Chauris
+        (2010), Section IV. It builds a single curvelet window by combining radial
+        (bandpass) and angular (directional) components, then generates symmetric
+        flipped versions to satisfy the partition of unity condition required for
+        the tight frame property.
+
+        The method processes one window_index completely independently, building the
+        window, generating flipped versions for symmetry, and converting to sparse
+        format. Each call is stateless with no shared state.
+
+        References
+        ----------
+        .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
+           Transform": IEEE Transactions on Signal Processing, 58, 3618–3634.
+           DOI: 10.1109/TSP.2010.2047666
 
         Parameters
         ----------
         scale_idx : int
-            Scale index (1-based).
+            High-frequency scale index, ranging from 1 to res (inclusive).
+            Note: Scale 0 (lowpass) is handled separately in :py:meth:`UDCTWindow.compute`
+            and is never passed to this method. When accessing pre-computed arrays like
+            `angle_functions` or `bandpass_windows`, use `scale_idx - 1` because
+            those arrays are 0-indexed for high-frequency scales.
+            Corresponds to resolution level j in the paper (Section IV).
         dimension_idx : int
-            Dimension index (0-based).
+            Dimension index (0-based), corresponding to direction l in the paper.
         window_index : int
-            Window index to process.
+            Window index to process, selecting a specific angular wedge combination.
         angle_indices_1d : IntegerNDArray
-            Pre-computed angle index combinations.
+            Pre-computed angle index combinations from Kronecker products.
         angle_functions : dict[int, dict[tuple[int, int], FloatingNDArray]]
-            Dictionary of angle functions by scale and dimension.
+            Dictionary of angle functions A_{j,l} by scale and dimension (Section IV).
         angle_indices : dict[int, dict[tuple[int, int], IntegerNDArray]]
             Dictionary of angle indices by scale and dimension.
         bandpass_windows : dict[int, FloatingNDArray]
-            Dictionary of bandpass windows by scale.
+            Dictionary of Meyer wavelet-based bandpass filters F_j by scale (Section IV).
         direction_mappings : list[IntegerNDArray]
-            Direction mappings for each resolution.
+            Direction mappings for each resolution, used to determine flip axes.
         max_angles_per_dim : IntegerNDArray
-            Maximum angles per dimension.
+            Maximum angles per dimension, used to determine which indices need flipping.
         parameters : ParamUDCT
-            UDCT parameters.
+            UDCT parameters containing transform configuration.
 
         Returns
         -------
-        tuple[list[tuple[IntpNDArray, FloatingNDArray]], IntegerNDArray]]
+        tuple[list[tuple[IntpNDArray, FloatingNDArray]], IntegerNDArray]
             Tuple containing:
             - List of window tuples (indices, values) for this window_index
-              (including original and flipped versions)
-            - angle_indices_2d array for this window_index
+              (including original and flipped versions) in sparse format
+            - angle_indices_2d : IntegerNDArray, shape (num_windows, dim-1)
+              Array of angle indices for all windows (original + flipped versions).
+              Each row corresponds to one window, and each column corresponds to
+              one angular dimension. Values are 0-based indices indicating which
+              angular wedge is used in each dimension. The first row contains the
+              original angle indices from angle_indices_1d[window_index, :], and
+              subsequent rows contain flipped versions generated for symmetry.
+
+        Notes
+        -----
+        **Window Construction (Section IV, Nguyen & Chauris 2010)**:
+        The base window is constructed as :math:`W_{j,l} = F_j \cdot A_{j,l}`, where:
+        - :math:`F_j` is the Meyer wavelet-based bandpass filter for scale :math:`j`
+        - :math:`A_{j,l}` is the angular function for direction :math:`l`, constructed via
+          Kronecker products of 1D angle functions
+
+        The window is then shifted by :math:`\text{size}//4` in each dimension and
+        square-rooted to center it in frequency space.
+
+        **Symmetry Generation**:
+        For each window at angle index :math:`i`, this method generates symmetric
+        windows at reflected angle indices. The reflection formula is
+        :math:`i' = \text{max\_angles} - 1 - i` for each angular dimension.
+
+        The flipped windows are created by applying frequency-domain flips along
+        appropriate axes using :py:meth:`UDCTWindow._flip_with_fft_shift`. This ensures
+        proper coverage of both positive and negative frequencies, which is required
+        for the partition of unity condition (normalization is performed separately in
+        :py:meth:`UDCTWindow.compute`).
+
+        **Angle Indices Tracking**:
+        The angle_indices_2d array tracks which angular wedges are used by each
+        window. For a given window_index, we start with a single set of angle
+        indices from angle_indices_1d, then generate flipped versions by
+        reflecting indices across different angular dimensions. The first row
+        contains the original angle indices, and subsequent rows contain flipped
+        versions.
 
         Examples
         --------
+        This method is typically called internally by :py:meth:`UDCTWindow.compute`.
+        For a given window_index, it processes one set of angle indices and generates
+        all symmetric flipped versions:
+
         >>> import numpy as np
         >>> from curvelets.numpy_refactor._utils import ParamUDCT
         >>> from curvelets.numpy_refactor._udct_windows import UDCTWindow
-        >>> # This would be called internally by compute()
+        >>>
+        >>> # Example output structure:
+        >>> # For a 2D transform (dim=2), angle_indices_2d has shape (num_windows, 1)
+        >>> # since dim-1 = 1. The first row is the original, subsequent rows
+        >>> # are flipped versions for symmetry.
+        >>> #
+        >>> # Example: if processing window_index=0 with angle_idx=[1], it might generate:
+        >>> angle_indices_2d = np.array([[1], [2]])  # original and one flipped version
+        >>> angle_indices_2d.shape
+        (2, 1)
+        >>>
+        >>> # window_tuples is a list of (indices, values) tuples in sparse format:
+        >>> # window_tuples = [
+        >>> #     (np.array([10, 20, 30]), np.array([0.5, 0.8, 0.3])),  # first window
+        >>> #     (np.array([15, 25, 35]), np.array([0.4, 0.7, 0.2]))   # flipped window
+        >>> # ]
+        >>> # Each tuple represents a sparse window: (non-zero indices, non-zero values)
         """
-        # Build window for the given window_index
+        # Step 1: Build base window W_{j,l} = F_j · A_{j,l} (Section IV, Nguyen & Chauris 2010)
+        # Initialize with unity: W = 1
         window: FloatingNDArray = np.ones(parameters.size, dtype=float)
+
+        # Multiply by angular functions A_{j,l} for each angular dimension
+        # These provide directional selectivity via Kronecker products
         for angle_dim_idx in range(parameters.dim - 1):
             angle_idx = angle_indices_1d.reshape(len(angle_indices_1d), -1)[
                 window_index, angle_dim_idx
             ]
+            # Get 1D angle function for this dimension and angle index
+            # Note: scale_idx - 1 because angle_functions is 0-indexed for high-frequency scales
+            # (scale 0 is lowpass, handled separately; scales 1..res map to indices 0..res-1)
             angle_func = angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)][
                 angle_idx
             ]
             angle_idx_mapping = angle_indices[scale_idx - 1][
                 (dimension_idx, angle_dim_idx)
             ]
+            # Expand 1D angle function to N-D using Kronecker products
+            # This creates the multi-dimensional angular wedge A_{j,l}
             kron_angle = UDCTWindow._compute_angle_kronecker_product(
                 angle_func, angle_idx_mapping, parameters
             )
             window *= kron_angle
+
+        # Multiply by bandpass filter F_j (Meyer wavelet-based, Section IV)
+        # This provides scale selectivity
+        # Note: bandpass_windows[scale_idx] directly because bandpass_windows[0] is lowpass,
+        # and bandpass_windows[1..res] correspond to high-frequency scales 1..res
         window *= bandpass_windows[scale_idx]
+
+        # Apply frequency shift (size//4 in each dimension) and square root
+        # The shift centers the window in frequency space, and square root
+        # ensures proper normalization for the partition of unity condition
         window = np.sqrt(circshift(window, tuple(s // 4 for s in parameters.size)))
 
-        window_functions = []
-        window_functions.append(window)
+        # Step 2: Generate symmetric flipped versions for partition of unity
+        # The partition of unity requires: |W_0(ω)|² + ∑|W_{j,l}(ω)|² + ∑|W_{j,l}(-ω)|² = 1
+        # (Section IV, Nguyen & Chauris 2010)
+        # We need symmetric windows W_{j,l}(-ω) to cover negative frequencies
 
-        angle_indices_2d = angle_indices_1d[window_index : window_index + 1, :] + 1
+        def needs_flipping(
+            angle_idx: IntegerNDArray, flip_dimension_index: int
+        ) -> bool:
+            """
+            Check if an angle index needs flipping for the given dimension.
 
-        # Generate flipped window versions for symmetry
-        # For each dimension, if the angle index is in the first half,
-        # create a flipped version by reflecting across the midpoint
+            Only indices in the lower half need flipping to avoid duplicates.
+            Condition: 2*(i+1) <= max_angles ensures we only flip indices
+            that haven't been generated from a previous flip.
+            """
+            return bool(
+                2 * (angle_idx[flip_dimension_index] + 1)
+                <= max_angles_per_dim[flip_dimension_index]
+            )
+
+        def flip_angle_idx(
+            angle_idx: IntegerNDArray, flip_dimension_index: int
+        ) -> IntegerNDArray:
+            """
+            Compute the flipped angle index for the given dimension.
+
+            Reflection formula: i' = max_angles - 1 - i
+            This creates the symmetric counterpart needed for W_{j,l}(-ω)
+            in the partition of unity condition.
+            """
+            flipped = angle_idx.copy()
+            flipped[flip_dimension_index] = (
+                max_angles_per_dim[flip_dimension_index]
+                - 1
+                - angle_idx[flip_dimension_index]
+            )
+            return flipped
+
+        # First pass: compute all angle indices that will exist (without creating windows)
+        # Build the complete set of angle indices (original + all flipped versions)
+        # This determines how many windows we need to create
+        def add_flipped_indices(
+            indices_list: list[IntegerNDArray], flip_dimension_index: int
+        ) -> list[IntegerNDArray]:
+            """
+            Add flipped indices for a given dimension.
+
+            For each index in the list that needs flipping, generate its
+            symmetric counterpart. This builds the complete set of angle
+            indices needed for the partition of unity.
+            """
+            needs_flip_mask = np.array(
+                [needs_flipping(idx, flip_dimension_index) for idx in indices_list]
+            )
+            flipped_indices = [
+                flip_angle_idx(indices_list[function_index], flip_dimension_index)
+                for function_index in np.where(needs_flip_mask)[0]
+            ]
+            return indices_list + flipped_indices
+
+        # Start with the original angle index for this window_index
+        angle_indices_list = [angle_indices_1d[window_index, :].copy()]
+        # Iterate through angular dimensions from dim-2 down to 0
+        # This ensures we generate all necessary symmetric combinations
         for flip_dimension_index in range(parameters.dim - 2, -1, -1):
-            for function_index in range(angle_indices_2d.shape[0]):
-                if (
-                    2 * angle_indices_2d[function_index, flip_dimension_index]
-                    <= max_angles_per_dim[flip_dimension_index]
-                ):
-                    # Compute reflected angle index
-                    flipped_angle_indices = angle_indices_2d[
-                        function_index : function_index + 1, :
-                    ].copy()
-                    flipped_angle_indices[0, flip_dimension_index] = (
-                        max_angles_per_dim[flip_dimension_index]
-                        + 1
-                        - angle_indices_2d[function_index, flip_dimension_index]
+            angle_indices_list = add_flipped_indices(
+                angle_indices_list, flip_dimension_index
+            )
+
+        # Create arrays once with final size (pre-allocate for efficiency)
+        num_windows = len(angle_indices_list)
+        angle_indices_2d = np.array(angle_indices_list)
+        window_functions = np.zeros((num_windows, *parameters.size), dtype=window.dtype)
+
+        # Second pass: fill in windows, applying flips as needed
+        # Build mapping from angle index to its source window and flip dimension
+        # This allows us to efficiently generate flipped windows from their sources
+        angle_to_source: dict[tuple[int, ...], tuple[int, int]] = {
+            tuple(angle_indices_2d[0]): (0, -1)  # Original has no source
+        }
+        # Build the complete mapping by iterating through dimensions
+        for flip_dimension_index in range(parameters.dim - 2, -1, -1):
+            for source_idx_tuple, (source_window_idx, _) in list(
+                angle_to_source.items()
+            ):
+                source_angle_idx = np.array(source_idx_tuple)
+                if needs_flipping(source_angle_idx, flip_dimension_index):
+                    flipped_angle_idx = flip_angle_idx(
+                        source_angle_idx, flip_dimension_index
                     )
-                    angle_indices_2d = np.r_[angle_indices_2d, flipped_angle_indices]
-                    # Flip the window function along the appropriate axis
-                    flip_axis_dimension = int(
-                        direction_mappings[scale_idx - 1][
-                            dimension_idx, flip_dimension_index
-                        ]
-                    )
-                    window = UDCTWindow._flip_with_fft_shift(
-                        window_functions[function_index],
-                        flip_axis_dimension,
-                    )
-                    window_functions.append(window)
-        angle_indices_2d -= 1
-        window_functions = np.c_[window_functions]
+                    flipped_angle_idx_tuple = tuple(flipped_angle_idx)
+                    if flipped_angle_idx_tuple not in angle_to_source:
+                        angle_to_source[flipped_angle_idx_tuple] = (
+                            source_window_idx,
+                            flip_dimension_index,
+                        )
+
+        # Fill windows by iterating through angle_indices_2d in order
+        # Store the original window (computed in Step 1)
+        window_functions[0] = window
+
+        # Generate flipped windows W_{j,l}(-ω) by applying frequency-domain flips
+        # These symmetric windows are needed for the partition of unity condition
+        for window_idx in range(1, num_windows):
+            angle_idx_tuple = tuple(angle_indices_2d[window_idx])
+            source_window_idx, flip_dimension_index = angle_to_source[angle_idx_tuple]
+            # Get the physical axis along which to flip (from direction mappings)
+            # Note: scale_idx - 1 because direction_mappings is 0-indexed for high-frequency scales
+            # (scale 0 is lowpass, handled separately; scales 1..res map to indices 0..res-1)
+            flip_axis_dimension = int(
+                direction_mappings[scale_idx - 1][dimension_idx, flip_dimension_index]
+            )
+            # Apply frequency-domain flip: W_flipped = flip_with_fft_shift(W_source, axis)
+            # This creates the symmetric window for negative frequencies
+            window_functions[window_idx] = UDCTWindow._flip_with_fft_shift(
+                window_functions[source_window_idx], flip_axis_dimension
+            )
 
         # Convert all window functions to sparse format
-        window_tuples = []
-        for function_index in range(window_functions.shape[0]):
-            window_tuples.append(
-                UDCTWindow._to_sparse(
-                    window_functions[function_index],
-                    parameters.window_threshold,
-                )
+        window_tuples = [
+            UDCTWindow._to_sparse(
+                window_functions[function_index],
+                parameters.window_threshold,
             )
+            for function_index in range(window_functions.shape[0])
+        ]
 
         return window_tuples, angle_indices_2d
 
@@ -944,14 +1114,19 @@ class UDCTWindow:
     def compute(
         parameters: ParamUDCT,
     ) -> tuple[UDCTWindows, list[IntegerNDArray], dict[int, dict[int, IntegerNDArray]]]:
-        """
+        r"""
         Compute curvelet windows in frequency domain for UDCT transform.
 
-        This method generates the frequency-domain windows used in the Uniform
-        Discrete Curvelet Transform (UDCT). It creates bandpass filters using
-        Meyer wavelets for radial frequency decomposition and angular wedges for
-        directional selectivity. The windows are stored in sparse format to
-        optimize memory usage.
+        This method implements the window construction algorithm from Nguyen & Chauris
+        (2010), Section IV. It generates frequency-domain windows by combining Meyer
+        wavelet-based bandpass filters with angular wedges, then normalizes them to
+        satisfy the partition of unity condition for the tight frame property.
+
+        References
+        ----------
+        .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
+           Transform": IEEE Transactions on Signal Processing, 58, 3618–3634.
+           DOI: 10.1109/TSP.2010.2047666
 
         Parameters
         ----------
@@ -990,34 +1165,23 @@ class UDCTWindow:
 
         Notes
         -----
-        The window computation process involves several steps:
+        **Window Construction (Section IV, Nguyen & Chauris 2010)**:
+        Constructs windows :math:`W_{j,l} = F_j \cdot A_{j,l}` where :math:`F_j` are
+        Meyer wavelet-based bandpass filters (via :py:meth:`UDCTWindow._create_bandpass_windows`)
+        and :math:`A_{j,l}` are angular functions (via :py:meth:`UDCTWindow._create_angle_info`).
+        Low-frequency window (scale 0) is handled separately; high-frequency windows
+        (scales 1..res) are generated via :py:meth:`UDCTWindow._process_single_window`.
 
-        1. **Radial frequency decomposition**: Creates bandpass filters using
-           Meyer wavelets to decompose the frequency domain into radial bands
-           corresponding to different scales.
+        **Partition of Unity (Section IV)**:
+        Windows are normalized via :py:meth:`UDCTWindow._inplace_normalize_windows` to
+        satisfy:
 
-        2. **Angular wedge construction**: For each scale and direction, creates
-           angular wedges that provide directional selectivity. The number of
-           wedges is determined by `angular_wedges_config`.
+        .. math::
+           |W_0(\omega)|^2 + \sum_{j,l} |W_{j,l}(\omega)|^2 + \sum_{j,l} |W_{j,l}(-\omega)|^2 = 1
 
-        3. **Window generation**: Combines radial bandpass filters with angular
-           wedges to create the final curvelet windows. Each window is shifted
-           by size//4 in each dimension to center it in frequency space.
-
-        4. **Sparse storage**: Windows are converted to sparse format using
-           `window_threshold` to reduce memory usage. Only values above the
-           threshold are stored.
-
-        5. **Normalization**: Windows are normalized so that the sum of squares
-           of all windows equals 1 at each frequency point, ensuring perfect
-           reconstruction.
-
-        6. **Sorting**: Windows are sorted by their angular indices for
-           consistent ordering.
-
-        The windows are designed to provide a tight frame, meaning they form
-        a complete representation that allows perfect reconstruction of the
-        original signal.
+        This ensures a tight frame, enabling perfect reconstruction and energy
+        preservation: :math:`\|f\|^2 = \sum |c_{j,l,k}|^2`. Windows are then sorted
+        via :py:meth:`UDCTWindow._inplace_sort_windows` for consistent ordering.
 
         Examples
         --------
@@ -1095,17 +1259,17 @@ class UDCTWindow:
             direction_mappings=direction_mappings,
         )
 
-        # Generate windows for each high-frequency scale
-        # For each scale, direction, and wedge combination:
-        #   1. Build window by combining angle functions with bandpass filter
-        #   2. Generate flipped versions for symmetry
-        #   3. Convert to sparse format and store
+        # Generate windows for each high-frequency scale (scales 1 to res)
+        # Each scale contains multiple directions (one per dimension), and each
+        # direction contains multiple wedges (windows with different angular orientations)
         for scale_idx in range(1, parameters.res + 1):
             windows.append([])
             indices[scale_idx] = {}
 
+            # Process each direction (dimension) independently
             for dimension_idx in range(parameters.dim):
-                # Build angle_indices_1d once per (scale_idx, dimension_idx)
+                # Build angle index combinations once per (scale_idx, dimension_idx)
+                # This determines which angular wedges will be created
                 angle_indices_1d = UDCTWindow._build_angle_indices_1d(
                     scale_idx=scale_idx,
                     dimension_idx=dimension_idx,
@@ -1117,7 +1281,9 @@ class UDCTWindow:
                     scale_idx - 1, direction_mappings[scale_idx - 1][dimension_idx, :]
                 ]
 
-                # Process each window_index independently
+                # Process each window_index independently using list comprehension
+                # Each call returns (list of window tuples, angle_indices_2d array)
+                # Windows include original and flipped versions for symmetry
                 window_results = [
                     UDCTWindow._process_single_window(
                         scale_idx=scale_idx,
@@ -1134,7 +1300,9 @@ class UDCTWindow:
                     for window_index in range(num_windows)
                 ]
 
-                # Flatten windows and concatenate angle indices
+                # Combine results from all window_index values:
+                # - Flatten nested window lists into a single list
+                # - Concatenate all angle_indices_2d arrays into one array
                 all_windows = [
                     window
                     for window_list, _ in window_results
@@ -1147,6 +1315,7 @@ class UDCTWindow:
                     else np.zeros((0, parameters.dim - 1), dtype=int)
                 )
 
+                # Store results for this (scale_idx, dimension_idx) combination
                 windows[scale_idx].append(all_windows)
                 indices[scale_idx][dimension_idx] = angle_index_array
 
