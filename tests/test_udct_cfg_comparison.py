@@ -106,7 +106,7 @@ def _create_equivalent_transforms(
     return transform_orig, transform_ref
 
 
-@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("dim", [2, 3, 4])
 @pytest.mark.parametrize("cfg_idx", [0])
 @pytest.mark.parametrize("shape_idx", [0])
 @pytest.mark.parametrize("alpha", [0.15])
@@ -162,20 +162,6 @@ def test_udct_cfg_forward_coefficients_match(
     if not complex_transform and np.iscomplexobj(np.array([1], dtype=dtype)):
         pytest.skip("Complex dtype requires complex_transform=True")
 
-    # NOTE: Known bug in refactored 3D implementation:
-    # Investigation shows that for 3D transforms, the refactored implementation
-    # produces different window values than the original (28% of values differ
-    # significantly, max diff ~1.0). The low-frequency window computation
-    # matches before normalization, suggesting the issue is in:
-    # 1. High-frequency window computation for 3D
-    # 2. Window normalization logic for 3D
-    # 3. How windows are accumulated/flipped during normalization for 3D
-    # 
-    # 2D transforms work correctly, indicating this is specific to 3D handling.
-    # This causes coefficient mismatch and reconstruction failure (round-trip
-    # error ~3.25 vs ~6e-5 for original). The bug needs to be fixed in the
-    # window computation/normalization code in numpy_refactor.
-
     try:
         # Create both transforms
         transform_orig, transform_ref = _create_equivalent_transforms(
@@ -220,7 +206,7 @@ def test_udct_cfg_forward_coefficients_match(
             transform_ref.forward(data)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("dim", [2, 3, 4])
 @pytest.mark.parametrize("cfg_idx", [0])
 @pytest.mark.parametrize("shape_idx", [0])
 @pytest.mark.parametrize("alpha", [0.15])
@@ -362,7 +348,7 @@ def test_udct_cfg_parameter_combinations(
     Parameters
     ----------
     dim : int
-        Dimension (2).
+        Dimension (2, 3, or 4).
     cfg_idx : int
         Index into get_test_configs(dim).
     shape_idx : int
