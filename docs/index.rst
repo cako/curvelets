@@ -32,17 +32,17 @@ Installation
 First Steps
 -----------
 
-**Curvelets** provides a very simple interface to use the UDCT, :obj:`SimpleUDCT <curvelets.numpy.SimpleUDCT>`.
+**Curvelets** provides a very simple interface to use the UDCT, :obj:`UDCT <curvelets.numpy.UDCT>`.
 Its only required argument is the shape of the inputs, but you can also supply the number of "scale" or "resolutions" (``num_scales``) as well as the number of wedges per direction (``wedges_per_direction``).
 The more scales there are, the more granular the distinction between a slowly-varying and a highly-varying feature. The more wedges there are, the more granular the distinction between the directions of the features. Explore the :ref:`sphx_glr_auto_examples_plot_02_direction_resolution.py` example to better understand the effect of the scales and the wedges on the decomposition.
 
 .. code-block:: python
 
     import numpy as np
-    from curvelets.numpy import SimpleUDCT
+    from curvelets.numpy import UDCT
 
     x = np.ones((128, 128))
-    C = SimpleUDCT(shape=x.shape)
+    C = UDCT(shape=x.shape)
     y = C.forward(x)
     np.testing.assert_allclose(x, C.backward(y))
 

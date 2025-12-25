@@ -11,7 +11,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from curvelets.numpy import SimpleUDCT
+from curvelets.numpy import UDCT
 from curvelets.plot import create_inset_axes_grid, overlay_arrows, overlay_disk
 from curvelets.utils import apply_along_wedges, normal_vector_field
 
@@ -42,7 +42,7 @@ ax.set(xlabel="Position [km]", ylabel="Depth [km]", title="Data")
 # %%
 # UDCT
 # ####
-Cop = SimpleUDCT(data.shape, num_scales=3, wedges_per_direction=3)
+Cop = UDCT(data.shape, num_scales=3, wedges_per_direction=3)
 d_c = Cop.forward(data)
 
 # %%

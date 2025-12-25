@@ -18,13 +18,13 @@ from matplotlib.colors import Normalize, to_rgba
 from matplotlib.gridspec import GridSpec
 from numpy.fft import fftfreq, fftshift
 
-from curvelets.numpy import UDCT, SimpleUDCT
+from curvelets.numpy import UDCT
 
 # %%
 # Symmetric and Asymmetric UDCTs
 # ##############################
 x = np.zeros((300, 200))
-C_sym = SimpleUDCT(x.shape, num_scales=3, wedges_per_direction=3)
+C_sym = UDCT(x.shape, num_scales=3, wedges_per_direction=3)
 C_asymh = UDCT(shape=x.shape, angular_wedges_config=np.array([[3, 6], [6, 12]]))
 C_asymv = UDCT(shape=x.shape, angular_wedges_config=np.array([[6, 3], [12, 6]]))
 
@@ -203,7 +203,7 @@ nx, ny = x.shape
 kx = fftshift(fftfreq(nx))
 ky = fftshift(fftfreq(ny))
 
-C: UDCT | SimpleUDCT
+C: UDCT
 # %%
 # Symmetric
 # ---------

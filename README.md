@@ -45,15 +45,15 @@
 
 ```python
 import numpy as np
-from curvelets.numpy import SimpleUDCT
+from curvelets.numpy import UDCT
 
 x = np.ones((128, 128))
-C = SimpleUDCT(shape=x.shape)
+C = UDCT(shape=x.shape)
 y = C.forward(x)
 np.testing.assert_allclose(x, C.backward(y))
 ```
 
-You can use `SimpleUDCT` very similarly to `FDCT` from [curvelops](https://github.com/PyLops/curvelops), with a limitation that SimpleUDCT only operates arrays whose sizes are powers of 2.
+You can use `UDCT` very similarly to `FDCT` from [curvelops](https://github.com/PyLops/curvelops), with a limitation that UDCT only operates arrays whose sizes are powers of 2.
 
 
 

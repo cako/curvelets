@@ -47,10 +47,10 @@ def apply_along_wedges(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy import SimpleUDCT  # SimpleUDCT is an alias for UDCT
+    >>> from curvelets.numpy import UDCT
     >>> from curvelets.utils import apply_along_wedges
     >>> x = np.zeros((32, 32))
-    >>> C = SimpleUDCT(x.shape, num_scales=3, wedges_per_direction=3)
+    >>> C = UDCT(x.shape, num_scales=3, wedges_per_direction=3)
     >>> y = C.forward(x)
     >>> apply_along_wedges(y, lambda w, *_: w.shape)
     [[[(16, 16)]],

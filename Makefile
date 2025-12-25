@@ -11,23 +11,23 @@ endif
 
 test39:
 	make uvcheck
-	$(UV) tool run nox -s tests-3.9
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.9
 
 test310:
 	make uvcheck
-	$(UV) tool run nox -s tests-3.10
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.10
 
 test311:
 	make uvcheck
-	$(UV) tool run nox -s tests-3.11
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.11
 
 test312:
 	make uvcheck
-	$(UV) tool run nox -s tests-3.12
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.12
 
 test313:
 	make uvcheck
-	$(UV) tool run nox -s tests-3.13
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.13
 
 test:
 	make test39
@@ -38,19 +38,19 @@ test:
 
 lint:
 	make uvcheck
-	$(UV) tool run nox -s lint
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s lint
 
 pylint:
 	make uvcheck
-	$(UV) tool run nox -s pylint
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s pylint
 
 doc:
 	make uvcheck
-	cd docs && rm -rf source && sphinx-apidoc -f -M -o source/ ../src && cd .. && $(UV) tool run nox -s docs
+	cd docs && rm -rf source && sphinx-apidoc -f -M -o source/ ../src && cd .. && unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s docs
 
 servedocs:
 	make uvcheck
-	$(UV) tool run nox -s docs -- --serve --port 1234
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s docs -- --serve --port 1234
 
 watchdoc:
 	while inotifywait -q -r src/ examples/ -e create,delete,modify; do { make doc; }; done
