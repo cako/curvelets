@@ -1064,9 +1064,15 @@ class UDCTWindow:
             tuple(angle_indices_2d[0]): (0, -1)  # Original has no source
         }
         # Build the complete mapping by iterating through dimensions
+        # We need to track which window index corresponds to each angle index
+        # as we build the mapping, so we can use the correct source window
+        angle_idx_to_window_idx: dict[tuple[int, ...], int] = {
+            tuple(angle_indices_2d[0]): 0
+        }
         for flip_dimension_index in range(parameters.dim - 2, -1, -1):
-            for source_idx_tuple, (source_window_idx, _) in list(
-                angle_to_source.items()
+            # Iterate through all angle indices we've seen so far (not just sources)
+            for source_idx_tuple, source_window_idx in list(
+                angle_idx_to_window_idx.items()
             ):
                 source_angle_idx = np.array(source_idx_tuple)
                 if needs_flipping(source_angle_idx, flip_dimension_index):
@@ -1075,9 +1081,17 @@ class UDCTWindow:
                     )
                     flipped_angle_idx_tuple = tuple(flipped_angle_idx)
                     if flipped_angle_idx_tuple not in angle_to_source:
+                        # Use the window index that corresponds to the source angle index
+                        # This ensures we flip from the correct window (not always window 0)
                         angle_to_source[flipped_angle_idx_tuple] = (
                             source_window_idx,
                             flip_dimension_index,
+                        )
+                        # Track the new angle index -> window index mapping
+                        # The window index will be assigned when we fill in windows
+                        # For now, we'll use the next available index
+                        angle_idx_to_window_idx[flipped_angle_idx_tuple] = len(
+                            angle_idx_to_window_idx
                         )
 
         # Fill windows by iterating through angle_indices_2d in order
