@@ -249,23 +249,25 @@ class UDCTWindow:
         )
 
         # Expand 1D angle function to N-D using multi-step Kronecker products:
+        # This matches the original angle_kron implementation which uses travel() = T.ravel()
         # Step 1: Expand along dimension 1 (kronecker_dimension_sizes[1])
         kron_step1 = np.kron(
             np.ones((kronecker_dimension_sizes[1], 1), dtype=int), angle_function_1d
         )
-        kron_step1_flat = kron_step1.ravel()
+        # Use travel() = T.ravel() instead of ravel() to match original implementation
+        kron_step1_travel = kron_step1.T.ravel()
         kron_step2 = np.kron(
-            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_flat
+            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_travel
         ).ravel()
-        kron_step3 = np.kron(
-            kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int)
-        ).ravel()
-        return kron_step3.reshape(*param_udct.size)
+        # Use travel() = T.ravel() for the final step as well
+        kron_step3 = (
+            np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int))
+        ).T.ravel()
+        # Match original: reshape with reversed size and transpose
+        return kron_step3.reshape(*param_udct.size[::-1]).T
 
     @staticmethod
-    def _flip_with_fft_shift(
-        input_array: npt.NDArray[F], axis: int
-    ) -> npt.NDArray[F]:
+    def _flip_with_fft_shift(input_array: npt.NDArray[F], axis: int) -> npt.NDArray[F]:
         """
         Flip array along specified axis with frequency domain shift.
 
