@@ -1,4 +1,4 @@
-"""Tests for error paths in numpy_refactor module."""
+"""Tests for error paths in numpy module."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import logging
 import numpy as np
 import pytest
 
-from curvelets.numpy_refactor import UDCT, MeyerWavelet
+from curvelets.numpy import UDCT, MeyerWavelet
 
 
 class TestUDCTWindowOverlapWarnings:
@@ -80,7 +80,7 @@ class TestMeyerWaveletErrors:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> lowpass = np.random.randn(32, 32)
         >>> try:
@@ -109,7 +109,7 @@ class TestMeyerWaveletErrors:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> wrong_shape_signal = np.random.randn(32, 32)
         >>> try:
@@ -159,7 +159,7 @@ class TestUDCTErrors:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import UDCT
+        >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64))
         >>> wrong_shape_data = np.random.randn(32, 32)
         >>> try:
@@ -204,7 +204,7 @@ class TestUDCTErrors:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import UDCT
+        >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3,
         ...                  high_frequency_mode="wavelet")
         >>> data = np.random.randn(64, 64)

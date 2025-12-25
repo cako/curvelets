@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
 
-from curvelets.numpy.udct import UDCT
+from curvelets.numpy import UDCT
 from curvelets.plot import create_colorbar, despine
 
 
@@ -40,7 +40,7 @@ def make_zone_plate(shape: tuple[int, ...], amplitude: float = 1.0, phase: float
 shape = (256, 256)
 zone_plate = make_zone_plate(shape)
 cfg = np.array([[3, 3], [6, 6], [12, 6]])
-C = UDCT(shape=shape, cfg=cfg)
+C = UDCT(shape=shape, angular_wedges_config=cfg)
 
 # %%
 # Uniform Discrete Curvelet Transform Round Trip

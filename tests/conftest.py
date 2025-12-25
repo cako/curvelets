@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from curvelets.numpy.typing import UDCTCoefficients, UDCTWindows
-from curvelets.numpy.utils import from_sparse_new
+from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
+from curvelets.numpy._utils import from_sparse_new
 
 # Common test parameters
 COMMON_ALPHA = 0.15
@@ -163,12 +163,12 @@ def _create_numpy_transform(
 
     transform_obj = numpy_udct.UDCT(
         shape=size,
-        cfg=cfg,
-        alpha=alpha,
-        r=COMMON_R,
-        winthresh=COMMON_WINTHRESH,
-        high=high,
-        complex=complex,
+        angular_wedges_config=cfg,
+        window_overlap=alpha,
+        radial_frequency_params=COMMON_R,
+        window_threshold=COMMON_WINTHRESH,
+        high_frequency_mode=high,
+        use_complex_transform=complex,
     )
 
     def forward(data):

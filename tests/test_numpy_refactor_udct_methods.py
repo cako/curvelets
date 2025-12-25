@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from curvelets.numpy_refactor import UDCT
+from curvelets.numpy import UDCT
 
 
 class TestVectMethod:

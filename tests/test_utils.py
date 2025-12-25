@@ -35,7 +35,7 @@ def test_array_split_nd():
 
 def test_apply_along_wedges():
     x = np.zeros((32, 32))
-    C = SimpleUDCT(x.shape, nscales=3, nbands_per_direction=3)
+    C = SimpleUDCT(x.shape, num_scales=3, wedges_per_direction=3)
     y = C.forward(x)
     res = apply_along_wedges(y, lambda w, *_: w.shape)
 

@@ -6,13 +6,13 @@ import typing
 
 import numpy as np
 
-from curvelets.numpy_refactor._typing import (
+from curvelets.numpy._typing import (
     FloatingNDArray,
     IntegerNDArray,
     IntpNDArray,
 )
-from curvelets.numpy_refactor._udct_windows import UDCTWindow
-from curvelets.numpy_refactor._utils import ParamUDCT
+from curvelets.numpy._udct_windows import UDCTWindow
+from curvelets.numpy._utils import ParamUDCT
 
 
 def test_type_aliases_exist() -> None:

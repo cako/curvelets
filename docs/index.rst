@@ -33,8 +33,8 @@ First Steps
 -----------
 
 **Curvelets** provides a very simple interface to use the UDCT, :obj:`SimpleUDCT <curvelets.numpy.SimpleUDCT>`.
-Its only required argument is the shape of the inputs, but you can also supply the number of "scale" or "resolutions" (``nscales``) as well as the number of bands per direction (``nbands_per_direction``).
-The more scales there are, the more granular the distinction between a slowly-varying and a highly-varying feature. The more bands there are, the more granular the distinction between the directions of the features. Explore the :ref:`sphx_glr_auto_examples_plot_02_direction_resolution.py` example to better understand the effect of the scales and the bands on the decomposition.
+Its only required argument is the shape of the inputs, but you can also supply the number of "scale" or "resolutions" (``num_scales``) as well as the number of wedges per direction (``wedges_per_direction``).
+The more scales there are, the more granular the distinction between a slowly-varying and a highly-varying feature. The more wedges there are, the more granular the distinction between the directions of the features. Explore the :ref:`sphx_glr_auto_examples_plot_02_direction_resolution.py` example to better understand the effect of the scales and the wedges on the decomposition.
 
 .. code-block:: python
 

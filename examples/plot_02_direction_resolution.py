@@ -24,9 +24,9 @@ from curvelets.numpy import UDCT, SimpleUDCT
 # Symmetric and Asymmetric UDCTs
 # ##############################
 x = np.zeros((300, 200))
-C_sym = SimpleUDCT(x.shape, nscales=3, nbands_per_direction=3)
-C_asymh = UDCT(x.shape, cfg=np.array([[3, 6], [6, 12]]))
-C_asymv = UDCT(x.shape, cfg=np.array([[6, 3], [12, 6]]))
+C_sym = SimpleUDCT(x.shape, num_scales=3, wedges_per_direction=3)
+C_asymh = UDCT(shape=x.shape, angular_wedges_config=np.array([[3, 6], [6, 12]]))
+C_asymv = UDCT(shape=x.shape, angular_wedges_config=np.array([[6, 3], [12, 6]]))
 
 # %%
 # Plotting Functions

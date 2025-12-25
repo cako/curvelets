@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from curvelets.numpy_refactor._typing import _to_complex_dtype, _to_real_dtype
+from curvelets.numpy._typing import _to_complex_dtype, _to_real_dtype
 
 
 def test_to_real_dtype_float32():
