@@ -34,8 +34,7 @@ class UDCTWindow:
     >>>
     >>> # Create parameters for 2D transform with 3 scales
     >>> params = ParamUDCT(
-    ...     dim=2,
-    ...     size=(64, 64),
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
     ...     window_threshold=1e-5,
@@ -47,7 +46,7 @@ class UDCTWindow:
     >>> windows, decimation_ratios, indices = window_computer.compute()
     >>>
     >>> # Check structure
-    >>> len(windows)  # Number of scales (0 + res)
+    >>> len(windows)  # Number of scales (0 + num_scales)
     4
     >>> len(windows[0][0])  # Low-frequency band has 1 window
     1
@@ -70,8 +69,8 @@ class UDCTWindow:
         >>> from curvelets.numpy._utils import ParamUDCT
         >>> from curvelets.numpy._udct_windows import UDCTWindow
         >>> params = ParamUDCT(
-        ...     dim=2,
-        ...     size=(64, 64),
+        ...     ndim=2,
+        ...     shape=(64, 64),
         ...     angular_wedges_config=np.array([[3], [6], [12]]),
         ...     window_overlap=0.15,
         ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
@@ -83,9 +82,9 @@ class UDCTWindow:
         >>> window_computer.shape
         (64, 64)
         """
-        self.num_resolutions = parameters.res
-        self.shape = parameters.size
-        self.dimension = parameters.dim
+        self.num_resolutions = parameters.num_scales
+        self.shape = parameters.shape
+        self.dimension = parameters.ndim
         self.radial_frequency_params = parameters.radial_frequency_params
         self.angular_wedges_config = parameters.angular_wedges_config
         self.window_overlap = parameters.window_overlap
@@ -261,7 +260,7 @@ class UDCTWindow:
         >>> from curvelets.numpy._utils import ParamUDCT
         >>> from curvelets.numpy._udct_windows import UDCTWindow
         >>> params = ParamUDCT(
-        ...     size=(64, 64), res=3, dim=2,
+        ...     shape=(64, 64),
         ...     angular_wedges_config=np.array([[3], [6], [12]]),
         ...     window_overlap=0.15, window_threshold=1e-5,
         ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
@@ -825,7 +824,7 @@ class UDCTWindow:
         >>> from curvelets.numpy._utils import ParamUDCT
         >>> from curvelets.numpy._udct_windows import UDCTWindow
         >>> params = ParamUDCT(
-        ...     size=(64, 64), res=3, dim=2,
+        ...     shape=(64, 64),
         ...     angular_wedges_config=np.array([[3], [6], [12]]),
         ...     window_overlap=0.15, window_threshold=1e-5,
         ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
@@ -971,7 +970,7 @@ class UDCTWindow:
         >>> from curvelets.numpy._udct_windows import UDCTWindow
         >>>
         >>> # Example output structure:
-        >>> # For a 2D transform (dim=2), angle_indices_2d has shape (num_windows, 1)
+        >>> # For a 2D transform (ndim=2), angle_indices_2d has shape (num_windows, 1)
         >>> # since dim-1 = 1. The first row is the original, subsequent rows
         >>> # are flipped versions for symmetry.
         >>> #
@@ -1227,8 +1226,8 @@ class UDCTWindow:
         >>>
         >>> # Create parameters for 2D transform with 3 scales
         >>> params = ParamUDCT(
-        ...     dim=2,
-        ...     size=(64, 64),
+        ...     ndim=2,
+        ...     shape=(64, 64),
         ...     angular_wedges_config=np.array([[3], [6], [12]]),
         ...     window_overlap=0.15,
         ...     window_threshold=1e-5,
@@ -1240,7 +1239,7 @@ class UDCTWindow:
         >>> windows, decimation_ratios, indices = window_computer.compute()
         >>>
         >>> # Check structure
-        >>> len(windows)  # Number of scales (0 + res)
+        >>> len(windows)  # Number of scales (0 + num_scales)
         4
         >>> len(windows[0][0])  # Low-frequency band has 1 window
         1

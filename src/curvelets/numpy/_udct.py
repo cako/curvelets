@@ -127,8 +127,7 @@ class UDCT:
 
         # Create ParamUDCT object
         self.parameters = ParamUDCT(
-            dim=params_dict["dimension"],
-            size=params_dict["internal_shape"],
+            shape=params_dict["internal_shape"],
             angular_wedges_config=params_dict["angular_wedges_config"],
             window_overlap=params_dict["window_overlap"],
             radial_frequency_params=params_dict["radial_frequency_params"],
@@ -374,7 +373,8 @@ class UDCT:
         tuple
             (windows, decimation_ratios, indices)
         """
-        return UDCTWindow.compute(self.parameters)
+        window_computer = UDCTWindow(self.parameters)
+        return window_computer.compute()
 
     def vect(
         self, coefficients: list[list[list[npt.NDArray[C]]]]
@@ -440,13 +440,13 @@ class UDCT:
         """
         begin_idx = 0
         coefficients: list[list[list[npt.NDArray[C]]]] = []
-        internal_shape = np.array(self.parameters.size)
+        internal_shape = np.array(self.parameters.shape)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             coefficients.append([])
             # In complex transform mode, we have 2*dim directions per scale (for scale > 0)
             # but decimation_ratios_scale only has dim rows, so we need to handle this
             if self.use_complex_transform and scale_idx > 0:
-                num_directions = 2 * self.parameters.dim
+                num_directions = 2 * self.parameters.ndim
             else:
                 num_directions = len(decimation_ratios_scale)
 
@@ -458,9 +458,9 @@ class UDCT:
                 if (
                     self.use_complex_transform
                     and scale_idx > 0
-                    and direction_idx >= self.parameters.dim
+                    and direction_idx >= self.parameters.ndim
                 ):
-                    window_direction_idx = direction_idx % self.parameters.dim
+                    window_direction_idx = direction_idx % self.parameters.ndim
                     decimation_ratio_dir = decimation_ratios_scale[
                         window_direction_idx, :
                     ]
@@ -507,7 +507,7 @@ class UDCT:
         from ._utils import from_sparse_new
 
         idx, val = from_sparse_new(arr_sparse)
-        arr_full = np.zeros(self.parameters.size, dtype=val.dtype)
+        arr_full = np.zeros(self.parameters.shape, dtype=val.dtype)
         arr_full.flat[idx] += val
         return arr_full
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
-from math import prod
 
 if sys.version_info >= (3, 10):
     from typing import overload
@@ -12,7 +11,7 @@ else:
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import C, F, IntegerNDArray, IntpNDArray
+from ._typing import C, F, IntegerNDArray
 
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
@@ -21,19 +20,17 @@ class ParamUDCT:
     Parameters for Uniform Discrete Curvelet Transform (UDCT).
 
     This dataclass stores all configuration parameters needed for the UDCT
-    transform, including dimensionality, size, angular wedge configuration,
-    window parameters, and optional indexing/decimation information.
+    transform, including dimensionality, shape, angular wedge configuration,
+    and window parameters.
 
     Parameters
     ----------
-    dim : int
-        Dimensionality of the transform (e.g., 2 for 2D, 3 for 3D).
-    size : tuple[int, ...]
-        Shape of the input data. Must have length equal to `dim`.
+    shape : tuple[int, ...]
+        Shape of the input data (e.g., (64, 64) for 2D, (32, 32, 32) for 3D).
     angular_wedges_config : IntegerNDArray
         Configuration array specifying the number of angular wedges per scale
-        and dimension. Shape is (num_scales, dim). The last dimension must
-        equal `dim`. Each row corresponds to a scale, each column to a dimension.
+        and dimension. Shape is (num_scales, ndim). The last dimension must
+        equal `len(shape)`. Each row corresponds to a scale, each column to a dimension.
     window_overlap : float
         Window overlap parameter controlling the smoothness of window transitions.
         Typically between 0.1 and 0.3. Higher values create smoother transitions
@@ -48,21 +45,12 @@ class ParamUDCT:
 
     Attributes
     ----------
-    len : int
-        Total number of elements in the input (product of `size`). Computed
-        automatically in `__post_init__`.
-    res : int
+    ndim : int
+        Number of dimensions of the transform. Computed automatically from
+        `len(shape)`.
+    num_scales : int
         Number of resolution scales. Computed automatically from the first
         dimension of `angular_wedges_config`.
-    decim : IntegerNDArray
-        Decimation ratios for each scale and dimension. Computed automatically
-        as 2 * (angular_wedges_config // 3). Shape matches `angular_wedges_config`.
-    ind : dict[int, dict[int, np.ndarray]] | None, optional
-        Optional indexing information for sparse storage. Structure:
-        ind[scale][direction] = index array. Default is None.
-    dec : dict[int, np.ndarray] | None, optional
-        Optional decimation information. Structure: dec[scale] = decimation array.
-        Default is None.
 
     Examples
     --------
@@ -71,51 +59,49 @@ class ParamUDCT:
     >>>
     >>> # Create parameters for 2D transform with 3 scales
     >>> params = ParamUDCT(
-    ...     dim=2,
-    ...     size=(64, 64),
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
     ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
-    >>> params.res  # Number of scales
+    >>> params.ndim  # Number of dimensions (computed from shape)
+    2
+    >>> params.num_scales  # Number of scales
     3
-    >>> params.len  # Total elements
-    4096
-    >>> params.decim.shape  # Decimation ratios shape
-    (3, 1)
     >>>
     >>> # Create parameters for 3D transform
     >>> params_3d = ParamUDCT(
-    ...     dim=3,
-    ...     size=(32, 32, 32),
+    ...     shape=(32, 32, 32),
     ...     angular_wedges_config=np.array([[3, 3, 3], [6, 6, 6]]),
     ...     window_overlap=0.15,
     ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
-    >>> params_3d.dim
+    >>> params_3d.ndim
     3
-    >>> params_3d.size
+    >>> params_3d.shape
     (32, 32, 32)
     """
 
-    dim: int
-    size: tuple[int, ...]
-    angular_wedges_config: IntegerNDArray  # last dimension  == dim
+    shape: tuple[int, ...]
+    angular_wedges_config: IntegerNDArray  # last dimension  == len(shape)
     window_overlap: float
     radial_frequency_params: tuple[float, float, float, float]
     window_threshold: float
-    len: int = field(init=False)
-    res: int = field(init=False)
-    decim: IntegerNDArray = field(init=False)
-    ind: dict[int, dict[int, IntpNDArray]] | None = None
-    dec: dict[int, IntpNDArray] | None = None
+    ndim: int = field(init=False)
+    num_scales: int = field(init=False)
 
     def __post_init__(self) -> None:
-        self.len = prod(self.size)
-        self.res = len(self.angular_wedges_config)
-        self.decim = 2 * (np.asarray(self.angular_wedges_config, dtype=int) // 3)
+        self.ndim = len(self.shape)
+        self.num_scales = len(self.angular_wedges_config)
+        # Validate that angular_wedges_config matches shape dimensionality
+        if self.angular_wedges_config.shape[1] != self.ndim:
+            msg = (
+                f"angular_wedges_config last dimension ({self.angular_wedges_config.shape[1]}) "
+                f"must equal shape length ({self.ndim})"
+            )
+            raise ValueError(msg)
 
 
 @overload

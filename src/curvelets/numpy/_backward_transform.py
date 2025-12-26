@@ -108,7 +108,7 @@ def _process_wedge_backward_complex(
     idx, val = window
 
     # Convert sparse window to dense for manipulation
-    subwindow = np.zeros(parameters.size, dtype=val.dtype)
+    subwindow = np.zeros(parameters.shape, dtype=val.dtype)
     subwindow.flat[idx] = val
 
     # Optionally flip the window for negative frequency processing
@@ -150,7 +150,7 @@ def _apply_backward_transform_real(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..res: High-frequency bands (dim directions per scale)
+        - scale 1..num_scales: High-frequency bands (ndim directions per scale)
     parameters : ParamUDCT
         UDCT parameters containing transform configuration.
     windows : UDCTWindows
@@ -163,7 +163,7 @@ def _apply_backward_transform_real(
     Returns
     -------
     np.ndarray
-        Reconstructed real-valued image or volume with shape `parameters.size`.
+        Reconstructed real-valued image or volume with shape `parameters.shape`.
 
     Notes
     -----
@@ -181,11 +181,10 @@ def _apply_backward_transform_real(
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
-    ...     dim=2,
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
     >>>
@@ -208,11 +207,11 @@ def _apply_backward_transform_real(
     complex_dtype = _to_complex_dtype(real_dtype)
 
     # Initialize frequency domain
-    image_frequency = np.zeros(parameters.size, dtype=complex_dtype)
+    image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
 
     # Process high-frequency bands using loops
-    for scale_idx in range(1, 1 + parameters.res):
-        for direction_idx in range(parameters.dim):
+    for scale_idx in range(1, 1 + parameters.num_scales):
+        for direction_idx in range(parameters.ndim):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 window = windows[scale_idx][direction_idx][wedge_idx]
                 contribution = _process_wedge_backward_real(
@@ -225,7 +224,7 @@ def _apply_backward_transform_real(
                 image_frequency.flat[idx] += contribution.flat[idx]
 
     # Process low-frequency band
-    image_frequency_low = np.zeros(parameters.size, dtype=complex_dtype)
+    image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
@@ -257,7 +256,7 @@ def _apply_backward_transform_complex(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..res: High-frequency bands (2*dim directions per scale)
+        - scale 1..num_scales: High-frequency bands (2*ndim directions per scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
     parameters : ParamUDCT
@@ -272,7 +271,7 @@ def _apply_backward_transform_complex(
     Returns
     -------
     np.ndarray
-        Reconstructed complex-valued image or volume with shape `parameters.size`.
+        Reconstructed complex-valued image or volume with shape `parameters.shape`.
 
     Notes
     -----
@@ -290,11 +289,10 @@ def _apply_backward_transform_complex(
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
-    ...     dim=2,
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
     >>>
@@ -317,11 +315,11 @@ def _apply_backward_transform_complex(
     complex_dtype = _to_complex_dtype(real_dtype)
 
     # Initialize frequency domain
-    image_frequency = np.zeros(parameters.size, dtype=complex_dtype)
+    image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
 
     # Process positive frequency bands (directions 0..dim-1)
-    for scale_idx in range(1, 1 + parameters.res):
-        for direction_idx in range(parameters.dim):
+    for scale_idx in range(1, 1 + parameters.num_scales):
+        for direction_idx in range(parameters.ndim):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 contribution = _process_wedge_backward_complex(
                     coefficients[scale_idx][direction_idx][wedge_idx],
@@ -334,11 +332,11 @@ def _apply_backward_transform_complex(
                 image_frequency += contribution
 
     # Process negative frequency bands (directions dim..2*dim-1)
-    for scale_idx in range(1, 1 + parameters.res):
-        for direction_idx in range(parameters.dim):
+    for scale_idx in range(1, 1 + parameters.num_scales):
+        for direction_idx in range(parameters.ndim):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 contribution = _process_wedge_backward_complex(
-                    coefficients[scale_idx][direction_idx + parameters.dim][wedge_idx],
+                    coefficients[scale_idx][direction_idx + parameters.ndim][wedge_idx],
                     windows[scale_idx][direction_idx][wedge_idx],
                     decimation_ratios[scale_idx][direction_idx, :],
                     parameters,
@@ -348,7 +346,7 @@ def _apply_backward_transform_complex(
                 image_frequency += contribution
 
     # Process low-frequency band
-    image_frequency_low = np.zeros(parameters.size, dtype=complex_dtype)
+    image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
@@ -401,16 +399,16 @@ def _apply_backward_transform(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..res: High-frequency bands
-          * Real mode: dim directions per scale
-          * Complex mode: 2*dim directions per scale
+        - scale 1..num_scales: High-frequency bands
+          * Real mode: ndim directions per scale
+          * Complex mode: 2*ndim directions per scale
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
-        - res : int
+        - num_scales : int
             Number of resolution scales
-        - dim : int
-            Dimensionality of the transform
-        - size : tuple[int, ...]
+        - ndim : int
+            Number of dimensions of the transform
+        - shape : tuple[int, ...]
             Shape of the output data
     windows : UDCTWindows
         Curvelet windows in sparse format, must match those used in
@@ -433,7 +431,7 @@ def _apply_backward_transform(
     Returns
     -------
     np.ndarray
-        Reconstructed image or volume with shape `parameters.size`.
+        Reconstructed image or volume with shape `parameters.shape`.
         - Real mode: Returns real-valued array (dtype matches input real part)
         - Complex mode: Returns complex-valued array
 
@@ -482,11 +480,10 @@ def _apply_backward_transform(
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
-    ...     dim=2,
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
     >>>

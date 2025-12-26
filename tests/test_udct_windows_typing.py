@@ -134,8 +134,7 @@ def test_compute_type_hints() -> None:
     """Test that compute has correct type hints."""
     # compute is now an instance method, so we need to check it on an instance
     params = ParamUDCT(
-        size=(64, 64),
-        dim=2,
+        shape=(64, 64),
         angular_wedges_config=np.array([[3, 3], [6, 6], [12, 12]]),
         window_overlap=0.15,
         window_threshold=1e-5,
@@ -154,11 +153,10 @@ def test_compute_type_hints() -> None:
 def test_compute_returns_correct_types() -> None:
     """Test that compute returns the correct types."""
     params = ParamUDCT(
-        size=(64, 64),
-        dim=2,
+        shape=(64, 64),
         angular_wedges_config=np.array(
             [[3, 3], [6, 6], [12, 12]]
-        ),  # Shape: (num_scales, dim)
+        ),  # Shape: (num_scales, ndim)
         window_overlap=0.15,
         window_threshold=1e-5,
         radial_frequency_params=(

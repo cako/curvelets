@@ -117,7 +117,7 @@ def _process_wedge_complex(
     idx, val = window
 
     # Convert sparse window to dense for manipulation
-    subwindow = np.zeros(parameters.size, dtype=val.dtype)
+    subwindow = np.zeros(parameters.shape, dtype=val.dtype)
     subwindow.flat[idx] = val
 
     # Optionally flip the window for negative frequency processing
@@ -175,14 +175,14 @@ def _apply_forward_transform_real(
     ----------
     image : npt.NDArray[F]
         Input image or volume to decompose. Must have shape matching
-        `parameters.size`. Must be real-valued (floating point dtype).
+        `parameters.shape`. Must be real-valued (floating point dtype).
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
-        - res : int
+        - num_scales : int
             Number of resolution scales
-        - dim : int
-            Dimensionality of the transform
-        - size : tuple[int, ...]
+        - ndim : int
+            Number of dimensions of the transform
+        - shape : tuple[int, ...]
             Shape of the input data
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
@@ -199,7 +199,7 @@ def _apply_forward_transform_real(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..res: High-frequency bands (dim directions per scale)
+        - scale 1..num_scales: High-frequency bands (ndim directions per scale)
         Each coefficient array has shape determined by decimation ratios.
         Coefficients are complex dtype matching the complex version of input dtype:
         - np.float32 input -> np.complex64 coefficients
@@ -220,11 +220,10 @@ def _apply_forward_transform_real(
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
-    ...     dim=2,
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
     >>>
@@ -238,7 +237,7 @@ def _apply_forward_transform_real(
     >>> coeffs = _apply_forward_transform_real(image, params, windows, decimation_ratios)
     >>>
     >>> # Check structure
-    >>> len(coeffs)  # Number of scales (0 + res)
+    >>> len(coeffs)  # Number of scales (0 + num_scales)
     4
     >>> len(coeffs[0][0])  # Low-frequency: 1 wedge
     1
@@ -264,7 +263,7 @@ def _apply_forward_transform_real(
 
     low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = np.sqrt(
-        np.prod(np.full((parameters.dim,), fill_value=2 ** (parameters.res - 1)))
+        np.prod(np.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 1)))
     )
     low_freq_coeff *= norm
 
@@ -284,9 +283,9 @@ def _apply_forward_transform_real(
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
-            for direction_idx in range(parameters.dim)
+            for direction_idx in range(parameters.ndim)
         ]
-        for scale_idx in range(1, 1 + parameters.res)
+        for scale_idx in range(1, 1 + parameters.num_scales)
     ]
     return coefficients
 
@@ -326,14 +325,14 @@ def _apply_forward_transform_complex(
     ----------
     image : npt.NDArray[C]
         Input image or volume to decompose. Must have shape matching
-        `parameters.size`. Must be complex-valued (complex floating point dtype).
+        `parameters.shape`. Must be complex-valued (complex floating point dtype).
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
-        - res : int
+        - num_scales : int
             Number of resolution scales
-        - dim : int
-            Dimensionality of the transform
-        - size : tuple[int, ...]
+        - ndim : int
+            Number of dimensions of the transform
+        - shape : tuple[int, ...]
             Shape of the input data
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
@@ -350,7 +349,7 @@ def _apply_forward_transform_complex(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..res: High-frequency bands (2*dim directions per scale)
+        - scale 1..num_scales: High-frequency bands (2*ndim directions per scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
         Each coefficient array has shape determined by decimation ratios.
@@ -375,11 +374,10 @@ def _apply_forward_transform_complex(
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
-    ...     dim=2,
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
     >>>
@@ -417,7 +415,7 @@ def _apply_forward_transform_complex(
         [[downsample(curvelet_band, decimation_ratios[0][0])]]
     ]
     norm = np.sqrt(
-        np.prod(np.full((parameters.dim,), fill_value=2 ** (parameters.res - 1)))
+        np.prod(np.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 1)))
     )
     coefficients[0][0][0] *= norm
 
@@ -439,7 +437,7 @@ def _apply_forward_transform_complex(
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
-            for direction_idx in range(parameters.dim)
+            for direction_idx in range(parameters.ndim)
         ]
         + [
             # Negative frequency bands (directions dim..2*dim-1)
@@ -454,9 +452,9 @@ def _apply_forward_transform_complex(
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
-            for direction_idx in range(parameters.dim)
+            for direction_idx in range(parameters.ndim)
         ]
-        for scale_idx in range(1, 1 + parameters.res)
+        for scale_idx in range(1, 1 + parameters.num_scales)
     ]
     return coefficients
 
@@ -519,15 +517,15 @@ def _apply_forward_transform(
     ----------
     image : npt.NDArray[F] | npt.NDArray[C]
         Input image or volume to decompose. Must have shape matching
-        `parameters.size`. Must be either real-valued (npt.NDArray[F]) or
+        `parameters.shape`. Must be either real-valued (npt.NDArray[F]) or
         complex-valued (npt.NDArray[C]).
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
-        - res : int
+        - num_scales : int
             Number of resolution scales
-        - dim : int
-            Dimensionality of the transform
-        - size : tuple[int, ...]
+        - ndim : int
+            Number of dimensions of the transform
+        - shape : tuple[int, ...]
             Shape of the input data
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
@@ -600,11 +598,10 @@ def _apply_forward_transform(
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
-    ...     dim=2,
+    ...     shape=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
+    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
     ...     window_threshold=1e-5
     ... )
     >>>
@@ -620,7 +617,7 @@ def _apply_forward_transform(
     ... )
     >>>
     >>> # Check structure
-    >>> len(coeffs)  # Number of scales (0 + res)
+    >>> len(coeffs)  # Number of scales (0 + num_scales)
     4
     >>> len(coeffs[0][0])  # Low-frequency: 1 wedge
     1
