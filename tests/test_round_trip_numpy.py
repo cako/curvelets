@@ -272,7 +272,8 @@ def test_numpy_round_trip_wavelet_mode(dim, rng):
     
     # Verify decimation=1 (coefficient shape should match internal shape)
     highest_coeff = coeffs[highest_scale_idx][0][0]
-    expected_shape = tuple(s // transform.decimation_ratios[0][0, 0] for s in transform.parameters.shape)
+    # For wavelet mode at highest scale, decimation=1, so shape should match parameters.shape
+    expected_shape = transform.parameters.shape
     assert highest_coeff.shape == expected_shape, f"Expected shape {expected_shape}, got {highest_coeff.shape}"
     
     # Verify windows structure

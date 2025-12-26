@@ -210,23 +210,53 @@ def _apply_backward_transform_real(
     image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
 
     # Process high-frequency bands using loops
-    for scale_idx in range(1, parameters.num_scales):
-        for direction_idx in range(len(windows[scale_idx])):
-            for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                window = windows[scale_idx][direction_idx][wedge_idx]
-                # Get decimation ratio, handling case where decimation_ratios has shape (1, dim)
-                if decimation_ratios[scale_idx].shape[0] == 1:
-                    decimation_ratio = decimation_ratios[scale_idx][0, :]
-                else:
-                    decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
-                contribution = _process_wedge_backward_real(
-                    coefficients[scale_idx][direction_idx][wedge_idx],
-                    window,
-                    decimation_ratio,
-                    complex_dtype,
-                )
-                idx, _ = window
-                image_frequency.flat[idx] += contribution.flat[idx]
+    # For "wavelet" mode at highest scale, we only have 1 window (ring-shaped, symmetric)
+    # so we don't need the factor of 2 (the window already covers all frequencies)
+    highest_scale_idx = parameters.num_scales - 1
+    is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
+    
+    if is_wavelet_mode_highest_scale:
+        # For wavelet mode: process highest scale separately without factor of 2
+        # Other scales use factor of 2 as normal
+        image_frequency_other_scales = np.zeros(parameters.shape, dtype=complex_dtype)
+        image_frequency_wavelet_scale = np.zeros(parameters.shape, dtype=complex_dtype)
+        for scale_idx in range(1, parameters.num_scales):
+            for direction_idx in range(len(windows[scale_idx])):
+                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    if decimation_ratios[scale_idx].shape[0] == 1:
+                        decimation_ratio = decimation_ratios[scale_idx][0, :]
+                    else:
+                        decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                    contribution = _process_wedge_backward_real(
+                        coefficients[scale_idx][direction_idx][wedge_idx],
+                        window,
+                        decimation_ratio,
+                        complex_dtype,
+                    )
+                    idx, _ = window
+                    if scale_idx == highest_scale_idx:
+                        image_frequency_wavelet_scale.flat[idx] += contribution.flat[idx]
+                    else:
+                        image_frequency_other_scales.flat[idx] += contribution.flat[idx]
+    else:
+        # Normal curvelet mode: process all scales together
+        for scale_idx in range(1, parameters.num_scales):
+            for direction_idx in range(len(windows[scale_idx])):
+                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    if decimation_ratios[scale_idx].shape[0] == 1:
+                        decimation_ratio = decimation_ratios[scale_idx][0, :]
+                    else:
+                        decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                    contribution = _process_wedge_backward_real(
+                        coefficients[scale_idx][direction_idx][wedge_idx],
+                        window,
+                        decimation_ratio,
+                        complex_dtype,
+                    )
+                    idx, _ = window
+                    image_frequency.flat[idx] += contribution.flat[idx]
 
     # Process low-frequency band
     image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
@@ -237,7 +267,12 @@ def _apply_backward_transform_real(
     image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
 
     # Combine: low frequency + high frequency contributions
-    image_frequency = 2 * image_frequency + image_frequency_low
+    # For real transform mode, multiply high-frequency by 2 to account for combined +/- frequencies
+    # Exception: For "wavelet" mode at highest scale, we don't multiply by 2
+    if is_wavelet_mode_highest_scale:
+        image_frequency = 2 * image_frequency_other_scales + image_frequency_wavelet_scale + image_frequency_low
+    else:
+        image_frequency = 2 * image_frequency + image_frequency_low
     return np.fft.ifftn(image_frequency).real
 
 
