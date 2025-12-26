@@ -393,7 +393,7 @@ def _apply_forward_transform_complex(
     ... )
     >>>
     >>> # Check structure
-    >>> len(coeffs_complex)  # Number of scales (0 + res)
+    >>> len(coeffs_complex)  # Number of scales (0 + num_scales)
     4
     >>> len(coeffs_complex[1])  # Complex mode: 4 directions (2*dim)
     4
@@ -552,7 +552,7 @@ def _apply_forward_transform(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..res: High-frequency bands
+        - scale 1..num_scales: High-frequency bands
           * Real mode: dim directions per scale
           * Complex mode: 2*dim directions per scale
         Each coefficient array has shape determined by decimation ratios.

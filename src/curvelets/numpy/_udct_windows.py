@@ -77,12 +77,12 @@ class UDCTWindow:
         ...     window_threshold=1e-5
         ... )
         >>> window_computer = UDCTWindow(params)
-        >>> window_computer.num_resolutions
+        >>> window_computer.num_scales
         3
         >>> window_computer.shape
         (64, 64)
         """
-        self.num_resolutions = parameters.num_scales
+        self.num_scales = parameters.num_scales
         self.shape = parameters.shape
         self.dimension = parameters.ndim
         self.radial_frequency_params = parameters.radial_frequency_params
@@ -486,7 +486,7 @@ class UDCTWindow:
 
     @staticmethod
     def _create_direction_mappings(
-        dimension: int, num_resolutions: int
+        dimension: int, num_scales: int
     ) -> list[IntegerNDArray]:
         """
             Create direction mappings for each resolution scale.
@@ -500,7 +500,7 @@ class UDCTWindow:
         ----------
         dimension : int
             Dimensionality of the transform.
-        num_resolutions : int
+        num_scales : int
             Number of resolution scales.
 
         Returns
@@ -529,14 +529,14 @@ class UDCTWindow:
                     for dimension_idx in range(dimension)
                 ]
             ]
-            for scale_idx in range(num_resolutions)
+            for scale_idx in range(num_scales)
         ]
 
     @staticmethod
     def _create_angle_info(
         frequency_grid: dict[int, npt.NDArray[F]],
         dimension: int,
-        num_resolutions: int,
+        num_scales: int,
         angular_wedges_config: IntegerNDArray,
         window_overlap: float,
     ) -> tuple[
@@ -552,7 +552,7 @@ class UDCTWindow:
             Dictionary mapping dimension index to frequency grid.
         dimension : int
             Dimensionality of the transform.
-        num_resolutions : int
+        num_scales : int
             Number of resolution scales.
         angular_wedges_config : IntegerNDArray
             Configuration array specifying number of angular wedges per scale and dimension.
@@ -587,7 +587,7 @@ class UDCTWindow:
 
         angle_functions: dict[int, dict[tuple[int, int], npt.NDArray[F]]] = {}
         angle_indices: dict[int, dict[tuple[int, int], IntegerNDArray]] = {}
-        for scale_idx in range(num_resolutions):
+        for scale_idx in range(num_scales):
             angle_functions[scale_idx] = {}
             angle_indices[scale_idx] = {}
             for dimension_idx in range(dimension):
@@ -622,7 +622,7 @@ class UDCTWindow:
         windows: UDCTWindows,
         size: tuple[int, ...],
         dimension: int,
-        num_resolutions: int,
+        num_scales: int,
     ) -> None:
         """
         Normalize windows in-place to ensure tight frame property.
@@ -635,7 +635,7 @@ class UDCTWindow:
             Size of the windows.
         dimension : int
             Dimensionality of the transform.
-        num_resolutions : int
+        num_scales : int
             Number of resolution scales.
 
         Examples
@@ -653,7 +653,7 @@ class UDCTWindow:
         idx_flat = indices.ravel()
         val_flat = values.ravel()
         sum_squared_windows.flat[idx_flat] += val_flat**2
-        for scale_idx in range(1, num_resolutions + 1):
+        for scale_idx in range(1, num_scales + 1):
             for direction_idx in range(dimension):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     indices, values = windows[scale_idx][direction_idx][wedge_idx]
@@ -676,7 +676,7 @@ class UDCTWindow:
         idx_flat = indices.ravel()
         val_flat = values.ravel()
         val_flat[:] /= sum_squared_windows_flat[idx_flat]
-        for scale_idx in range(1, num_resolutions + 1):
+        for scale_idx in range(1, num_scales + 1):
             for direction_idx in range(dimension):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     indices, values = windows[scale_idx][direction_idx][wedge_idx]
@@ -686,7 +686,7 @@ class UDCTWindow:
 
     @staticmethod
     def _calculate_decimation_ratios_with_lowest(
-        num_resolutions: int,
+        num_scales: int,
         dimension: int,
         angular_wedges_config: IntegerNDArray,
         direction_mappings: list[IntegerNDArray],
@@ -696,7 +696,7 @@ class UDCTWindow:
 
         Parameters
         ----------
-        num_resolutions : int
+        num_scales : int
             Number of resolution scales.
         dimension : int
             Dimensionality of the transform.
@@ -722,13 +722,13 @@ class UDCTWindow:
         4
         """
         decimation_ratios: list[IntegerNDArray] = [
-            np.full((1, dimension), fill_value=2 ** (num_resolutions - 1), dtype=int)
+            np.full((1, dimension), fill_value=2 ** (num_scales - 1), dtype=int)
         ]
-        for scale_idx in range(1, num_resolutions + 1):
+        for scale_idx in range(1, num_scales + 1):
             decimation_ratios.append(
                 np.full(
                     (dimension, dimension),
-                    fill_value=2.0 ** (num_resolutions - scale_idx + 1),
+                    fill_value=2.0 ** (num_scales - scale_idx + 1),
                     dtype=int,
                 )
             )
@@ -737,7 +737,7 @@ class UDCTWindow:
                 decimation_ratios[scale_idx][direction_idx, other_directions] = (
                     2
                     * angular_wedges_config[scale_idx - 1, other_directions]
-                    * 2 ** (num_resolutions - scale_idx)
+                    * 2 ** (num_scales - scale_idx)
                     // 3
                 )
         return decimation_ratios
@@ -746,7 +746,7 @@ class UDCTWindow:
     def _inplace_sort_windows(
         windows: UDCTWindows,
         indices: dict[int, dict[int, IntegerNDArray]],
-        num_resolutions: int,
+        num_scales: int,
         dimension: int,
     ) -> None:
         """
@@ -758,7 +758,7 @@ class UDCTWindow:
             Windows to sort (modified in-place).
         indices : dict[int, dict[int, IntegerNDArray]]
             Angular indices dictionary (modified in-place).
-        num_resolutions : int
+        num_scales : int
             Number of resolution scales.
         dimension : int
             Dimensionality of the transform.
@@ -772,7 +772,7 @@ class UDCTWindow:
         >>> indices = {1: {0: np.array([[0]])}}
         >>> UDCTWindow._inplace_sort_windows(windows, indices, 3, 2)
         """
-        for scale_idx in range(1, num_resolutions + 1):
+        for scale_idx in range(1, num_scales + 1):
             for dimension_idx in range(dimension):
                 angular_index_array = indices[scale_idx][dimension_idx]
 
@@ -886,7 +886,7 @@ class UDCTWindow:
         Parameters
         ----------
         scale_idx : int
-            High-frequency scale index, ranging from 1 to res (inclusive).
+            High-frequency scale index, ranging from 1 to num_scales (inclusive).
             Note: Scale 0 (lowpass) is handled separately in :py:meth:`UDCTWindow.compute`
             and is never passed to this method. When accessing pre-computed arrays like
             `angle_functions` or `bandpass_windows`, use `scale_idx - 1` because
@@ -998,7 +998,7 @@ class UDCTWindow:
             ]
             # Get 1D angle function for this dimension and angle index
             # Note: scale_idx - 1 because angle_functions is 0-indexed for high-frequency scales
-            # (scale 0 is lowpass, handled separately; scales 1..res map to indices 0..res-1)
+            # (scale 0 is lowpass, handled separately; scales 1..num_scales map to indices 0..num_scales-1)
             angle_func = angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)][
                 angle_idx
             ]
@@ -1015,7 +1015,7 @@ class UDCTWindow:
         # Multiply by bandpass filter F_j (Meyer wavelet-based, Section IV)
         # This provides scale selectivity
         # Note: bandpass_windows[scale_idx] directly because bandpass_windows[0] is lowpass,
-        # and bandpass_windows[1..res] correspond to high-frequency scales 1..res
+        # and bandpass_windows[1..num_scales] correspond to high-frequency scales 1..num_scales
         window *= bandpass_windows[scale_idx]
 
         # Apply frequency shift (size//4 in each dimension) and square root
@@ -1145,7 +1145,7 @@ class UDCTWindow:
             source_window_idx, flip_dimension_index = angle_to_source[angle_idx_tuple]
             # Get the physical axis along which to flip (from direction mappings)
             # Note: scale_idx - 1 because direction_mappings is 0-indexed for high-frequency scales
-            # (scale 0 is lowpass, handled separately; scales 1..res map to indices 0..res-1)
+            # (scale 0 is lowpass, handled separately; scales 1..num_scales map to indices 0..num_scales-1)
             flip_axis_dimension = int(
                 direction_mappings[scale_idx - 1][dimension_idx, flip_dimension_index]
             )
@@ -1188,7 +1188,7 @@ class UDCTWindow:
         windows : UDCTWindows
             Curvelet windows in sparse format. Structure is:
             windows[scale][direction][wedge] = (indices, values) tuple
-            where scale 0 is low-frequency, scales 1..res are high-frequency bands
+            where scale 0 is low-frequency, scales 1..num_scales are high-frequency bands
         decimation_ratios : list[IntegerNDArray]
             Decimation ratios for each scale and direction. Structure:
             - decimation_ratios[0]: shape (1, dim) for low-frequency band
@@ -1205,7 +1205,7 @@ class UDCTWindow:
         Meyer wavelet-based bandpass filters (via :py:meth:`UDCTWindow._create_bandpass_windows`)
         and :math:`A_{j,l}` are angular functions (via :py:meth:`UDCTWindow._create_angle_info`).
         Low-frequency window (scale 0) is handled separately; high-frequency windows
-        (scales 1..res) are generated via :py:meth:`UDCTWindow._process_single_window`.
+        (scales 1..num_scales) are generated via :py:meth:`UDCTWindow._process_single_window`.
 
         **Partition of Unity (Section IV)**:
         Windows are normalized via :py:meth:`UDCTWindow._inplace_normalize_windows` to
@@ -1257,7 +1257,7 @@ class UDCTWindow:
         (3, 1)
         """
         frequency_grid, bandpass_windows = UDCTWindow._create_bandpass_windows(
-            num_scales=self.num_resolutions,
+            num_scales=self.num_scales,
             shape=self.shape,
             radial_frequency_params=self.radial_frequency_params,
         )
@@ -1277,27 +1277,27 @@ class UDCTWindow:
         indices[0] = {}
         indices[0][0] = np.zeros((1, 1), dtype=int)
         direction_mappings = UDCTWindow._create_direction_mappings(
-            dimension=self.dimension, num_resolutions=self.num_resolutions
+            dimension=self.dimension, num_scales=self.num_scales
         )
         angle_functions, angle_indices = UDCTWindow._create_angle_info(
             frequency_grid,
             dimension=self.dimension,
-            num_resolutions=self.num_resolutions,
+            num_scales=self.num_scales,
             angular_wedges_config=self.angular_wedges_config,
             window_overlap=self.window_overlap,
         )
 
         decimation_ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
-            num_resolutions=self.num_resolutions,
+            num_scales=self.num_scales,
             dimension=self.dimension,
             angular_wedges_config=self.angular_wedges_config,
             direction_mappings=direction_mappings,
         )
 
-        # Generate windows for each high-frequency scale (scales 1 to res)
+        # Generate windows for each high-frequency scale (scales 1 to num_scales)
         # Each scale contains multiple directions (one per dimension), and each
         # direction contains multiple wedges (windows with different angular orientations)
-        for scale_idx in range(1, self.num_resolutions + 1):
+        for scale_idx in range(1, self.num_scales + 1):
             windows.append([])
             indices[scale_idx] = {}
 
@@ -1360,13 +1360,13 @@ class UDCTWindow:
             windows,
             size=self.shape,
             dimension=self.dimension,
-            num_resolutions=self.num_resolutions,
+            num_scales=self.num_scales,
         )
 
         UDCTWindow._inplace_sort_windows(
             windows=windows,
             indices=indices,
-            num_resolutions=self.num_resolutions,
+            num_scales=self.num_scales,
             dimension=self.dimension,
         )
 

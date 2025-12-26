@@ -95,7 +95,7 @@ def test_create_direction_mappings_type_hints() -> None:
     """Test that _create_direction_mappings has correct type hints."""
     hints = typing.get_type_hints(UDCTWindow._create_direction_mappings)
     assert "dimension" in hints
-    assert "num_resolutions" in hints
+    assert "num_scales" in hints
     assert "return" in hints
 
 
@@ -104,7 +104,7 @@ def test_create_angle_info_type_hints() -> None:
     hints = typing.get_type_hints(UDCTWindow._create_angle_info)
     assert "frequency_grid" in hints
     assert "dimension" in hints
-    assert "num_resolutions" in hints
+    assert "num_scales" in hints
     assert "angular_wedges_config" in hints
     assert "window_overlap" in hints
     assert "return" in hints
@@ -113,7 +113,7 @@ def test_create_angle_info_type_hints() -> None:
 def test_calculate_decimation_ratios_type_hints() -> None:
     """Test that _calculate_decimation_ratios_with_lowest has correct type hints."""
     hints = typing.get_type_hints(UDCTWindow._calculate_decimation_ratios_with_lowest)
-    assert "num_resolutions" in hints
+    assert "num_scales" in hints
     assert "dimension" in hints
     assert "angular_wedges_config" in hints
     assert "direction_mappings" in hints
@@ -125,7 +125,7 @@ def test_inplace_sort_windows_type_hints() -> None:
     hints = typing.get_type_hints(UDCTWindow._inplace_sort_windows)
     assert "windows" in hints
     assert "indices" in hints
-    assert "num_resolutions" in hints
+    assert "num_scales" in hints
     assert "dimension" in hints
     assert "return" in hints
 
