@@ -29,7 +29,11 @@ else:
 F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
 
 # C: Complex floating point types
-C = TypeVar("C", np.complex64, np.complex128, np.complex256)
+# Check if complex256 is available (not on macOS/Apple Silicon)
+if hasattr(np, 'complex256'):
+    C = TypeVar("C", np.complex64, np.complex128, np.complex256)
+else:
+    C = TypeVar("C", np.complex64, np.complex128)
 
 # A: Any numpy array type (includes all numpy scalar types: floating, complex, integer, bool, etc.)
 A = TypeVar("A", bound=np.generic)
