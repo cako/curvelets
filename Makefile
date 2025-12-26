@@ -29,12 +29,17 @@ test313:
 	make uvcheck
 	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.13
 
+test314:
+	make uvcheck
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.14
+
 test:
 	make test39
 	make test310
 	make test311
 	make test312
 	make test313
+	make test314
 
 lint:
 	make uvcheck

@@ -34,7 +34,7 @@ def pylint(session: nox.Session) -> None:
     session.run("pylint", "curvelets", *session.posargs)
 
 
-@nox.session(python=["3.9", "3.10", "3.11", "3.12", "3.13"])
+@nox.session(python=["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"])
 def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
@@ -104,7 +104,7 @@ def build_api_docs(session: nox.Session) -> None:
     )
 
 
-@nox.session(python=["3.9", "3.10", "3.11", "3.12", "3.13"])
+@nox.session(python=["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"])
 def build(session: nox.Session) -> None:
     """
     Build an SDist and wheel.
