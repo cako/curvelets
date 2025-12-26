@@ -156,7 +156,7 @@ def test_compute_returns_correct_types() -> None:
         shape=(64, 64),
         angular_wedges_config=np.array(
             [[3, 3], [6, 6], [12, 12]]
-        ),  # Shape: (num_scales, ndim)
+        ),  # Shape: (num_scales - 1, ndim) - high-frequency scales only
         window_overlap=0.15,
         window_threshold=1e-5,
         radial_frequency_params=(

@@ -32,11 +32,12 @@ class UDCT:
         Shape of the input data.
     angular_wedges_config : np.ndarray, optional
         Configuration array specifying the number of angular wedges per scale
-        and dimension. Shape is (num_scales, dimension). If provided, cannot
-        be used together with num_scales/wedges_per_direction. Default is None.
+        and dimension. Shape is (num_scales - 1, dimension), where num_scales
+        includes the lowpass scale. If provided, cannot be used together with
+        num_scales/wedges_per_direction. Default is None.
     num_scales : int, optional
-        Number of scales. Must be > 1. Used when angular_wedges_config is not
-        provided. Default is 3.
+        Total number of scales (including lowpass scale 0). Must be >= 2.
+        Used when angular_wedges_config is not provided. Default is 3.
     wedges_per_direction : int, optional
         Number of angular wedges per direction at the coarsest scale.
         The number of wedges doubles at each finer scale. Must be >= 3.
@@ -195,7 +196,8 @@ class UDCT:
         Parameters
         ----------
         num_scales : int | None
-            Number of scales. Must be > 1. If None, defaults to 3.
+            Total number of scales (including lowpass scale 0). Must be >= 2.
+            If None, defaults to 3.
         wedges_per_direction : int | None
             Number of angular wedges per direction at the coarsest scale.
             Must be >= 3. If None, defaults to 3.
@@ -213,7 +215,7 @@ class UDCT:
         Raises
         ------
         ValueError
-            If num_scales <= 1 or wedges_per_direction < 3.
+            If num_scales < 2 or wedges_per_direction < 3.
 
         Examples
         --------
@@ -231,8 +233,8 @@ class UDCT:
         if wedges_per_direction is None:
             wedges_per_direction = 3
 
-        if num_scales <= 1:
-            msg = "num_scales must be > 1"
+        if num_scales < 2:
+            msg = "num_scales must be >= 2"
             raise ValueError(msg)
         if wedges_per_direction < 3:
             msg = "wedges_per_direction must be >= 3"
@@ -330,11 +332,14 @@ class UDCT:
                 )
             )
 
+        # Compute num_scales from computed_angular_wedges_config for validation
+        computed_num_scales = 1 + len(computed_angular_wedges_config)
+
         # Validate wavelet mode requirements
-        # For wavelet mode, we need at least 2 scales total, which means
-        # at least 2 rows in angular_wedges_config
-        if high_frequency_mode == "wavelet" and len(computed_angular_wedges_config) < 2:
-            msg = "Wavelet mode requires at least 2 scales (num_scales >= 2)"
+        # For wavelet mode, we need at least 3 scales total (1 lowpass + 2 high-frequency),
+        # which means at least 2 rows in angular_wedges_config
+        if high_frequency_mode == "wavelet" and computed_num_scales < 3:
+            msg = "Wavelet mode requires at least 3 scales total (num_scales >= 3)"
             raise ValueError(msg)
 
         # Calculate internal shape (wavelet mode halves the size)

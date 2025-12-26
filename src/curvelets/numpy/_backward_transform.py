@@ -150,7 +150,7 @@ def _apply_backward_transform_real(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..num_scales: High-frequency bands (ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (ndim directions per scale)
     parameters : ParamUDCT
         UDCT parameters containing transform configuration.
     windows : UDCTWindows
@@ -210,7 +210,7 @@ def _apply_backward_transform_real(
     image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
 
     # Process high-frequency bands using loops
-    for scale_idx in range(1, 1 + parameters.num_scales):
+    for scale_idx in range(1, parameters.num_scales):
         for direction_idx in range(parameters.ndim):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 window = windows[scale_idx][direction_idx][wedge_idx]
@@ -256,7 +256,7 @@ def _apply_backward_transform_complex(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..num_scales: High-frequency bands (2*ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
     parameters : ParamUDCT
@@ -318,7 +318,7 @@ def _apply_backward_transform_complex(
     image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
 
     # Process positive frequency bands (directions 0..dim-1)
-    for scale_idx in range(1, 1 + parameters.num_scales):
+    for scale_idx in range(1, parameters.num_scales):
         for direction_idx in range(parameters.ndim):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 contribution = _process_wedge_backward_complex(
@@ -332,7 +332,7 @@ def _apply_backward_transform_complex(
                 image_frequency += contribution
 
     # Process negative frequency bands (directions dim..2*dim-1)
-    for scale_idx in range(1, 1 + parameters.num_scales):
+    for scale_idx in range(1, parameters.num_scales):
         for direction_idx in range(parameters.ndim):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 contribution = _process_wedge_backward_complex(
@@ -399,7 +399,7 @@ def _apply_backward_transform(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..num_scales: High-frequency bands
+        - scale 1..(num_scales-1): High-frequency bands
           * Real mode: ndim directions per scale
           * Complex mode: 2*ndim directions per scale
     parameters : ParamUDCT

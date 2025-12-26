@@ -179,7 +179,7 @@ def _apply_forward_transform_real(
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int
-            Number of resolution scales
+            Total number of scales (including lowpass scale)
         - ndim : int
             Number of dimensions of the transform
         - shape : tuple[int, ...]
@@ -199,7 +199,7 @@ def _apply_forward_transform_real(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..num_scales: High-frequency bands (ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (ndim directions per scale)
         Each coefficient array has shape determined by decimation ratios.
         Coefficients are complex dtype matching the complex version of input dtype:
         - np.float32 input -> np.complex64 coefficients
@@ -237,7 +237,7 @@ def _apply_forward_transform_real(
     >>> coeffs = _apply_forward_transform_real(image, params, windows, decimation_ratios)
     >>>
     >>> # Check structure
-    >>> len(coeffs)  # Number of scales (0 + num_scales)
+    >>> len(coeffs)  # Number of scales
     4
     >>> len(coeffs[0][0])  # Low-frequency: 1 wedge
     1
@@ -263,7 +263,9 @@ def _apply_forward_transform_real(
 
     low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = np.sqrt(
-        np.prod(np.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 1)))
+        np.prod(
+            np.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 2))
+        )
     )
     low_freq_coeff *= norm
 
@@ -285,7 +287,7 @@ def _apply_forward_transform_real(
             ]
             for direction_idx in range(parameters.ndim)
         ]
-        for scale_idx in range(1, 1 + parameters.num_scales)
+        for scale_idx in range(1, parameters.num_scales)
     ]
     return coefficients
 
@@ -329,7 +331,7 @@ def _apply_forward_transform_complex(
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int
-            Number of resolution scales
+            Total number of scales (including lowpass scale)
         - ndim : int
             Number of dimensions of the transform
         - shape : tuple[int, ...]
@@ -349,7 +351,7 @@ def _apply_forward_transform_complex(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..num_scales: High-frequency bands (2*ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
         Each coefficient array has shape determined by decimation ratios.
@@ -393,7 +395,7 @@ def _apply_forward_transform_complex(
     ... )
     >>>
     >>> # Check structure
-    >>> len(coeffs_complex)  # Number of scales (0 + num_scales)
+    >>> len(coeffs_complex)  # Number of scales
     4
     >>> len(coeffs_complex[1])  # Complex mode: 4 directions (2*dim)
     4
@@ -415,7 +417,9 @@ def _apply_forward_transform_complex(
         [[downsample(curvelet_band, decimation_ratios[0][0])]]
     ]
     norm = np.sqrt(
-        np.prod(np.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 1)))
+        np.prod(
+            np.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 2))
+        )
     )
     coefficients[0][0][0] *= norm
 
@@ -454,7 +458,7 @@ def _apply_forward_transform_complex(
             ]
             for direction_idx in range(parameters.ndim)
         ]
-        for scale_idx in range(1, 1 + parameters.num_scales)
+        for scale_idx in range(1, parameters.num_scales)
     ]
     return coefficients
 
@@ -522,7 +526,7 @@ def _apply_forward_transform(
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int
-            Number of resolution scales
+            Total number of scales (including lowpass scale)
         - ndim : int
             Number of dimensions of the transform
         - shape : tuple[int, ...]
@@ -552,7 +556,7 @@ def _apply_forward_transform(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..num_scales: High-frequency bands
+        - scale 1..(num_scales-1): High-frequency bands
           * Real mode: dim directions per scale
           * Complex mode: 2*dim directions per scale
         Each coefficient array has shape determined by decimation ratios.
@@ -617,7 +621,7 @@ def _apply_forward_transform(
     ... )
     >>>
     >>> # Check structure
-    >>> len(coeffs)  # Number of scales (0 + num_scales)
+    >>> len(coeffs)  # Number of scales
     4
     >>> len(coeffs[0][0])  # Low-frequency: 1 wedge
     1
