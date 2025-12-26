@@ -70,7 +70,7 @@ class TestMeyerWaveletErrors:
 
     def test_backward_before_forward(self, rng):
         """
-        Test that calling backward() before forward() raises RuntimeError.
+        Test that calling backward() with invalid structure raises ValueError.
 
         Parameters
         ----------
@@ -82,20 +82,21 @@ class TestMeyerWaveletErrors:
         >>> import numpy as np
         >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> lowpass = np.random.randn(32, 32)
+        >>> invalid_coeffs = [[np.random.randn(32, 32)]]  # Missing highpass bands
         >>> try:
-        ...     wavelet.backward(lowpass)
-        ... except RuntimeError as e:
+        ...     wavelet.backward(invalid_coeffs)
+        ... except ValueError as e:
         ...     print("Error caught:", str(e))
-        Error caught: forward() must be called before backward()...
+        Error caught: coefficients must have 2 subband groups...
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        lowpass = rng.normal(size=(32, 32)).astype(np.float64)
+        # Invalid structure: only 1 subband group instead of 2
+        invalid_coeffs = [[rng.normal(size=(32, 32)).astype(np.float64)]]
 
         with pytest.raises(
-            RuntimeError, match="forward\\(\\) must be called before backward"
+            ValueError, match="coefficients must have 2 subband groups"
         ):
-            wavelet.backward(lowpass)
+            wavelet.backward(invalid_coeffs)
 
     def test_forward_shape_mismatch(self, rng):
         """

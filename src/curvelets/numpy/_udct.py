@@ -155,6 +155,7 @@ class UDCT:
 
         # Initialize Meyer wavelet if needed
         self._meyer_wavelet: MeyerWavelet | None = None
+        self._meyer_highpass_bands: list[npt.NDArray] | None = None
         if self.high_frequency_mode == "wavelet":
             self._meyer_wavelet = MeyerWavelet(shape=shape)
 
@@ -589,12 +590,16 @@ class UDCT:
         np.testing.assert_equal(self.shape, image.shape)
 
         # Apply Meyer wavelet decomposition if enabled
-        # forward() returns lowpass subband and stores highpass internally
+        # forward() returns all subbands in nested structure
         if self.high_frequency_mode == "wavelet":
             if self._meyer_wavelet is None:
                 error_msg = "MeyerWavelet not initialized"
                 raise RuntimeError(error_msg)
-            image = self._meyer_wavelet.forward(image)
+            # Get all subbands and store highpass bands for backward()
+            meyer_coeffs = self._meyer_wavelet.forward(image)
+            self._meyer_highpass_bands = meyer_coeffs[1]
+            # Extract lowpass from subband group 0
+            image = meyer_coeffs[0][0]
 
         # Apply curvelet transform
         # Runtime checks determine the appropriate transform path
@@ -674,7 +679,15 @@ class UDCT:
             if self._meyer_wavelet is None:
                 error_msg = "MeyerWavelet not initialized"
                 raise RuntimeError(error_msg)
-            return self._meyer_wavelet.backward(lowpass_recon)
+            if self._meyer_highpass_bands is None:
+                error_msg = (
+                    "forward() must be called before backward(). "
+                    "Highpass bands are not available."
+                )
+                raise RuntimeError(error_msg)
+            # Reconstruct full MeyerWavelet coefficient structure
+            meyer_coeffs = [[lowpass_recon], self._meyer_highpass_bands]
+            return self._meyer_wavelet.backward(meyer_coeffs)
 
         return _apply_backward_transform(
             coefficients,

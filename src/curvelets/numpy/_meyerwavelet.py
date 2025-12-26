@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import overload
-
 import numpy as np
 import numpy.typing as npt
 
@@ -15,8 +13,8 @@ class MeyerWavelet:
 
     This class provides forward and backward Meyer wavelet transforms with
     filters pre-computed during initialization for improved performance. The
-    class stores highpass bands internally after forward transform, eliminating
-    the need for external state management.
+    forward transform returns all subbands in a nested list structure, and the
+    backward transform accepts this full structure for reconstruction.
 
     The filter computation uses the same method as UDCT's `_create_bandpass_windows()`
     for num_scales=2, ensuring compatibility when used with UDCT in wavelet mode
@@ -41,10 +39,14 @@ class MeyerWavelet:
     >>> from curvelets.numpy import MeyerWavelet
     >>> wavelet = MeyerWavelet(shape=(64, 64))
     >>> signal = np.random.randn(64, 64)
-    >>> lowpass = wavelet.forward(signal)
-    >>> lowpass.shape
+    >>> coefficients = wavelet.forward(signal)
+    >>> len(coefficients)  # 2 subband groups
+    2
+    >>> coefficients[0][0].shape  # Lowpass subband
     (32, 32)
-    >>> reconstructed = wavelet.backward(lowpass)
+    >>> len(coefficients[1])  # Highpass subbands
+    3
+    >>> reconstructed = wavelet.backward(coefficients)
     >>> np.allclose(signal, reconstructed, atol=1e-10)
     True
     """
@@ -77,9 +79,7 @@ class MeyerWavelet:
         """
         self.shape = shape
         self.dimension = len(shape)
-        self._highpass_bands: list[npt.NDArray] | None = None
         self._filters: dict[int, tuple[npt.NDArray, npt.NDArray]] = {}
-        self._is_complex: bool | None = None
 
         # Pre-compute all required filters
         self._initialize_filters()
@@ -171,7 +171,7 @@ class MeyerWavelet:
 
         # Highpass filter: complement of lowpass for perfect reconstruction
         # Compute as complement of the shifted lowpass window to ensure |lowpass|² + |highpass|² = 1
-        highpass_filter = np.sqrt(1 - lowpass_window_sq_shifted)
+        highpass_filter = np.sqrt(1.0 - lowpass_window_sq_shifted)
 
         return lowpass_filter, highpass_filter
 
@@ -342,21 +342,15 @@ class MeyerWavelet:
 
         return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
 
-    @overload
-    def forward(self, signal: npt.NDArray[C]) -> npt.NDArray[C]: ...
-
-    @overload
-    def forward(self, signal: npt.NDArray[F]) -> npt.NDArray[F]: ...
-
     def forward(
         self, signal: npt.NDArray[F] | npt.NDArray[C]
-    ) -> npt.NDArray[F] | npt.NDArray[C]:
+    ) -> list[list[npt.NDArray[F] | npt.NDArray[C]]]:
         """
         Apply multi-dimensional Meyer wavelet forward transform.
 
-        Decomposes the input signal into 2^dimension subbands. The first subband
-        (lowpass) is returned, while the remaining highpass subbands are stored
-        internally for use in backward().
+        Decomposes the input signal into 2^dimension subbands organized into 2
+        subband groups. Returns all subbands in a nested list structure similar
+        to UDCT.
 
         Parameters
         ----------
@@ -366,9 +360,13 @@ class MeyerWavelet:
 
         Returns
         -------
-        npt.NDArray
-            Lowpass subband (first of 2^dimension subbands). Shape is
-            approximately half the input shape in each dimension.
+        list[list[npt.NDArray]]
+            All subbands organized into 2 subband groups:
+            - coefficients[0]: [lowpass] - single lowpass subband (1 subband)
+            - coefficients[1]: [highpass_0, highpass_1, ...] - all highpass
+              subbands (2^dimension - 1 subbands)
+            Each subband has shape approximately half the input shape in each
+            dimension.
 
         Raises
         ------
@@ -381,19 +379,18 @@ class MeyerWavelet:
         >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> signal = np.random.randn(64, 64)
-        >>> lowpass = wavelet.forward(signal)
-        >>> lowpass.shape
+        >>> coefficients = wavelet.forward(signal)
+        >>> len(coefficients)  # 2 subband groups
+        2
+        >>> coefficients[0][0].shape  # Lowpass subband
         (32, 32)
-        >>> len(wavelet._highpass_bands)
+        >>> len(coefficients[1])  # Highpass subbands
         3
         """
         # Validate input shape
         if signal.shape != self.shape:
             error_msg = f"Signal shape {signal.shape} does not match expected shape {self.shape}"
             raise ValueError(error_msg)
-
-        # Track if input is complex
-        self._is_complex = np.iscomplexobj(signal)
 
         # Start with the full signal
         current_bands = [signal]
@@ -409,32 +406,26 @@ class MeyerWavelet:
                 new_bands.append(highpass_subband)
             current_bands = new_bands
 
-        # Store highpass bands (all except the first)
-        self._highpass_bands = current_bands[1:]
-
-        # Return only the lowpass subband (first band)
-        return current_bands[0]
-
-    @overload
-    def backward(self, lowpass_subband: npt.NDArray[C]) -> npt.NDArray[C]: ...
-
-    @overload
-    def backward(self, lowpass_subband: npt.NDArray[F]) -> npt.NDArray[F]: ...
+        # Return structure: [[lowpass], [highpass_0, highpass_1, ...]]
+        # len(result) == 2 (num_subbands)
+        return [[current_bands[0]], current_bands[1:]]
 
     def backward(
-        self, lowpass_subband: npt.NDArray[F] | npt.NDArray[C]
+        self, coefficients: list[list[npt.NDArray[F] | npt.NDArray[C]]]
     ) -> npt.NDArray[F] | npt.NDArray[C]:
         """
         Apply multi-dimensional Meyer wavelet inverse transform.
 
-        Reconstructs the original signal from the lowpass subband and the
-        highpass bands stored during forward().
+        Reconstructs the original signal from the full coefficient structure
+        returned by forward().
 
         Parameters
         ----------
-        lowpass_subband : npt.NDArray
-            Lowpass subband from forward transform. Must match the shape
-            returned by forward().
+        coefficients : list[list[npt.NDArray]]
+            Full coefficient structure from forward() with 2 subband groups:
+            - coefficients[0]: [lowpass] - single lowpass subband
+            - coefficients[1]: [highpass_0, highpass_1, ...] - all highpass
+              subbands
 
         Returns
         -------
@@ -443,10 +434,8 @@ class MeyerWavelet:
 
         Raises
         ------
-        RuntimeError
-            If forward() has not been called first.
         ValueError
-            If lowpass_subband shape does not match expected shape.
+            If coefficients structure is invalid (must have 2 subband groups).
 
         Examples
         --------
@@ -454,21 +443,24 @@ class MeyerWavelet:
         >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> signal = np.random.randn(64, 64)
-        >>> lowpass = wavelet.forward(signal)
-        >>> reconstructed = wavelet.backward(lowpass)
+        >>> coefficients = wavelet.forward(signal)
+        >>> reconstructed = wavelet.backward(coefficients)
         >>> np.allclose(signal, reconstructed, atol=1e-10)
         True
         """
-        # Validate that forward() was called first
-        if self._highpass_bands is None:
+        # Validate coefficient structure
+        if len(coefficients) != 2:
             error_msg = (
-                "forward() must be called before backward(). "
-                "Highpass bands are not available."
+                f"coefficients must have 2 subband groups, got {len(coefficients)}"
             )
-            raise RuntimeError(error_msg)
+            raise ValueError(error_msg)
 
-        # Combine lowpass with stored highpass bands
-        all_bands = [lowpass_subband, *self._highpass_bands]
+        # Extract lowpass and highpass bands
+        lowpass_subband = coefficients[0][0]
+        highpass_bands: list[npt.NDArray[F] | npt.NDArray[C]] = coefficients[1]
+
+        # Combine lowpass with highpass bands
+        all_bands = [lowpass_subband, *highpass_bands]
 
         # Apply inverse transform along each dimension in reverse order
         current_bands = all_bands

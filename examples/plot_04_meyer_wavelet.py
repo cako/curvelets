@@ -52,10 +52,12 @@ wavelet = MeyerWavelet(shape=shape)
 # Meyer Wavelet Forward Transform
 # ###############################
 
-lowpass = wavelet.forward(zone_plate)
-highpass_bands = wavelet._highpass_bands
+coefficients = wavelet.forward(zone_plate)
+lowpass = coefficients[0][0]
+highpass_bands = coefficients[1]
 
 print(f"Input shape: {zone_plate.shape}")  # noqa: T201
+print(f"Number of subband groups: {len(coefficients)}")  # noqa: T201
 print(f"Lowpass shape: {lowpass.shape}")  # noqa: T201
 print(f"Number of highpass bands: {len(highpass_bands)}")  # noqa: T201
 for i, band in enumerate(highpass_bands):
@@ -138,7 +140,7 @@ print(f"Total: {total_energy:.2e}")  # noqa: T201
 # Reconstruction
 # ##############
 
-reconstructed = wavelet.backward(lowpass)
+reconstructed = wavelet.backward(coefficients)
 
 # %%
 # Reconstructed Image
