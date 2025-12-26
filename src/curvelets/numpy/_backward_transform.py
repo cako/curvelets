@@ -170,37 +170,6 @@ def _apply_backward_transform_real(
     The real transform combines positive and negative frequencies, resulting
     in real-valued output. Contributions are accumulated using sparse indexing
     for efficiency.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._utils import ParamUDCT
-    >>> from curvelets.numpy._udct_windows import _udct_windows
-    >>> from curvelets.numpy._forward_transform import _apply_forward_transform_real
-    >>> from curvelets.numpy._backward_transform import _apply_backward_transform_real
-    >>>
-    >>> # Create parameters for 2D transform
-    >>> params = ParamUDCT(
-    ...     shape=(64, 64),
-    ...     angular_wedges_config=np.array([[3], [6], [12]]),
-    ...     window_overlap=0.15,
-    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
-    ...     window_threshold=1e-5
-    ... )
-    >>>
-    >>> # Compute windows
-    >>> windows, decimation_ratios, _ = _udct_windows(params)
-    >>>
-    >>> # Create test image and transform
-    >>> image = np.random.randn(64, 64)
-    >>> coeffs = _apply_forward_transform_real(image, params, windows, decimation_ratios)
-    >>>
-    >>> # Reconstruct
-    >>> recon = _apply_backward_transform_real(coeffs, params, windows, decimation_ratios)
-    >>> np.allclose(image, recon, atol=1e-10)
-    True
-    >>> np.isrealobj(recon)
-    True
     """
     # Determine dtype from coefficients
     real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
@@ -328,37 +297,6 @@ def _apply_backward_transform_complex(
     The complex transform separates positive and negative frequencies, resulting
     in complex-valued output. Contributions are accumulated using full array
     operations for efficiency.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._utils import ParamUDCT
-    >>> from curvelets.numpy._udct_windows import _udct_windows
-    >>> from curvelets.numpy._forward_transform import _apply_forward_transform_complex
-    >>> from curvelets.numpy._backward_transform import _apply_backward_transform_complex
-    >>>
-    >>> # Create parameters for 2D transform
-    >>> params = ParamUDCT(
-    ...     shape=(64, 64),
-    ...     angular_wedges_config=np.array([[3], [6], [12]]),
-    ...     window_overlap=0.15,
-    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
-    ...     window_threshold=1e-5
-    ... )
-    >>>
-    >>> # Compute windows
-    >>> windows, decimation_ratios, _ = _udct_windows(params)
-    >>>
-    >>> # Create test image and transform
-    >>> image = np.random.randn(64, 64)
-    >>> coeffs = _apply_forward_transform_complex(image, params, windows, decimation_ratios)
-    >>>
-    >>> # Reconstruct
-    >>> recon = _apply_backward_transform_complex(coeffs, params, windows, decimation_ratios)
-    >>> np.allclose(image, recon.real, atol=1e-10)
-    True
-    >>> np.iscomplexobj(recon)
-    True
     """
     # Determine dtype from coefficients
     real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
@@ -615,63 +553,6 @@ def _apply_backward_transform(
     The normalization factors ensure energy preservation: coefficients
     are scaled by sqrt(2 * prod(decimation_ratio)) in forward transform,
     and divided by the same factor in backward transform.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._utils import ParamUDCT
-    >>> from curvelets.numpy._udct_windows import _udct_windows
-    >>> from curvelets.numpy._forward_transform import _apply_forward_transform
-    >>> from curvelets.numpy._backward_transform import _apply_backward_transform
-    >>>
-    >>> # Create parameters for 2D transform
-    >>> params = ParamUDCT(
-    ...     shape=(64, 64),
-    ...     angular_wedges_config=np.array([[3], [6], [12]]),
-    ...     window_overlap=0.15,
-    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
-    ...     window_threshold=1e-5
-    ... )
-    >>>
-    >>> # Compute windows (typically done once and reused)
-    >>> windows, decimation_ratios, _ = _udct_windows(params)
-    >>>
-    >>> # Create test image
-    >>> image = np.random.randn(64, 64)
-    >>>
-    >>> # Forward transform (real mode)
-    >>> coeffs = _apply_forward_transform(
-    ...     image, params, windows, decimation_ratios, use_complex_transform=False
-    ... )
-    >>>
-    >>> # Backward transform (real mode)
-    >>> recon = _apply_backward_transform(
-    ...     coeffs, params, windows, decimation_ratios, use_complex_transform=False
-    ... )
-    >>>
-    >>> # Check reconstruction accuracy
-    >>> np.allclose(image, recon, atol=1e-10)
-    True
-    >>> recon.shape
-    (64, 64)
-    >>> np.isrealobj(recon)  # Real output in real mode
-    True
-    >>>
-    >>> # Forward transform (complex mode)
-    >>> coeffs_complex = _apply_forward_transform(
-    ...     image, params, windows, decimation_ratios, use_complex_transform=True
-    ... )
-    >>>
-    >>> # Backward transform (complex mode)
-    >>> recon_complex = _apply_backward_transform(
-    ...     coeffs_complex, params, windows, decimation_ratios, use_complex_transform=True
-    ... )
-    >>>
-    >>> # Check reconstruction accuracy
-    >>> np.allclose(image, recon_complex.real, atol=1e-10)
-    True
-    >>> np.iscomplexobj(recon_complex)  # Complex output in complex mode
-    True
     """
     if use_complex_transform:
         return _apply_backward_transform_complex(

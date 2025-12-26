@@ -210,43 +210,6 @@ def _apply_forward_transform_real(
     The real transform combines positive and negative frequencies, resulting
     in real-valued coefficients. This is suitable for real-valued inputs and
     provides a more compact representation.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._utils import ParamUDCT
-    >>> from curvelets.numpy._udct_windows import _udct_windows
-    >>> from curvelets.numpy._forward_transform import _apply_forward_transform_real
-    >>>
-    >>> # Create parameters for 2D transform
-    >>> params = ParamUDCT(
-    ...     shape=(64, 64),
-    ...     angular_wedges_config=np.array([[3], [6], [12]]),
-    ...     window_overlap=0.15,
-    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
-    ...     window_threshold=1e-5
-    ... )
-    >>>
-    >>> # Compute windows (typically done once and reused)
-    >>> windows, decimation_ratios, _ = _udct_windows(params)
-    >>>
-    >>> # Create test image
-    >>> image = np.random.randn(64, 64)
-    >>>
-    >>> # Apply forward transform (real mode)
-    >>> coeffs = _apply_forward_transform_real(image, params, windows, decimation_ratios)
-    >>>
-    >>> # Check structure
-    >>> len(coeffs)  # Number of scales
-    4
-    >>> len(coeffs[0][0])  # Low-frequency: 1 wedge
-    1
-    >>> len(coeffs[1])  # First high-frequency scale: 2 directions (real mode)
-    2
-    >>> coeffs[0][0][0].shape  # Downsampled low-frequency coefficients
-    (32, 32)
-    >>> np.isrealobj(coeffs[0][0][0])  # Real coefficients
-    True
     """
     image_frequency = np.fft.fftn(image)
     complex_dtype = image_frequency.dtype
@@ -366,41 +329,6 @@ def _apply_forward_transform_complex(
 
     This mode is required for complex-valued inputs and provides full frequency
     information.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._utils import ParamUDCT
-    >>> from curvelets.numpy._udct_windows import _udct_windows
-    >>> from curvelets.numpy._forward_transform import _apply_forward_transform_complex
-    >>>
-    >>> # Create parameters for 2D transform
-    >>> params = ParamUDCT(
-    ...     shape=(64, 64),
-    ...     angular_wedges_config=np.array([[3], [6], [12]]),
-    ...     window_overlap=0.15,
-    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
-    ...     window_threshold=1e-5
-    ... )
-    >>>
-    >>> # Compute windows (typically done once and reused)
-    >>> windows, decimation_ratios, _ = _udct_windows(params)
-    >>>
-    >>> # Create test image
-    >>> image = np.random.randn(64, 64)
-    >>>
-    >>> # Apply forward transform (complex mode)
-    >>> coeffs_complex = _apply_forward_transform_complex(
-    ...     image, params, windows, decimation_ratios
-    ... )
-    >>>
-    >>> # Check structure
-    >>> len(coeffs_complex)  # Number of scales
-    4
-    >>> len(coeffs_complex[1])  # Complex mode: 4 directions (2*dim)
-    4
-    >>> np.iscomplexobj(coeffs_complex[0][0][0])  # Complex coefficients
-    True
     """
     image_frequency = np.fft.fftn(image)
     complex_dtype = image_frequency.dtype
@@ -594,52 +522,6 @@ def _apply_forward_transform(
 
     The transform provides a tight frame, meaning perfect reconstruction
     is possible using the corresponding backward transform.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._utils import ParamUDCT
-    >>> from curvelets.numpy._udct_windows import _udct_windows
-    >>> from curvelets.numpy._forward_transform import _apply_forward_transform
-    >>>
-    >>> # Create parameters for 2D transform
-    >>> params = ParamUDCT(
-    ...     shape=(64, 64),
-    ...     angular_wedges_config=np.array([[3], [6], [12]]),
-    ...     window_overlap=0.15,
-    ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
-    ...     window_threshold=1e-5
-    ... )
-    >>>
-    >>> # Compute windows (typically done once and reused)
-    >>> windows, decimation_ratios, _ = _udct_windows(params)
-    >>>
-    >>> # Create test image
-    >>> image = np.random.randn(64, 64)
-    >>>
-    >>> # Apply forward transform (real mode)
-    >>> coeffs = _apply_forward_transform(
-    ...     image, params, windows, decimation_ratios, use_complex_transform=False
-    ... )
-    >>>
-    >>> # Check structure
-    >>> len(coeffs)  # Number of scales
-    4
-    >>> len(coeffs[0][0])  # Low-frequency: 1 wedge
-    1
-    >>> len(coeffs[1])  # First high-frequency scale: 2 directions (real mode)
-    2
-    >>> coeffs[0][0][0].shape  # Downsampled low-frequency coefficients
-    (32, 32)
-    >>>
-    >>> # Apply forward transform (complex mode)
-    >>> coeffs_complex = _apply_forward_transform(
-    ...     image, params, windows, decimation_ratios, use_complex_transform=True
-    ... )
-    >>> len(coeffs_complex[1])  # Complex mode: 4 directions (2*dim)
-    4
-    >>> np.iscomplexobj(coeffs_complex[0][0][0])  # Complex coefficients
-    True
     """
     if use_complex_transform:
         # Runtime check for complex arrays

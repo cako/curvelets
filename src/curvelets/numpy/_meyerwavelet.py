@@ -91,16 +91,6 @@ class MeyerWavelet:
         Determines unique filter sizes from the input shape and pre-computes
         all required filters. Filters are stored in `_filters` for
         direct access during forward and backward transforms.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
-        >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> len(wavelet._filters)
-        1
-        >>> 64 in wavelet._filters
-        True
         """
         # Determine unique filter sizes (one per unique dimension size)
         required_filter_sizes = set(self.shape)
@@ -135,20 +125,6 @@ class MeyerWavelet:
         tuple[npt.NDArray, npt.NDArray]
             Lowpass and highpass filters as 1D arrays of length signal_length.
             The filters satisfy perfect reconstruction: `|lowpass|² + |highpass|² = 1`.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
-        >>> wavelet = MeyerWavelet(shape=(64,))
-        >>> lowpass, highpass = wavelet._compute_single_filter(64)
-        >>> lowpass.shape
-        (64,)
-        >>> highpass.shape
-        (64,)
-        >>> # Verify perfect reconstruction condition
-        >>> np.allclose(lowpass**2 + highpass**2, 1.0)
-        True
         """
         # Compute frequency grid (matching UDCT)
         frequency_grid = np.linspace(

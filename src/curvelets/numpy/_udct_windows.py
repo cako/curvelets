@@ -164,16 +164,6 @@ class UDCTWindow:
         -------
         tuple[npt.NDArray[F], npt.NDArray[F]]
             Adapted grid arrays angle_grid_2 and angle_grid_1.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> frequency_grid_1 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
-        >>> frequency_grid_2 = np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)
-        >>> angle_grid_2, angle_grid_1 = UDCTWindow._create_angle_grids_from_frequency_grids(frequency_grid_1, frequency_grid_2)
-        >>> angle_grid_2.shape
-        (64, 64)
         """
         meshgrid_dim1, meshgrid_dim2 = np.meshgrid(frequency_grid_2, frequency_grid_1)
 
@@ -210,15 +200,6 @@ class UDCTWindow:
         -------
         npt.NDArray[F]
             Array of angle functions.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> angle_grid = np.linspace(-2, 2, 64)
-        >>> angle_funcs = UDCTWindow._create_angle_functions(angle_grid, 1, 3, 0.15)
-        >>> angle_funcs.shape[0]
-        2
         """
         # Compute angular window spacing and boundaries
         angular_spacing = 2 / num_angular_wedges
@@ -267,23 +248,6 @@ class UDCTWindow:
         npt.NDArray[F]
             Kronecker product result with shape matching input shape.
             The dtype matches the input angle_function_1d dtype (preserves TypeVar F).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._utils import ParamUDCT
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> params = ParamUDCT(
-        ...     shape=(64, 64),
-        ...     angular_wedges_config=np.array([[3], [6], [12]]),
-        ...     window_overlap=0.15, window_threshold=1e-5,
-        ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
-        ... )
-        >>> angle_function_1d = np.ones(64)
-        >>> dimension_permutation = np.array([1, 2])
-        >>> result = UDCTWindow._compute_angle_kronecker_product(angle_function_1d, dimension_permutation, params)
-        >>> result.shape
-        (64, 64)
         """
         # Pre-compute dimension sizes for Kronecker product
         kronecker_dimension_sizes: npt.NDArray[np.int_] = np.array(
@@ -329,15 +293,6 @@ class UDCTWindow:
         -------
         npt.NDArray[F]
             Flipped and shifted array.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> arr = np.array([[1, 2], [3, 4]])
-        >>> flipped = UDCTWindow._flip_with_fft_shift(arr, 0)
-        >>> flipped.shape
-        (2, 2)
         """
         shift_vector = [0] * input_array.ndim
         shift_vector[axis] = 1
@@ -363,15 +318,6 @@ class UDCTWindow:
         tuple[IntpNDArray, npt.NDArray[F]]
             Tuple of (indices, values) where indices are positions and values
             are the array values at those positions.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> arr = np.array([0.1, 0.5, 0.01, 0.8])
-        >>> indices, values = UDCTWindow._to_sparse(arr, 0.2)
-        >>> len(values)
-        2
         """
         arr_flat = arr.ravel()
         indices = np.argwhere(arr_flat > threshold)
@@ -393,14 +339,6 @@ class UDCTWindow:
         -------
         npt.NDArray[np.int_]
             Array of shape (C(n,k), k) containing all combinations.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> result = UDCTWindow._nchoosek([0, 1, 2], 2)
-        >>> result.shape
-        (3, 2)
         """
         return np.asarray(list(combinations(n, k)), dtype=int)
 
@@ -437,18 +375,6 @@ class UDCTWindow:
             Dictionary mapping scale index to bandpass window array.
             Scale 0 is low-frequency, scales 1..(num_scales-1) are high-frequency bands.
             Each window has shape matching input `shape`.
-
-            Examples
-            --------
-            >>> import numpy as np
-            >>> from curvelets.numpy._udct_windows import UDCTWindow
-            >>> freq_grid, bandpass = UDCTWindow._create_bandpass_windows(
-            ...     3, (64, 64), (np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
-            ... )
-            >>> len(bandpass)
-            4
-            >>> bandpass[0].shape
-            (64, 64)
         """
         dimension = len(shape)
         frequency_grid: dict[int, npt.NDArray[np.float64]] = {}
@@ -522,16 +448,6 @@ class UDCTWindow:
         list[IntegerNDArray]
             List of arrays, one per resolution. Each array has shape (dimension, dimension-1)
             and contains indices of dimensions used for angle calculations on each hyperpyramid.
-
-            Examples
-            --------
-            >>> import numpy as np
-            >>> from curvelets.numpy._udct_windows import UDCTWindow
-            >>> mappings = UDCTWindow._create_direction_mappings(2, 3)
-            >>> len(mappings)
-            3
-            >>> mappings[0].shape
-            (2, 1)
         """
         return [
             np.c_[
@@ -581,18 +497,6 @@ class UDCTWindow:
         -------
         tuple[dict[int, dict[tuple[int, int], npt.NDArray[F]]], dict[int, dict[tuple[int, int], IntegerNDArray]]]
             Tuple of (angle_functions, angle_indices) dictionaries.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> freq_grid = {0: np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False),
-        ...              1: np.linspace(-1.5*np.pi, 0.5*np.pi, 64, endpoint=False)}
-        >>> angle_funcs, angle_indices = UDCTWindow._create_angle_info(
-        ...     freq_grid, 2, 3, np.array([[3], [6], [12]]), 0.15
-        ... )
-        >>> len(angle_funcs)
-        3
         """
         dimension_permutations = UDCTWindow._nchoosek(np.arange(dimension), 2)
         angle_grid: dict[tuple[int, int], npt.NDArray[F]] = {}
@@ -667,14 +571,6 @@ class UDCTWindow:
             Dimensionality of the transform.
         num_scales : int
             Total number of scales (including lowpass scale).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> from curvelets.numpy._typing import UDCTWindows
-        >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
-        >>> UDCTWindow._inplace_normalize_windows(windows, (64, 64), 2, 3)
         """
         # Phase 1: Compute sum of squares of all windows (including flipped versions)
         # This ensures the tight frame property: sum of squares equals 1 at each frequency
@@ -748,17 +644,6 @@ class UDCTWindow:
         -------
         list[IntegerNDArray]
             List of decimation ratio arrays, one per scale.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> mappings = UDCTWindow._create_mdirs(2, 3)
-        >>> ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
-        ...     3, 2, np.array([[3], [6], [12]]), mappings
-        ... )
-        >>> len(ratios)
-        4
         """
         decimation_ratios: list[IntegerNDArray] = [
             np.full((1, dimension), fill_value=2 ** (num_scales - 2), dtype=int)
@@ -807,15 +692,6 @@ class UDCTWindow:
             Total number of scales (including lowpass scale).
         dimension : int
             Dimensionality of the transform.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> from curvelets.numpy._typing import UDCTWindows
-        >>> windows: UDCTWindows = [[[(np.array([[0]]), np.array([1.0]))]]]
-        >>> indices = {1: {0: np.array([[0]])}}
-        >>> UDCTWindow._inplace_sort_windows(windows, indices, 3, 2)
         """
         for scale_idx in range(1, num_scales):
             # Iterate over actual dimension indices present (may be less than dimension for "wavelet" mode)
@@ -863,19 +739,6 @@ class UDCTWindow:
         -------
         IntegerNDArray
             Array of shape (num_windows, dim-1) containing angle index combinations.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy._utils import ParamUDCT
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>> params = ParamUDCT(
-        ...     shape=(64, 64),
-        ...     angular_wedges_config=np.array([[3], [6], [12]]),
-        ...     window_overlap=0.15, window_threshold=1e-5,
-        ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
-        ... )
-        >>> # This would be called internally by compute()
         """
         angle_indices_1d = np.arange(
             len(angle_functions[scale_idx - 1][(dimension_idx, 0)])
@@ -1004,33 +867,6 @@ class UDCTWindow:
         reflecting indices across different angular dimensions. The first row
         contains the original angle indices, and subsequent rows contain flipped
         versions.
-
-        Examples
-        --------
-        This method is typically called internally by :py:meth:`UDCTWindow.compute`.
-        For a given window_index, it processes one set of angle indices and generates
-        all symmetric flipped versions:
-
-        >>> import numpy as np
-        >>> from curvelets.numpy._utils import ParamUDCT
-        >>> from curvelets.numpy._udct_windows import UDCTWindow
-        >>>
-        >>> # Example output structure:
-        >>> # For a 2D transform (ndim=2), angle_indices_2d has shape (num_windows, 1)
-        >>> # since dim-1 = 1. The first row is the original, subsequent rows
-        >>> # are flipped versions for symmetry.
-        >>> #
-        >>> # Example: if processing window_index=0 with angle_idx=[1], it might generate:
-        >>> angle_indices_2d = np.array([[1], [2]])  # original and one flipped version
-        >>> angle_indices_2d.shape
-        (2, 1)
-        >>>
-        >>> # window_tuples is a list of (indices, values) tuples in sparse format:
-        >>> # window_tuples = [
-        >>> #     (np.array([10, 20, 30]), np.array([0.5, 0.8, 0.3])),  # first window
-        >>> #     (np.array([15, 25, 35]), np.array([0.4, 0.7, 0.2]))   # flipped window
-        >>> # ]
-        >>> # Each tuple represents a sparse window: (non-zero indices, non-zero values)
         """
         # Step 1: Build base window W_{j,l} = F_j · A_{j,l} (Section IV, Nguyen & Chauris 2010)
         # Initialize with unity: W = 1

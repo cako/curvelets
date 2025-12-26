@@ -180,17 +180,6 @@ class UDCT:
         -------
         tuple[:obj:`np.ndarray <numpy.ndarray>`, float]
             Tuple of (computed_angular_wedges_config, computed_window_overlap).
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import UDCT
-        >>> cfg = np.array([[3, 3], [6, 6]])
-        >>> config, overlap = UDCT._compute_from_angular_wedges_config(cfg, None)
-        >>> config.shape
-        (2, 2)
-        >>> overlap
-        0.15
         """
         # Use provided angular_wedges_config directly
         computed_angular_wedges_config = angular_wedges_config
@@ -250,16 +239,6 @@ class UDCT:
         ------
         ValueError
             If num_scales < 2 or wedges_per_direction < 3.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import UDCT
-        >>> config, overlap = UDCT._compute_from_num_scales(3, 3, None, 2)
-        >>> config.shape
-        (2, 2)
-        >>> overlap
-        0.15
         """
         # Use num_scales/wedges_per_direction
         if num_scales is None:
