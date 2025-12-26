@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._typing import C, F
-from ._utils import meyer_window
+from ._utils import circular_shift, meyer_window
 
 
 class MeyerWavelet:
@@ -17,6 +17,10 @@ class MeyerWavelet:
     filters pre-computed during initialization for improved performance. The
     class stores highpass bands internally after forward transform, eliminating
     the need for external state management.
+
+    The filter computation uses the same method as UDCT's `_create_bandpass_windows()`
+    for num_scales=2, ensuring compatibility when used with UDCT in wavelet mode
+    with num_scales=2 and high_frequency_mode="wavelet".
 
     Parameters
     ----------
@@ -68,7 +72,7 @@ class MeyerWavelet:
         (64, 64)
         >>> wavelet.dimension
         2
-        >>> len(wavelet._filter_cache)
+        >>> len(wavelet._filters)
         1
         """
         self.shape = shape
@@ -85,7 +89,7 @@ class MeyerWavelet:
         Pre-compute all filters needed for the transform.
 
         Determines unique filter sizes from the input shape and pre-computes
-        all required filters. Filters are stored in `_filter_cache` for
+        all required filters. Filters are stored in `_filters` for
         direct access during forward and backward transforms.
 
         Examples
@@ -93,9 +97,9 @@ class MeyerWavelet:
         >>> import numpy as np
         >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> len(wavelet._filter_cache)
+        >>> len(wavelet._filters)
         1
-        >>> 64 in wavelet._filter_cache
+        >>> 64 in wavelet._filters
         True
         """
         # Determine unique filter sizes (one per unique dimension size)
@@ -111,7 +115,15 @@ class MeyerWavelet:
         """
         Compute a single Meyer wavelet filter pair for given signal length.
 
-        The lowpass filter is fftshifted, while the highpass filter is not.
+        Uses the same computation method as UDCT's `_create_bandpass_windows()` for
+        num_scales=2 compatibility. The lowpass filter is computed using:
+        - Frequency grid: `np.linspace(-1.5*pi, 0.5*pi, signal_length, endpoint=False)`
+        - Meyer window parameters: `[-2, -1, pi/3, 2*pi/3]`
+        - Special case for num_scales=2: adds `meyer_window(abs(freq + 2*pi), ...)`
+        - Circular shift by `signal_length // 4` before square root
+
+        The highpass filter is computed as the complement of the lowpass to ensure
+        perfect reconstruction: `|lowpass|² + |highpass|² = 1`.
 
         Parameters
         ----------
@@ -122,6 +134,7 @@ class MeyerWavelet:
         -------
         tuple[npt.NDArray, npt.NDArray]
             Lowpass and highpass filters as 1D arrays of length signal_length.
+            The filters satisfy perfect reconstruction: `|lowpass|² + |highpass|² = 1`.
 
         Examples
         --------
@@ -133,30 +146,32 @@ class MeyerWavelet:
         (64,)
         >>> highpass.shape
         (64,)
+        >>> # Verify perfect reconstruction condition
+        >>> np.allclose(lowpass**2 + highpass**2, 1.0)
+        True
         """
-        # Compute frequency grid
-        frequency_step = 2 * np.pi / signal_length
-        frequency_grid = (
-            np.linspace(0, 2 * np.pi - frequency_step, signal_length) - np.pi / 2
+        # Compute frequency grid (matching UDCT)
+        frequency_grid = np.linspace(
+            -1.5 * np.pi, 0.5 * np.pi, signal_length, endpoint=False
         )
 
-        # Meyer frequency parameters: [-pi/3, pi/3, 2*pi/3, 4*pi/3]
-        meyer_frequency_parameters = np.pi * np.array([-1 / 3, 1 / 3, 2 / 3, 4 / 3])
+        # Meyer window parameters (matching UDCT for num_scales=2)
+        meyer_params = np.array([-2, -1, np.pi / 3, 2 * np.pi / 3])
+        abs_frequency_grid = np.abs(frequency_grid)
 
         # Compute Meyer window function
-        window_values = meyer_window(
-            frequency_grid,
-            meyer_frequency_parameters[0],  # transition_start
-            meyer_frequency_parameters[1],  # plateau_start
-            meyer_frequency_parameters[2],  # plateau_end
-            meyer_frequency_parameters[3],  # transition_end
-        )
+        window_values = meyer_window(abs_frequency_grid, *meyer_params)
 
-        # Lowpass filter: fftshifted and square-rooted
-        lowpass_filter = np.sqrt(np.fft.fftshift(window_values))
+        # Add num_scales=2 special case (matching UDCT)
+        window_values += meyer_window(np.abs(frequency_grid + 2 * np.pi), *meyer_params)
 
-        # Highpass filter: not shifted, square-rooted
-        highpass_filter = np.sqrt(window_values)
+        # Lowpass filter: circular-shifted and square-rooted (matching UDCT)
+        lowpass_window_sq_shifted = circular_shift(window_values, (signal_length // 4,))
+        lowpass_filter = np.sqrt(lowpass_window_sq_shifted)
+
+        # Highpass filter: complement of lowpass for perfect reconstruction
+        # Compute as complement of the shifted lowpass window to ensure |lowpass|² + |highpass|² = 1
+        highpass_filter = np.sqrt(1 - lowpass_window_sq_shifted)
 
         return lowpass_filter, highpass_filter
 
