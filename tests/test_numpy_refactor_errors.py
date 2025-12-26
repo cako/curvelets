@@ -253,3 +253,159 @@ class TestUDCTErrors:
 
         with pytest.raises(RuntimeError, match="MeyerWavelet not initialized"):
             transform.forward(data)
+
+    def test_meyer_multiple_forward_calls(self, rng):
+        """
+        Test that multiple forward() calls work correctly without data corruption.
+
+        This test verifies the fix for the bug where calling forward() on multiple
+        images before calling backward() would cause silent data corruption because
+        highpass bands were stored as instance state and got overwritten.
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            Random number generator fixture.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=2, wedges_per_direction=3,
+        ...                  high_frequency_mode="meyer")
+        >>> image_A = np.random.randn(64, 64)
+        >>> image_B = np.random.randn(64, 64) + 100
+        >>> coeffs_A = transform.forward(image_A)
+        >>> coeffs_B = transform.forward(image_B)
+        >>> recon_A = transform.backward(coeffs_A)
+        >>> recon_B = transform.backward(coeffs_B)
+        >>> np.allclose(image_A, recon_A, atol=1e-4)
+        True
+        >>> np.allclose(image_B, recon_B, atol=1e-4)
+        True
+        """
+        transform = UDCT(
+            shape=(64, 64),
+            num_scales=2,
+            wedges_per_direction=3,
+            high_frequency_mode="meyer",
+        )
+
+        # Create two different images
+        image_A = rng.normal(size=(64, 64)).astype(np.float64)
+        image_B = rng.normal(size=(64, 64)).astype(np.float64) + 100.0
+
+        # Call forward on both images (this was the bug scenario)
+        coeffs_A = transform.forward(image_A)
+        coeffs_B = transform.forward(image_B)
+
+        # Verify that each set of coefficients has its own highpass bands
+        assert hasattr(coeffs_A, "_meyer_highpass_bands")
+        assert hasattr(coeffs_B, "_meyer_highpass_bands")
+        assert coeffs_A._meyer_highpass_bands is not None
+        assert coeffs_B._meyer_highpass_bands is not None
+
+        # Now backward should use the correct highpass bands for each
+        recon_A = transform.backward(coeffs_A)
+        recon_B = transform.backward(coeffs_B)
+
+        # Verify reconstruction accuracy
+        assert np.allclose(image_A, recon_A, atol=1e-4), (
+            "Image A should be correctly reconstructed even after forward(B)"
+        )
+        assert np.allclose(image_B, recon_B, atol=1e-4), (
+            "Image B should be correctly reconstructed"
+        )
+
+        # Verify that reconstructions are different (not corrupted)
+        assert not np.allclose(recon_A, recon_B), (
+            "Reconstructions should be different for different inputs"
+        )
+
+    def test_meyer_backward_missing_highpass_bands_attribute(self, rng):
+        """
+        Test RuntimeError when coefficients are missing _meyer_highpass_bands attribute.
+
+        This can occur if coefficients were created with an older version or were
+        modified incorrectly.
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            Random number generator fixture.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=2, wedges_per_direction=3,
+        ...                  high_frequency_mode="meyer")
+        >>> data = np.random.randn(64, 64)
+        >>> coeffs = transform.forward(data)
+        >>> delattr(coeffs, '_meyer_highpass_bands')
+        >>> try:
+        ...     transform.backward(coeffs)
+        ... except RuntimeError as e:
+        ...     print("Error caught:", str(e))
+        Error caught: Coefficients missing highpass bands attribute...
+        """
+        transform = UDCT(
+            shape=(64, 64),
+            num_scales=2,
+            wedges_per_direction=3,
+            high_frequency_mode="meyer",
+        )
+        data = rng.normal(size=(64, 64)).astype(np.float64)
+        coeffs = transform.forward(data)
+
+        # Remove the attribute to simulate old version or manual modification
+        if hasattr(coeffs, "_meyer_highpass_bands"):
+            delattr(coeffs, "_meyer_highpass_bands")
+
+        with pytest.raises(
+            RuntimeError, match="Coefficients missing highpass bands attribute"
+        ):
+            transform.backward(coeffs)
+
+    def test_meyer_backward_none_highpass_bands(self, rng):
+        """
+        Test RuntimeError when _meyer_highpass_bands attribute is None.
+
+        This can occur if coefficients were modified incorrectly.
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            Random number generator fixture.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=2, wedges_per_direction=3,
+        ...                  high_frequency_mode="meyer")
+        >>> data = np.random.randn(64, 64)
+        >>> coeffs = transform.forward(data)
+        >>> coeffs._meyer_highpass_bands = None
+        >>> try:
+        ...     transform.backward(coeffs)
+        ... except RuntimeError as e:
+        ...     print("Error caught:", str(e))
+        Error caught: Highpass bands are not available in coefficients...
+        """
+        transform = UDCT(
+            shape=(64, 64),
+            num_scales=2,
+            wedges_per_direction=3,
+            high_frequency_mode="meyer",
+        )
+        data = rng.normal(size=(64, 64)).astype(np.float64)
+        coeffs = transform.forward(data)
+
+        # Set attribute to None to simulate incomplete coefficients
+        coeffs._meyer_highpass_bands = None
+
+        with pytest.raises(
+            RuntimeError, match="Highpass bands are not available in coefficients"
+        ):
+            transform.backward(coeffs)

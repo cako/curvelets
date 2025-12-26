@@ -18,6 +18,15 @@ from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
 
 
+class _CoefficientsList(list):
+    """
+    Wrapper class for coefficients list that supports attribute assignment.
+
+    This allows storing highpass bands as an attribute on the coefficients
+    list, making coefficients self-contained and thread-safe.
+    """
+
+
 class UDCT:
     """
     Uniform Discrete Curvelet Transform (UDCT) implementation.
@@ -600,13 +609,14 @@ class UDCT:
 
         # Apply Meyer wavelet decomposition if enabled
         # forward() returns all subbands in nested structure
+        meyer_highpass_bands: list[npt.NDArray] | None = None
         if self.high_frequency_mode == "meyer":
             if self._meyer_wavelet is None:
                 error_msg = "MeyerWavelet not initialized"
                 raise RuntimeError(error_msg)
             # Get all subbands and store highpass bands for backward()
             meyer_coeffs = self._meyer_wavelet.forward(image)
-            self._meyer_highpass_bands = meyer_coeffs[1]
+            meyer_highpass_bands = meyer_coeffs[1]
             # Extract lowpass from subband group 0
             image = meyer_coeffs[0][0]
 
@@ -645,6 +655,15 @@ class UDCT:
                 self.windows,
                 self.decimation_ratios,
             )
+
+        # Wrap result in a list subclass that supports attribute assignment
+        # This allows storing highpass bands as an attribute, making coefficients
+        # self-contained and thread-safe
+        if meyer_highpass_bands is not None:
+            result_wrapped = _CoefficientsList(result)
+            result_wrapped._meyer_highpass_bands = meyer_highpass_bands
+            return result_wrapped
+
         return result
 
     def backward(self, coefficients: list[list[list[npt.NDArray[C]]]]) -> np.ndarray:
@@ -684,18 +703,31 @@ class UDCT:
                 use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
             )
 
-            # Apply Meyer inverse using stored highpass bands
+            # Apply Meyer inverse using highpass bands from coefficients
             if self._meyer_wavelet is None:
                 error_msg = "MeyerWavelet not initialized"
                 raise RuntimeError(error_msg)
-            if self._meyer_highpass_bands is None:
+
+            # Extract highpass bands from coefficients attribute
+            # This makes coefficients self-contained and thread-safe
+            if not hasattr(coefficients, "_meyer_highpass_bands"):
                 error_msg = (
-                    "forward() must be called before backward(). "
-                    "Highpass bands are not available."
+                    "Coefficients missing highpass bands attribute. "
+                    "This may indicate coefficients were created with an older version "
+                    "or were modified incorrectly."
                 )
                 raise RuntimeError(error_msg)
+
+            meyer_highpass_bands = coefficients._meyer_highpass_bands
+            if meyer_highpass_bands is None:
+                error_msg = (
+                    "Highpass bands are not available in coefficients. "
+                    "Coefficients may be incomplete."
+                )
+                raise RuntimeError(error_msg)
+
             # Reconstruct full MeyerWavelet coefficient structure
-            meyer_coeffs = [[lowpass_recon], self._meyer_highpass_bands]
+            meyer_coeffs = [[lowpass_recon], meyer_highpass_bands]
             return self._meyer_wavelet.backward(meyer_coeffs)
 
         return _apply_backward_transform(
