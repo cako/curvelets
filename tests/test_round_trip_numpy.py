@@ -170,6 +170,68 @@ def test_numpy_round_trip_wavelet_relative(dim, high, rng):
     np.testing.assert_allclose(data, recon, atol=atol * data.max())
 
 
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_numpy_round_trip_wavelet_num_scales_2(dim, rng):
+    """
+    Test NumPy implementation round-trip with wavelet mode and num_scales=2.
+
+    This test specifically verifies that num_scales=2 works with wavelet mode,
+    which should be equivalent to a Meyer wavelet transform (1 lowpass + 1 highpass).
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=2,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet"
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with num_scales=2 and wavelet mode
+    transform = UDCT(
+        shape=size,
+        num_scales=2,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify structure: should have 2 scales (lowpass + 1 high-frequency)
+    assert len(coeffs) == 2, f"Expected 2 scales, got {len(coeffs)}"
+
+    # Verify reconstruction accuracy
+    # Wavelet mode has slightly higher reconstruction error due to Meyer wavelet
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon, atol=atol)
+
+
 # ============================================================================
 # Complex transform tests (separate +/- frequency bands)
 # ============================================================================

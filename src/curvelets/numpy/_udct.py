@@ -55,6 +55,8 @@ class UDCT:
     high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
         "wavelet" applies Meyer wavelet decomposition at the highest scale.
+        For wavelet mode, num_scales must be >= 2. When num_scales=2, this is
+        equivalent to a Meyer wavelet transform (1 lowpass + 1 highpass scale).
         Default is "curvelet".
     use_complex_transform : bool, optional
         If True, use complex transform which separates positive and negative
@@ -94,6 +96,19 @@ class UDCT:
     >>> coeffs2 = transform2.forward(data)
     >>> recon2 = transform2.backward(coeffs2)
     >>> np.allclose(data, recon2, atol=1e-4)
+    True
+    >>> # Create wavelet mode with num_scales=2 (equivalent to Meyer wavelet)
+    >>> transform3 = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=2,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet"
+    ... )
+    >>> coeffs3 = transform3.forward(data)
+    >>> len(coeffs3)  # 2 scales: lowpass + 1 high-frequency
+    2
+    >>> recon3 = transform3.backward(coeffs3)
+    >>> np.allclose(data, recon3, atol=1e-4)
     True
     """
 
@@ -336,10 +351,11 @@ class UDCT:
         computed_num_scales = 1 + len(computed_angular_wedges_config)
 
         # Validate wavelet mode requirements
-        # For wavelet mode, we need at least 3 scales total (1 lowpass + 2 high-frequency),
-        # which means at least 2 rows in angular_wedges_config
-        if high_frequency_mode == "wavelet" and computed_num_scales < 3:
-            msg = "Wavelet mode requires at least 3 scales total (num_scales >= 3)"
+        # For wavelet mode, we need at least 2 scales total (1 lowpass + 1 high-frequency),
+        # which means at least 1 row in angular_wedges_config
+        # num_scales=2 is equivalent to a Meyer wavelet transform
+        if high_frequency_mode == "wavelet" and computed_num_scales < 2:
+            msg = "Wavelet mode requires at least 2 scales total (num_scales >= 2)"
             raise ValueError(msg)
 
         # Calculate internal shape (wavelet mode halves the size)
