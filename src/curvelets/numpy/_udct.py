@@ -52,12 +52,14 @@ class UDCT:
     window_threshold : float, optional
         Threshold for sparse window storage (values below this are stored as sparse).
         Default is 1e-5.
-    high_frequency_mode : {"curvelet", "wavelet"}, optional
+    high_frequency_mode : {"curvelet", "meyer", "wavelet"}, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
-        "wavelet" applies Meyer wavelet decomposition at the highest scale.
-        For wavelet mode, num_scales must be >= 2. When num_scales=2, this is
-        equivalent to a Meyer wavelet transform (1 lowpass + 1 highpass scale).
-        Default is "curvelet".
+        "meyer" applies Meyer wavelet decomposition at the highest scale,
+        "wavelet" creates a single ring-shaped window (bandpass filter only,
+        no angular components) at the highest scale with decimation=1.
+        For meyer and wavelet modes, num_scales must be >= 2.
+        When num_scales=2 with meyer mode, this is equivalent to a Meyer wavelet
+        transform (1 lowpass + 1 highpass scale). Default is "curvelet".
     use_complex_transform : bool, optional
         If True, use complex transform which separates positive and negative
         frequency components into different bands. Each band is scaled by
@@ -97,12 +99,12 @@ class UDCT:
     >>> recon2 = transform2.backward(coeffs2)
     >>> np.allclose(data, recon2, atol=1e-4)
     True
-    >>> # Create wavelet mode with num_scales=2 (equivalent to Meyer wavelet)
+    >>> # Create meyer mode with num_scales=2 (equivalent to Meyer wavelet)
     >>> transform3 = UDCT(
     ...     shape=(64, 64),
     ...     num_scales=2,
     ...     wedges_per_direction=3,
-    ...     high_frequency_mode="wavelet"
+    ...     high_frequency_mode="meyer"
     ... )
     >>> coeffs3 = transform3.forward(data)
     >>> len(coeffs3)  # 2 scales: lowpass + 1 high-frequency
@@ -121,7 +123,7 @@ class UDCT:
         window_overlap: float | None = None,
         radial_frequency_params: tuple[float, float, float, float] | None = None,
         window_threshold: float = 1e-5,
-        high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
+        high_frequency_mode: Literal["curvelet", "meyer", "wavelet"] = "curvelet",
         use_complex_transform: bool = False,
     ) -> None:
         # Store basic attributes
@@ -156,7 +158,7 @@ class UDCT:
         # Initialize Meyer wavelet if needed
         self._meyer_wavelet: MeyerWavelet | None = None
         self._meyer_highpass_bands: list[npt.NDArray] | None = None
-        if self.high_frequency_mode == "wavelet":
+        if self.high_frequency_mode == "meyer":
             self._meyer_wavelet = MeyerWavelet(shape=shape)
 
     @staticmethod
@@ -325,7 +327,7 @@ class UDCT:
         window_overlap: float | None,
         radial_frequency_params: tuple[float, float, float, float] | None,
         window_threshold: float,
-        high_frequency_mode: Literal["curvelet", "wavelet"],
+        high_frequency_mode: Literal["curvelet", "meyer", "wavelet"],
     ) -> dict[str, Any]:
         """
         Calculate all necessary parameters for UDCT initialization.
@@ -376,16 +378,16 @@ class UDCT:
         # Compute num_scales from computed_angular_wedges_config for validation
         computed_num_scales = 1 + len(computed_angular_wedges_config)
 
-        # Validate wavelet mode requirements
-        # For wavelet mode, we need at least 2 scales total (1 lowpass + 1 high-frequency),
+        # Validate meyer and wavelet mode requirements
+        # For meyer and wavelet modes, we need at least 2 scales total (1 lowpass + 1 high-frequency),
         # which means at least 1 row in angular_wedges_config
-        # num_scales=2 is equivalent to a Meyer wavelet transform
-        if high_frequency_mode == "wavelet" and computed_num_scales < 2:
-            msg = "Wavelet mode requires at least 2 scales total (num_scales >= 2)"
+        # num_scales=2 with meyer mode is equivalent to a Meyer wavelet transform
+        if high_frequency_mode in ("meyer", "wavelet") and computed_num_scales < 2:
+            msg = f"{high_frequency_mode.capitalize()} mode requires at least 2 scales total (num_scales >= 2)"
             raise ValueError(msg)
 
-        # Calculate internal shape (wavelet mode halves the size)
-        if high_frequency_mode == "wavelet":
+        # Calculate internal shape (meyer mode halves the size)
+        if high_frequency_mode == "meyer":
             internal_shape = tuple(s // 2 for s in shape)
         else:
             internal_shape = shape
@@ -420,7 +422,7 @@ class UDCT:
         tuple
             (windows, decimation_ratios, indices)
         """
-        window_computer = UDCTWindow(self.parameters)
+        window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
         return window_computer.compute()
 
     def vect(
@@ -502,18 +504,27 @@ class UDCT:
                 # In complex transform mode, directions >= dim reuse windows and decimation ratios
                 # from directions < dim. Negative frequency directions (dim..2*dim-1) use the same
                 # windows and decimation ratios as positive frequency directions (0..dim-1)
+                # For "wavelet" mode at highest scale, windows only has 1 direction, so use index 0
                 if (
                     self.use_complex_transform
                     and scale_idx > 0
                     and direction_idx >= self.parameters.ndim
                 ):
                     window_direction_idx = direction_idx % self.parameters.ndim
+                    # Clamp to available windows (for "wavelet" mode at highest scale)
+                    window_direction_idx = min(
+                        window_direction_idx, len(self.windows[scale_idx]) - 1
+                    )
                     decimation_ratio_dir = decimation_ratios_scale[
-                        window_direction_idx, :
+                        min(window_direction_idx, len(decimation_ratios_scale) - 1), :
                     ]
                 else:
-                    window_direction_idx = direction_idx
-                    decimation_ratio_dir = decimation_ratios_scale[direction_idx, :]
+                    window_direction_idx = min(
+                        direction_idx, len(self.windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
 
                 for _ in self.windows[scale_idx][window_direction_idx]:
                     shape_decimated = internal_shape // decimation_ratio_dir
@@ -616,7 +627,7 @@ class UDCT:
 
         # Apply Meyer wavelet decomposition if enabled
         # forward() returns all subbands in nested structure
-        if self.high_frequency_mode == "wavelet":
+        if self.high_frequency_mode == "meyer":
             if self._meyer_wavelet is None:
                 error_msg = "MeyerWavelet not initialized"
                 raise RuntimeError(error_msg)
@@ -690,7 +701,7 @@ class UDCT:
         >>> np.allclose(data, recon, atol=1e-4)
         True
         """
-        if self.high_frequency_mode == "wavelet":
+        if self.high_frequency_mode == "meyer":
             # Reconstruct lowpass from curvelet coefficients
             lowpass_recon = _apply_backward_transform(
                 coefficients,

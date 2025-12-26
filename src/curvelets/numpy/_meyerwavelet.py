@@ -18,7 +18,7 @@ class MeyerWavelet:
 
     The filter computation uses the same method as UDCT's `_create_bandpass_windows()`
     for num_scales=2, ensuring compatibility when used with UDCT in wavelet mode
-    with num_scales=2 and high_frequency_mode="wavelet".
+    with num_scales=2 and high_frequency_mode="meyer".
 
     Parameters
     ----------

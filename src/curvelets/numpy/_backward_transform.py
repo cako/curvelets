@@ -211,13 +211,18 @@ def _apply_backward_transform_real(
 
     # Process high-frequency bands using loops
     for scale_idx in range(1, parameters.num_scales):
-        for direction_idx in range(parameters.ndim):
+        for direction_idx in range(len(windows[scale_idx])):
             for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                 window = windows[scale_idx][direction_idx][wedge_idx]
+                # Get decimation ratio, handling case where decimation_ratios has shape (1, dim)
+                if decimation_ratios[scale_idx].shape[0] == 1:
+                    decimation_ratio = decimation_ratios[scale_idx][0, :]
+                else:
+                    decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
                 contribution = _process_wedge_backward_real(
                     coefficients[scale_idx][direction_idx][wedge_idx],
                     window,
-                    decimation_ratios[scale_idx][direction_idx, :],
+                    decimation_ratio,
                     complex_dtype,
                 )
                 idx, _ = window
@@ -318,13 +323,22 @@ def _apply_backward_transform_complex(
     image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
 
     # Process positive frequency bands (directions 0..dim-1)
+    # For "wavelet" mode at highest scale, reuse the single window for all directions
     for scale_idx in range(1, parameters.num_scales):
+        num_window_directions = len(windows[scale_idx])
         for direction_idx in range(parameters.ndim):
-            for wedge_idx in range(len(windows[scale_idx][direction_idx])):
+            # For "wavelet" mode, use window direction 0 for all coefficient directions
+            window_direction_idx = min(direction_idx, num_window_directions - 1)
+            for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
+                # Get decimation ratio, handling case where decimation_ratios has shape (1, dim)
+                if decimation_ratios[scale_idx].shape[0] == 1:
+                    decimation_ratio = decimation_ratios[scale_idx][0, :]
+                else:
+                    decimation_ratio = decimation_ratios[scale_idx][window_direction_idx, :]
                 contribution = _process_wedge_backward_complex(
                     coefficients[scale_idx][direction_idx][wedge_idx],
-                    windows[scale_idx][direction_idx][wedge_idx],
-                    decimation_ratios[scale_idx][direction_idx, :],
+                    windows[scale_idx][window_direction_idx][wedge_idx],
+                    decimation_ratio,
                     parameters,
                     complex_dtype,
                     flip_window=False,
@@ -332,13 +346,23 @@ def _apply_backward_transform_complex(
                 image_frequency += contribution
 
     # Process negative frequency bands (directions dim..2*dim-1)
+    # For "wavelet" mode at highest scale, reuse the single window for all directions
     for scale_idx in range(1, parameters.num_scales):
+        num_window_directions = len(windows[scale_idx])
+        # Process negative frequencies: reuse windows from positive frequencies
         for direction_idx in range(parameters.ndim):
-            for wedge_idx in range(len(windows[scale_idx][direction_idx])):
+            # For "wavelet" mode, use window direction 0 for all coefficient directions
+            window_direction_idx = min(direction_idx, num_window_directions - 1)
+            for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
+                # Get decimation ratio, handling case where decimation_ratios has shape (1, dim)
+                if decimation_ratios[scale_idx].shape[0] == 1:
+                    decimation_ratio = decimation_ratios[scale_idx][0, :]
+                else:
+                    decimation_ratio = decimation_ratios[scale_idx][window_direction_idx, :]
                 contribution = _process_wedge_backward_complex(
                     coefficients[scale_idx][direction_idx + parameters.ndim][wedge_idx],
-                    windows[scale_idx][direction_idx][wedge_idx],
-                    decimation_ratios[scale_idx][direction_idx, :],
+                    windows[scale_idx][window_direction_idx][wedge_idx],
+                    decimation_ratio,
                     parameters,
                     complex_dtype,
                     flip_window=True,

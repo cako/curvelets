@@ -72,15 +72,15 @@ def test_numpy_round_trip_parametrized(dim, shape_idx, rng):
 
 
 # ============================================================================
-# Wavelet mode tests
+# Meyer mode tests
 # ============================================================================
 
 
 def _get_wavelet_config_idx(dim: int) -> int | None:
     """
-    Get the config index for wavelet mode tests.
+    Get the config index for meyer mode tests.
 
-    Wavelet mode requires at least 2 scales. Returns None if no suitable config exists.
+    Meyer mode requires at least 2 scales. Returns None if no suitable config exists.
 
     Parameters
     ----------
@@ -103,16 +103,16 @@ def _get_wavelet_config_idx(dim: int) -> int | None:
 @pytest.mark.parametrize(
     "dim,high",
     [
-        (2, "wavelet"),
-        (3, "wavelet"),
-        (4, "wavelet"),
+        (2, "meyer"),
+        (3, "meyer"),
+        (4, "meyer"),
     ],
 )
 def test_numpy_round_trip_wavelet_absolute(dim, high, rng):
     """
-    Test NumPy implementation round-trip with wavelet mode using absolute tolerance.
+    Test NumPy implementation round-trip with meyer mode using absolute tolerance.
 
-    Wavelet mode applies Meyer wavelet decomposition at the highest scale,
+    Meyer mode applies Meyer wavelet decomposition at the highest scale,
     with curvelet transform on the lowpass component only.
     """
     cfg_idx = _get_wavelet_config_idx(dim)
@@ -127,7 +127,7 @@ def test_numpy_round_trip_wavelet_absolute(dim, high, rng):
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    # Wavelet mode has slightly higher reconstruction error due to Meyer wavelet
+    # Meyer mode has slightly higher reconstruction error due to Meyer wavelet
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon, atol=atol)
 
@@ -136,21 +136,21 @@ def test_numpy_round_trip_wavelet_absolute(dim, high, rng):
 @pytest.mark.parametrize(
     "dim,high",
     [
-        (2, "wavelet"),
-        (3, "wavelet"),
-        (4, "wavelet"),
+        (2, "meyer"),
+        (3, "meyer"),
+        (4, "meyer"),
     ],
 )
 def test_numpy_round_trip_wavelet_relative(dim, high, rng):
     """
-    Test NumPy implementation round-trip with wavelet mode using relative tolerance.
+    Test NumPy implementation round-trip with meyer mode using relative tolerance.
 
-    Tests with random shapes and configs (that have at least 2 scales for wavelet mode).
+    Tests with random shapes and configs (that have at least 2 scales for meyer mode).
     """
     shapes = get_test_shapes(dim)
     configs = get_test_configs(dim)
 
-    # Filter configs to only those with nscales >= 2 for wavelet mode
+    # Filter configs to only those with nscales >= 2 for meyer mode
     valid_cfg_indices = [idx for idx, cfg in enumerate(configs) if len(cfg) >= 2]
     if not valid_cfg_indices:
         pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
@@ -174,9 +174,9 @@ def test_numpy_round_trip_wavelet_relative(dim, high, rng):
 @pytest.mark.parametrize("dim", [2, 3, 4])
 def test_numpy_round_trip_wavelet_num_scales_2(dim, rng):
     """
-    Test NumPy implementation round-trip with wavelet mode and num_scales=2.
+    Test NumPy implementation round-trip with meyer mode and num_scales=2.
 
-    This test specifically verifies that num_scales=2 works with wavelet mode,
+    This test specifically verifies that num_scales=2 works with meyer mode,
     which should be equivalent to a Meyer wavelet transform (1 lowpass + 1 highpass).
 
     Parameters
@@ -194,7 +194,7 @@ def test_numpy_round_trip_wavelet_num_scales_2(dim, rng):
     ...     shape=(64, 64),
     ...     num_scales=2,
     ...     wedges_per_direction=3,
-    ...     high_frequency_mode="wavelet"
+    ...     high_frequency_mode="meyer"
     ... )
     >>> data = np.random.randn(64, 64)
     >>> coeffs = transform.forward(data)
@@ -211,12 +211,12 @@ def test_numpy_round_trip_wavelet_num_scales_2(dim, rng):
     size = shapes[0]
     data = rng.normal(size=size).astype(np.float64)
 
-    # Create transform with num_scales=2 and wavelet mode
+    # Create transform with num_scales=2 and meyer mode
     transform = UDCT(
         shape=size,
         num_scales=2,
         wedges_per_direction=3,
-        high_frequency_mode="wavelet",
+        high_frequency_mode="meyer",
     )
 
     # Test forward and backward transform
@@ -227,7 +227,62 @@ def test_numpy_round_trip_wavelet_num_scales_2(dim, rng):
     assert len(coeffs) == 2, f"Expected 2 scales, got {len(coeffs)}"
 
     # Verify reconstruction accuracy
-    # Wavelet mode has slightly higher reconstruction error due to Meyer wavelet
+    # Meyer mode has slightly higher reconstruction error due to Meyer wavelet
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon, atol=atol)
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_numpy_round_trip_wavelet_mode(dim, rng):
+    """
+    Test NumPy implementation round-trip with new "wavelet" mode.
+
+    Wavelet mode sums all windows at the highest scale into a single window
+    with decimation=1 (no decimation).
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with num_scales=3 and wavelet mode
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify structure: should have 3 scales
+    assert len(coeffs) == 3, f"Expected 3 scales, got {len(coeffs)}"
+    
+    # Verify highest scale has single window (1 direction, 1 wedge)
+    highest_scale_idx = 2
+    assert len(coeffs[highest_scale_idx]) == 1, f"Expected 1 direction at highest scale, got {len(coeffs[highest_scale_idx])}"
+    assert len(coeffs[highest_scale_idx][0]) == 1, f"Expected 1 wedge at highest scale, got {len(coeffs[highest_scale_idx][0])}"
+    
+    # Verify decimation=1 (coefficient shape should match internal shape)
+    highest_coeff = coeffs[highest_scale_idx][0][0]
+    expected_shape = tuple(s // transform.decimation_ratios[0][0, 0] for s in transform.parameters.shape)
+    assert highest_coeff.shape == expected_shape, f"Expected shape {expected_shape}, got {highest_coeff.shape}"
+    
+    # Verify windows structure
+    assert len(transform.windows[highest_scale_idx]) == 1, "Expected 1 direction in windows at highest scale"
+    assert len(transform.windows[highest_scale_idx][0]) == 1, "Expected 1 wedge in windows at highest scale"
+    
+    # Verify decimation ratio is 1
+    assert np.all(transform.decimation_ratios[highest_scale_idx] == 1), "Expected decimation=1 at highest scale"
+
+    # Verify reconstruction accuracy
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon, atol=atol)
 
@@ -306,16 +361,16 @@ def test_numpy_round_trip_complex_parametrized(dim, shape_idx, rng):
 @pytest.mark.parametrize(
     "dim,high",
     [
-        (2, "wavelet"),
-        (3, "wavelet"),
-        (4, "wavelet"),
+        (2, "meyer"),
+        (3, "meyer"),
+        (4, "meyer"),
     ],
 )
 def test_numpy_round_trip_complex_wavelet_absolute(dim, high, rng):
     """
-    Test NumPy implementation round-trip with complex transform in wavelet mode.
+    Test NumPy implementation round-trip with complex transform in meyer mode.
 
-    Combines complex transform (separate +/- frequency bands) with wavelet mode
+    Combines complex transform (separate +/- frequency bands) with meyer mode
     (Meyer wavelet at highest scale).
     """
     cfg_idx = _get_wavelet_config_idx(dim)
@@ -394,16 +449,16 @@ def test_numpy_round_trip_complex_input_relative(dim, rng):
 @pytest.mark.parametrize(
     "dim,high",
     [
-        (2, "wavelet"),
-        (3, "wavelet"),
-        (4, "wavelet"),
+        (2, "meyer"),
+        (3, "meyer"),
+        (4, "meyer"),
     ],
 )
 def test_numpy_round_trip_complex_input_wavelet(dim, high, rng):
     """
-    Test NumPy round-trip with complex-valued input in wavelet mode.
+    Test NumPy round-trip with complex-valued input in meyer mode.
 
-    Combines complex-valued input with wavelet mode (Meyer wavelet at highest scale).
+    Combines complex-valued input with meyer mode (Meyer wavelet at highest scale).
     """
     cfg_idx = _get_wavelet_config_idx(dim)
     if cfg_idx is None:

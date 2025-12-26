@@ -141,7 +141,7 @@ class TestVectMethod:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            high_frequency_mode="wavelet",
+            high_frequency_mode="meyer",
         )
         data = rng.normal(size=(64, 64)).astype(np.float64)
         coeffs = transform.forward(data)
@@ -443,7 +443,7 @@ class TestVectStructRoundTrip:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            high_frequency_mode="wavelet",
+            high_frequency_mode="meyer",
         )
         data = rng.normal(size=(64, 64)).astype(np.float64)
         coeffs_orig = transform.forward(data)

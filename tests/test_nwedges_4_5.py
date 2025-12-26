@@ -86,7 +86,7 @@ def test_nwedges_4_5_raises_error_wavelet_mode(
     ...         shape=(64, 64),
     ...         num_scales=3,
     ...         wedges_per_direction=4,
-    ...         high_frequency_mode="wavelet"
+        ...         high_frequency_mode="meyer"
     ...     )
     """
     shape = (64, 64)
@@ -97,7 +97,7 @@ def test_nwedges_4_5_raises_error_wavelet_mode(
             shape=shape,
             num_scales=num_scales,
             wedges_per_direction=wedges_per_direction,
-            high_frequency_mode="wavelet",
+            high_frequency_mode="meyer",
         )
 
 

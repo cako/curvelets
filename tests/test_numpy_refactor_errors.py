@@ -207,7 +207,7 @@ class TestUDCTErrors:
         >>> import numpy as np
         >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3,
-        ...                  high_frequency_mode="wavelet")
+        ...                  high_frequency_mode="meyer")
         >>> data = np.random.randn(64, 64)
         >>> coeffs = transform.forward(data)
         >>> # Manually break the wavelet object (edge case)
@@ -222,7 +222,7 @@ class TestUDCTErrors:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            high_frequency_mode="wavelet",
+            high_frequency_mode="meyer",
         )
         data = rng.normal(size=(64, 64)).astype(np.float64)
         coeffs = transform.forward(data)
@@ -246,7 +246,7 @@ class TestUDCTErrors:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            high_frequency_mode="wavelet",
+            high_frequency_mode="meyer",
         )
         data = rng.normal(size=(64, 64)).astype(np.float64)
 
