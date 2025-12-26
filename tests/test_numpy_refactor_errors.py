@@ -403,7 +403,7 @@ class TestUDCTErrors:
         coeffs = transform.forward(data)
 
         # Set attribute to None to simulate incomplete coefficients
-        coeffs._meyer_highpass_bands = None
+        coeffs._meyer_highpass_bands = None  # type: ignore[attr-defined]
 
         with pytest.raises(
             RuntimeError, match="Highpass bands are not available in coefficients"

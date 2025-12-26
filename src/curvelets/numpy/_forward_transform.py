@@ -141,24 +141,6 @@ def _process_wedge_complex(
     return coeff
 
 
-@overload
-def _apply_forward_transform_real(
-    image: npt.NDArray[np.float32],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
-
-
-@overload
-def _apply_forward_transform_real(
-    image: npt.NDArray[np.float64],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
-
-
 def _apply_forward_transform_real(
     image: npt.NDArray[F],
     parameters: ParamUDCT,
@@ -256,24 +238,6 @@ def _apply_forward_transform_real(
         for scale_idx in range(1, parameters.num_scales)
     ]
     return coefficients
-
-
-@overload
-def _apply_forward_transform_complex(
-    image: npt.NDArray[np.complex64],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
-
-
-@overload
-def _apply_forward_transform_complex(
-    image: npt.NDArray[np.complex128],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
 
 def _apply_forward_transform_complex(
@@ -431,32 +395,12 @@ def _apply_forward_transform(
 
 @overload
 def _apply_forward_transform(
-    image: npt.NDArray[np.float64],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-    use_complex_transform: Literal[False] = False,
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
-
-
-@overload
-def _apply_forward_transform(
     image: npt.NDArray[np.complex64],
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[True],
 ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
-
-
-@overload
-def _apply_forward_transform(
-    image: npt.NDArray[np.complex128],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-    use_complex_transform: Literal[True],
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
 
 def _apply_forward_transform(

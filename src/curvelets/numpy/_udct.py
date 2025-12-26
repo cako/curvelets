@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import logging
+import sys
 from math import prod
-from typing import Any, Literal, overload
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
+
+if sys.version_info <= (3, 9):
+    from typing import List  # noqa: UP035
+else:
+    List = list
 
 from ._backward_transform import _apply_backward_transform
 from ._forward_transform import (
@@ -18,13 +24,15 @@ from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
 
 
-class _CoefficientsList(list):
+class _CoefficientsList(List[List[List[npt.NDArray[np.complexfloating]]]]):
     """
     Wrapper class for coefficients list that supports attribute assignment.
 
     This allows storing highpass bands as an attribute on the coefficients
     list, making coefficients self-contained and thread-safe.
     """
+
+    _meyer_highpass_bands: List[npt.NDArray] | None
 
 
 class UDCT:
@@ -550,26 +558,6 @@ class UDCT:
         arr_full = np.zeros(self.parameters.shape, dtype=val.dtype)
         arr_full.flat[idx] += val
         return arr_full
-
-    @overload
-    def forward(
-        self, image: npt.NDArray[np.float32]
-    ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
-
-    @overload
-    def forward(
-        self, image: npt.NDArray[np.float64]
-    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
-
-    @overload
-    def forward(
-        self, image: npt.NDArray[np.complex64]
-    ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...  # type: ignore[overload-cannot-match]
-
-    @overload
-    def forward(
-        self, image: npt.NDArray[np.complex128]
-    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
     def forward(
         self, image: npt.NDArray[F] | npt.NDArray[C]
