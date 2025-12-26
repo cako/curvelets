@@ -3,15 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import TypeVar, Union, cast
+from typing import Union
 
 import numpy as np
 import numpy.typing as npt
 
 from ._typing import F, IntegerNDArray, IntpNDArray, UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
-
-D_T = TypeVar("D_T", bound=np.floating)
 
 
 class UDCTWindow:
@@ -178,7 +176,7 @@ class UDCTWindow:
         # Note: Both direction 1 and 2 use the same computation because the
         # angle function is symmetric with respect to direction. The direction
         # parameter is kept for API consistency and potential future extensions.
-        angle_functions_list = []
+        angle_functions_list: list[npt.NDArray[F]] = []
         if direction in (1, 2):
             for wedge_index in range(1, ceil(num_angular_wedges / 2) + 1):
                 ang2 = -1 + (wedge_index - 1) * angular_spacing + angular_boundaries
@@ -194,7 +192,7 @@ class UDCTWindow:
         angle_function_1d: npt.NDArray[F],
         dimension_permutation: IntegerNDArray,
         param_udct: ParamUDCT,
-    ) -> IntegerNDArray:
+    ) -> npt.NDArray[F]:
         """
         Compute Kronecker product for angle functions.
 
@@ -209,8 +207,9 @@ class UDCTWindow:
 
         Returns
         -------
-        IntegerNDArray
+        npt.NDArray[F]
             Kronecker product result with shape matching param_udct.size.
+            The dtype matches the input angle_function_1d dtype (preserves TypeVar F).
 
         Examples
         --------
@@ -287,29 +286,28 @@ class UDCTWindow:
         >>> flipped.shape
         (2, 2)
         """
-        num_dimensions = input_array.ndim
-        shift_vector: npt.NDArray[np.int_] = np.zeros((num_dimensions,), dtype=int)
+        shift_vector = [0] * input_array.ndim
         shift_vector[axis] = 1
         flipped_array = np.flip(input_array, axis)
         return circular_shift(flipped_array, tuple(shift_vector))
 
     @staticmethod
     def _to_sparse(
-        arr: npt.NDArray[D_T], threshold: float
-    ) -> tuple[IntpNDArray, npt.NDArray[D_T]]:
+        arr: npt.NDArray[F], threshold: float
+    ) -> tuple[IntpNDArray, npt.NDArray[F]]:
         """
         Convert array to sparse format.
 
         Parameters
         ----------
-        arr : npt.NDArray[D_T]
+        arr : npt.NDArray[F]
             Input array.
         threshold : float
             Threshold for sparse storage (values above threshold are kept).
 
         Returns
         -------
-        tuple[IntpNDArray, npt.NDArray[D_T]]
+        tuple[IntpNDArray, npt.NDArray[F]]
             Tuple of (indices, values) where indices are positions and values
             are the array values at those positions.
 
