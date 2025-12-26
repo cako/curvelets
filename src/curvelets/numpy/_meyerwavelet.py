@@ -354,17 +354,19 @@ class MeyerWavelet:
 
         Parameters
         ----------
-        signal : npt.NDArray
+        signal : ``npt.NDArray[F]`` | ``npt.NDArray[C]``
             Input array (real or complex). Must match the shape specified
             during initialization.
 
         Returns
         -------
-        list[list[npt.NDArray]]
+        list[list[``npt.NDArray[F]`` | ``npt.NDArray[C]``]]
             All subbands organized into 2 subband groups:
+
             - coefficients[0]: [lowpass] - single lowpass subband (1 subband)
             - coefficients[1]: [highpass_0, highpass_1, ...] - all highpass
               subbands (2^dimension - 1 subbands)
+
             Each subband has shape approximately half the input shape in each
             dimension.
 
@@ -421,15 +423,16 @@ class MeyerWavelet:
 
         Parameters
         ----------
-        coefficients : list[list[npt.NDArray]]
+        coefficients : list[list[``npt.NDArray[F]`` | ``npt.NDArray[C]``]]
             Full coefficient structure from forward() with 2 subband groups:
+
             - coefficients[0]: [lowpass] - single lowpass subband
             - coefficients[1]: [highpass_0, highpass_1, ...] - all highpass
               subbands
 
         Returns
         -------
-        npt.NDArray
+        ``npt.NDArray[F]`` | ``npt.NDArray[C]``
             Reconstructed signal with shape matching the original input.
 
         Raises

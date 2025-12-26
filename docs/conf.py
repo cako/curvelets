@@ -38,6 +38,18 @@ myst_enable_extensions = [
 nitpick_ignore = [
     ("py:class", "_io.StringIO"),
     ("py:class", "_io.BytesIO"),
+    ("py:class", "C"),
+    ("py:class", "F"),
+    ("py:class", "T"),
+    ("py:class", "U"),
+    ("py:class", "optional"),
+    ("py:class", '"curvelet"'),
+    ("py:class", '"meyer"'),
+    ("py:class", '"wavelet"'),
+    ("py:class", '{"curvelet"'),
+    ("py:class", '"wavelet"}'),
+    ("py:class", "ParamUDCT"),
+    ("py:class", "UDCTWindows"),
 ]
 
 always_document_param_types = True
@@ -45,8 +57,8 @@ always_document_param_types = True
 # sphinx.ext.intersphinx
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://docs.scipy.org/doc/numpy/", None),
-    "matplotlib": ("https://matplotlib.org/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
 # sphinx_copybutton

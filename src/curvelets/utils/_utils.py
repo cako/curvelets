@@ -32,16 +32,16 @@ def apply_along_wedges(
 
     Parameters
     ----------
-    c_struct : list[list[list[U]]]
+    c_struct : list[list[list[``U``]]]
         Input curvelet structure. First index: scales, second: directions, third: wedges.
-    fun : Callable[[U, int, int, int, int, int, int], T]
+    fun : Callable[[``U``, int, int, int, int, int, int], ``T``]
         Function to apply to each item in the structure. The function's arguments
         are respectively: item, wedge index, direction index, scale index, number
         of wedges in direction, number of directions in scale, number of scales.
 
     Returns
     -------
-    list[list[list[T]]]
+    list[list[list[``T``]]]
         Result of applying the function to each item.
 
     Examples
@@ -254,7 +254,7 @@ def make_r(
 
     Returns
     -------
-    NDArray[np.floating]
+    :obj:`NDArray <numpy.typing.NDArray>` [:obj:`np.floating <numpy.floating>`]
         Array of radial distances from origin, raised to the exponent.
 
     Examples
@@ -301,7 +301,7 @@ def make_zone_plate(
 
     Returns
     -------
-    NDArray[np.floating]
+    :obj:`NDArray <numpy.typing.NDArray>` [:obj:`np.floating <numpy.floating>`]
         Zone plate pattern array with values in the range [-amplitude, amplitude].
 
     Examples

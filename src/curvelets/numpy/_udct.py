@@ -30,7 +30,7 @@ class UDCT:
     ----------
     shape : tuple[int, ...]
         Shape of the input data.
-    angular_wedges_config : np.ndarray, optional
+    angular_wedges_config : :obj:`np.ndarray <numpy.ndarray>`, optional
         Configuration array specifying the number of angular wedges per scale
         and dimension. Shape is (num_scales - 1, dimension), where num_scales
         includes the lowpass scale. If provided, cannot be used together with
@@ -170,7 +170,7 @@ class UDCT:
 
         Parameters
         ----------
-        angular_wedges_config : np.ndarray
+        angular_wedges_config : :obj:`np.ndarray <numpy.ndarray>`
             Configuration array specifying the number of angular wedges per scale
             and dimension. Shape is (num_scales, dimension).
         window_overlap : float | None
@@ -178,7 +178,7 @@ class UDCT:
 
         Returns
         -------
-        tuple[np.ndarray, float]
+        tuple[:obj:`np.ndarray <numpy.ndarray>`, float]
             Tuple of (computed_angular_wedges_config, computed_window_overlap).
 
         Examples
@@ -243,7 +243,7 @@ class UDCT:
 
         Returns
         -------
-        tuple[np.ndarray, float]
+        tuple[:obj:`np.ndarray <numpy.ndarray>`, float]
             Tuple of (computed_angular_wedges_config, computed_window_overlap).
 
         Raises
@@ -335,7 +335,7 @@ class UDCT:
         ----------
         shape : tuple[int, ...]
             Shape of the input data.
-        angular_wedges_config : np.ndarray | None
+        angular_wedges_config : :obj:`np.ndarray <numpy.ndarray>` | None
             Configuration array, or None to use num_scales/wedges_per_direction.
         num_scales : int | None
             Number of scales (used when angular_wedges_config is None).
@@ -429,12 +429,12 @@ class UDCT:
 
         Parameters
         ----------
-        coefficients : list[list[list[npt.NDArray[C]]]]
+        coefficients : list[list[list[``npt.NDArray[C]``]]]
             Structured curvelet coefficients.
 
         Returns
         -------
-        np.ndarray
+        :obj:`np.ndarray <numpy.ndarray>`
             Flattened vector of all coefficients.
 
         Examples
@@ -463,12 +463,12 @@ class UDCT:
 
         Parameters
         ----------
-        coefficients_vec : np.ndarray
+        coefficients_vec : :obj:`np.ndarray <numpy.ndarray>`
             Flattened vector of coefficients.
 
         Returns
         -------
-        list[list[list[npt.NDArray[C]]]]
+        list[list[list[``npt.NDArray[C]``]]]
             Structured curvelet coefficients.
 
         Examples
@@ -538,12 +538,12 @@ class UDCT:
 
         Parameters
         ----------
-        arr_sparse : tuple[NDArray[intp], NDArray[floating]]
+        arr_sparse : tuple[:obj:`NDArray <numpy.typing.NDArray>` [:obj:`intp <numpy.intp>`], :obj:`NDArray <numpy.typing.NDArray>` [:obj:`floating <numpy.floating>`]]
             Sparse window format as a tuple of (indices, values).
 
         Returns
         -------
-        NDArray[floating]
+        :obj:`NDArray <numpy.typing.NDArray>` [:obj:`floating <numpy.floating>`]
             Dense array with the same shape as the transform input.
 
         Examples
@@ -593,13 +593,13 @@ class UDCT:
 
         Parameters
         ----------
-        image : npt.NDArray[F] | npt.NDArray[C]
+        image : ``npt.NDArray[F]`` | ``npt.NDArray[C]``
             Input data with shape matching self.shape. Can be real-valued
-            (npt.NDArray[F]) or complex-valued (npt.NDArray[C]).
+            (``npt.NDArray[F]``) or complex-valued (``npt.NDArray[C]``).
 
         Returns
         -------
-        list[list[list[npt.NDArray[C]]]]
+        list[list[list[``npt.NDArray[C]``]]]
             Curvelet coefficients as nested list structure.
             When use_complex_transform=True, directions are doubled (first dim directions
             for positive frequencies, next dim for negative).
@@ -676,12 +676,12 @@ class UDCT:
 
         Parameters
         ----------
-        coefficients : list[list[list[npt.NDArray[C]]]]
+        coefficients : list[list[list[``npt.NDArray[C]``]]]
             Curvelet coefficients from forward transform.
 
         Returns
         -------
-        np.ndarray
+        :obj:`np.ndarray <numpy.ndarray>`
             Reconstructed data with shape matching self.shape.
             Returns complex array when use_complex_transform=True (required for complex inputs),
             real array when use_complex_transform=False.

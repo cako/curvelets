@@ -111,7 +111,7 @@ def create_inset_axes_grid(
         Height of each axis, as a percentage of ``rows``, by default 0.5.
     squeeze : :obj:`float`
         If True, removes singleton dimensions like :obj:`plt.subplots <matplotlib.pyplot.subplots>`.
-    kwargs_inset_axes : :obj:`dict[str, Any]`, optional
+    kwargs_inset_axes : dict[str, Any], optional
         Arguments to be passed to :obj:`matplotlib.axes.Axes.inset_axes`.
 
     Returns
