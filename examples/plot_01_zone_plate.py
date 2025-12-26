@@ -13,24 +13,7 @@ from matplotlib import ticker
 from curvelets.numpy import UDCT
 from curvelets.plot import create_colorbar, despine
 
-
-def make_r(
-    shape: tuple[int, ...], exponent: float = 1, origin: tuple[int, ...] | None = None
-):
-    orig = (
-        tuple((np.asarray(shape).astype(float) - 1) / 2) if origin is None else origin
-    )
-
-    ramps = np.meshgrid(
-        *[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)], indexing="ij"
-    )
-    return sum(x**2 for x in ramps) ** (exponent / 2)
-
-
-def make_zone_plate(shape: tuple[int, ...], amplitude: float = 1.0, phase: float = 0.0):
-    mxsz = max(*shape)
-
-    return amplitude * np.cos((np.pi / mxsz) * make_r(shape, 2) + phase)
+from examples._utils import make_r, make_zone_plate
 
 
 # %%
