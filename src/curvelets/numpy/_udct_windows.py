@@ -258,7 +258,9 @@ class UDCTWindow:
             np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int))
         ).T.ravel()
         # Match original: reshape with reversed size and transpose
-        return kron_step3.reshape(*param_udct.size[::-1]).T
+        return kron_step3.reshape(*param_udct.size[::-1]).T.astype(
+            angle_function_1d.dtype
+        )
 
     @staticmethod
     def _flip_with_fft_shift(input_array: npt.NDArray[F], axis: int) -> npt.NDArray[F]:
@@ -356,7 +358,7 @@ class UDCTWindow:
         num_scales: int,
         shape: tuple[int, ...],
         radial_frequency_params: tuple[float, float, float, float],
-    ) -> tuple[dict[int, npt.NDArray[F]], dict[int, npt.NDArray[F]]]:
+    ) -> tuple[dict[int, npt.NDArray[np.float64]], dict[int, npt.NDArray[np.float64]]]:
         """
             Create bandpass windows using Meyer wavelets for radial frequency decomposition.
 
@@ -398,8 +400,8 @@ class UDCTWindow:
             (64, 64)
         """
         dimension = len(shape)
-        frequency_grid: dict[int, npt.NDArray[F]] = {}
-        meyer_windows: dict[tuple[int, int], npt.NDArray[F]] = {}
+        frequency_grid: dict[int, npt.NDArray[np.float64]] = {}
+        meyer_windows: dict[tuple[int, int], npt.NDArray[np.float64]] = {}
         for dimension_idx in range(dimension):
             frequency_grid[dimension_idx] = np.linspace(
                 -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx], endpoint=False
@@ -426,15 +428,17 @@ class UDCTWindow:
                     abs_frequency_grid, *meyer_params
                 )
 
-        bandpass_windows: dict[int, npt.NDArray[F]] = {}
+        bandpass_windows: dict[int, npt.NDArray[np.float64]] = {}
         for scale_idx in range(num_scales, 0, -1):
-            low_freq = np.array([1.0])
-            high_freq = np.array([1.0])
+            low_freq = np.array([1.0], dtype=np.float64)
+            high_freq = np.array([1.0], dtype=np.float64)
             for dimension_idx in range(dimension - 1, -1, -1):
-                low_freq = np.kron(meyer_windows[(scale_idx, dimension_idx)], low_freq)
+                low_freq = np.kron(
+                    meyer_windows[(scale_idx, dimension_idx)], low_freq
+                ).astype(np.float64)
                 high_freq = np.kron(
                     meyer_windows[(scale_idx + 1, dimension_idx)], high_freq
-                )
+                ).astype(np.float64)
             low_freq_nd = low_freq.reshape(*shape)
             high_freq_nd = high_freq.reshape(*shape)
             bandpass_nd = high_freq_nd - low_freq_nd

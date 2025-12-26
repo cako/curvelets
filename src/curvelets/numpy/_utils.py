@@ -343,7 +343,7 @@ MEYER_TRANSITION_POLYNOMIAL: npt.NDArray[np.floating[object]] = np.array(
 
 
 def meyer_window(
-    frequency: npt.NDArray[np.generic],
+    frequency: npt.NDArray[F],
     transition_start: float,
     plateau_start: float,
     plateau_end: float,
