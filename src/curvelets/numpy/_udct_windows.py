@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import Union  # noqa: UP007
+from typing import Union
 
 import numpy as np
 import numpy.typing as npt

@@ -29,11 +29,9 @@ else:
 F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
 
 # C: Complex floating point types
-# Check if complex256 is available (not on macOS/Apple Silicon)
-if hasattr(np, 'complex256'):
-    C = TypeVar("C", np.complex64, np.complex128, np.complex256)
-else:
-    C = TypeVar("C", np.complex64, np.complex128)
+# Note: complex256 is available on some platforms but not others (e.g., not on macOS/Apple Silicon)
+# We define C with the common types; complex256 can be used directly when available
+C = TypeVar("C", np.complex64, np.complex128)
 
 # A: Any numpy array type (includes all numpy scalar types: floating, complex, integer, bool, etc.)
 A = TypeVar("A", bound=np.generic)
@@ -86,7 +84,7 @@ def _to_real_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:
     >>> _to_real_dtype(np.complex128)
     dtype('float64')
     """
-    return np.empty(0, dtype=dtype).real.dtype
+    return np.real(np.empty(0, dtype=dtype)).dtype
 
 
 def _to_complex_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:
