@@ -142,6 +142,45 @@ class TestMeyerWaveletErrors:
         ):
             wavelet.forward(wrong_shape_signal)
 
+    def test_meyerwavelet_odd_dimensions(self, rng):
+        """
+        Test that MeyerWavelet raises ValueError for odd dimensions.
+
+        This test verifies that the transform correctly rejects odd-length
+        signals, which are not supported due to downsampling producing
+        mismatched subband sizes.
+
+        Parameters
+        ----------
+        rng : numpy.random.Generator
+            Random number generator fixture.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import MeyerWavelet
+        >>> try:
+        ...     wavelet = MeyerWavelet(shape=(65, 65))
+        ... except ValueError as e:
+        ...     print(f"Error: {e}")
+        Error: All dimensions must be even, got shape (65, 65) with odd dimensions at indices [0, 1]
+        """
+        # Test 2D with odd dimensions
+        with pytest.raises(ValueError, match=r"All dimensions must be even"):
+            MeyerWavelet(shape=(65, 65))
+
+        # Test 3D with odd dimensions
+        with pytest.raises(ValueError, match=r"All dimensions must be even"):
+            MeyerWavelet(shape=(33, 33, 33))
+
+        # Test mixed even/odd dimensions
+        with pytest.raises(ValueError, match=r"All dimensions must be even"):
+            MeyerWavelet(shape=(64, 65))
+
+        # Test single odd dimension
+        with pytest.raises(ValueError, match=r"All dimensions must be even"):
+            MeyerWavelet(shape=(65,))
+
 
 class TestUDCTErrors:
     """Test suite for UDCT error cases."""

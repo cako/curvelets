@@ -24,14 +24,26 @@ class MeyerWavelet:
     ----------
     shape : tuple[int, ...]
         Expected shape of input signals. Used for validation and to determine
-        the number of dimensions.
+        the number of dimensions. All dimensions must be even (divisible by 2).
 
     Attributes
     ----------
     shape : tuple[int, ...]
-        Expected signal shape.
+        Expected signal shape (all dimensions are even).
     dimension : int
         Number of dimensions.
+
+    Raises
+    ------
+    ValueError
+        If any dimension in shape is odd (not divisible by 2).
+
+    Notes
+    -----
+    This implementation requires all dimensions to be even. Odd-length signals
+    are not supported due to the downsampling strategy used in the transform,
+    which produces mismatched subband sizes that cannot be correctly
+    reconstructed.
 
     Examples
     --------
@@ -49,6 +61,12 @@ class MeyerWavelet:
     >>> reconstructed = wavelet.backward(coefficients)
     >>> np.allclose(signal, reconstructed, atol=1e-10)
     True
+    >>> # Odd dimensions raise an error
+    >>> try:
+    ...     MeyerWavelet(shape=(65, 65))
+    ... except ValueError:
+    ...     print("Odd dimensions not supported")
+    Odd dimensions not supported
     """
 
     def __init__(self, shape: tuple[int, ...]) -> None:
@@ -63,7 +81,13 @@ class MeyerWavelet:
         ----------
         shape : tuple[int, ...]
             Expected shape of input signals. Used for validation and to
-            determine which filters to pre-compute.
+            determine which filters to pre-compute. All dimensions must be
+            even (divisible by 2).
+
+        Raises
+        ------
+        ValueError
+            If any dimension in shape is odd (not divisible by 2).
 
         Examples
         --------
@@ -76,7 +100,22 @@ class MeyerWavelet:
         2
         >>> len(wavelet._filters)
         1
+        >>> # Odd dimensions raise an error
+        >>> try:
+        ...     MeyerWavelet(shape=(65, 65))
+        ... except ValueError as e:
+        ...     print(f"Error: {e}")
+        Error: All dimensions must be even, got shape (65, 65) with odd dimensions at indices [0, 1]
         """
+        # Validate that all dimensions are even
+        odd_dimensions = [i for i, dim in enumerate(shape) if dim % 2 != 0]
+        if odd_dimensions:
+            error_msg = (
+                f"All dimensions must be even, got shape {shape} "
+                f"with odd dimensions at indices {odd_dimensions}"
+            )
+            raise ValueError(error_msg)
+
         self.shape = shape
         self.dimension = len(shape)
         self._filters: dict[int, tuple[npt.NDArray, npt.NDArray]] = {}
