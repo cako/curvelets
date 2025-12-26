@@ -3,8 +3,8 @@ Meyer Wavelet Transform
 ========================
 This example demonstrates the Meyer wavelet transform using a zone plate
 test image. The Meyer wavelet decomposes a 2D signal into 4 subbands:
-1 lowpass subband and 3 highpass subbands (horizontal, vertical, and
-diagonal). The transform is perfectly invertible, allowing exact
+1 lowpass subband and 3 highpass subbands (horizontal low-high, vertical high-low, and
+diagonal high-high). The transform is perfectly invertible, allowing exact
 reconstruction of the original signal.
 """
 

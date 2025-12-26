@@ -75,3 +75,4 @@ sphinx_gallery_conf = {
 bibtex_bibfiles = ["references.bib"]
 bibtex_reference_style = "author_year"
 # bibtex_default_style = "plain"
+suppress_warnings = ["bibtex.duplicate_citation"]

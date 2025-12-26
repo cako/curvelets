@@ -43,11 +43,11 @@ A third flavor is the Uniform Discrete Curvelet Transform (UDCT) which does not 
 Can I use curvelets for deep-learning?
 ######################################
 
-This is another facet of the "data-centric" vs "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering, as opposed to using conventional model architectures and letting the data guide the learning process. Alternatively, if the transform is used as a preprocessing step, it can be seen from as feature engineering.
+This is another facet of the "data-centric" vs. "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering when used as part of the model architecture, or feature engineering when used as a preprocessing step.
 
-My suggestion is to use curvelets and other transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data. It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks :cite:`Luan2018`, :cite:`Andreux2018` in some cases.
+It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks :cite:`Luan2018`, :cite:`Andreux2018` in some cases. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data.
 
-Another expected to consider is the availability of high-performance, GPU-accelerated and autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implement the wavelet scattering transform :cite:`Bruna2013` and dual-tree complex wavelet transform :cite:`Kingsbury2001`, respectively.
+Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implement the wavelet scattering transform :cite:`Bruna2013` and dual-tree complex wavelet transform :cite:`Kingsbury2001`, respectively. The former provides PyTorch, TensorFlow and JAX bindings, while the latter provides PyTorch bindings.
 
 Related Projects
 ################
@@ -61,3 +61,4 @@ References
 ##########
 
 .. bibliography::
+   :filter: docname in docnames

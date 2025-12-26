@@ -1,15 +1,10 @@
 """
-curvelet vs Meyer vs wavelet at Highest Scale
+Wavelet Trasforms at the Highest Scale
 =============================================
 This example compares curvelet, Meyer, and wavelet transforms at the highest scale
-(nscale=2) using a zone plate test image. It demonstrates the difference
-between directional curvelet windows, isotropic Meyer wavelet windows, and
-the new ring-shaped wavelet window, showing both frequency-domain windows and spatial coefficients.
-
-The "wavelet" mode creates a single ring-shaped window at the highest scale that
-encompasses the entire high-frequency ring (complement of the lowpass filter),
-with no angular components and decimation=1. This provides isotropic frequency
-coverage at the highest scale, in contrast to the directional curvelet windows.
+(using a simple nscale=2) on a zone plate test image. It demonstrates the difference
+between directional curvelet windows, Meyer wavelet windows, and a
+ring-shaped highpass window, showing both frequency-domain windows and spatial coefficients.
 """
 
 from __future__ import annotations
