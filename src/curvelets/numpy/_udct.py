@@ -46,6 +46,18 @@ class _CoefficientsList(List[List[List[npt.NDArray[np.complexfloating]]]]):
         """
         return self._meyer_highpass_bands
 
+    @meyer_highpass_bands.setter
+    def meyer_highpass_bands(self, value: List[npt.NDArray] | None) -> None:
+        """
+        Set the Meyer highpass bands for these coefficients.
+
+        Parameters
+        ----------
+        value : List[npt.NDArray] | None
+            The Meyer highpass bands to store, or None to clear.
+        """
+        self._meyer_highpass_bands = value
+
 
 class UDCT:
     """
@@ -661,7 +673,7 @@ class UDCT:
         # self-contained and thread-safe
         if meyer_highpass_bands is not None:
             result_wrapped = _CoefficientsList(result)
-            result_wrapped._meyer_highpass_bands = meyer_highpass_bands
+            result_wrapped.meyer_highpass_bands = meyer_highpass_bands
             return result_wrapped
 
         return result
