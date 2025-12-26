@@ -194,6 +194,23 @@ class UDCT:
         # Use provided angular_wedges_config directly
         computed_angular_wedges_config = angular_wedges_config
 
+        # Validate that all wedge counts are divisible by 3
+        # According to Nguyen & Chauris (2010), the decimation ratio formula
+        # uses integer division by 3, so wedges must be divisible by 3
+        invalid_wedges = computed_angular_wedges_config[
+            computed_angular_wedges_config % 3 != 0
+        ]
+        if len(invalid_wedges) > 0:
+            invalid_values = np.unique(invalid_wedges).tolist()
+            msg = (
+                f"All values in angular_wedges_config must be divisible by 3. "
+                f"Found invalid values: {invalid_values}. "
+                "According to the Nguyen & Chauris (2010) paper specification, "
+                "the decimation ratio formula requires integer division by 3. "
+                "Valid values are 3, 6, 9, 12, etc."
+            )
+            raise ValueError(msg)
+
         # Use provided window_overlap or default
         computed_window_overlap = window_overlap if window_overlap is not None else 0.15
 
@@ -254,6 +271,14 @@ class UDCT:
             raise ValueError(msg)
         if wedges_per_direction < 3:
             msg = "wedges_per_direction must be >= 3"
+            raise ValueError(msg)
+        if wedges_per_direction % 3 != 0:
+            msg = (
+                f"wedges_per_direction={wedges_per_direction} must be divisible by 3. "
+                "According to the Nguyen & Chauris (2010) paper specification, "
+                "the decimation ratio formula requires integer division by 3. "
+                "Valid values are 3, 6, 9, 12, etc."
+            )
             raise ValueError(msg)
 
         # Convert to angular_wedges_config
