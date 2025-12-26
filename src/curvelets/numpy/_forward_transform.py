@@ -5,12 +5,7 @@ from typing import Literal, overload
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import (
-    C,
-    F,
-    UDCTCoefficients,
-    UDCTWindows,
-)
+from ._typing import C, F, UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 
 

@@ -5,24 +5,14 @@ from dataclasses import dataclass, field
 from math import prod
 
 if sys.version_info >= (3, 10):
-    from typing import TypeVar, overload
+    from typing import overload
 else:
-    from typing import TypeVar
-
     from typing_extensions import overload
 
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import (
-    A,
-    C,
-    F,
-    IntegerNDArray,
-    IntpNDArray,
-)
-
-D_T = TypeVar("D_T", bound=np.floating)
+from ._typing import C, F, IntegerNDArray, IntpNDArray
 
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))

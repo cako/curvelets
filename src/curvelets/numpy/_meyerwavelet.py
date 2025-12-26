@@ -401,9 +401,7 @@ class MeyerWavelet:
         return current_bands[0]
 
     @overload
-    def backward(
-        self, lowpass_subband: npt.NDArray[C]
-    ) -> npt.NDArray[C]: ...
+    def backward(self, lowpass_subband: npt.NDArray[C]) -> npt.NDArray[C]: ...
 
     @overload
     def backward(self, lowpass_subband: npt.NDArray[F]) -> npt.NDArray[F]: ...

@@ -13,12 +13,7 @@ from ._forward_transform import (
     _apply_forward_transform_real,
 )
 from ._meyerwavelet import MeyerWavelet
-from ._typing import (
-    C,
-    F,
-    UDCTWindows,
-    _to_complex_dtype,
-)
+from ._typing import C, F, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
 
