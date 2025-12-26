@@ -18,9 +18,7 @@ from numpy.fft import fftfreq, fftshift
 
 from curvelets.numpy import MeyerWavelet
 from curvelets.plot import create_colorbar, despine
-
-from examples._utils import make_r, make_zone_plate
-
+from curvelets.utils import make_zone_plate
 
 # %%
 # Setup
@@ -65,7 +63,12 @@ ax.set(title="Input Zone Plate")
 # ###############
 
 lowpass_vmax = np.abs(lowpass).max()
-lowpass_opts = {"aspect": "equal", "cmap": "gray", "vmin": -lowpass_vmax, "vmax": lowpass_vmax}
+lowpass_opts = {
+    "aspect": "equal",
+    "cmap": "gray",
+    "vmin": -lowpass_vmax,
+    "vmax": lowpass_vmax,
+}
 
 fig, ax = plt.subplots(figsize=(4, 4))
 im = ax.imshow(lowpass.T, **lowpass_opts)
@@ -185,9 +188,9 @@ highpass_energies = [np.sum(np.abs(band) ** 2) for band in highpass_bands]
 total_energy = lowpass_energy + sum(highpass_energies)
 
 print(f"\nEnergy Distribution:")  # noqa: T201
-print(f"Lowpass: {lowpass_energy:.2e} ({100*lowpass_energy/total_energy:.1f}%)")  # noqa: T201
+print(f"Lowpass: {lowpass_energy:.2e} ({100 * lowpass_energy / total_energy:.1f}%)")  # noqa: T201
 for i, energy in enumerate(highpass_energies):
-    print(f"Highpass {i}: {energy:.2e} ({100*energy/total_energy:.1f}%)")  # noqa: T201
+    print(f"Highpass {i}: {energy:.2e} ({100 * energy / total_energy:.1f}%)")  # noqa: T201
 print(f"Total: {total_energy:.2e}")  # noqa: T201
 
 # %%
@@ -233,4 +236,3 @@ print(f"\nReconstruction Quality:")  # noqa: T201
 print(f"Max absolute error: {error_max:.2e}")  # noqa: T201
 print(f"Relative error: {error_max / np.abs(zone_plate).max():.2e}")  # noqa: T201
 print(f"RMSE: {np.sqrt(np.mean(error**2)):.2e}")  # noqa: T201
-

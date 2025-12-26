@@ -12,9 +12,7 @@ from matplotlib import ticker
 
 from curvelets.numpy import UDCT
 from curvelets.plot import create_colorbar, despine
-
-from examples._utils import make_r, make_zone_plate
-
+from curvelets.utils import make_zone_plate
 
 # %%
 # Setup

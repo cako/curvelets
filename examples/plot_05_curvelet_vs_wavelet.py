@@ -17,9 +17,7 @@ from numpy.fft import fftfreq, fftshift
 
 from curvelets.numpy import UDCT
 from curvelets.plot import create_colorbar, despine
-
-from examples._utils import make_r, make_zone_plate
-
+from curvelets.utils import make_zone_plate
 
 # %%
 # Setup
@@ -129,7 +127,9 @@ fig, axs = plt.subplots(2, n_cols, figsize=(4 * n_cols, 8))
 fig.suptitle("Frequency Domain Windows at Highest Scale (Scale 1)", fontsize=14)
 
 # Top row: Curvelet windows
-for i, (window, (idir, iwedge)) in enumerate(zip(curvelet_windows_scale1, curvelet_window_info)):
+for i, (window, (idir, iwedge)) in enumerate(
+    zip(curvelet_windows_scale1, curvelet_window_info)
+):
     ax = axs[0, i]
     im = ax.imshow(window.T, **window_opts)
     _, cb = create_colorbar(im=im, ax=ax)
@@ -214,7 +214,9 @@ fig, axs = plt.subplots(2, n_cols, figsize=(4 * n_cols, 8))
 fig.suptitle("Coefficients at Highest Scale (Scale 1)", fontsize=14)
 
 # Top row: Curvelet coefficients
-for i, (coeff, (idir, iwedge)) in enumerate(zip(curvelet_coeffs_scale1, curvelet_coeff_info)):
+for i, (coeff, (idir, iwedge)) in enumerate(
+    zip(curvelet_coeffs_scale1, curvelet_coeff_info)
+):
     ax = axs[0, i]
     # Take real part for visualization (coefficients are complex but real-valued for real input)
     coeff_real = np.real(coeff)
@@ -263,8 +265,7 @@ for (idir, iwedge), coeff in zip(curvelet_coeff_info, curvelet_coeffs_scale1):
     energy = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()
     print(  # noqa: T201
-        f"  Dir {idir} Wedge {iwedge}: "
-        f"Energy={energy:.2e}, Max={max_val:.2e}"
+        f"  Dir {idir} Wedge {iwedge}: Energy={energy:.2e}, Max={max_val:.2e}"
     )
 
 print("\nWavelet Scale 1 Statistics:")  # noqa: T201
@@ -272,4 +273,3 @@ for i, coeff in enumerate(wavelet_coeffs_scale1):
     energy = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()
     print(f"  Highpass {i}: Energy={energy:.2e}, Max={max_val:.2e}")  # noqa: T201
-
