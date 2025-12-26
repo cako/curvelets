@@ -314,9 +314,25 @@ class MeyerWavelet:
         is_complex = np.iscomplexobj(lowpass_subband) or np.iscomplexobj(
             highpass_subband
         )
-        # Preserve the input dtype (use lowpass_subband as reference)
+
+        # Determine the appropriate dtype for upsampled arrays
+        # If either subband is complex, we need complex dtype for both arrays
+        # Use the dtype of the complex subband, or promote to complex if needed
+        if is_complex:
+            # If both are complex, use the dtype of lowpass (or highpass if lowpass is real)
+            if np.iscomplexobj(lowpass_subband):
+                dtype = lowpass_subband.dtype
+            elif np.iscomplexobj(highpass_subband):
+                dtype = highpass_subband.dtype
+            else:
+                # Should not happen if is_complex is True, but handle gracefully
+                dtype = np.result_type(lowpass_subband, highpass_subband)
+        else:
+            # Both are real, use lowpass dtype as reference
+            dtype = lowpass_subband.dtype
+
+        # Preserve the input dtype for final output casting
         input_dtype = lowpass_subband.dtype
-        dtype = input_dtype
 
         # Pre-allocate upsampled arrays
         lowpass_upsampled = np.zeros(upsampled_shape, dtype=dtype)
@@ -346,14 +362,16 @@ class MeyerWavelet:
         )
 
         # Preserve complex values for complex input, take real for real input
-        # Preserve the original dtype when taking real part or casting complex
+        # Preserve the appropriate dtype based on whether input was complex
         if is_complex:
-            # Cast back to original complex dtype (FFT may promote complex64 to complex128)
+            # Cast back to appropriate complex dtype (FFT may promote complex64 to complex128)
+            # Use the dtype we determined earlier (which matches the complex subband)
             reconstructed_signal = 2 * reconstructed_full_resolution
+            reconstructed_signal = reconstructed_signal.astype(dtype)
         else:
             # Take real part and cast back to original real dtype
             reconstructed_signal = 2 * reconstructed_full_resolution.real
-        reconstructed_signal = reconstructed_signal.astype(input_dtype)
+            reconstructed_signal = reconstructed_signal.astype(input_dtype)
 
         return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
 
