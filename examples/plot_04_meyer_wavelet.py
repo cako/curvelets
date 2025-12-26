@@ -109,7 +109,7 @@ fig.tight_layout()
 
 # %%
 # Frequency Domain Windows
-# #######################
+# ########################
 # Visualize the frequency domain windows (lowpass and highpass) that define
 # the Meyer wavelet decomposition in 2D frequency space.
 
