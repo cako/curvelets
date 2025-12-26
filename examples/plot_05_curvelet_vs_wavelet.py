@@ -1,9 +1,9 @@
 """
-Curvelet vs Meyer vs Wavelet at Highest Scale
+curvelet vs Meyer vs wavelet at Highest Scale
 =============================================
-This example compares curvelet, meyer, and wavelet transforms at the highest scale
+This example compares curvelet, Meyer, and wavelet transforms at the highest scale
 (nscale=2) using a zone plate test image. It demonstrates the difference
-between directional curvelet windows, isotropic meyer wavelet windows, and
+between directional curvelet windows, isotropic Meyer wavelet windows, and
 the new ring-shaped wavelet window, showing both frequency-domain windows and spatial coefficients.
 
 The "wavelet" mode creates a single ring-shaped window at the highest scale that
@@ -32,7 +32,7 @@ shape = (256, 256)
 zone_plate = make_zone_plate(shape)
 
 # Create three UDCT transforms with num_scales=2
-# One in curvelet mode, one in meyer mode, one in wavelet mode
+# One in curvelet mode, one in Meyer mode, one in wavelet mode
 C_curvelet = UDCT(
     shape=shape,
     num_scales=2,
@@ -86,8 +86,8 @@ ax.set(title="Input Zone Plate")
 # %%
 # Frequency Domain Windows at Highest Scale (Scale 1)
 # ###################################################
-# Visualize the frequency domain windows for curvelet vs meyer vs wavelet at scale 1.
-# Curvelet windows are directional (wedges), meyer windows are separable
+# Visualize the frequency domain windows for curvelet vs Meyer vs wavelet at scale 1.
+# curvelet windows are directional (wedges), Meyer windows are separable
 # (product of 1D filters), and wavelet window is a single ring-shaped window
 # that encompasses the entire high-frequency ring (complement of lowpass filter).
 
@@ -107,7 +107,7 @@ for idir in range(len(C_curvelet.windows[1])):
         curvelet_windows_scale1.append(window_shifted)
         curvelet_window_info.append((idir, iwedge))
 
-# Extract meyer windows for scale 1 (highpass bands)
+# Extract Meyer windows for scale 1 (highpass bands)
 # Access the Meyer wavelet filters from the UDCT object
 lowpass_1d, highpass_1d = C_meyer._meyer_wavelet._filters[shape[0]]
 
@@ -149,7 +149,7 @@ n_cols = max(n_curvelet_windows, n_meyer_windows, n_wavelet_windows)
 fig, axs = plt.subplots(3, n_cols, figsize=(4 * n_cols, 12))
 fig.suptitle("Frequency Domain Windows at Highest Scale (Scale 1)", fontsize=14)
 
-# Top row: Curvelet windows
+# Top row: curvelet windows
 for i, (window, (idir, iwedge)) in enumerate(
     zip(curvelet_windows_scale1, curvelet_window_info)
 ):
@@ -200,7 +200,7 @@ for i, (window, name) in enumerate(zip(meyer_windows_scale1, meyer_names)):
 for i in range(n_meyer_windows, n_cols):
     axs[1, i].axis("off")
 
-# Bottom row: Wavelet window (single ring-shaped window)
+# Bottom row: wavelet window (single ring-shaped window)
 wavelet_names = ["Wavelet\n(Ring)"]
 for i, (window, name) in enumerate(zip(wavelet_windows_scale1, wavelet_names)):
     ax = axs[2, i]
@@ -228,7 +228,7 @@ fig.tight_layout()
 # %%
 # Coefficients at Highest Scale (Scale 1)
 # #######################################
-# Visualize the spatial coefficients for curvelet vs meyer vs wavelet at scale 1.
+# Visualize the spatial coefficients for curvelet vs Meyer vs wavelet at scale 1.
 # These show how the transforms capture different features of the input.
 
 # Extract curvelet coefficients for scale 1
@@ -264,7 +264,7 @@ n_cols = max(n_curvelet_coeffs, n_meyer_coeffs, n_wavelet_coeffs)
 fig, axs = plt.subplots(3, n_cols, figsize=(4 * n_cols, 12))
 fig.suptitle("Coefficients at Highest Scale (Scale 1)", fontsize=14)
 
-# Top row: Curvelet coefficients
+# Top row: curvelet coefficients
 for i, (coeff, (idir, iwedge)) in enumerate(
     zip(curvelet_coeffs_scale1, curvelet_coeff_info)
 ):
@@ -305,11 +305,11 @@ for i, (coeff, name) in enumerate(zip(meyer_coeffs_scale1, meyer_coeff_names)):
 for i in range(n_meyer_coeffs, n_cols):
     axs[1, i].axis("off")
 
-# Bottom row: Wavelet coefficient (single coefficient)
-wavelet_coeff_names = ["Wavelet\n(Summed)"]
+# Bottom row: wavelet coefficient (single coefficient)
+wavelet_coeff_names = ["Wavelet\n(Ring)"]
 for i, (coeff, name) in enumerate(zip(wavelet_coeffs_scale1, wavelet_coeff_names)):
     ax = axs[2, i]
-    # Wavelet coefficient is real-valued
+    # wavelet coefficient is real-valued
     coeff_real = np.real(coeff) if np.iscomplexobj(coeff) else coeff
     im = ax.imshow(coeff_real.T, **coeff_opts)
     _, cb = create_colorbar(im=im, ax=ax)

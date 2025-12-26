@@ -82,8 +82,10 @@ def overlay_disk(
             for iwedge, w in enumerate(d):
                 color = cmapper.to_rgba(w)
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
+                    # Center the wedge at its midpoint
+                    # Note: iwedge indexing should match the actual frequency space wedge ordering
                     wedge_x = (
-                        offset + pm * angles_per_wedge * (0.5 + iwedge) + magic_shift
+                        offset + pm * angles_per_wedge * (iwedge + 0.5) + magic_shift
                     )
                     if direction == "tangent":
                         wedge_x += deg_90
@@ -117,8 +119,10 @@ def overlay_disk(
             pm = (-1) ** idir
             for iwedge in range(nwedges):
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
+                    # Center the wedge: use iwedge + 0.5 to get the center angle
+                    # This ensures the wedge angle matches the FFT kmax interpretation
                     wedge_x = (
-                        offset + pm * angles_per_wedge * (0.5 + iwedge) + magic_shift
+                        offset + pm * angles_per_wedge * (iwedge + 0.5) + magic_shift
                     )
                     if direction == "tangent":
                         wedge_x += deg_90
