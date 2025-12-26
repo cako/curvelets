@@ -214,7 +214,7 @@ def _apply_backward_transform_real(
     # so we don't need the factor of 2 (the window already covers all frequencies)
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
-    
+
     if is_wavelet_mode_highest_scale:
         # For wavelet mode: process highest scale separately without factor of 2
         # Other scales use factor of 2 as normal
@@ -227,7 +227,9 @@ def _apply_backward_transform_real(
                     if decimation_ratios[scale_idx].shape[0] == 1:
                         decimation_ratio = decimation_ratios[scale_idx][0, :]
                     else:
-                        decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            direction_idx, :
+                        ]
                     contribution = _process_wedge_backward_real(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         window,
@@ -236,7 +238,9 @@ def _apply_backward_transform_real(
                     )
                     idx, _ = window
                     if scale_idx == highest_scale_idx:
-                        image_frequency_wavelet_scale.flat[idx] += contribution.flat[idx]
+                        image_frequency_wavelet_scale.flat[idx] += contribution.flat[
+                            idx
+                        ]
                     else:
                         image_frequency_other_scales.flat[idx] += contribution.flat[idx]
     else:
@@ -248,7 +252,9 @@ def _apply_backward_transform_real(
                     if decimation_ratios[scale_idx].shape[0] == 1:
                         decimation_ratio = decimation_ratios[scale_idx][0, :]
                     else:
-                        decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            direction_idx, :
+                        ]
                     contribution = _process_wedge_backward_real(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         window,
@@ -270,7 +276,11 @@ def _apply_backward_transform_real(
     # For real transform mode, multiply high-frequency by 2 to account for combined +/- frequencies
     # Exception: For "wavelet" mode at highest scale, we don't multiply by 2
     if is_wavelet_mode_highest_scale:
-        image_frequency = 2 * image_frequency_other_scales + image_frequency_wavelet_scale + image_frequency_low
+        image_frequency = (
+            2 * image_frequency_other_scales
+            + image_frequency_wavelet_scale
+            + image_frequency_low
+        )
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
     return np.fft.ifftn(image_frequency).real
@@ -355,54 +365,122 @@ def _apply_backward_transform_complex(
     complex_dtype = _to_complex_dtype(real_dtype)
 
     # Initialize frequency domain
-    image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
+    # For "wavelet" mode at highest scale, we only have 1 window (ring-shaped, symmetric)
+    # so we don't need the factor of 2 (the window already covers all frequencies)
+    highest_scale_idx = parameters.num_scales - 1
+    is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
-    # Process positive frequency bands (directions 0..dim-1)
-    # For "wavelet" mode at highest scale, reuse the single window for all directions
-    for scale_idx in range(1, parameters.num_scales):
-        num_window_directions = len(windows[scale_idx])
-        for direction_idx in range(parameters.ndim):
-            # For "wavelet" mode, use window direction 0 for all coefficient directions
-            window_direction_idx = min(direction_idx, num_window_directions - 1)
-            for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                # Get decimation ratio, handling case where decimation_ratios has shape (1, dim)
-                if decimation_ratios[scale_idx].shape[0] == 1:
-                    decimation_ratio = decimation_ratios[scale_idx][0, :]
-                else:
-                    decimation_ratio = decimation_ratios[scale_idx][window_direction_idx, :]
-                contribution = _process_wedge_backward_complex(
-                    coefficients[scale_idx][direction_idx][wedge_idx],
-                    windows[scale_idx][window_direction_idx][wedge_idx],
-                    decimation_ratio,
-                    parameters,
-                    complex_dtype,
-                    flip_window=False,
-                )
-                image_frequency += contribution
+    if is_wavelet_mode_highest_scale:
+        # For wavelet mode: process highest scale separately without factor of 2
+        # Other scales use factor of 2 as normal
+        # Note: In wavelet mode, coefficients are identical for all directions,
+        # so we only process direction 0 for positive and direction 0 for negative
+        image_frequency_other_scales = np.zeros(parameters.shape, dtype=complex_dtype)
+        image_frequency_wavelet_scale = np.zeros(parameters.shape, dtype=complex_dtype)
 
-    # Process negative frequency bands (directions dim..2*dim-1)
-    # For "wavelet" mode at highest scale, reuse the single window for all directions
-    for scale_idx in range(1, parameters.num_scales):
-        num_window_directions = len(windows[scale_idx])
-        # Process negative frequencies: reuse windows from positive frequencies
-        for direction_idx in range(parameters.ndim):
-            # For "wavelet" mode, use window direction 0 for all coefficient directions
-            window_direction_idx = min(direction_idx, num_window_directions - 1)
-            for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                # Get decimation ratio, handling case where decimation_ratios has shape (1, dim)
-                if decimation_ratios[scale_idx].shape[0] == 1:
-                    decimation_ratio = decimation_ratios[scale_idx][0, :]
-                else:
-                    decimation_ratio = decimation_ratios[scale_idx][window_direction_idx, :]
-                contribution = _process_wedge_backward_complex(
-                    coefficients[scale_idx][direction_idx + parameters.ndim][wedge_idx],
-                    windows[scale_idx][window_direction_idx][wedge_idx],
-                    decimation_ratio,
-                    parameters,
-                    complex_dtype,
-                    flip_window=True,
-                )
-                image_frequency += contribution
+        # Process positive frequency bands (directions 0..dim-1)
+        for scale_idx in range(1, parameters.num_scales):
+            num_window_directions = len(windows[scale_idx])
+            for direction_idx in range(parameters.ndim):
+                window_direction_idx = min(direction_idx, num_window_directions - 1)
+                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
+                    if decimation_ratios[scale_idx].shape[0] == 1:
+                        decimation_ratio = decimation_ratios[scale_idx][0, :]
+                    else:
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            window_direction_idx, :
+                        ]
+                    contribution = _process_wedge_backward_complex(
+                        coefficients[scale_idx][direction_idx][wedge_idx],
+                        windows[scale_idx][window_direction_idx][wedge_idx],
+                        decimation_ratio,
+                        parameters,
+                        complex_dtype,
+                        flip_window=False,
+                    )
+                    if scale_idx == highest_scale_idx:
+                        # For wavelet mode, only process direction 0 (coefficients are identical)
+                        if direction_idx == 0:
+                            image_frequency_wavelet_scale += contribution
+                    else:
+                        image_frequency_other_scales += contribution
+
+        # Process negative frequency bands (directions dim..2*dim-1)
+        for scale_idx in range(1, parameters.num_scales):
+            num_window_directions = len(windows[scale_idx])
+            for direction_idx in range(parameters.ndim):
+                window_direction_idx = min(direction_idx, num_window_directions - 1)
+                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
+                    if decimation_ratios[scale_idx].shape[0] == 1:
+                        decimation_ratio = decimation_ratios[scale_idx][0, :]
+                    else:
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            window_direction_idx, :
+                        ]
+                    contribution = _process_wedge_backward_complex(
+                        coefficients[scale_idx][direction_idx + parameters.ndim][
+                            wedge_idx
+                        ],
+                        windows[scale_idx][window_direction_idx][wedge_idx],
+                        decimation_ratio,
+                        parameters,
+                        complex_dtype,
+                        flip_window=True,
+                    )
+                    if scale_idx == highest_scale_idx:
+                        # For wavelet mode, only process direction 0 (coefficients are identical)
+                        if direction_idx == 0:
+                            image_frequency_wavelet_scale += contribution
+                    else:
+                        image_frequency_other_scales += contribution
+    else:
+        # Normal curvelet mode: process all scales together
+        image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
+        # Process positive frequency bands (directions 0..dim-1)
+        for scale_idx in range(1, parameters.num_scales):
+            num_window_directions = len(windows[scale_idx])
+            for direction_idx in range(parameters.ndim):
+                window_direction_idx = min(direction_idx, num_window_directions - 1)
+                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
+                    if decimation_ratios[scale_idx].shape[0] == 1:
+                        decimation_ratio = decimation_ratios[scale_idx][0, :]
+                    else:
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            window_direction_idx, :
+                        ]
+                    contribution = _process_wedge_backward_complex(
+                        coefficients[scale_idx][direction_idx][wedge_idx],
+                        windows[scale_idx][window_direction_idx][wedge_idx],
+                        decimation_ratio,
+                        parameters,
+                        complex_dtype,
+                        flip_window=False,
+                    )
+                    image_frequency += contribution
+
+        # Process negative frequency bands (directions dim..2*dim-1)
+        for scale_idx in range(1, parameters.num_scales):
+            num_window_directions = len(windows[scale_idx])
+            for direction_idx in range(parameters.ndim):
+                window_direction_idx = min(direction_idx, num_window_directions - 1)
+                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
+                    if decimation_ratios[scale_idx].shape[0] == 1:
+                        decimation_ratio = decimation_ratios[scale_idx][0, :]
+                    else:
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            window_direction_idx, :
+                        ]
+                    contribution = _process_wedge_backward_complex(
+                        coefficients[scale_idx][direction_idx + parameters.ndim][
+                            wedge_idx
+                        ],
+                        windows[scale_idx][window_direction_idx][wedge_idx],
+                        decimation_ratio,
+                        parameters,
+                        complex_dtype,
+                        flip_window=True,
+                    )
+                    image_frequency += contribution
 
     # Process low-frequency band
     image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
@@ -413,7 +491,16 @@ def _apply_backward_transform_complex(
     image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
 
     # Combine: low frequency + high frequency contributions
-    image_frequency = 2 * image_frequency + image_frequency_low
+    # For complex transform mode, multiply high-frequency by 2 to account for separate +/- frequencies
+    # Exception: For "wavelet" mode at highest scale, we don't multiply by 2
+    if is_wavelet_mode_highest_scale:
+        image_frequency = (
+            2 * image_frequency_other_scales
+            + image_frequency_wavelet_scale
+            + image_frequency_low
+        )
+    else:
+        image_frequency = 2 * image_frequency + image_frequency_low
     return np.fft.ifftn(image_frequency)
 
 

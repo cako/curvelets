@@ -391,6 +391,81 @@ def test_numpy_round_trip_complex_wavelet_absolute(dim, high, rng):
     np.testing.assert_allclose(data, recon.real, atol=atol)
 
 
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
+    """
+    Test NumPy implementation round-trip with complex transform in "wavelet" mode.
+
+    Combines complex transform (separate +/- frequency bands) with wavelet mode
+    (single ring-shaped window at highest scale).
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet",
+    ...     use_complex_transform=True
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon.real, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with num_scales=3, wavelet mode, and complex transform
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+        use_complex_transform=True,
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify structure: should have 3 scales
+    assert len(coeffs) == 3, f"Expected 3 scales, got {len(coeffs)}"
+
+    # Verify highest scale has 2*ndim directions (ndim for positive, ndim for negative)
+    highest_scale_idx = 2
+    assert len(coeffs[highest_scale_idx]) == 2 * transform.parameters.ndim, (
+        f"Expected {2 * transform.parameters.ndim} directions at highest scale, "
+        f"got {len(coeffs[highest_scale_idx])}"
+    )
+
+    # Verify windows structure: should have 1 direction at highest scale
+    assert len(transform.windows[highest_scale_idx]) == 1, (
+        "Expected 1 direction in windows at highest scale"
+    )
+
+    # Verify reconstruction accuracy
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon.real, atol=atol)
+
+
 # ============================================================================
 # Complex-valued input array tests (requires complex=True)
 # ============================================================================
