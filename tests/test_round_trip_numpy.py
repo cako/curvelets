@@ -101,7 +101,7 @@ def _get_wavelet_config_idx(dim: int) -> int | None:
 
 @pytest.mark.round_trip
 @pytest.mark.parametrize(
-    "dim,high",
+    ("dim", "high"),
     [
         (2, "meyer"),
         (3, "meyer"),
@@ -119,7 +119,7 @@ def test_numpy_round_trip_wavelet_absolute(dim, high, rng):
     if cfg_idx is None:
         pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
 
-    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high)
+    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high)  # type: ignore[arg-type]
     shapes = get_test_shapes(dim)
     size = shapes[0]
 
@@ -134,7 +134,7 @@ def test_numpy_round_trip_wavelet_absolute(dim, high, rng):
 
 @pytest.mark.round_trip
 @pytest.mark.parametrize(
-    "dim,high",
+    ("dim", "high"),
     [
         (2, "meyer"),
         (3, "meyer"),
@@ -372,7 +372,7 @@ def test_numpy_round_trip_complex_parametrized(dim, shape_idx, rng):
 
 @pytest.mark.round_trip
 @pytest.mark.parametrize(
-    "dim,high",
+    ("dim", "high"),
     [
         (2, "meyer"),
         (3, "meyer"),
@@ -390,7 +390,7 @@ def test_numpy_round_trip_complex_wavelet_absolute(dim, high, rng):
     if cfg_idx is None:
         pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
 
-    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high, complex=True)
+    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high, complex=True)  # type: ignore[arg-type]
     shapes = get_test_shapes(dim)
     size = shapes[0]
 
@@ -535,7 +535,7 @@ def test_numpy_round_trip_complex_input_relative(dim, rng):
 
 @pytest.mark.round_trip
 @pytest.mark.parametrize(
-    "dim,high",
+    ("dim", "high"),
     [
         (2, "meyer"),
         (3, "meyer"),
@@ -552,7 +552,7 @@ def test_numpy_round_trip_complex_input_wavelet(dim, high, rng):
     if cfg_idx is None:
         pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
 
-    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high, complex=True)
+    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high, complex=True)  # type: ignore[arg-type]
     shapes = get_test_shapes(dim)
     size = shapes[0]
 

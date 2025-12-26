@@ -113,7 +113,7 @@ def circular_shift(array: npt.NDArray[F], shift: tuple[int, ...]) -> npt.NDArray
 
 
 @overload
-def circular_shift(array: npt.NDArray[C], shift: tuple[int, ...]) -> npt.NDArray[C]: ...
+def circular_shift(array: npt.NDArray[C], shift: tuple[int, ...]) -> npt.NDArray[C]: ...  # type: ignore[overload-cannot-match]
 
 
 def circular_shift(
@@ -251,7 +251,7 @@ def flip_fft_all_axes(array: npt.NDArray[F]) -> npt.NDArray[F]: ...
 
 
 @overload
-def flip_fft_all_axes(array: npt.NDArray[C]) -> npt.NDArray[C]: ...
+def flip_fft_all_axes(array: npt.NDArray[C]) -> npt.NDArray[C]: ...  # type: ignore[overload-cannot-match]
 
 
 def flip_fft_all_axes(

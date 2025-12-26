@@ -290,7 +290,7 @@ class UDCT:
             if const >= num_wedges:
                 msg = (
                     f"window_overlap={computed_window_overlap:.3f} does not respect the relationship "
-                    f"(2^{scale_idx}/{num_wedges})(1+2α)(1+α) = {const:.3f} < 1 for scale {scale_idx + 1}"
+                    f"(2^{scale_idx}/{num_wedges})(1+2a)(1+a) = {const:.3f} < 1 for scale {scale_idx + 1}"
                 )
                 logging.warning(msg)
 
@@ -550,17 +550,17 @@ class UDCT:
     @overload
     def forward(
         self, image: npt.NDArray[np.float64]
-    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
     @overload
     def forward(
         self, image: npt.NDArray[np.complex64]
-    ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+    ) -> list[list[list[npt.NDArray[np.complex64]]]]: ...  # type: ignore[overload-cannot-match]
 
     @overload
     def forward(
         self, image: npt.NDArray[np.complex128]
-    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+    ) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
     def forward(
         self, image: npt.NDArray[F] | npt.NDArray[C]
@@ -681,7 +681,7 @@ class UDCT:
                 self.parameters,
                 self.windows,
                 self.decimation_ratios,
-                use_complex_transform=self.use_complex_transform,
+                use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
             )
 
             # Apply Meyer inverse using stored highpass bands
@@ -703,5 +703,5 @@ class UDCT:
             self.parameters,
             self.windows,
             self.decimation_ratios,
-            use_complex_transform=self.use_complex_transform,
+            use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
         )

@@ -14,8 +14,8 @@ import pytest
 from curvelets.numpy import UDCT
 
 
-@pytest.mark.parametrize("num_scales", [2, 3, 4])
-@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("num_scales", [2, 3, 4])  # type: ignore[misc]
+@pytest.mark.parametrize("dim", [2, 3])  # type: ignore[misc]
 def test_non_multiple_of_3_raises_error(
     num_scales: int, dim: int, rng: np.random.Generator
 ) -> None:
@@ -62,8 +62,8 @@ def test_non_multiple_of_3_raises_error(
         )
 
 
-@pytest.mark.parametrize("wedges_per_direction", [4, 5])
-@pytest.mark.parametrize("num_scales", [2, 3])
+@pytest.mark.parametrize("wedges_per_direction", [4, 5])  # type: ignore[misc]
+@pytest.mark.parametrize("num_scales", [2, 3])  # type: ignore[misc]
 def test_nwedges_4_5_raises_error_wavelet_mode(
     wedges_per_direction: int, num_scales: int
 ) -> None:
@@ -101,8 +101,8 @@ def test_nwedges_4_5_raises_error_wavelet_mode(
         )
 
 
-@pytest.mark.parametrize("wedges_per_direction", [4, 5])
-@pytest.mark.parametrize("num_scales", [2, 3])
+@pytest.mark.parametrize("wedges_per_direction", [4, 5])  # type: ignore[misc]
+@pytest.mark.parametrize("num_scales", [2, 3])  # type: ignore[misc]
 def test_nwedges_4_5_raises_error_complex_transform(
     wedges_per_direction: int, num_scales: int
 ) -> None:
@@ -140,7 +140,7 @@ def test_nwedges_4_5_raises_error_complex_transform(
         )
 
 
-@pytest.mark.parametrize("wedges_per_direction", [4, 5])
+@pytest.mark.parametrize("wedges_per_direction", [4, 5])  # type: ignore[misc]
 def test_nwedges_4_5_raises_error_angular_config(
     wedges_per_direction: int,
 ) -> None:

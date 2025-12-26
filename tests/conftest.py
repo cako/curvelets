@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -134,7 +137,12 @@ def rng():
 class TransformWrapper:
     """Wrapper to provide uniform interface across implementations."""
 
-    def __init__(self, transform_obj, forward_fn, backward_fn):
+    def __init__(
+        self,
+        transform_obj: Any,
+        forward_fn: Callable[[np.ndarray], np.ndarray | UDCTCoefficients],
+        backward_fn: Callable[[np.ndarray | UDCTCoefficients], np.ndarray],
+    ) -> None:
         self._obj = transform_obj
         self._forward = forward_fn
         self._backward = backward_fn
@@ -164,7 +172,7 @@ def _create_numpy_transform(
         window_overlap=alpha,
         radial_frequency_params=COMMON_R,
         window_threshold=COMMON_WINTHRESH,
-        high_frequency_mode=high,
+        high_frequency_mode=high,  # type: ignore[arg-type]
         use_complex_transform=complex,
     )
 

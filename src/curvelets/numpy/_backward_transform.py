@@ -126,9 +126,7 @@ def _process_wedge_backward_complex(
     curvelet_band = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band)
 
     # Apply window with sqrt(0.5) scaling for complex transform
-    contribution = np.sqrt(0.5) * curvelet_band * subwindow.astype(complex_dtype)
-
-    return contribution
+    return np.sqrt(0.5) * curvelet_band * subwindow.astype(complex_dtype)
 
 
 def _apply_backward_transform_real(

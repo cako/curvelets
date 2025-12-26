@@ -1,5 +1,5 @@
 """
-Wavelet Trasforms at the Highest Scale
+Wavelet Transforms at the Highest Scale
 =============================================
 This example compares curvelet, Meyer, and wavelet transforms at the highest scale
 (using a simple nscale=2) on a zone plate test image. It demonstrates the difference
@@ -105,6 +105,9 @@ for idir in range(len(C_curvelet.windows[1])):
 
 # Extract Meyer windows for scale 1 (highpass bands)
 # Access the Meyer wavelet filters from the UDCT object
+if C_meyer._meyer_wavelet is None:
+    msg = "Meyer wavelet not initialized"
+    raise RuntimeError(msg)
 lowpass_1d, highpass_1d = C_meyer._meyer_wavelet._filters[shape[0]]
 
 # Construct 2D frequency domain windows using outer products

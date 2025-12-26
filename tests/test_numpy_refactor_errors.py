@@ -24,12 +24,12 @@ class TestUDCTWindowOverlapWarnings:
         """
         # Create a scenario where const >= num_wedges to trigger warning
         # This happens when window_overlap is too large relative to num_wedges
-        # We need: (2^(scale_idx/num_wedges)) * (1+2α) * (1+α) >= num_wedges
+        # We need: (2^(scale_idx/num_wedges)) * (1+2a) * (1+a) >= num_wedges
         # For scale_idx=1, num_wedges=3, we need a large window_overlap
         with caplog.at_level(logging.WARNING):
             # Use a large window_overlap that will trigger the warning
-            # For scale 1 with 3 wedges: const = 2^(1/3) * (1+2α) * (1+α)
-            # With α=0.5: const ≈ 1.26 * 2 * 1.5 = 3.78, which is >= 3
+            # For scale 1 with 3 wedges: const = 2^(1/3) * (1+2a) * (1+a)
+            # With a=0.5: const ≈ 1.26 * 2 * 1.5 = 3.78, which is >= 3
             _ = UDCT(
                 shape=(64, 64),
                 num_scales=3,

@@ -156,7 +156,7 @@ def _apply_forward_transform_real(
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
 
 def _apply_forward_transform_real(
@@ -273,7 +273,7 @@ def _apply_forward_transform_complex(
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
 
 def _apply_forward_transform_complex(
@@ -358,7 +358,7 @@ def _apply_forward_transform_complex(
     # Structure: [scale][direction][wedge]
     # Directions 0..dim-1 are positive frequencies
     # Directions dim..2*dim-1 are negative frequencies
-    coefficients = coefficients + [
+    return coefficients + [
         [
             # Positive frequency bands (directions 0..dim-1)
             # For "wavelet" mode, reuse single window for all directions
@@ -417,7 +417,6 @@ def _apply_forward_transform_complex(
         ]
         for scale_idx in range(1, parameters.num_scales)
     ]
-    return coefficients
 
 
 @overload
@@ -437,7 +436,7 @@ def _apply_forward_transform(
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[False] = False,
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
 
 @overload
@@ -457,7 +456,7 @@ def _apply_forward_transform(
     windows: UDCTWindows,
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[True],
-) -> list[list[list[npt.NDArray[np.complex128]]]]: ...
+) -> list[list[list[npt.NDArray[np.complex128]]]]: ...  # type: ignore[overload-cannot-match]
 
 
 def _apply_forward_transform(
@@ -563,7 +562,7 @@ def _apply_forward_transform(
             image,
             parameters,
             windows,
-            decimation_ratios,  # type: ignore[arg-type]
+            decimation_ratios,
         )
 
     # Real transform mode
@@ -580,5 +579,5 @@ def _apply_forward_transform(
         image,
         parameters,
         windows,
-        decimation_ratios,  # type: ignore[arg-type]
+        decimation_ratios,
     )

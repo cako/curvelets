@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -325,7 +324,7 @@ class UDCTWindow:
         return (indices, arr_flat[indices])
 
     @staticmethod
-    def _nchoosek(n: Union[Iterable[int], IntegerNDArray], k: int) -> IntegerNDArray:
+    def _nchoosek(n: Iterable[int] | IntegerNDArray, k: int) -> IntegerNDArray:
         """
         Generate all combinations of k elements from n.
 
@@ -787,7 +786,7 @@ class UDCTWindow:
         References
         ----------
         .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
-           Transform": IEEE Transactions on Signal Processing, 58, 3618–3634.
+           Transform": IEEE Transactions on Signal Processing, 58, 3618-3634.
            DOI: 10.1109/TSP.2010.2047666
 
         Parameters
@@ -1060,7 +1059,7 @@ class UDCTWindow:
         References
         ----------
         .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
-           Transform": IEEE Transactions on Signal Processing, 58, 3618–3634.
+           Transform": IEEE Transactions on Signal Processing, 58, 3618-3634.
            DOI: 10.1109/TSP.2010.2047666
 
         Returns
