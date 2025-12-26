@@ -406,29 +406,38 @@ def meyer_window(
 
     # Region 1: Rising transition from transition_start to plateau_start
     # Normalize to [0, 1] and apply polynomial
-    rising_mask = (frequency >= transition_start) & (frequency <= plateau_start)
-    if np.any(rising_mask):
-        normalized_freq = (frequency[rising_mask] - transition_start) / (
-            plateau_start - transition_start
-        )
-        window_values[rising_mask] = np.polyval(
-            MEYER_TRANSITION_POLYNOMIAL, normalized_freq
-        )
+    # Handle case where transition_start == plateau_start (no transition)
+    if transition_start != plateau_start:
+        rising_mask = (frequency >= transition_start) & (frequency <= plateau_start)
+        if np.any(rising_mask):
+            normalized_freq = (frequency[rising_mask] - transition_start) / (
+                plateau_start - transition_start
+            )
+            window_values[rising_mask] = np.polyval(
+                MEYER_TRANSITION_POLYNOMIAL, normalized_freq
+            )
+    # If transition_start == plateau_start, frequencies at that boundary
+    # are handled by the plateau region below
 
     # Region 2: Constant plateau between plateau_start and plateau_end
-    plateau_mask = (frequency > plateau_start) & (frequency <= plateau_end)
+    # Include frequencies at plateau_start and plateau_end boundaries
+    plateau_mask = (frequency >= plateau_start) & (frequency <= plateau_end)
     window_values[plateau_mask] = 1.0
 
     # Region 3: Falling transition from plateau_end to transition_end
     # Normalize to [0, 1] (reversed) and apply polynomial
-    falling_mask = (frequency >= plateau_end) & (frequency <= transition_end)
-    if np.any(falling_mask):
-        normalized_freq = (frequency[falling_mask] - transition_end) / (
-            plateau_end - transition_end
-        )
-        window_values[falling_mask] = np.polyval(
-            MEYER_TRANSITION_POLYNOMIAL, normalized_freq
-        )
+    # Handle case where plateau_end == transition_end (no transition)
+    if plateau_end != transition_end:
+        falling_mask = (frequency >= plateau_end) & (frequency <= transition_end)
+        if np.any(falling_mask):
+            normalized_freq = (frequency[falling_mask] - transition_end) / (
+                plateau_end - transition_end
+            )
+            window_values[falling_mask] = np.polyval(
+                MEYER_TRANSITION_POLYNOMIAL, normalized_freq
+            )
+    # If plateau_end == transition_end, frequencies at that boundary
+    # remain 0 (already set by initialization)
 
     return window_values
 

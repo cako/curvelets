@@ -76,7 +76,8 @@ vmax = np.abs(zone_plate).max()
 opts = {"aspect": "equal", "cmap": "gray", "vmin": -vmax, "vmax": vmax}
 
 fig, ax = plt.subplots(figsize=(4, 4))
-im = ax.imshow(zone_plate.T, **opts)
+zone_plate_real = np.real(zone_plate).astype(np.float64)
+im = ax.imshow(zone_plate_real.T, **opts)
 _, cb = create_colorbar(im=im, ax=ax)
 fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")
 cb.ax.yaxis.set_major_formatter(fmt)
@@ -119,9 +120,9 @@ meyer_window_2_2d = np.outer(highpass_1d, highpass_1d)  # High-High
 
 # Apply fftshift to center the frequency domain for visualization
 meyer_windows_scale1 = [
-    fftshift(meyer_window_0_2d),
-    fftshift(meyer_window_1_2d),
-    fftshift(meyer_window_2_2d),
+    np.real(fftshift(meyer_window_0_2d)).astype(np.float64),
+    np.real(fftshift(meyer_window_1_2d)).astype(np.float64),
+    np.real(fftshift(meyer_window_2_2d)).astype(np.float64),
 ]
 
 # Extract wavelet window for scale 1 (single ring-shaped window, complement of lowpass)
@@ -154,7 +155,8 @@ for i, (window, (idir, iwedge)) in enumerate(
     zip(curvelet_windows_scale1, curvelet_window_info)
 ):
     ax = axs[0, i]
-    im = ax.imshow(window.T, **window_opts)
+    window_real = np.real(window).astype(np.float64)
+    im = ax.imshow(window_real.T, **window_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")
     cb.ax.yaxis.set_major_formatter(fmt)
@@ -181,7 +183,8 @@ meyer_names = [
 ]
 for i, (window, name) in enumerate(zip(meyer_windows_scale1, meyer_names)):
     ax = axs[1, i]
-    im = ax.imshow(window.T, **window_opts)
+    window_real = np.real(window).astype(np.float64)
+    im = ax.imshow(window_real.T, **window_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")
     cb.ax.yaxis.set_major_formatter(fmt)
@@ -204,7 +207,8 @@ for i in range(n_meyer_windows, n_cols):
 wavelet_names = ["Wavelet\n(Ring)"]
 for i, (window, name) in enumerate(zip(wavelet_windows_scale1, wavelet_names)):
     ax = axs[2, i]
-    im = ax.imshow(window.T, **window_opts)
+    window_real = np.real(window).astype(np.float64)
+    im = ax.imshow(window_real.T, **window_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")
     cb.ax.yaxis.set_major_formatter(fmt)
@@ -241,7 +245,14 @@ for idir in range(len(coeffs_curvelet[1])):
         curvelet_coeff_info.append((idir, iwedge))
 
 # Extract meyer coefficients for scale 1 (highpass bands)
-meyer_coeffs_scale1 = coeffs_meyer[1]
+# Structure: coeffs_meyer[1][direction][wedge]
+# Extract 3 coefficients matching the 3 windows: Low-High, High-Low, High-High
+# Use direction 0, wedges 0, 1, 2 correspond to the 3 highpass bands
+meyer_coeffs_scale1 = [
+    coeffs_meyer[1][0][0],  # Low-High
+    coeffs_meyer[1][0][1],  # High-Low
+    coeffs_meyer[1][0][2],  # High-High
+]
 
 # Extract wavelet coefficient for scale 1 (single coefficient)
 wavelet_coeffs_scale1 = [coeffs_wavelet[1][0][0]]
@@ -270,7 +281,7 @@ for i, (coeff, (idir, iwedge)) in enumerate(
 ):
     ax = axs[0, i]
     # Take real part for visualization (coefficients are complex but real-valued for real input)
-    coeff_real = np.real(coeff)
+    coeff_real = np.real(coeff).astype(np.float64)
     im = ax.imshow(coeff_real.T, **coeff_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2e}")
@@ -293,7 +304,7 @@ meyer_coeff_names = [
 for i, (coeff, name) in enumerate(zip(meyer_coeffs_scale1, meyer_coeff_names)):
     ax = axs[1, i]
     # Meyer coefficients are real-valued
-    coeff_real = np.real(coeff) if np.iscomplexobj(coeff) else coeff
+    coeff_real = np.real(coeff).astype(np.float64)
     im = ax.imshow(coeff_real.T, **coeff_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2e}")
@@ -310,7 +321,7 @@ wavelet_coeff_names = ["Wavelet\n(Ring)"]
 for i, (coeff, name) in enumerate(zip(wavelet_coeffs_scale1, wavelet_coeff_names)):
     ax = axs[2, i]
     # wavelet coefficient is real-valued
-    coeff_real = np.real(coeff) if np.iscomplexobj(coeff) else coeff
+    coeff_real = np.real(coeff).astype(np.float64)
     im = ax.imshow(coeff_real.T, **coeff_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2e}")
