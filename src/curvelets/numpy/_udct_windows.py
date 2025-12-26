@@ -18,8 +18,13 @@ class UDCTWindow:
 
     This class encapsulates all window computation functionality for the UDCT,
     including bandpass filter creation, angle function computation, window
-    normalization, and sparse format conversion. All methods are stateless
-    staticmethods, making the class a namespace for window computation utilities.
+    normalization, and sparse format conversion. The class is initialized with
+    UDCT parameters and provides a compute() method to generate curvelet windows.
+
+    Parameters
+    ----------
+    parameters : ParamUDCT
+        UDCT parameters containing transform configuration.
 
     Examples
     --------
@@ -29,17 +34,17 @@ class UDCTWindow:
     >>>
     >>> # Create parameters for 2D transform with 3 scales
     >>> params = ParamUDCT(
-    ...     size=(64, 64),
-    ...     res=3,
     ...     dim=2,
+    ...     size=(64, 64),
     ...     angular_wedges_config=np.array([[3], [6], [12]]),
     ...     window_overlap=0.15,
     ...     window_threshold=1e-5,
     ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3)
     ... )
     >>>
-    >>> # Compute windows
-    >>> windows, decimation_ratios, indices = UDCTWindow.compute(params)
+    >>> # Create window computer and compute windows
+    >>> window_computer = UDCTWindow(params)
+    >>> windows, decimation_ratios, indices = window_computer.compute()
     >>>
     >>> # Check structure
     >>> len(windows)  # Number of scales (0 + res)
@@ -49,6 +54,42 @@ class UDCTWindow:
     >>> len(windows[1][0])  # First high-frequency scale has multiple wedges
     3
     """
+
+    def __init__(self, parameters: ParamUDCT) -> None:
+        """
+        Initialize UDCTWindow with parameters from ParamUDCT.
+
+        Parameters
+        ----------
+        parameters : ParamUDCT
+            UDCT parameters containing transform configuration.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy._utils import ParamUDCT
+        >>> from curvelets.numpy._udct_windows import UDCTWindow
+        >>> params = ParamUDCT(
+        ...     dim=2,
+        ...     size=(64, 64),
+        ...     angular_wedges_config=np.array([[3], [6], [12]]),
+        ...     window_overlap=0.15,
+        ...     radial_frequency_params=(np.pi/3, 2*np.pi/3, 2*np.pi/3, 4*np.pi/3),
+        ...     window_threshold=1e-5
+        ... )
+        >>> window_computer = UDCTWindow(params)
+        >>> window_computer.num_resolutions
+        3
+        >>> window_computer.shape
+        (64, 64)
+        """
+        self.num_resolutions = parameters.res
+        self.shape = parameters.size
+        self.dimension = parameters.dim
+        self.radial_frequency_params = parameters.radial_frequency_params
+        self.angular_wedges_config = parameters.angular_wedges_config
+        self.window_overlap = parameters.window_overlap
+        self.window_threshold = parameters.window_threshold
 
     @staticmethod
     def _compute_angle_component(
@@ -191,7 +232,8 @@ class UDCTWindow:
     def _compute_angle_kronecker_product(
         angle_function_1d: npt.NDArray[F],
         dimension_permutation: IntegerNDArray,
-        param_udct: ParamUDCT,
+        shape: tuple[int, ...],
+        dimension: int,
     ) -> npt.NDArray[F]:
         """
         Compute Kronecker product for angle functions.
@@ -202,13 +244,15 @@ class UDCTWindow:
             Angle function array.
         dimension_permutation : IntegerNDArray
             Dimension permutation indices.
-        param_udct : ParamUDCT
-            UDCT parameters.
+        shape : tuple[int, ...]
+            Shape of the input data.
+        dimension : int
+            Dimensionality of the transform.
 
         Returns
         -------
         npt.NDArray[F]
-            Kronecker product result with shape matching param_udct.size.
+            Kronecker product result with shape matching input shape.
             The dtype matches the input angle_function_1d dtype (preserves TypeVar F).
 
         Examples
@@ -231,13 +275,9 @@ class UDCTWindow:
         # Pre-compute dimension sizes for Kronecker product
         kronecker_dimension_sizes: npt.NDArray[np.int_] = np.array(
             [
-                np.prod(param_udct.size[: dimension_permutation[0] - 1]),
-                np.prod(
-                    param_udct.size[
-                        dimension_permutation[0] : dimension_permutation[1] - 1
-                    ]
-                ),
-                np.prod(param_udct.size[dimension_permutation[1] : param_udct.dim]),
+                np.prod(shape[: dimension_permutation[0] - 1]),
+                np.prod(shape[dimension_permutation[0] : dimension_permutation[1] - 1]),
+                np.prod(shape[dimension_permutation[1] : dimension]),
             ],
             dtype=int,
         )
@@ -258,9 +298,7 @@ class UDCTWindow:
             np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int))
         ).T.ravel()
         # Match original: reshape with reversed size and transpose
-        return kron_step3.reshape(*param_udct.size[::-1]).T.astype(
-            angle_function_1d.dtype
-        )
+        return kron_step3.reshape(*shape[::-1]).T.astype(angle_function_1d.dtype)
 
     @staticmethod
     def _flip_with_fft_shift(input_array: npt.NDArray[F], axis: int) -> npt.NDArray[F]:
@@ -760,7 +798,7 @@ class UDCTWindow:
         scale_idx: int,
         dimension_idx: int,
         angle_functions: dict[int, dict[tuple[int, int], npt.NDArray[F]]],
-        parameters: ParamUDCT,
+        dimension: int,
     ) -> IntegerNDArray:
         """
         Build multi-dimensional angle index combinations using Kronecker products.
@@ -773,8 +811,8 @@ class UDCTWindow:
             Dimension index (0-based).
         angle_functions : dict[int, dict[tuple[int, int], npt.NDArray[F]]]
             Dictionary of angle functions by scale and dimension.
-        parameters : ParamUDCT
-            UDCT parameters.
+        dimension : int
+            Dimensionality of the transform.
 
         Returns
         -------
@@ -797,7 +835,7 @@ class UDCTWindow:
         angle_indices_1d = np.arange(
             len(angle_functions[scale_idx - 1][(dimension_idx, 0)])
         )[:, None]
-        for angle_dim_idx in range(1, parameters.dim - 1):
+        for angle_dim_idx in range(1, dimension - 1):
             num_angles = len(
                 angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)]
             )
@@ -823,7 +861,9 @@ class UDCTWindow:
         bandpass_windows: dict[int, npt.NDArray[F]],
         direction_mappings: list[IntegerNDArray],
         max_angles_per_dim: IntegerNDArray,
-        parameters: ParamUDCT,
+        shape: tuple[int, ...],
+        dimension: int,
+        window_threshold: float,
     ) -> tuple[list[tuple[IntpNDArray, npt.NDArray[F]]], IntegerNDArray]:
         r"""
         Process a single window_index value, constructing curvelet windows with symmetry.
@@ -869,8 +909,12 @@ class UDCTWindow:
             Direction mappings for each resolution, used to determine flip axes.
         max_angles_per_dim : IntegerNDArray
             Maximum angles per dimension, used to determine which indices need flipping.
-        parameters : ParamUDCT
-            UDCT parameters containing transform configuration.
+        shape : tuple[int, ...]
+            Shape of the input data.
+        dimension : int
+            Dimensionality of the transform.
+        window_threshold : float
+            Threshold for sparse window storage.
 
         Returns
         -------
@@ -945,11 +989,11 @@ class UDCTWindow:
         """
         # Step 1: Build base window W_{j,l} = F_j · A_{j,l} (Section IV, Nguyen & Chauris 2010)
         # Initialize with unity: W = 1
-        window: npt.NDArray[F] = np.ones(parameters.size, dtype=float)
+        window: npt.NDArray[F] = np.ones(shape, dtype=float)
 
         # Multiply by angular functions A_{j,l} for each angular dimension
         # These provide directional selectivity via Kronecker products
-        for angle_dim_idx in range(parameters.dim - 1):
+        for angle_dim_idx in range(dimension - 1):
             angle_idx = angle_indices_1d.reshape(len(angle_indices_1d), -1)[
                 window_index, angle_dim_idx
             ]
@@ -965,7 +1009,7 @@ class UDCTWindow:
             # Expand 1D angle function to N-D using Kronecker products
             # This creates the multi-dimensional angular wedge A_{j,l}
             kron_angle = UDCTWindow._compute_angle_kronecker_product(
-                angle_func, angle_idx_mapping, parameters
+                angle_func, angle_idx_mapping, shape, dimension
             )
             window *= kron_angle
 
@@ -978,7 +1022,7 @@ class UDCTWindow:
         # Apply frequency shift (size//4 in each dimension) and square root
         # The shift centers the window in frequency space, and square root
         # ensures proper normalization for the partition of unity condition
-        window = np.sqrt(circular_shift(window, tuple(s // 4 for s in parameters.size)))
+        window = np.sqrt(circular_shift(window, tuple(s // 4 for s in shape)))
 
         # Step 2: Generate symmetric flipped versions for partition of unity
         # The partition of unity requires: |W_0(ω)|² + ∑|W_{j,l}(ω)|² + ∑|W_{j,l}(-ω)|² = 1
@@ -1044,7 +1088,7 @@ class UDCTWindow:
         angle_indices_list = [angle_indices_1d[window_index, :].copy()]
         # Iterate through angular dimensions from dim-2 down to 0
         # This ensures we generate all necessary symmetric combinations
-        for flip_dimension_index in range(parameters.dim - 2, -1, -1):
+        for flip_dimension_index in range(dimension - 2, -1, -1):
             angle_indices_list = add_flipped_indices(
                 angle_indices_list, flip_dimension_index
             )
@@ -1052,7 +1096,7 @@ class UDCTWindow:
         # Create arrays once with final size (pre-allocate for efficiency)
         num_windows = len(angle_indices_list)
         angle_indices_2d = np.array(angle_indices_list)
-        window_functions = np.zeros((num_windows, *parameters.size), dtype=window.dtype)
+        window_functions = np.zeros((num_windows, *shape), dtype=window.dtype)
 
         # Second pass: fill in windows, applying flips as needed
         # Build mapping from angle index to its source window and flip dimension
@@ -1066,7 +1110,7 @@ class UDCTWindow:
         angle_idx_to_window_idx: dict[tuple[int, ...], int] = {
             tuple(angle_indices_2d[0]): 0
         }
-        for flip_dimension_index in range(parameters.dim - 2, -1, -1):
+        for flip_dimension_index in range(dimension - 2, -1, -1):
             # Iterate through all angle indices we've seen so far (not just sources)
             for source_idx_tuple, source_window_idx in list(
                 angle_idx_to_window_idx.items()
@@ -1116,16 +1160,15 @@ class UDCTWindow:
         window_tuples = [
             UDCTWindow._to_sparse(
                 window_functions[function_index],
-                parameters.window_threshold,
+                window_threshold,
             )
             for function_index in range(window_functions.shape[0])
         ]
 
         return window_tuples, angle_indices_2d
 
-    @staticmethod
     def compute(
-        parameters: ParamUDCT,
+        self,
     ) -> tuple[UDCTWindows, list[IntegerNDArray], dict[int, dict[int, IntegerNDArray]]]:
         r"""
         Compute curvelet windows in frequency domain for UDCT transform.
@@ -1140,26 +1183,6 @@ class UDCTWindow:
         .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
            Transform": IEEE Transactions on Signal Processing, 58, 3618–3634.
            DOI: 10.1109/TSP.2010.2047666
-
-        Parameters
-        ----------
-        parameters : ParamUDCT
-            UDCT parameters containing:
-            - res : int
-                Number of resolution scales
-            - size : tuple[int, ...]
-                Shape of the input data
-            - dim : int
-                Dimensionality of the transform
-            - radial_frequency_params : tuple[float, float, float, float]
-                Parameters defining radial frequency bands
-            - angular_wedges_config : IntegerNDArray
-                Configuration array specifying number of angular wedges per scale
-                and dimension, shape (num_scales, dimension)
-            - window_overlap : float
-                Window overlap parameter controlling smoothness of transitions
-            - window_threshold : float
-                Threshold for sparse window storage
 
         Returns
         -------
@@ -1204,9 +1227,8 @@ class UDCTWindow:
         >>>
         >>> # Create parameters for 2D transform with 3 scales
         >>> params = ParamUDCT(
-        ...     size=(64, 64),
-        ...     res=3,
         ...     dim=2,
+        ...     size=(64, 64),
         ...     angular_wedges_config=np.array([[3], [6], [12]]),
         ...     window_overlap=0.15,
         ...     window_threshold=1e-5,
@@ -1214,7 +1236,8 @@ class UDCTWindow:
         ... )
         >>>
         >>> # Compute windows
-        >>> windows, decimation_ratios, indices = UDCTWindow.compute(params)
+        >>> window_computer = UDCTWindow(params)
+        >>> windows, decimation_ratios, indices = window_computer.compute()
         >>>
         >>> # Check structure
         >>> len(windows)  # Number of scales (0 + res)
@@ -1235,12 +1258,12 @@ class UDCTWindow:
         (3, 1)
         """
         frequency_grid, bandpass_windows = UDCTWindow._create_bandpass_windows(
-            num_scales=parameters.res,
-            shape=parameters.size,
-            radial_frequency_params=parameters.radial_frequency_params,
+            num_scales=self.num_resolutions,
+            shape=self.shape,
+            radial_frequency_params=self.radial_frequency_params,
         )
         low_frequency_window = circular_shift(
-            np.sqrt(bandpass_windows[0]), tuple(s // 4 for s in parameters.size)
+            np.sqrt(bandpass_windows[0]), tuple(s // 4 for s in self.shape)
         )
 
         # convert to sparse format
@@ -1248,49 +1271,49 @@ class UDCTWindow:
         windows.append([])
         windows[0].append([])
         windows[0][0] = [
-            UDCTWindow._to_sparse(low_frequency_window, parameters.window_threshold)
+            UDCTWindow._to_sparse(low_frequency_window, self.window_threshold)
         ]
 
         indices: dict[int, dict[int, IntegerNDArray]] = {}
         indices[0] = {}
         indices[0][0] = np.zeros((1, 1), dtype=int)
         direction_mappings = UDCTWindow._create_direction_mappings(
-            dimension=parameters.dim, num_resolutions=parameters.res
+            dimension=self.dimension, num_resolutions=self.num_resolutions
         )
         angle_functions, angle_indices = UDCTWindow._create_angle_info(
             frequency_grid,
-            dimension=parameters.dim,
-            num_resolutions=parameters.res,
-            angular_wedges_config=parameters.angular_wedges_config,
-            window_overlap=parameters.window_overlap,
+            dimension=self.dimension,
+            num_resolutions=self.num_resolutions,
+            angular_wedges_config=self.angular_wedges_config,
+            window_overlap=self.window_overlap,
         )
 
         decimation_ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
-            num_resolutions=parameters.res,
-            dimension=parameters.dim,
-            angular_wedges_config=parameters.angular_wedges_config,
+            num_resolutions=self.num_resolutions,
+            dimension=self.dimension,
+            angular_wedges_config=self.angular_wedges_config,
             direction_mappings=direction_mappings,
         )
 
         # Generate windows for each high-frequency scale (scales 1 to res)
         # Each scale contains multiple directions (one per dimension), and each
         # direction contains multiple wedges (windows with different angular orientations)
-        for scale_idx in range(1, parameters.res + 1):
+        for scale_idx in range(1, self.num_resolutions + 1):
             windows.append([])
             indices[scale_idx] = {}
 
             # Process each direction (dimension) independently
-            for dimension_idx in range(parameters.dim):
+            for dimension_idx in range(self.dimension):
                 # Build angle index combinations once per (scale_idx, dimension_idx)
                 # This determines which angular wedges will be created
                 angle_indices_1d = UDCTWindow._build_angle_indices_1d(
                     scale_idx=scale_idx,
                     dimension_idx=dimension_idx,
                     angle_functions=angle_functions,
-                    parameters=parameters,
+                    dimension=self.dimension,
                 )
                 num_windows = angle_indices_1d.shape[0]
-                max_angles_per_dim = parameters.angular_wedges_config[
+                max_angles_per_dim = self.angular_wedges_config[
                     scale_idx - 1, direction_mappings[scale_idx - 1][dimension_idx, :]
                 ]
 
@@ -1308,7 +1331,9 @@ class UDCTWindow:
                         bandpass_windows=bandpass_windows,
                         direction_mappings=direction_mappings,
                         max_angles_per_dim=max_angles_per_dim,
-                        parameters=parameters,
+                        shape=self.shape,
+                        dimension=self.dimension,
+                        window_threshold=self.window_threshold,
                     )
                     for window_index in range(num_windows)
                 ]
@@ -1325,7 +1350,7 @@ class UDCTWindow:
                 angle_index_array = (
                     np.concatenate(all_angle_indices, axis=0)
                     if all_angle_indices
-                    else np.zeros((0, parameters.dim - 1), dtype=int)
+                    else np.zeros((0, self.dimension - 1), dtype=int)
                 )
 
                 # Store results for this (scale_idx, dimension_idx) combination
@@ -1334,16 +1359,16 @@ class UDCTWindow:
 
         UDCTWindow._inplace_normalize_windows(
             windows,
-            size=parameters.size,
-            dimension=parameters.dim,
-            num_resolutions=parameters.res,
+            size=self.shape,
+            dimension=self.dimension,
+            num_resolutions=self.num_resolutions,
         )
 
         UDCTWindow._inplace_sort_windows(
             windows=windows,
             indices=indices,
-            num_resolutions=parameters.res,
-            dimension=parameters.dim,
+            num_resolutions=self.num_resolutions,
+            dimension=self.dimension,
         )
 
         return windows, decimation_ratios, indices

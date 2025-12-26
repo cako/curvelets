@@ -53,7 +53,8 @@ def test_compute_angle_kronecker_product_type_hints() -> None:
     hints = typing.get_type_hints(UDCTWindow._compute_angle_kronecker_product)
     assert "angle_function_1d" in hints
     assert "dimension_permutation" in hints
-    assert "param_udct" in hints
+    assert "shape" in hints
+    assert "dimension" in hints
     assert "return" in hints
 
 
@@ -131,8 +132,22 @@ def test_inplace_sort_windows_type_hints() -> None:
 
 def test_compute_type_hints() -> None:
     """Test that compute has correct type hints."""
-    hints = typing.get_type_hints(UDCTWindow.compute)
-    assert "parameters" in hints
+    # compute is now an instance method, so we need to check it on an instance
+    params = ParamUDCT(
+        size=(64, 64),
+        dim=2,
+        angular_wedges_config=np.array([[3, 3], [6, 6], [12, 12]]),
+        window_overlap=0.15,
+        window_threshold=1e-5,
+        radial_frequency_params=(
+            np.pi / 3,
+            2 * np.pi / 3,
+            2 * np.pi / 3,
+            4 * np.pi / 3,
+        ),
+    )
+    window_computer = UDCTWindow(params)
+    hints = typing.get_type_hints(window_computer.compute)
     assert "return" in hints
 
 
@@ -153,7 +168,8 @@ def test_compute_returns_correct_types() -> None:
             4 * np.pi / 3,
         ),
     )
-    windows, decimation_ratios, indices = UDCTWindow.compute(params)
+    window_computer = UDCTWindow(params)
+    windows, decimation_ratios, indices = window_computer.compute()
 
     # Check types
     assert isinstance(windows, list)
