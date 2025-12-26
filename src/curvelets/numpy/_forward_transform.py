@@ -517,11 +517,10 @@ def _apply_forward_transform(
             image, parameters, windows, decimation_ratios
         )
 
-    # Fall through if not real - try anyway for runtime flexibility
-    # This handles edge cases where overloads can't determine type
-    return _apply_forward_transform_real(
-        image,
-        parameters,
-        windows,
-        decimation_ratios,
+    # Complex image passed to real transform - raise error
+    # This enforces type safety: real transform requires real input
+    error_msg = (
+        "Real transform requires real-valued input. "
+        "Got complex array. Use use_complex_transform=True for complex inputs."
     )
+    raise ValueError(error_msg)
