@@ -34,6 +34,18 @@ class _CoefficientsList(List[List[List[npt.NDArray[np.complexfloating]]]]):
 
     _meyer_highpass_bands: List[npt.NDArray] | None
 
+    @property
+    def meyer_highpass_bands(self) -> List[npt.NDArray] | None:
+        """
+        Get the Meyer highpass bands stored with these coefficients.
+
+        Returns
+        -------
+        List[npt.NDArray] | None
+            The Meyer highpass bands, or None if not available.
+        """
+        return self._meyer_highpass_bands
+
 
 class UDCT:
     """
@@ -698,7 +710,7 @@ class UDCT:
 
             # Extract highpass bands from coefficients attribute
             # This makes coefficients self-contained and thread-safe
-            if not hasattr(coefficients, "_meyer_highpass_bands"):
+            if not hasattr(coefficients, "meyer_highpass_bands"):
                 error_msg = (
                     "Coefficients missing highpass bands attribute. "
                     "This may indicate coefficients were created with an older version "
@@ -706,7 +718,7 @@ class UDCT:
                 )
                 raise RuntimeError(error_msg)
 
-            meyer_highpass_bands = coefficients._meyer_highpass_bands
+            meyer_highpass_bands = coefficients.meyer_highpass_bands
             if meyer_highpass_bands is None:
                 error_msg = (
                     "Highpass bands are not available in coefficients. "
