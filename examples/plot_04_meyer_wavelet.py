@@ -188,7 +188,7 @@ lowpass_energy = np.sum(np.abs(lowpass) ** 2)
 highpass_energies = [np.sum(np.abs(band) ** 2) for band in highpass_bands]
 total_energy = lowpass_energy + sum(highpass_energies)
 
-print(f"\nEnergy Distribution:")  # noqa: T201
+print("\nEnergy Distribution:")  # noqa: T201
 print(f"Lowpass: {lowpass_energy:.2e} ({100 * lowpass_energy / total_energy:.1f}%)")  # noqa: T201
 for i, energy in enumerate(highpass_energies):
     print(f"Highpass {i}: {energy:.2e} ({100 * energy / total_energy:.1f}%)")  # noqa: T201
@@ -233,7 +233,7 @@ cb.ax.yaxis.set_major_formatter(fmt)
 despine(ax)
 ax.set(title=f"Reconstruction Error (max = {error_max:.2e})")
 
-print(f"\nReconstruction Quality:")  # noqa: T201
+print("\nReconstruction Quality:")  # noqa: T201
 print(f"Max absolute error: {error_max:.2e}")  # noqa: T201
 print(f"Relative error: {error_max / np.abs(zone_plate).max():.2e}")  # noqa: T201
 print(f"RMSE: {np.sqrt(np.mean(error**2)):.2e}")  # noqa: T201

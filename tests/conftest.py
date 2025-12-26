@@ -5,14 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
+from curvelets.numpy._typing import UDCTCoefficients
 from curvelets.numpy._utils import from_sparse_new
 
 # Common test parameters
 COMMON_ALPHA = 0.15
 COMMON_R = tuple(np.pi * np.array([1.0, 2.0, 2.0, 4.0]) / 3)
 COMMON_WINTHRESH = 1e-5
-
 
 
 def get_test_shapes(dim: int) -> list[tuple[int, ...]]:
@@ -39,12 +38,11 @@ def get_test_shapes(dim: int) -> list[tuple[int, ...]]:
     """
     if dim == 2:
         return [(64, 64), (128, 128), (256, 256)]
-    elif dim == 3:
+    if dim == 3:
         return [(32, 32, 32), (64, 64, 64)]
-    elif dim == 4:
+    if dim == 4:
         return [(16, 16, 16, 16)]
-    else:
-        return []
+    return []
 
 
 def get_test_configs(dim: int) -> list[np.ndarray]:
@@ -76,18 +74,17 @@ def get_test_configs(dim: int) -> list[np.ndarray]:
             np.array([[3, 3], [6, 6]]),
             np.array([[3, 3], [6, 6], [12, 12]]),
         ]
-    elif dim == 3:
+    if dim == 3:
         return [
             np.array([[3, 3, 3]]),
             np.array([[6, 6, 6]]),
             np.array([[3, 3, 3], [6, 6, 6]]),
         ]
-    elif dim == 4:
+    if dim == 4:
         return [
             np.array([[3, 3, 3, 3]]),
         ]
-    else:
-        return []
+    return []
 
 
 def extract_numpy_window_dense(
@@ -180,8 +177,6 @@ def _create_numpy_transform(
     return TransformWrapper(transform_obj, forward, backward)
 
 
-
-
 def setup_numpy_transform(
     dim: int,
     shape_idx: int = 0,
@@ -224,5 +219,3 @@ def setup_numpy_transform(
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
     return _create_numpy_transform(size, cfg, high=high, alpha=alpha, complex=complex)
-
-

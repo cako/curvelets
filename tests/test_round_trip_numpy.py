@@ -264,24 +264,36 @@ def test_numpy_round_trip_wavelet_mode(dim, rng):
 
     # Verify structure: should have 3 scales
     assert len(coeffs) == 3, f"Expected 3 scales, got {len(coeffs)}"
-    
+
     # Verify highest scale has single window (1 direction, 1 wedge)
     highest_scale_idx = 2
-    assert len(coeffs[highest_scale_idx]) == 1, f"Expected 1 direction at highest scale, got {len(coeffs[highest_scale_idx])}"
-    assert len(coeffs[highest_scale_idx][0]) == 1, f"Expected 1 wedge at highest scale, got {len(coeffs[highest_scale_idx][0])}"
-    
+    assert len(coeffs[highest_scale_idx]) == 1, (
+        f"Expected 1 direction at highest scale, got {len(coeffs[highest_scale_idx])}"
+    )
+    assert len(coeffs[highest_scale_idx][0]) == 1, (
+        f"Expected 1 wedge at highest scale, got {len(coeffs[highest_scale_idx][0])}"
+    )
+
     # Verify decimation=1 (coefficient shape should match internal shape)
     highest_coeff = coeffs[highest_scale_idx][0][0]
     # For wavelet mode at highest scale, decimation=1, so shape should match parameters.shape
     expected_shape = transform.parameters.shape
-    assert highest_coeff.shape == expected_shape, f"Expected shape {expected_shape}, got {highest_coeff.shape}"
-    
+    assert highest_coeff.shape == expected_shape, (
+        f"Expected shape {expected_shape}, got {highest_coeff.shape}"
+    )
+
     # Verify windows structure
-    assert len(transform.windows[highest_scale_idx]) == 1, "Expected 1 direction in windows at highest scale"
-    assert len(transform.windows[highest_scale_idx][0]) == 1, "Expected 1 wedge in windows at highest scale"
-    
+    assert len(transform.windows[highest_scale_idx]) == 1, (
+        "Expected 1 direction in windows at highest scale"
+    )
+    assert len(transform.windows[highest_scale_idx][0]) == 1, (
+        "Expected 1 wedge in windows at highest scale"
+    )
+
     # Verify decimation ratio is 1
-    assert np.all(transform.decimation_ratios[highest_scale_idx] == 1), "Expected decimation=1 at highest scale"
+    assert np.all(transform.decimation_ratios[highest_scale_idx] == 1), (
+        "Expected decimation=1 at highest scale"
+    )
 
     # Verify reconstruction accuracy
     atol = 1e-4 if dim == 2 else 2e-4

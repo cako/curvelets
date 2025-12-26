@@ -242,7 +242,9 @@ def _apply_forward_transform_real(
             [
                 _process_wedge_real(
                     windows[scale_idx][direction_idx][wedge_idx],
-                    decimation_ratios[scale_idx][0, :] if decimation_ratios[scale_idx].shape[0] == 1 else decimation_ratios[scale_idx][direction_idx, :],
+                    decimation_ratios[scale_idx][0, :]
+                    if decimation_ratios[scale_idx].shape[0] == 1
+                    else decimation_ratios[scale_idx][direction_idx, :],
                     image_frequency,
                     frequency_band,
                     complex_dtype,
@@ -362,14 +364,26 @@ def _apply_forward_transform_complex(
             # For "wavelet" mode, reuse single window for all directions
             [
                 _process_wedge_complex(
-                    windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)][wedge_idx],
-                    decimation_ratios[scale_idx][0, :] if decimation_ratios[scale_idx].shape[0] == 1 else decimation_ratios[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1), :],
+                    windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)][
+                        wedge_idx
+                    ],
+                    decimation_ratios[scale_idx][0, :]
+                    if decimation_ratios[scale_idx].shape[0] == 1
+                    else decimation_ratios[scale_idx][
+                        min(direction_idx, len(windows[scale_idx]) - 1), :
+                    ],
                     image_frequency,
                     parameters,
                     complex_dtype,
                     flip_window=False,
                 )
-                for wedge_idx in range(len(windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)]))
+                for wedge_idx in range(
+                    len(
+                        windows[scale_idx][
+                            min(direction_idx, len(windows[scale_idx]) - 1)
+                        ]
+                    )
+                )
             ]
             for direction_idx in range(parameters.ndim)
         ]
@@ -378,14 +392,26 @@ def _apply_forward_transform_complex(
             # For "wavelet" mode, reuse single window for all directions
             [
                 _process_wedge_complex(
-                    windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)][wedge_idx],
-                    decimation_ratios[scale_idx][0, :] if decimation_ratios[scale_idx].shape[0] == 1 else decimation_ratios[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1), :],
+                    windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)][
+                        wedge_idx
+                    ],
+                    decimation_ratios[scale_idx][0, :]
+                    if decimation_ratios[scale_idx].shape[0] == 1
+                    else decimation_ratios[scale_idx][
+                        min(direction_idx, len(windows[scale_idx]) - 1), :
+                    ],
                     image_frequency,
                     parameters,
                     complex_dtype,
                     flip_window=True,
                 )
-                for wedge_idx in range(len(windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)]))
+                for wedge_idx in range(
+                    len(
+                        windows[scale_idx][
+                            min(direction_idx, len(windows[scale_idx]) - 1)
+                        ]
+                    )
+                )
             ]
             for direction_idx in range(parameters.ndim)
         ]

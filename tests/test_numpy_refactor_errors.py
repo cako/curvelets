@@ -93,9 +93,7 @@ class TestMeyerWaveletErrors:
         # Invalid structure: only 1 subband group instead of 2
         invalid_coeffs = [[rng.normal(size=(32, 32)).astype(np.float64)]]
 
-        with pytest.raises(
-            ValueError, match="coefficients must have 2 subband groups"
-        ):
+        with pytest.raises(ValueError, match="coefficients must have 2 subband groups"):
             wavelet.backward(invalid_coeffs)
 
     def test_forward_shape_mismatch(self, rng):
