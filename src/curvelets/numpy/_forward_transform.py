@@ -219,9 +219,9 @@ def _apply_forward_transform_real(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import ParamUDCT
-    >>> from curvelets.numpy_refactor._udct_windows import _udct_windows
-    >>> from curvelets.numpy_refactor._forward_transform import _apply_forward_transform_real
+    >>> from curvelets.numpy._utils import ParamUDCT
+    >>> from curvelets.numpy._udct_windows import _udct_windows
+    >>> from curvelets.numpy._forward_transform import _apply_forward_transform_real
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
@@ -374,9 +374,9 @@ def _apply_forward_transform_complex(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import ParamUDCT
-    >>> from curvelets.numpy_refactor._udct_windows import _udct_windows
-    >>> from curvelets.numpy_refactor._forward_transform import _apply_forward_transform_complex
+    >>> from curvelets.numpy._utils import ParamUDCT
+    >>> from curvelets.numpy._udct_windows import _udct_windows
+    >>> from curvelets.numpy._forward_transform import _apply_forward_transform_complex
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(
@@ -599,9 +599,9 @@ def _apply_forward_transform(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import ParamUDCT
-    >>> from curvelets.numpy_refactor._udct_windows import _udct_windows
-    >>> from curvelets.numpy_refactor._forward_transform import _apply_forward_transform
+    >>> from curvelets.numpy._utils import ParamUDCT
+    >>> from curvelets.numpy._udct_windows import _udct_windows
+    >>> from curvelets.numpy._forward_transform import _apply_forward_transform
     >>>
     >>> # Create parameters for 2D transform
     >>> params = ParamUDCT(

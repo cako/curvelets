@@ -77,7 +77,7 @@ class ParamUDCT:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import ParamUDCT
+    >>> from curvelets.numpy._utils import ParamUDCT
     >>>
     >>> # Create parameters for 2D transform with 3 scales
     >>> params = ParamUDCT(
@@ -175,7 +175,7 @@ def circular_shift(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import circular_shift
+    >>> from curvelets.numpy._utils import circular_shift
     >>>
     >>> # 1D array shift
     >>> arr = np.array([1, 2, 3, 4, 5])
@@ -237,7 +237,7 @@ def downsample(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import downsample
+    >>> from curvelets.numpy._utils import downsample
     >>>
     >>> # 1D downsampling
     >>> arr = np.array([1, 2, 3, 4, 5, 6, 7, 8])
@@ -314,7 +314,7 @@ def flip_fft_all_axes(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import flip_fft_all_axes
+    >>> from curvelets.numpy._utils import flip_fft_all_axes
     >>>
     >>> # 1D array
     >>> arr = np.array([1, 2, 3, 4, 5])
@@ -401,7 +401,7 @@ def meyer_window(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import meyer_window
+    >>> from curvelets.numpy._utils import meyer_window
     >>>
     >>> # Standard Meyer wavelet parameters
     >>> frequency = np.linspace(-np.pi, 2*np.pi, 100)
@@ -491,7 +491,7 @@ def upsample(
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._utils import upsample
+    >>> from curvelets.numpy._utils import upsample
     >>>
     >>> # 1D upsampling
     >>> arr = np.array([1, 2, 3, 4])
@@ -523,3 +523,30 @@ def upsample(
     upsampled_array = np.zeros(upsampled_shape, dtype=array.dtype)
     upsampled_array[tuple(slice(None, None, d) for d in decimation_ratios)] = array[...]
     return upsampled_array
+
+
+def from_sparse_new(
+    arr_list: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+) -> tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]:
+    """
+    Identity function for sparse array format.
+
+    This function is kept for backward compatibility. It simply returns the
+    input tuple unchanged. The sparse format is (indices, values).
+
+    Parameters
+    ----------
+    arr_list : tuple[NDArray[intp], NDArray[floating]]
+        Sparse array format as a tuple of (indices, values).
+
+    Returns
+    -------
+    tuple[NDArray[intp], NDArray[floating]]
+        The input tuple unchanged.
+
+    Notes
+    -----
+    This function is internal and used primarily in tests. It exists for
+    compatibility with the old API.
+    """
+    return arr_list

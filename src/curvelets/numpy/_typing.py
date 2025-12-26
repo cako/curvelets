@@ -36,6 +36,7 @@ A = TypeVar("A", bound=np.generic)
 
 # Type aliases for common NDArray types
 # Note: These are kept for backward compatibility but new code should use TypeVars directly
+FloatingNDArray: TypeAlias = npt.NDArray[np.floating]
 IntegerNDArray: TypeAlias = npt.NDArray[np.int_]
 IntpNDArray: TypeAlias = npt.NDArray[np.intp]
 BoolNDArray: TypeAlias = npt.NDArray[np.bool_]
@@ -71,7 +72,7 @@ def _to_real_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._typing import _to_real_dtype
+    >>> from curvelets.numpy._typing import _to_real_dtype
     >>> _to_real_dtype(np.float32)
     dtype('float32')
     >>> _to_real_dtype(np.float64)
@@ -106,7 +107,7 @@ def _to_complex_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor._typing import _to_complex_dtype
+    >>> from curvelets.numpy._typing import _to_complex_dtype
     >>> _to_complex_dtype(np.float32)
     dtype('complex64')
     >>> _to_complex_dtype(np.float64)

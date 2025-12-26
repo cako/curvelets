@@ -34,7 +34,7 @@ class MeyerWavelet:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy_refactor import MeyerWavelet
+    >>> from curvelets.numpy import MeyerWavelet
     >>> wavelet = MeyerWavelet(shape=(64, 64))
     >>> signal = np.random.randn(64, 64)
     >>> lowpass = wavelet.forward(signal)
@@ -62,7 +62,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> wavelet.shape
         (64, 64)
@@ -91,7 +91,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> len(wavelet._filter_cache)
         1
@@ -126,7 +126,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64,))
         >>> lowpass, highpass = wavelet._compute_single_filter(64)
         >>> lowpass.shape
@@ -182,7 +182,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> signal = np.random.randn(64, 64)
         >>> lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
@@ -264,7 +264,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> signal = np.random.randn(64, 64)
         >>> lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
@@ -363,7 +363,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> signal = np.random.randn(64, 64)
         >>> lowpass = wavelet.forward(signal)
@@ -438,7 +438,7 @@ class MeyerWavelet:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy_refactor import MeyerWavelet
+        >>> from curvelets.numpy import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> signal = np.random.randn(64, 64)
         >>> lowpass = wavelet.forward(signal)
