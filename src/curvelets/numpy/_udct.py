@@ -54,10 +54,9 @@ class UDCT:
         Default is 1e-5.
     high_frequency_mode : {"curvelet", "meyer", "wavelet"}, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
-        "meyer" applies Meyer wavelet decomposition at the highest scale,
+        "meyer" applies Meyer wavelet decomposition (H-L, L-H, H-H) at the highest scale,
         "wavelet" creates a single ring-shaped window (bandpass filter only,
         no angular components) at the highest scale with decimation=1.
-        For meyer and wavelet modes, num_scales must be >= 2.
         When num_scales=2 with meyer mode, this is equivalent to a Meyer wavelet
         transform (1 lowpass + 1 highpass scale). Default is "curvelet".
     use_complex_transform : bool, optional
@@ -379,11 +378,8 @@ class UDCT:
         computed_num_scales = 1 + len(computed_angular_wedges_config)
 
         # Validate meyer and wavelet mode requirements
-        # For meyer and wavelet modes, we need at least 2 scales total (1 lowpass + 1 high-frequency),
-        # which means at least 1 row in angular_wedges_config
-        # num_scales=2 with meyer mode is equivalent to a Meyer wavelet transform
-        if high_frequency_mode in ("meyer", "wavelet") and computed_num_scales < 2:
-            msg = f"{high_frequency_mode.capitalize()} mode requires at least 2 scales total (num_scales >= 2)"
+        if computed_num_scales < 2:
+            msg = "requires at least 2 scales total (num_scales >= 2)"
             raise ValueError(msg)
 
         # Calculate internal shape (meyer mode halves the size)
