@@ -25,6 +25,12 @@ class UDCTWindow:
     ----------
     parameters : ParamUDCT
         UDCT parameters containing transform configuration.
+    high_frequency_mode : str, optional
+        High frequency mode. "curvelet" uses curvelets at all scales,
+        "meyer" applies Meyer wavelet decomposition at the highest scale,
+        "wavelet" creates a single ring-shaped window (bandpass filter only,
+        no angular components) at the highest scale with decimation=1.
+        Default is "curvelet".
 
     Examples
     --------
@@ -54,7 +60,9 @@ class UDCTWindow:
     3
     """
 
-    def __init__(self, parameters: ParamUDCT) -> None:
+    def __init__(
+        self, parameters: ParamUDCT, high_frequency_mode: str = "curvelet"
+    ) -> None:
         """
         Initialize UDCTWindow with parameters from ParamUDCT.
 
@@ -62,6 +70,11 @@ class UDCTWindow:
         ----------
         parameters : ParamUDCT
             UDCT parameters containing transform configuration.
+        high_frequency_mode : str, optional
+            High frequency mode. "curvelet" uses curvelets at all scales,
+            "meyer" applies Meyer wavelet decomposition at the highest scale,
+            "wavelet" creates a single ring-shaped window (bandpass filter only) at the highest scale
+            with decimation=1. Default is "curvelet".
 
         Examples
         --------
@@ -89,6 +102,7 @@ class UDCTWindow:
         self.angular_wedges_config = parameters.angular_wedges_config
         self.window_overlap = parameters.window_overlap
         self.window_threshold = parameters.window_threshold
+        self.high_frequency_mode = high_frequency_mode
 
     @staticmethod
     def _compute_angle_component(
@@ -539,6 +553,7 @@ class UDCTWindow:
         num_scales: int,
         angular_wedges_config: IntegerNDArray,
         window_overlap: float,
+        high_frequency_mode: str = "curvelet",
     ) -> tuple[
         dict[int, dict[tuple[int, int], npt.NDArray[F]]],
         dict[int, dict[tuple[int, int], IntegerNDArray]],
@@ -558,6 +573,9 @@ class UDCTWindow:
             Configuration array specifying number of angular wedges per scale and dimension.
         window_overlap : float
             Window overlap parameter.
+        high_frequency_mode : str, optional
+            High frequency mode. When "wavelet", overlap is set to 0 for the highest scale.
+            Default is "curvelet".
 
         Returns
         -------
@@ -590,6 +608,18 @@ class UDCTWindow:
         for scale_idx in range(num_scales - 1):
             angle_functions[scale_idx] = {}
             angle_indices[scale_idx] = {}
+            # Use overlap=0 for highest scale when mode="wavelet"
+            # Note: scale_idx is 0-indexed for high-frequency scales (0 to num_scales-2)
+            # In compute(), actual scale indices are 1 to num_scales-1, and they access
+            # angle_functions[scale_idx - 1]. So the highest scale (num_scales - 1) maps
+            # to angle_functions[num_scales - 2] here. Therefore, we check scale_idx == num_scales - 2
+            # to identify the highest scale.
+            is_highest_scale = scale_idx == num_scales - 2
+            overlap_to_use = (
+                0.0
+                if (high_frequency_mode == "wavelet" and is_highest_scale)
+                else window_overlap
+            )
             for dimension_idx in range(dimension):
                 angle_function_index = 0
                 for hyperpyramid_idx in range(dimension_permutations.shape[0]):
@@ -609,7 +639,7 @@ class UDCTWindow:
                                         hyperpyramid_idx, 1 - direction_idx
                                     ],
                                 ],
-                                window_overlap,
+                                overlap_to_use,
                             )
                             angle_indices[scale_idx][
                                 (dimension_idx, angle_function_index)
@@ -654,19 +684,23 @@ class UDCTWindow:
         val_flat = values.ravel()
         sum_squared_windows.flat[idx_flat] += val_flat**2
         for scale_idx in range(1, num_scales):
-            for direction_idx in range(dimension):
+            # Iterate over actual number of directions (may be less than dimension for "wavelet" mode)
+            for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     indices, values = windows[scale_idx][direction_idx][wedge_idx]
                     idx_flat = indices.ravel()
                     val_flat = values.ravel()
                     sum_squared_windows.flat[idx_flat] += val_flat**2
                     # Also accumulate flipped version for symmetry
-                    temp_window = np.zeros(size)
-                    temp_window.flat[idx_flat] = val_flat**2
-                    temp_window = UDCTWindow._flip_with_fft_shift(
-                        temp_window, direction_idx
-                    )
-                    sum_squared_windows += temp_window
+                    # Only flip if we have the full number of directions (not for "wavelet" mode at highest scale)
+                    # For "wavelet" mode, the ring window is already symmetric, so no flipping needed
+                    if len(windows[scale_idx]) == dimension:
+                        temp_window = np.zeros(size)
+                        temp_window.flat[idx_flat] = val_flat**2
+                        temp_window = UDCTWindow._flip_with_fft_shift(
+                            temp_window, direction_idx
+                        )
+                        sum_squared_windows += temp_window
 
         # Phase 2: Normalize each window by dividing by sqrt(sum of squares)
         # This ensures perfect reconstruction (tight frame property)
@@ -677,7 +711,8 @@ class UDCTWindow:
         val_flat = values.ravel()
         val_flat[:] /= sum_squared_windows_flat[idx_flat]
         for scale_idx in range(1, num_scales):
-            for direction_idx in range(dimension):
+            # Iterate over actual number of directions (may be less than dimension for "wavelet" mode)
+            for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
                     indices, values = windows[scale_idx][direction_idx][wedge_idx]
                     idx_flat = indices.ravel()
@@ -690,6 +725,7 @@ class UDCTWindow:
         dimension: int,
         angular_wedges_config: IntegerNDArray,
         direction_mappings: list[IntegerNDArray],
+        high_frequency_mode: str = "curvelet",
     ) -> list[IntegerNDArray]:
         """
         Calculate decimation ratios for each scale and direction.
@@ -704,6 +740,9 @@ class UDCTWindow:
             Configuration array specifying number of angular wedges.
         direction_mappings : list[IntegerNDArray]
             Direction mappings for each resolution.
+        high_frequency_mode : str, optional
+            High frequency mode. For "wavelet" mode, highest scale has decimation=1.
+            Default is "curvelet".
 
         Returns
         -------
@@ -725,21 +764,27 @@ class UDCTWindow:
             np.full((1, dimension), fill_value=2 ** (num_scales - 2), dtype=int)
         ]
         for scale_idx in range(1, num_scales):
-            decimation_ratios.append(
-                np.full(
-                    (dimension, dimension),
-                    fill_value=2 ** (num_scales - scale_idx),
-                    dtype=int,
+            # For "wavelet" mode at highest scale, use decimation=1 with shape (1, dim)
+            if high_frequency_mode == "wavelet" and scale_idx == num_scales - 1:
+                decimation_ratios.append(np.ones((1, dimension), dtype=int))
+            else:
+                decimation_ratios.append(
+                    np.full(
+                        (dimension, dimension),
+                        fill_value=2 ** (num_scales - scale_idx),
+                        dtype=int,
+                    )
                 )
-            )
-            for direction_idx in range(dimension):
-                other_directions = direction_mappings[scale_idx - 1][direction_idx, :]
-                decimation_ratios[scale_idx][direction_idx, other_directions] = (
-                    2
-                    * angular_wedges_config[scale_idx - 1, other_directions]
-                    * 2 ** (num_scales - 1 - scale_idx)
-                    // 3
-                )
+                for direction_idx in range(dimension):
+                    other_directions = direction_mappings[scale_idx - 1][
+                        direction_idx, :
+                    ]
+                    decimation_ratios[scale_idx][direction_idx, other_directions] = (
+                        2
+                        * angular_wedges_config[scale_idx - 1, other_directions]
+                        * 2 ** (num_scales - 1 - scale_idx)
+                        // 3
+                    )
         return decimation_ratios
 
     @staticmethod
@@ -773,7 +818,8 @@ class UDCTWindow:
         >>> UDCTWindow._inplace_sort_windows(windows, indices, 3, 2)
         """
         for scale_idx in range(1, num_scales):
-            for dimension_idx in range(dimension):
+            # Iterate over actual dimension indices present (may be less than dimension for "wavelet" mode)
+            for dimension_idx in indices[scale_idx]:
                 angular_index_array = indices[scale_idx][dimension_idx]
 
                 max_index_value = angular_index_array.max() + 1
@@ -1188,11 +1234,14 @@ class UDCTWindow:
         windows : UDCTWindows
             Curvelet windows in sparse format. Structure is:
             windows[scale][direction][wedge] = (indices, values) tuple
-            where scale 0 is low-frequency, scales 1..(num_scales-1) are high-frequency bands
+            where scale 0 is low-frequency, scales 1..(num_scales-1) are high-frequency bands.
+            For "wavelet" mode at highest scale, windows[highest_scale] has 1 direction with 1 wedge
+            (ring-shaped window encompassing the entire frequency ring, no angular components).
         decimation_ratios : list[IntegerNDArray]
             Decimation ratios for each scale and direction. Structure:
             - decimation_ratios[0]: shape (1, dim) for low-frequency band
-            - decimation_ratios[scale]: shape (dim, dim) for scale > 0
+            - decimation_ratios[scale]: shape (dim, dim) for scale > 0 (normal modes)
+            - decimation_ratios[highest_scale]: shape (1, dim) with values=1 for "wavelet" mode
         indices : dict[int, dict[int, IntegerNDArray]]
             Angular indices for each window. Structure:
             indices[scale][direction] = array of shape (num_wedges, dim-1)
@@ -1285,6 +1334,7 @@ class UDCTWindow:
             num_scales=self.num_scales,
             angular_wedges_config=self.angular_wedges_config,
             window_overlap=self.window_overlap,
+            high_frequency_mode=self.high_frequency_mode,
         )
 
         decimation_ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
@@ -1292,6 +1342,7 @@ class UDCTWindow:
             dimension=self.dimension,
             angular_wedges_config=self.angular_wedges_config,
             direction_mappings=direction_mappings,
+            high_frequency_mode=self.high_frequency_mode,
         )
 
         # Generate windows for each high-frequency scale (scales 1 to num_scales-1)
@@ -1301,60 +1352,91 @@ class UDCTWindow:
             windows.append([])
             indices[scale_idx] = {}
 
-            # Process each direction (dimension) independently
-            for dimension_idx in range(self.dimension):
-                # Build angle index combinations once per (scale_idx, dimension_idx)
-                # This determines which angular wedges will be created
-                angle_indices_1d = UDCTWindow._build_angle_indices_1d(
-                    scale_idx=scale_idx,
-                    dimension_idx=dimension_idx,
-                    angle_functions=angle_functions,
-                    dimension=self.dimension,
-                )
-                num_windows = angle_indices_1d.shape[0]
-                max_angles_per_dim = self.angular_wedges_config[
-                    scale_idx - 1, direction_mappings[scale_idx - 1][dimension_idx, :]
-                ]
+            # For "wavelet" mode at highest scale, create a single ring-shaped window
+            # (bandpass filter only, no angular components)
+            if (
+                self.high_frequency_mode == "wavelet"
+                and scale_idx == self.num_scales - 1
+            ):
+                # Create ring window: use complement of lowpass filter to cover entire high-frequency ring
+                # For the highest scale, we want all frequencies NOT in the lowpass
+                # This ensures we cover the entire frequency ring without gaps
+                # Get the lowpass filter (bandpass_windows[0] is the lowpass)
+                lowpass_filter = bandpass_windows[0].copy()
+                # Ring window is complement: 1 - lowpass (all high frequencies)
+                ring_window: npt.NDArray[np.float64] = 1.0 - lowpass_filter
+                # Ensure non-negative (should already be, but be safe)
+                ring_window = np.maximum(ring_window, 0.0)
 
-                # Process each window_index independently using list comprehension
-                # Each call returns (list of window tuples, angle_indices_2d array)
-                # Windows include original and flipped versions for symmetry
-                window_results = [
-                    UDCTWindow._process_single_window(
+                # Apply frequency shift and square root (matching normal window creation)
+                ring_window = np.sqrt(
+                    circular_shift(ring_window, tuple(s // 4 for s in self.shape))
+                )
+
+                # Convert to sparse format
+                ring_window_sparse = UDCTWindow._to_sparse(
+                    ring_window, self.window_threshold
+                )
+
+                # Store as single direction with single window
+                windows[scale_idx].append([ring_window_sparse])
+                indices[scale_idx][0] = np.zeros((1, self.dimension - 1), dtype=int)
+            else:
+                # Normal curvelet mode: process each direction (dimension) independently
+                for dimension_idx in range(self.dimension):
+                    # Build angle index combinations once per (scale_idx, dimension_idx)
+                    # This determines which angular wedges will be created
+                    angle_indices_1d = UDCTWindow._build_angle_indices_1d(
                         scale_idx=scale_idx,
                         dimension_idx=dimension_idx,
-                        window_index=window_index,
-                        angle_indices_1d=angle_indices_1d,
                         angle_functions=angle_functions,
-                        angle_indices=angle_indices,
-                        bandpass_windows=bandpass_windows,
-                        direction_mappings=direction_mappings,
-                        max_angles_per_dim=max_angles_per_dim,
-                        shape=self.shape,
                         dimension=self.dimension,
-                        window_threshold=self.window_threshold,
                     )
-                    for window_index in range(num_windows)
-                ]
+                    num_windows = angle_indices_1d.shape[0]
+                    max_angles_per_dim = self.angular_wedges_config[
+                        scale_idx - 1,
+                        direction_mappings[scale_idx - 1][dimension_idx, :],
+                    ]
 
-                # Combine results from all window_index values:
-                # - Flatten nested window lists into a single list
-                # - Concatenate all angle_indices_2d arrays into one array
-                all_windows = [
-                    window
-                    for window_list, _ in window_results
-                    for window in window_list
-                ]
-                all_angle_indices = [angle_idx for _, angle_idx in window_results]
-                angle_index_array = (
-                    np.concatenate(all_angle_indices, axis=0)
-                    if all_angle_indices
-                    else np.zeros((0, self.dimension - 1), dtype=int)
-                )
+                    # Process each window_index independently using list comprehension
+                    # Each call returns (list of window tuples, angle_indices_2d array)
+                    # Windows include original and flipped versions for symmetry
+                    window_results = [
+                        UDCTWindow._process_single_window(
+                            scale_idx=scale_idx,
+                            dimension_idx=dimension_idx,
+                            window_index=window_index,
+                            angle_indices_1d=angle_indices_1d,
+                            angle_functions=angle_functions,
+                            angle_indices=angle_indices,
+                            bandpass_windows=bandpass_windows,
+                            direction_mappings=direction_mappings,
+                            max_angles_per_dim=max_angles_per_dim,
+                            shape=self.shape,
+                            dimension=self.dimension,
+                            window_threshold=self.window_threshold,
+                        )
+                        for window_index in range(num_windows)
+                    ]
 
-                # Store results for this (scale_idx, dimension_idx) combination
-                windows[scale_idx].append(all_windows)
-                indices[scale_idx][dimension_idx] = angle_index_array
+                    # Combine results from all window_index values:
+                    # - Flatten nested window lists into a single list
+                    # - Concatenate all angle_indices_2d arrays into one array
+                    all_windows = [
+                        window
+                        for window_list, _ in window_results
+                        for window in window_list
+                    ]
+                    all_angle_indices = [angle_idx for _, angle_idx in window_results]
+                    angle_index_array = (
+                        np.concatenate(all_angle_indices, axis=0)
+                        if all_angle_indices
+                        else np.zeros((0, self.dimension - 1), dtype=int)
+                    )
+
+                    # Store results for this (scale_idx, dimension_idx) combination
+                    windows[scale_idx].append(all_windows)
+                    indices[scale_idx][dimension_idx] = angle_index_array
 
         UDCTWindow._inplace_normalize_windows(
             windows,
