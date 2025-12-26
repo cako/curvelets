@@ -3,17 +3,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import TypeVar, Union
+from typing import TypeVar, Union, cast
 
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import (
-    F,
-    IntegerNDArray,
-    IntpNDArray,
-    UDCTWindows,
-)
+from ._typing import F, IntegerNDArray, IntpNDArray, UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
 
 D_T = TypeVar("D_T", bound=np.floating)
@@ -78,14 +73,12 @@ class UDCTWindow:
         """
         # Compute angle component using piecewise function:
         # When primary coordinate dominates (|x_secondary| <= |x_primary|), use -x_secondary/x_primary
-        primary_ratio: npt.NDArray[np.floating] = np.zeros_like(x_primary, dtype=float)
+        primary_ratio = np.zeros_like(x_primary)
         mask = (x_primary != 0) & (np.abs(x_secondary) <= np.abs(x_primary))
         primary_ratio[mask] = -x_secondary[mask] / x_primary[mask]
 
         # When secondary coordinate dominates (|x_primary| < |x_secondary|), use x_primary/x_secondary
-        secondary_ratio: npt.NDArray[np.floating] = np.zeros_like(
-            x_primary, dtype=float
-        )
+        secondary_ratio = np.zeros_like(x_primary)
         mask = (x_secondary != 0) & (np.abs(x_primary) < np.abs(x_secondary))
         secondary_ratio[mask] = x_primary[mask] / x_secondary[mask]
 
@@ -95,7 +88,9 @@ class UDCTWindow:
         wrapped_ratio[secondary_ratio > 0] = secondary_ratio[secondary_ratio > 0] - 2
 
         # Combine ratios and set special case for x_primary >= 0
-        angle_component = primary_ratio + wrapped_ratio
+        # Create result array with same dtype as input to preserve TypeVar F
+        angle_component = np.zeros_like(x_primary)
+        angle_component[:] = primary_ratio + wrapped_ratio
         angle_component[x_primary >= 0] = -2
         return angle_component
 
@@ -199,7 +194,7 @@ class UDCTWindow:
         angle_function_1d: npt.NDArray[F],
         dimension_permutation: IntegerNDArray,
         param_udct: ParamUDCT,
-    ) -> npt.NDArray[F]:
+    ) -> IntegerNDArray:
         """
         Compute Kronecker product for angle functions.
 
@@ -214,7 +209,7 @@ class UDCTWindow:
 
         Returns
         -------
-        npt.NDArray[F]
+        IntegerNDArray
             Kronecker product result with shape matching param_udct.size.
 
         Examples
