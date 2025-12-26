@@ -142,18 +142,13 @@ class TestMeyerWaveletErrors:
         ):
             wavelet.forward(wrong_shape_signal)
 
-    def test_meyerwavelet_odd_dimensions(self, rng):
+    def test_meyerwavelet_odd_dimensions(self):
         """
         Test that MeyerWavelet raises ValueError for odd dimensions.
 
         This test verifies that the transform correctly rejects odd-length
         signals, which are not supported due to downsampling producing
         mismatched subband sizes.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
 
         Examples
         --------
