@@ -14,6 +14,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
+from numpy.fft import fftfreq, fftshift
 
 from curvelets.numpy import MeyerWavelet
 from curvelets.plot import create_colorbar, despine
@@ -120,6 +121,78 @@ for ax, band, name in zip(axs, highpass_bands, band_names):
     cb.ax.yaxis.set_major_formatter(fmt)
     despine(ax)
     ax.set(title=name)
+fig.tight_layout()
+
+# %%
+# Frequency Domain Windows
+# #######################
+# Visualize the frequency domain windows (lowpass and highpass) that define
+# the Meyer wavelet decomposition in 2D frequency space.
+
+# Access the pre-computed 1D filters
+lowpass_1d, highpass_1d = wavelet._filters[shape[0]]
+
+# Construct 2D frequency domain windows using outer products
+# For 2D Meyer wavelet, the windows are separable (product of 1D filters)
+lowpass_window_2d = np.outer(lowpass_1d, lowpass_1d)
+highpass_window_0_2d = np.outer(lowpass_1d, highpass_1d)  # Low-High
+highpass_window_1_2d = np.outer(highpass_1d, lowpass_1d)  # High-Low
+highpass_window_2_2d = np.outer(highpass_1d, highpass_1d)  # High-High
+
+# Apply fftshift to center the frequency domain for visualization
+lowpass_window_shifted = fftshift(lowpass_window_2d)
+highpass_window_0_shifted = fftshift(highpass_window_0_2d)
+highpass_window_1_shifted = fftshift(highpass_window_1_2d)
+highpass_window_2_shifted = fftshift(highpass_window_2_2d)
+
+# Frequency coordinates for axis labels
+nx, ny = shape
+kx = fftshift(fftfreq(nx))
+ky = fftshift(fftfreq(ny))
+
+# Create figure with 4 subplots
+fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+axs = axs.flatten()
+
+# Window names and data
+window_names = [
+    "Lowpass Window",
+    "Highpass Band 0 (Low-High)",
+    "Highpass Band 1 (High-Low)",
+    "Highpass Band 2 (High-High)",
+]
+windows_shifted = [
+    lowpass_window_shifted,
+    highpass_window_0_shifted,
+    highpass_window_1_shifted,
+    highpass_window_2_shifted,
+]
+
+# Find common vmax for all windows
+vmax = max(np.abs(w).max() for w in windows_shifted)
+window_opts = {
+    "aspect": "equal",
+    "cmap": "viridis",
+    "vmin": 0,
+    "vmax": vmax,
+    "extent": [kx[0], kx[-1], ky[-1], ky[0]],
+}
+
+for ax, window, name in zip(axs, windows_shifted, window_names):
+    im = ax.imshow(window.T, **window_opts)
+    _, cb = create_colorbar(im=im, ax=ax)
+    fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")
+    cb.ax.yaxis.set_major_formatter(fmt)
+    ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
+    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
+    ax.set(
+        xlim=[kx[0], -kx[0]],
+        ylim=[-ky[0], ky[0]],
+        xlabel="Normalized $k_x$",
+        ylabel="Normalized $k_y$",
+        title=name,
+    )
+    despine(ax)
 fig.tight_layout()
 
 # %%
