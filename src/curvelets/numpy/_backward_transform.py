@@ -104,6 +104,7 @@ def _process_wedge_backward_complex(
     in complex transform mode. The sqrt(0.5) scaling accounts for the separation
     of positive and negative frequencies.
     """
+    # pylint: disable=duplicate-code
     # Get window indices and values
     idx, val = window
 
@@ -308,6 +309,7 @@ def _apply_backward_transform_complex(
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
+    # pylint: disable=too-many-nested-blocks
     if is_wavelet_mode_highest_scale:
         # For wavelet mode: process highest scale separately without factor of 2
         # Other scales use factor of 2 as normal

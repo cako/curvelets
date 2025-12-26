@@ -15,7 +15,7 @@ from ._forward_transform import (
 from ._meyerwavelet import MeyerWavelet
 from ._typing import C, F, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
-from ._utils import ParamUDCT
+from ._utils import ParamUDCT, from_sparse_new
 
 
 class UDCT:
@@ -537,8 +537,6 @@ class UDCT:
         >>> dense_window.shape
         (64, 64)
         """
-        from ._utils import from_sparse_new
-
         idx, val = from_sparse_new(arr_sparse)
         arr_full = np.zeros(self.parameters.shape, dtype=val.dtype)
         arr_full.flat[idx] += val

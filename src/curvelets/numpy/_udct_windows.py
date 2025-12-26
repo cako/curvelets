@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -677,7 +678,6 @@ class UDCTWindow:
         windows: UDCTWindows,
         indices: dict[int, dict[int, IntegerNDArray]],
         num_scales: int,
-        dimension: int,
     ) -> None:
         """
         Sort windows in-place by their angular indices.
@@ -690,8 +690,6 @@ class UDCTWindow:
             Angular indices dictionary (modified in-place).
         num_scales : int
             Total number of scales (including lowpass scale).
-        dimension : int
-            Dimensionality of the transform.
         """
         for scale_idx in range(1, num_scales):
             # Iterate over actual dimension indices present (may be less than dimension for "wavelet" mode)
@@ -1285,7 +1283,6 @@ class UDCTWindow:
             windows=windows,
             indices=indices,
             num_scales=self.num_scales,
-            dimension=self.dimension,
         )
 
         return windows, decimation_ratios, indices

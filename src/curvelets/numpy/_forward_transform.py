@@ -113,6 +113,7 @@ def _process_wedge_complex(
     sqrt(0.5) scaling is applied to each band. The normalization factor ensures
     proper energy preservation.
     """
+    # pylint: disable=duplicate-code
     # Get the sparse window representation (indices and values)
     idx, val = window
 
