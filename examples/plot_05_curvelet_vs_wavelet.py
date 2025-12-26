@@ -143,6 +143,7 @@ window_opts = {
 }
 
 # Plot curvelet, meyer, and wavelet windows
+# sphinx_gallery_thumbnail_number = 2
 n_curvelet_windows = len(curvelet_windows_scale1)
 n_meyer_windows = len(meyer_windows_scale1)
 n_wavelet_windows = len(wavelet_windows_scale1)

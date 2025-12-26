@@ -135,6 +135,7 @@ kx = fftshift(fftfreq(nx))
 ky = fftshift(fftfreq(ny))
 
 # Create figure with 4 subplots
+# sphinx_gallery_thumbnail_number = 4
 fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 axs = axs.flatten()
 

@@ -211,6 +211,7 @@ title = "Symmetric"
 C = C_sym
 colored_wins = color_windows(C, cmaps_dir=cmaps, color_low=color_low, color_bg=color_bg)
 
+# sphinx_gallery_thumbnail_number = 2
 fig = plt.figure(layout="constrained")
 fig.suptitle(title)
 gs = GridSpec(3, 2, figure=fig, height_ratios=[8, 1, 1])
