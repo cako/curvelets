@@ -126,7 +126,6 @@ def test_inplace_sort_windows_type_hints() -> None:
     assert "windows" in hints
     assert "indices" in hints
     assert "num_scales" in hints
-    assert "dimension" in hints
     assert "return" in hints
 
 

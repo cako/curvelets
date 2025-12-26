@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
+from typing import Union  # noqa: UP007
 
 import numpy as np
 import numpy.typing as npt
@@ -324,7 +325,7 @@ class UDCTWindow:
         return (indices, arr_flat[indices])
 
     @staticmethod
-    def _nchoosek(n: Iterable[int] | IntegerNDArray, k: int) -> IntegerNDArray:
+    def _nchoosek(n: Union[Iterable[int], IntegerNDArray], k: int) -> IntegerNDArray:
         """
         Generate all combinations of k elements from n.
 
