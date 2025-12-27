@@ -11,7 +11,7 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from curvelets.numpy import SimpleUDCT
+from curvelets.numpy import UDCT
 from curvelets.plot import create_inset_axes_grid, overlay_arrows, overlay_disk
 from curvelets.utils import apply_along_wedges, normal_vector_field
 
@@ -42,7 +42,7 @@ ax.set(xlabel="Position [km]", ylabel="Depth [km]", title="Data")
 # %%
 # UDCT
 # ####
-Cop = SimpleUDCT(data.shape, nscales=3, nbands_per_direction=3)
+Cop = UDCT(data.shape, num_scales=3, wedges_per_direction=3)
 d_c = Cop.forward(data)
 
 # %%
@@ -62,6 +62,7 @@ kvecs *= 0.4 * min(x[-1] - x[0], z[-1] - z[0])
 energy_c = apply_along_wedges(d_c, lambda w, *_: np.sqrt((np.abs(w) ** 2).mean()))
 
 # %%
+# sphinx_gallery_thumbnail_number = 2
 fig, ax = plt.subplots(figsize=(12, figsize_aspect * 8))
 ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)
 overlay_arrows(kvecs, ax, arrowprops={"edgecolor": "w", "facecolor": "k"})

@@ -10,28 +10,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
 
-from curvelets.numpy.udct import UDCT
+from curvelets.numpy import UDCT
 from curvelets.plot import create_colorbar, despine
-
-
-def make_r(
-    shape: tuple[int, ...], exponent: float = 1, origin: tuple[int, ...] | None = None
-):
-    orig = (
-        tuple((np.asarray(shape).astype(float) - 1) / 2) if origin is None else origin
-    )
-
-    ramps = np.meshgrid(
-        *[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)], indexing="ij"
-    )
-    return sum(x**2 for x in ramps) ** (exponent / 2)
-
-
-def make_zone_plate(shape: tuple[int, ...], amplitude: float = 1.0, phase: float = 0.0):
-    mxsz = max(*shape)
-
-    return amplitude * np.cos((np.pi / mxsz) * make_r(shape, 2) + phase)
-
+from curvelets.utils import make_zone_plate
 
 # %%
 # Setup
@@ -40,7 +21,7 @@ def make_zone_plate(shape: tuple[int, ...], amplitude: float = 1.0, phase: float
 shape = (256, 256)
 zone_plate = make_zone_plate(shape)
 cfg = np.array([[3, 3], [6, 6], [12, 6]])
-C = UDCT(shape=shape, cfg=cfg)
+C = UDCT(shape=shape, angular_wedges_config=cfg)
 
 # %%
 # Uniform Discrete Curvelet Transform Round Trip
@@ -62,6 +43,7 @@ despine(ax)
 ax.set(title="Input")
 
 # %%
+# sphinx_gallery_thumbnail_number = 2
 fig, ax = plt.subplots(figsize=(4, 3))
 im = ax.imshow(zone_plate_inv.T, **opts)
 _, cb = create_colorbar(im=im, ax=ax)

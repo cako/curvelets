@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-__all__ = ["UDCT", "ParamUDCT", "SimpleUDCT", "udctmddec", "udctmdrec", "udctmdwin"]
+__all__ = ["UDCT", "MeyerWavelet", "UDCTCoefficients", "UDCTWindows"]
 
-from curvelets.numpy.udct import UDCT, SimpleUDCT, udctmddec, udctmdrec
-from curvelets.numpy.udctmdwin import udctmdwin
-from curvelets.numpy.utils import ParamUDCT
+from ._meyerwavelet import MeyerWavelet
+from ._typing import UDCTCoefficients, UDCTWindows
+from ._udct import UDCT

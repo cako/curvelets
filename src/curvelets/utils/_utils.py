@@ -32,25 +32,25 @@ def apply_along_wedges(
 
     Parameters
     ----------
-    c_struct : list[list[list[U]]]
+    c_struct : list[list[list[``U``]]]
         Input curvelet structure. First index: scales, second: directions, third: wedges.
-    fun : Callable[[U, int, int, int, int, int, int], T]
+    fun : Callable[[``U``, int, int, int, int, int, int], ``T``]
         Function to apply to each item in the structure. The function's arguments
         are respectively: item, wedge index, direction index, scale index, number
         of wedges in direction, number of directions in scale, number of scales.
 
     Returns
     -------
-    list[list[list[T]]]
+    list[list[list[``T``]]]
         Result of applying the function to each item.
 
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy import SimpleUDCT
+    >>> from curvelets.numpy import UDCT
     >>> from curvelets.utils import apply_along_wedges
     >>> x = np.zeros((32, 32))
-    >>> C = SimpleUDCT(x.shape, nscales=3, nbands_per_direction=3)
+    >>> C = UDCT(x.shape, num_scales=3, wedges_per_direction=3)
     >>> y = C.forward(x)
     >>> apply_along_wedges(y, lambda w, *_: w.shape)
     [[[(16, 16)]],
@@ -231,3 +231,94 @@ def normal_vector_field(
             k = np.array([kx_loc[kx_locmax], kz_loc[top_quadrant][kz_locmax]])
             kvecs[irow, icol, :] = k / np.linalg.norm(k)
     return kvecs
+
+
+def make_r(
+    shape: tuple[int, ...], exponent: float = 1, origin: tuple[int, ...] | None = None
+) -> NDArray[np.floating]:
+    """Compute radial distance array from origin.
+
+    Creates an array where each element contains the radial distance from
+    a specified origin point, raised to the given exponent. This function
+    is primarily used in example scripts for generating test patterns.
+
+    Parameters
+    ----------
+    shape : tuple[int, ...]
+        Shape of the output array.
+    exponent : float, optional
+        Exponent to apply to the radial distance. Default is 1.
+    origin : tuple[int, ...] | None, optional
+        Origin point for distance calculation. If None, uses the center of
+        the array. Default is None.
+
+    Returns
+    -------
+    :obj:`NDArray <numpy.typing.NDArray>` [:obj:`np.floating <numpy.floating>`]
+        Array of radial distances from origin, raised to the exponent.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.utils import make_r
+    >>> r = make_r((5, 5), exponent=1)
+    >>> r.shape
+    (5, 5)
+    >>> r[2, 2]  # Center point should be 0
+    0.0
+    >>> r = make_r((3, 3), exponent=2, origin=(0, 0))
+    >>> r[0, 0]  # Origin point should be 0
+    0.0
+    """
+    orig = (
+        tuple((np.asarray(shape).astype(float) - 1) / 2) if origin is None else origin
+    )
+
+    ramps = np.meshgrid(
+        *[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)], indexing="ij"
+    )
+    return sum(x**2 for x in ramps) ** (exponent / 2)
+
+
+def make_zone_plate(
+    shape: tuple[int, ...], amplitude: float = 1.0, phase: float = 0.0
+) -> NDArray[np.floating]:
+    """Generate a zone plate test pattern.
+
+    Creates a zone plate pattern, which is a circular pattern of concentric
+    rings with alternating intensity. This is commonly used as a test image
+    for frequency domain analysis. This function is primarily used in example
+    scripts.
+
+    Parameters
+    ----------
+    shape : tuple[int, ...]
+        Shape of the output array.
+    amplitude : float, optional
+        Amplitude of the cosine pattern. Default is 1.0.
+    phase : float, optional
+        Phase offset for the cosine pattern. Default is 0.0.
+
+    Returns
+    -------
+    :obj:`NDArray <numpy.typing.NDArray>` [:obj:`np.floating <numpy.floating>`]
+        Zone plate pattern array with values in the range [-amplitude, amplitude].
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.utils import make_zone_plate
+    >>> zone_plate = make_zone_plate((64, 64))
+    >>> zone_plate.shape
+    (64, 64)
+    >>> np.min(zone_plate) >= -1.0
+    True
+    >>> np.max(zone_plate) <= 1.0
+    True
+    >>> zone_plate = make_zone_plate((128, 128), amplitude=2.0, phase=np.pi/2)
+    >>> zone_plate.shape
+    (128, 128)
+    """
+    mxsz = max(*shape)
+
+    return amplitude * np.cos((np.pi / mxsz) * make_r(shape, 2) + phase)

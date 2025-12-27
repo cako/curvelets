@@ -18,15 +18,15 @@ from matplotlib.colors import Normalize, to_rgba
 from matplotlib.gridspec import GridSpec
 from numpy.fft import fftfreq, fftshift
 
-from curvelets.numpy import UDCT, SimpleUDCT
+from curvelets.numpy import UDCT
 
 # %%
 # Symmetric and Asymmetric UDCTs
 # ##############################
 x = np.zeros((300, 200))
-C_sym = SimpleUDCT(x.shape, nscales=3, nbands_per_direction=3)
-C_asymh = UDCT(x.shape, cfg=np.array([[3, 6], [6, 12]]))
-C_asymv = UDCT(x.shape, cfg=np.array([[6, 3], [12, 6]]))
+C_sym = UDCT(x.shape, num_scales=3, wedges_per_direction=3)
+C_asymh = UDCT(shape=x.shape, angular_wedges_config=np.array([[3, 6], [6, 12]]))
+C_asymv = UDCT(shape=x.shape, angular_wedges_config=np.array([[6, 3], [12, 6]]))
 
 # %%
 # Plotting Functions
@@ -203,7 +203,7 @@ nx, ny = x.shape
 kx = fftshift(fftfreq(nx))
 ky = fftshift(fftfreq(ny))
 
-C: UDCT | SimpleUDCT
+C: UDCT
 # %%
 # Symmetric
 # ---------
@@ -211,6 +211,7 @@ title = "Symmetric"
 C = C_sym
 colored_wins = color_windows(C, cmaps_dir=cmaps, color_low=color_low, color_bg=color_bg)
 
+# sphinx_gallery_thumbnail_number = 2
 fig = plt.figure(layout="constrained")
 fig.suptitle(title)
 gs = GridSpec(3, 2, figure=fig, height_ratios=[8, 1, 1])
