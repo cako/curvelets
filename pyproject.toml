@@ -27,6 +27,9 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.14t",
   "Topic :: Scientific/Engineering",
   "Topic :: Scientific/Engineering :: Image Processing",
   "Topic :: Scientific/Engineering :: Mathematics",
@@ -74,17 +77,17 @@ minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
 xfail_strict = true
 filterwarnings = [
-    "error",
-    "ignore::DeprecationWarning:matplotlib._fontconfig_pattern",
-    "ignore::DeprecationWarning:pyparsing",
-    "ignore::DeprecationWarning:pyparsing.util",
-    "ignore::DeprecationWarning:pyparsing.core",
+  "error",
+  "ignore::DeprecationWarning:matplotlib._fontconfig_pattern",
+  "ignore::DeprecationWarning:pyparsing",
+  "ignore::DeprecationWarning:pyparsing.util",
+  "ignore::DeprecationWarning:pyparsing.core",
 ]
 log_cli_level = "INFO"
 testpaths = ["tests"]
 markers = [
-    "round_trip: Tests for forward+backward round-trip functionality",
-    "slow: Slow-running tests that should be run separately",
+  "round_trip: Tests for forward+backward round-trip functionality",
+  "slow: Slow-running tests that should be run separately",
 ]
 
 
