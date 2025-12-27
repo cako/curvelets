@@ -36,7 +36,7 @@ dynamic = ["version"]
 dependencies = ["numpy>=1.20", "typing_extensions; python_version<='3.10'"]
 
 [project.optional-dependencies]
-test = ["pytest >=6", "pytest-cov >=3"]
+test = ["pytest >=6", "pytest-cov >=3", "matplotlib"]
 dev = ["pytest >=6", "pytest-cov >=3"]
 matplotlib = ["matplotlib"]
 docs = [
@@ -73,7 +73,13 @@ exclude = ["/.github", "/testdata"]
 minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config"]
 xfail_strict = true
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:matplotlib._fontconfig_pattern",
+    "ignore::DeprecationWarning:pyparsing",
+    "ignore::DeprecationWarning:pyparsing.util",
+    "ignore::DeprecationWarning:pyparsing.core",
+]
 log_cli_level = "INFO"
 testpaths = ["tests"]
 markers = [
