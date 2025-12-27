@@ -46,15 +46,12 @@ C_wavelet = UDCT(
 # ##################
 
 coeffs_curvelet = C_curvelet.forward(zone_plate)
-coeffs_meyer = C_meyer.forward(zone_plate)
 coeffs_wavelet = C_wavelet.forward(zone_plate)
 
 print(f"Input shape: {zone_plate.shape}")  # noqa: T201
 print(f"Curvelet scales: {len(coeffs_curvelet)}")  # noqa: T201
-print(f"Meyer scales: {len(coeffs_meyer)}")  # noqa: T201
 print(f"Wavelet scales: {len(coeffs_wavelet)}")  # noqa: T201
 print(f"Curvelet scale 1 directions: {len(coeffs_curvelet[1])}")  # noqa: T201
-print(f"Meyer scale 1 bands: {len(coeffs_meyer[1])}")  # noqa: T201
 print(f"Wavelet scale 1 directions: {len(coeffs_wavelet[1])}")  # noqa: T201
 
 # %%
@@ -96,26 +93,6 @@ for idir in range(len(C_curvelet.windows[1])):
         window_shifted = fftshift(window_dense)
         curvelet_windows_scale1.append(window_shifted)
         curvelet_window_info.append((idir, iwedge))
-
-# Extract Meyer windows for scale 1 (highpass bands)
-# Access the Meyer wavelet filters from the UDCT object
-if C_meyer._meyer_wavelet is None:
-    msg = "Meyer wavelet not initialized"
-    raise RuntimeError(msg)
-lowpass_1d, highpass_1d = C_meyer._meyer_wavelet._filters[shape[0]]
-
-# Construct 2D frequency domain windows using outer products
-# For 2D Meyer wavelet, the windows are separable (product of 1D filters)
-meyer_window_0_2d = np.outer(lowpass_1d, highpass_1d)  # Low-High
-meyer_window_1_2d = np.outer(highpass_1d, lowpass_1d)  # High-Low
-meyer_window_2_2d = np.outer(highpass_1d, highpass_1d)  # High-High
-
-# Apply fftshift to center the frequency domain for visualization
-meyer_windows_scale1 = [
-    np.real(fftshift(meyer_window_0_2d)).astype(np.float64),
-    np.real(fftshift(meyer_window_1_2d)).astype(np.float64),
-    np.real(fftshift(meyer_window_2_2d)).astype(np.float64),
-]
 
 # Extract wavelet window for scale 1 (single ring-shaped window, complement of lowpass)
 wavelet_window_sparse = C_wavelet.windows[1][0][0]
@@ -167,34 +144,6 @@ for i, (window, (idir, iwedge)) in enumerate(
 for i in range(n_curvelet_windows, n_cols):
     axs[0, i].axis("off")
 
-# Middle row: Meyer windows
-meyer_names = [
-    "Meyer Highpass 0\n(Low-High)",
-    "Meyer Highpass 1\n(High-Low)",
-    "Meyer Highpass 2\n(High-High)",
-]
-for i, (window, name) in enumerate(zip(meyer_windows_scale1, meyer_names)):
-    ax = axs[1, i]
-    window_real = np.real(window).astype(np.float64)
-    im = ax.imshow(window_real.T, **window_opts)
-    _, cb = create_colorbar(im=im, ax=ax)
-    fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")
-    cb.ax.yaxis.set_major_formatter(fmt)
-    ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
-    ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
-    ax.set(
-        xlim=[kx[0], -kx[0]],
-        ylim=[-ky[0], ky[0]],
-        xlabel="Normalized $k_x$",
-        ylabel="Normalized $k_y$",
-        title=name,
-    )
-    despine(ax)
-
-# Hide unused subplots in middle row
-for i in range(n_meyer_windows, n_cols):
-    axs[1, i].axis("off")
-
 # Bottom row: wavelet window (single ring-shaped window)
 wavelet_names = ["Wavelet\n(Ring)"]
 for i, (window, name) in enumerate(zip(wavelet_windows_scale1, wavelet_names)):
@@ -217,7 +166,7 @@ for i, (window, name) in enumerate(zip(wavelet_windows_scale1, wavelet_names)):
 
 # Hide unused subplots in bottom row
 for i in range(n_wavelet_windows, n_cols):
-    axs[2, i].axis("off")
+    axs[1, i].axis("off")
 
 fig.tight_layout()
 
@@ -240,7 +189,7 @@ for idir in range(len(coeffs_curvelet[1])):
 wavelet_coeffs_scale1 = [coeffs_wavelet[1][0][0]]
 
 # Find common vmax for amplitude visualization
-all_coeffs = curvelet_coeffs_scale1 + meyer_coeffs_scale1 + wavelet_coeffs_scale1
+all_coeffs = curvelet_coeffs_scale1 + wavelet_coeffs_scale1
 vmax_coeffs = max(np.abs(c).max() for c in all_coeffs)
 coeff_opts = {
     "aspect": "equal",
@@ -276,27 +225,6 @@ for i, (coeff, (idir, iwedge)) in enumerate(
 for i in range(n_curvelet_coeffs, n_cols):
     axs[0, i].axis("off")
 
-# Middle row: Meyer coefficients
-meyer_coeff_names = [
-    "Meyer Highpass 0\n(Low-High)",
-    "Meyer Highpass 1\n(High-Low)",
-    "Meyer Highpass 2\n(High-High)",
-]
-for i, (coeff, name) in enumerate(zip(meyer_coeffs_scale1, meyer_coeff_names)):
-    ax = axs[1, i]
-    # Meyer coefficients are real-valued
-    coeff_real = np.real(coeff).astype(np.float64)
-    im = ax.imshow(coeff_real.T, **coeff_opts)
-    _, cb = create_colorbar(im=im, ax=ax)
-    fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2e}")
-    cb.ax.yaxis.set_major_formatter(fmt)
-    ax.set(title=name)
-    despine(ax)
-
-# Hide unused subplots in middle row
-for i in range(n_meyer_coeffs, n_cols):
-    axs[1, i].axis("off")
-
 # Bottom row: wavelet coefficient (single coefficient)
 wavelet_coeff_names = ["Wavelet\n(Ring)"]
 for i, (coeff, name) in enumerate(zip(wavelet_coeffs_scale1, wavelet_coeff_names)):
@@ -312,7 +240,7 @@ for i, (coeff, name) in enumerate(zip(wavelet_coeffs_scale1, wavelet_coeff_names
 
 # Hide unused subplots in bottom row
 for i in range(n_wavelet_coeffs, n_cols):
-    axs[2, i].axis("off")
+    axs[1, i].axis("off")
 
 fig.tight_layout()
 
