@@ -14,11 +14,13 @@ else:
     List = list
 
 from ._backward_transform import _apply_backward_transform
+from ._backward_transform_monogenic import _apply_backward_transform_monogenic
 from ._forward_transform import (
     _apply_forward_transform_complex,
+    _apply_forward_transform_monogenic,
     _apply_forward_transform_real,
 )
-from ._typing import C, F, UDCTWindows, _to_complex_dtype
+from ._typing import C, F, MUDCTCoefficients, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
 
@@ -629,4 +631,121 @@ class UDCT:
             self.windows,
             self.decimation_ratios,
             use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
+        )
+
+    def forward_monogenic(self, image: npt.NDArray[F]) -> MUDCTCoefficients:
+        """
+        Apply forward monogenic curvelet transform.
+
+        This method applies the monogenic extension to the curvelet transform,
+        producing quaternion-like coefficients with three components per band:
+        scalar (same as standard UDCT), Riesz_1, and Riesz_2. This enables
+        meaningful amplitude/phase decomposition over all scales.
+
+        Parameters
+        ----------
+        image : npt.NDArray[F]
+            Input image or volume. Must be real-valued (floating point dtype).
+            Complex inputs are not supported as the monogenic transform is
+            defined only for real-valued functions.
+
+        Returns
+        -------
+        MUDCTCoefficients
+            Quaternion-like coefficients as nested list structure with tuples
+            of 3 arrays: (scalar_component, riesz_1_component, riesz_2_component).
+            Structure: coefficients[scale][direction][wedge] = (coeff_0, coeff_1, coeff_2)
+            where:
+            - coeff_0 (scalar): Complex array (matches UDCT behavior in real transform mode)
+            - coeff_1, coeff_2 (Riesz): Real arrays
+
+        Raises
+        ------
+        ValueError
+            If input is complex-valued. Use forward() for complex inputs.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64))
+        >>> data = np.random.randn(64, 64)
+        >>> coeffs = transform.forward_monogenic(data)
+        >>> len(coeffs)  # Number of scales
+        4
+        >>> isinstance(coeffs[0][0][0], tuple)  # Each coefficient is a tuple
+        True
+        >>> len(coeffs[0][0][0])  # Tuple has 3 components
+        3
+        >>> # Compute amplitude
+        >>> scalar, riesz1, riesz2 = coeffs[1][0][0]
+        >>> amplitude = np.sqrt(scalar**2 + riesz1**2 + riesz2**2)
+        """
+        np.testing.assert_equal(self.shape, image.shape)
+
+        if np.iscomplexobj(image):
+            msg = (
+                "Monogenic transform requires real-valued input. "
+                "Got complex array. Use forward() for complex inputs."
+            )
+            raise ValueError(msg)
+
+        return _apply_forward_transform_monogenic(
+            image,
+            self.parameters,
+            self.windows,
+            self.decimation_ratios,
+        )
+
+    def backward_monogenic(
+        self, coefficients: MUDCTCoefficients
+    ) -> tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]:
+        """
+        Apply backward monogenic curvelet transform (reconstruction).
+
+        This method implements the full reproducing formula from Storath 2010:
+        M_f(x) = ∫ M_f(a,b,θ) · M_β_{abθ}(x) db dθ da/a³
+
+        The quaternion multiplication expands to three components:
+        - Scalar: c₀·β - c₁·R₁β - c₂·R₂β → reconstructs f
+        - Riesz_1: -c₀·R₁β + c₁·β → reconstructs -R₁f
+        - Riesz_2: -c₀·R₂β + c₂·β → reconstructs -R₂f
+
+        Parameters
+        ----------
+        coefficients : MUDCTCoefficients
+            Monogenic curvelet coefficients from forward_monogenic().
+            Structure: coefficients[scale][direction][wedge] = (coeff_0, coeff_1, coeff_2)
+
+        Returns
+        -------
+        tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]
+            Tuple of three real-valued arrays with shape matching self.shape:
+            - scalar: Original input f (reconstructed using full reproducing formula)
+            - riesz_1: First Riesz component -R_1 f
+            - riesz_2: Second Riesz component -R_2 f
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64))
+        >>> data = np.random.randn(64, 64)
+        >>> coeffs = transform.forward_monogenic(data)
+        >>> scalar, riesz1, riesz2 = transform.backward_monogenic(coeffs)
+        >>> np.allclose(data, scalar, atol=1e-4)
+        True
+        >>> # Verify Riesz components match direct Riesz transform
+        >>> from curvelets.numpy._riesz import riesz_filters
+        >>> filters = riesz_filters((64, 64))
+        >>> data_fft = np.fft.fftn(data)
+        >>> riesz1_direct = np.fft.ifftn(data_fft * filters[0]).real
+        >>> np.allclose(-riesz1_direct, riesz1, atol=1e-4)
+        True
+        """
+        return _apply_backward_transform_monogenic(
+            coefficients,
+            self.parameters,
+            self.windows,
+            self.decimation_ratios,
         )

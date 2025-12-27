@@ -11,6 +11,10 @@ else:
 import numpy as np
 import numpy.typing as npt
 
+# TypeVars for numpy array dtypes
+# F: Real floating point types
+F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
+
 if sys.version_info <= (3, 9):
     from typing import List, Tuple  # noqa: UP035
 
@@ -18,15 +22,17 @@ if sys.version_info <= (3, 9):
     UDCTWindows: TypeAlias = List[  # noqa: UP006
         List[List[Tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]  # noqa: UP006
     ]
+    MUDCTCoefficients: TypeAlias = List[  # noqa: UP006
+        List[List[Tuple[npt.NDArray[np.complexfloating], npt.NDArray[F], npt.NDArray[F]]]]  # noqa: UP006
+    ]
 else:
     UDCTCoefficients: TypeAlias = list[list[list[npt.NDArray[np.complexfloating]]]]
     UDCTWindows: TypeAlias = list[
         list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
     ]
-
-# TypeVars for numpy array dtypes
-# F: Real floating point types
-F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
+    MUDCTCoefficients: TypeAlias = list[
+        list[list[tuple[npt.NDArray[np.complexfloating], npt.NDArray[F], npt.NDArray[F]]]]
+    ]
 
 # C: Complex floating point types
 # Note: complex256 is available on some platforms but not others (e.g., not on macOS/Apple Silicon)
