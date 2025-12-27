@@ -11,6 +11,10 @@ from curvelets._version import version as _version
 project = "Curvelets"
 copyright = "2026, Carlos Alberto da Costa Filho"
 author = "Carlos Alberto da Costa Filho"
+# Version is read directly from source. When building from a tag, hatch-vcs
+# generates a clean version (e.g., "0.1.0b2"). When building from a commit
+# after a tag, it includes dev metadata (e.g., "0.1.0b2.dev1+...").
+# For stable docs, Read the Docs should build from release tags.
 version = release = _version
 
 extensions = [
