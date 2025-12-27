@@ -1,10 +1,10 @@
 """
 Wavelet Transforms at the Highest Scale
 =============================================
-This example compares curvelet, Meyer, and wavelet transforms at the highest scale
+This example compares curvelet and wavelet transforms at the highest scale
 (using a simple nscale=2) on a zone plate test image. It demonstrates the difference
-between directional curvelet windows, Meyer wavelet windows, and a
-ring-shaped highpass window, showing both frequency-domain windows and spatial coefficients.
+between directional curvelet windows and a ring-shaped highpass window,
+showing both frequency-domain windows and spatial coefficients.
 """
 
 from __future__ import annotations
@@ -26,19 +26,13 @@ from curvelets.utils import make_zone_plate
 shape = (256, 256)
 zone_plate = make_zone_plate(shape)
 
-# Create three UDCT transforms with num_scales=2
-# One in curvelet mode, one in Meyer mode, one in wavelet mode
+# Create two UDCT transforms with num_scales=2
+# One in curvelet mode, one in wavelet mode
 C_curvelet = UDCT(
     shape=shape,
     num_scales=2,
     wedges_per_direction=3,
     high_frequency_mode="curvelet",
-)
-C_meyer = UDCT(
-    shape=shape,
-    num_scales=2,
-    wedges_per_direction=3,
-    high_frequency_mode="meyer",
 )
 C_wavelet = UDCT(
     shape=shape,
@@ -82,10 +76,10 @@ ax.set(title="Input Zone Plate")
 # %%
 # Frequency Domain Windows at Highest Scale (Scale 1)
 # ###################################################
-# Visualize the frequency domain windows for curvelet vs Meyer vs wavelet at scale 1.
-# curvelet windows are directional (wedges), Meyer windows are separable
-# (product of 1D filters), and wavelet window is a single ring-shaped window
-# that encompasses the entire high-frequency ring (complement of lowpass filter).
+# Visualize the frequency domain windows for curvelet vs wavelet at scale 1.
+# Curvelet windows are directional (wedges), and wavelet window is a single
+# ring-shaped window that encompasses the entire high-frequency ring
+# (complement of lowpass filter).
 
 # Frequency coordinates for axis labels
 nx, ny = shape
@@ -130,7 +124,7 @@ wavelet_window_shifted = fftshift(wavelet_window_dense)
 wavelet_windows_scale1 = [wavelet_window_shifted]
 
 # Find common vmax for all windows
-all_windows = curvelet_windows_scale1 + meyer_windows_scale1 + wavelet_windows_scale1
+all_windows = curvelet_windows_scale1 + wavelet_windows_scale1
 vmax_windows = max(np.abs(w).max() for w in all_windows)
 window_opts = {
     "aspect": "equal",
@@ -140,13 +134,12 @@ window_opts = {
     "extent": [kx[0], kx[-1], ky[-1], ky[0]],
 }
 
-# Plot curvelet, meyer, and wavelet windows
+# Plot curvelet and wavelet windows
 # sphinx_gallery_thumbnail_number = 2
 n_curvelet_windows = len(curvelet_windows_scale1)
-n_meyer_windows = len(meyer_windows_scale1)
 n_wavelet_windows = len(wavelet_windows_scale1)
-n_cols = max(n_curvelet_windows, n_meyer_windows, n_wavelet_windows)
-fig, axs = plt.subplots(3, n_cols, figsize=(4 * n_cols, 12))
+n_cols = max(n_curvelet_windows, n_wavelet_windows)
+fig, axs = plt.subplots(2, n_cols, figsize=(4 * n_cols, 8))
 fig.suptitle("Frequency Domain Windows at Highest Scale (Scale 1)", fontsize=14)
 
 # Top row: curvelet windows
@@ -205,7 +198,7 @@ for i in range(n_meyer_windows, n_cols):
 # Bottom row: wavelet window (single ring-shaped window)
 wavelet_names = ["Wavelet\n(Ring)"]
 for i, (window, name) in enumerate(zip(wavelet_windows_scale1, wavelet_names)):
-    ax = axs[2, i]
+    ax = axs[1, i]
     window_real = np.real(window).astype(np.float64)
     im = ax.imshow(window_real.T, **window_opts)
     _, cb = create_colorbar(im=im, ax=ax)
@@ -231,7 +224,7 @@ fig.tight_layout()
 # %%
 # Coefficients at Highest Scale (Scale 1)
 # #######################################
-# Visualize the spatial coefficients for curvelet vs Meyer vs wavelet at scale 1.
+# Visualize the spatial coefficients for curvelet vs wavelet at scale 1.
 # These show how the transforms capture different features of the input.
 
 # Extract curvelet coefficients for scale 1
@@ -242,16 +235,6 @@ for idir in range(len(coeffs_curvelet[1])):
         coeff = coeffs_curvelet[1][idir][iwedge]
         curvelet_coeffs_scale1.append(coeff)
         curvelet_coeff_info.append((idir, iwedge))
-
-# Extract meyer coefficients for scale 1 (highpass bands)
-# Structure: coeffs_meyer[1][direction][wedge]
-# Extract 3 coefficients matching the 3 windows: Low-High, High-Low, High-High
-# Use direction 0, wedges 0, 1, 2 correspond to the 3 highpass bands
-meyer_coeffs_scale1 = [
-    coeffs_meyer[1][0][0],  # Low-High
-    coeffs_meyer[1][0][1],  # High-Low
-    coeffs_meyer[1][0][2],  # High-High
-]
 
 # Extract wavelet coefficient for scale 1 (single coefficient)
 wavelet_coeffs_scale1 = [coeffs_wavelet[1][0][0]]
@@ -268,10 +251,9 @@ coeff_opts = {
 
 # Plot coefficients
 n_curvelet_coeffs = len(curvelet_coeffs_scale1)
-n_meyer_coeffs = len(meyer_coeffs_scale1)
 n_wavelet_coeffs = len(wavelet_coeffs_scale1)
-n_cols = max(n_curvelet_coeffs, n_meyer_coeffs, n_wavelet_coeffs)
-fig, axs = plt.subplots(3, n_cols, figsize=(4 * n_cols, 12))
+n_cols = max(n_curvelet_coeffs, n_wavelet_coeffs)
+fig, axs = plt.subplots(2, n_cols, figsize=(4 * n_cols, 8))
 fig.suptitle("Coefficients at Highest Scale (Scale 1)", fontsize=14)
 
 # Top row: curvelet coefficients
@@ -318,7 +300,7 @@ for i in range(n_meyer_coeffs, n_cols):
 # Bottom row: wavelet coefficient (single coefficient)
 wavelet_coeff_names = ["Wavelet\n(Ring)"]
 for i, (coeff, name) in enumerate(zip(wavelet_coeffs_scale1, wavelet_coeff_names)):
-    ax = axs[2, i]
+    ax = axs[1, i]
     # wavelet coefficient is real-valued
     coeff_real = np.real(coeff).astype(np.float64)
     im = ax.imshow(coeff_real.T, **coeff_opts)
@@ -345,12 +327,6 @@ for (idir, iwedge), coeff in zip(curvelet_coeff_info, curvelet_coeffs_scale1):
     print(  # noqa: T201
         f"  Dir {idir} Wedge {iwedge}: Energy={energy:.2e}, Max={max_val:.2e}"
     )
-
-print("\nMeyer Scale 1 Statistics:")  # noqa: T201
-for i, coeff in enumerate(meyer_coeffs_scale1):
-    energy = np.sum(np.abs(coeff) ** 2)
-    max_val = np.abs(coeff).max()
-    print(f"  Highpass {i}: Energy={energy:.2e}, Max={max_val:.2e}")  # noqa: T201
 
 print("\nWavelet Scale 1 Statistics:")  # noqa: T201
 for i, coeff in enumerate(wavelet_coeffs_scale1):

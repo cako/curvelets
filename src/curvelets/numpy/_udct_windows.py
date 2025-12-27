@@ -28,7 +28,6 @@ class UDCTWindow:
         UDCT parameters containing transform configuration.
     high_frequency_mode : str, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
-        "meyer" applies Meyer wavelet decomposition at the highest scale,
         "wavelet" creates a single ring-shaped window (bandpass filter only,
         no angular components) at the highest scale with decimation=1.
         Default is "curvelet".
@@ -73,7 +72,6 @@ class UDCTWindow:
             UDCT parameters containing transform configuration.
         high_frequency_mode : str, optional
             High frequency mode. "curvelet" uses curvelets at all scales,
-            "meyer" applies Meyer wavelet decomposition at the highest scale,
             "wavelet" creates a single ring-shaped window (bandpass filter only) at the highest scale
             with decimation=1. Default is "curvelet".
 

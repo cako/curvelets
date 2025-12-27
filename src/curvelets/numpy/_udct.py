@@ -18,45 +18,9 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._meyerwavelet import MeyerWavelet
 from ._typing import C, F, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
-
-
-class _CoefficientsList(List[List[List[npt.NDArray[np.complexfloating]]]]):
-    """
-    Wrapper class for coefficients list that supports attribute assignment.
-
-    This allows storing highpass bands as an attribute on the coefficients
-    list, making coefficients self-contained and thread-safe.
-    """
-
-    _meyer_highpass_bands: List[npt.NDArray] | None
-
-    @property
-    def meyer_highpass_bands(self) -> List[npt.NDArray] | None:
-        """
-        Get the Meyer highpass bands stored with these coefficients.
-
-        Returns
-        -------
-        List[npt.NDArray] | None
-            The Meyer highpass bands, or None if not available.
-        """
-        return self._meyer_highpass_bands
-
-    @meyer_highpass_bands.setter
-    def meyer_highpass_bands(self, value: List[npt.NDArray] | None) -> None:
-        """
-        Set the Meyer highpass bands for these coefficients.
-
-        Parameters
-        ----------
-        value : List[npt.NDArray] | None
-            The Meyer highpass bands to store, or None to clear.
-        """
-        self._meyer_highpass_bands = value
 
 
 class UDCT:
@@ -64,8 +28,7 @@ class UDCT:
     Uniform Discrete Curvelet Transform (UDCT) implementation.
 
     This class provides forward and backward curvelet transforms with support
-    for both real and complex transforms, as well as optional Meyer wavelet
-    decomposition at the highest scale.
+    for both real and complex transforms.
 
     Parameters
     ----------
@@ -93,13 +56,11 @@ class UDCT:
     window_threshold : float, optional
         Threshold for sparse window storage (values below this are stored as sparse).
         Default is 1e-5.
-    high_frequency_mode : {"curvelet", "meyer", "wavelet"}, optional
+    high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
-        "meyer" applies Meyer wavelet decomposition (H-L, L-H, H-H) at the highest scale,
         "wavelet" creates a single ring-shaped window (bandpass filter only,
         no angular components) at the highest scale with decimation=1.
-        When num_scales=2 with meyer mode, this is equivalent to a Meyer wavelet
-        transform (1 lowpass + 1 highpass scale). Default is "curvelet".
+        Default is "curvelet".
     use_complex_transform : bool, optional
         If True, use complex transform which separates positive and negative
         frequency components into different bands. Each band is scaled by
@@ -139,19 +100,6 @@ class UDCT:
     >>> recon2 = transform2.backward(coeffs2)
     >>> np.allclose(data, recon2, atol=1e-4)
     True
-    >>> # Create meyer mode with num_scales=2 (equivalent to Meyer wavelet)
-    >>> transform3 = UDCT(
-    ...     shape=(64, 64),
-    ...     num_scales=2,
-    ...     wedges_per_direction=3,
-    ...     high_frequency_mode="meyer"
-    ... )
-    >>> coeffs3 = transform3.forward(data)
-    >>> len(coeffs3)  # 2 scales: lowpass + 1 high-frequency
-    2
-    >>> recon3 = transform3.backward(coeffs3)
-    >>> np.allclose(data, recon3, atol=1e-4)
-    True
     """
 
     def __init__(
@@ -163,7 +111,7 @@ class UDCT:
         window_overlap: float | None = None,
         radial_frequency_params: tuple[float, float, float, float] | None = None,
         window_threshold: float = 1e-5,
-        high_frequency_mode: Literal["curvelet", "meyer", "wavelet"] = "curvelet",
+        high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         use_complex_transform: bool = False,
     ) -> None:
         # Store basic attributes
@@ -194,12 +142,6 @@ class UDCT:
 
         # Calculate windows
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
-
-        # Initialize Meyer wavelet if needed
-        self._meyer_wavelet: MeyerWavelet | None = None
-        self._meyer_highpass_bands: list[npt.NDArray] | None = None
-        if self.high_frequency_mode == "meyer":
-            self._meyer_wavelet = MeyerWavelet(shape=shape)
 
     @staticmethod
     def _compute_from_angular_wedges_config(
@@ -346,7 +288,7 @@ class UDCT:
         window_overlap: float | None,
         radial_frequency_params: tuple[float, float, float, float] | None,
         window_threshold: float,
-        high_frequency_mode: Literal["curvelet", "meyer", "wavelet"],
+        high_frequency_mode: Literal["curvelet", "wavelet"],
     ) -> dict[str, Any]:
         """
         Calculate all necessary parameters for UDCT initialization.
@@ -397,16 +339,13 @@ class UDCT:
         # Compute num_scales from computed_angular_wedges_config for validation
         computed_num_scales = 1 + len(computed_angular_wedges_config)
 
-        # Validate meyer and wavelet mode requirements
+        # Validate scale requirements
         if computed_num_scales < 2:
             msg = "requires at least 2 scales total (num_scales >= 2)"
             raise ValueError(msg)
 
-        # Calculate internal shape (meyer mode halves the size)
-        if high_frequency_mode == "meyer":
-            internal_shape = tuple(s // 2 for s in shape)
-        else:
-            internal_shape = shape
+        # Calculate internal shape
+        internal_shape = shape
 
         # Set default radial_frequency_params if not provided
         if radial_frequency_params is None:
@@ -619,19 +558,6 @@ class UDCT:
         """
         np.testing.assert_equal(self.shape, image.shape)
 
-        # Apply Meyer wavelet decomposition if enabled
-        # forward() returns all subbands in nested structure
-        meyer_highpass_bands: list[npt.NDArray] | None = None
-        if self.high_frequency_mode == "meyer":
-            if self._meyer_wavelet is None:
-                error_msg = "MeyerWavelet not initialized"
-                raise RuntimeError(error_msg)
-            # Get all subbands and store highpass bands for backward()
-            meyer_coeffs = self._meyer_wavelet.forward(image)
-            meyer_highpass_bands = meyer_coeffs[1]
-            # Extract lowpass from subband group 0
-            image = meyer_coeffs[0][0]
-
         # Apply curvelet transform
         # Runtime checks determine the appropriate transform path
         if self.use_complex_transform:
@@ -668,14 +594,6 @@ class UDCT:
                 self.decimation_ratios,
             )
 
-        # Wrap result in a list subclass that supports attribute assignment
-        # This allows storing highpass bands as an attribute, making coefficients
-        # self-contained and thread-safe
-        if meyer_highpass_bands is not None:
-            result_wrapped = _CoefficientsList(result)
-            result_wrapped.meyer_highpass_bands = meyer_highpass_bands
-            return result_wrapped
-
         return result
 
     def backward(self, coefficients: list[list[list[npt.NDArray[C]]]]) -> np.ndarray:
@@ -705,43 +623,6 @@ class UDCT:
         >>> np.allclose(data, recon, atol=1e-4)
         True
         """
-        if self.high_frequency_mode == "meyer":
-            # Reconstruct lowpass from curvelet coefficients
-            lowpass_recon = _apply_backward_transform(
-                coefficients,
-                self.parameters,
-                self.windows,
-                self.decimation_ratios,
-                use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
-            )
-
-            # Apply Meyer inverse using highpass bands from coefficients
-            if self._meyer_wavelet is None:
-                error_msg = "MeyerWavelet not initialized"
-                raise RuntimeError(error_msg)
-
-            # Extract highpass bands from coefficients attribute
-            # This makes coefficients self-contained and thread-safe
-            if not hasattr(coefficients, "meyer_highpass_bands"):
-                error_msg = (
-                    "Coefficients missing highpass bands attribute. "
-                    "This may indicate coefficients were created with an older version "
-                    "or were modified incorrectly."
-                )
-                raise RuntimeError(error_msg)
-
-            meyer_highpass_bands = coefficients.meyer_highpass_bands
-            if meyer_highpass_bands is None:
-                error_msg = (
-                    "Highpass bands are not available in coefficients. "
-                    "Coefficients may be incomplete."
-                )
-                raise RuntimeError(error_msg)
-
-            # Reconstruct full MeyerWavelet coefficient structure
-            meyer_coeffs = [[lowpass_recon], meyer_highpass_bands]
-            return self._meyer_wavelet.backward(meyer_coeffs)
-
         return _apply_backward_transform(
             coefficients,
             self.parameters,

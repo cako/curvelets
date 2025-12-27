@@ -127,35 +127,6 @@ class TestVectMethod:
             )
             assert vec.size == total_size
 
-    def test_vect_wavelet_mode(self, rng):
-        """
-        Test vect() with wavelet mode.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
-        """
-        transform = UDCT(
-            shape=(64, 64),
-            num_scales=3,
-            wedges_per_direction=3,
-            high_frequency_mode="meyer",
-        )
-        data = rng.normal(size=(64, 64)).astype(np.float64)
-        coeffs = transform.forward(data)
-
-        vec = transform.vect(coeffs)
-
-        # Verify vector length
-        total_size = sum(
-            wedge.size
-            for scale_coeffs in coeffs
-            for direction_coeffs in scale_coeffs
-            for wedge in direction_coeffs
-        )
-        assert vec.size == total_size
-
     def test_vect_3d(self, rng):
         """
         Test vect() with 3D transform.
@@ -428,36 +399,6 @@ class TestVectStructRoundTrip:
                         orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
                         recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
                         np.testing.assert_array_equal(recon_wedge, orig_wedge)
-
-    def test_round_trip_wavelet_mode(self, rng):
-        """
-        Test round-trip with wavelet mode.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
-        """
-        transform = UDCT(
-            shape=(64, 64),
-            num_scales=3,
-            wedges_per_direction=3,
-            high_frequency_mode="meyer",
-        )
-        data = rng.normal(size=(64, 64)).astype(np.float64)
-        coeffs_orig = transform.forward(data)
-
-        # Round-trip conversion
-        vec = transform.vect(coeffs_orig)
-        coeffs_recon = transform.struct(vec)
-
-        # Verify values match
-        for scale_idx in range(len(coeffs_orig)):
-            for direction_idx in range(len(coeffs_orig[scale_idx])):
-                for wedge_idx in range(len(coeffs_orig[scale_idx][direction_idx])):
-                    orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
-                    recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
-                    np.testing.assert_array_equal(recon_wedge, orig_wedge)
 
     def test_round_trip_angular_wedges_config(self, rng):
         """

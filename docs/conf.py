@@ -54,7 +54,6 @@ nitpick_ignore = [
     ("py:class", "U"),
     ("py:class", "optional"),
     ("py:class", '"curvelet"'),
-    ("py:class", '"meyer"'),
     ("py:class", '"wavelet"'),
     ("py:class", '{"curvelet"'),
     ("py:class", '"wavelet"}'),
