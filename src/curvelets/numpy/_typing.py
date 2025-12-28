@@ -29,7 +29,7 @@ if sys.version_info < (3, 10):
         List[List[List[npt.NDArray[Union[np.complexfloating, F]]]]]  # noqa: UP006
     ]
 else:
-    from typing import Union  # noqa: UP007
+    from typing import Union
 
     UDCTCoefficients: TypeAlias = list[list[list[npt.NDArray[np.complexfloating]]]]
     UDCTWindows: TypeAlias = list[
