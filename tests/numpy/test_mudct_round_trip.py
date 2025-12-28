@@ -5,7 +5,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tests.conftest import get_test_configs, get_test_shapes, setup_numpy_transform
+from tests.numpy.conftest import (
+    get_test_configs,
+    get_test_shapes,
+    setup_numpy_transform,
+)
 
 
 @pytest.mark.round_trip
