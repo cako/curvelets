@@ -54,7 +54,9 @@ class TestFromSparseMethod:
         mask.flat[idx] = False
         assert np.all(dense_window[mask] == 0)
 
-    @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+    @pytest.mark.parametrize(
+        "dtype", [np.float32, np.float64, np.complex64, np.complex128]
+    )
     def test_from_sparse_different_dtypes(self, rng, dtype):
         """
         Test from_sparse() with different dtypes.
@@ -92,8 +94,12 @@ class TestFromSparseMethod:
         # Test windows from different scales
         for scale_idx in range(transform.parameters.num_scales):
             for direction_idx in range(len(transform.windows[scale_idx])):
-                for wedge_idx in range(len(transform.windows[scale_idx][direction_idx])):
-                    sparse_window = transform.windows[scale_idx][direction_idx][wedge_idx]
+                for wedge_idx in range(
+                    len(transform.windows[scale_idx][direction_idx])
+                ):
+                    sparse_window = transform.windows[scale_idx][direction_idx][
+                        wedge_idx
+                    ]
 
                     # Convert to dense
                     dense_window = transform.from_sparse(sparse_window)

@@ -89,7 +89,9 @@ class TestMeyerWavelet1DTransform:
         assert lowpass.dtype == signal.dtype
         assert highpass.dtype == signal.dtype
 
-    @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+    @pytest.mark.parametrize(
+        "dtype", [np.float32, np.float64, np.complex64, np.complex128]
+    )
     def test_forward_transform_1d_dtype_preservation(self, rng, dtype):
         """
         Test dtype preservation in 1D forward transform.
@@ -103,9 +105,9 @@ class TestMeyerWavelet1DTransform:
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         if np.iscomplexobj(np.array(0, dtype=dtype)):
-            signal = (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
-                dtype
-            )
+            signal = (
+                rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))
+            ).astype(dtype)
         else:
             signal = rng.normal(size=(64, 64)).astype(dtype)
 
@@ -364,7 +366,9 @@ class TestMeyerWaveletMultiDimensional:
 class TestMeyerWaveletRoundTrip:
     """Test suite for round-trip accuracy."""
 
-    @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.complex64, np.complex128])
+    @pytest.mark.parametrize(
+        "dtype", [np.float32, np.float64, np.complex64, np.complex128]
+    )
     def test_round_trip_different_dtypes(self, rng, dtype):
         """
         Test round-trip with different dtypes.
@@ -378,9 +382,9 @@ class TestMeyerWaveletRoundTrip:
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         if np.iscomplexobj(np.array(0, dtype=dtype)):
-            signal = (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
-                dtype
-            )
+            signal = (
+                rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))
+            ).astype(dtype)
         else:
             signal = rng.normal(size=(64, 64)).astype(dtype)
 
