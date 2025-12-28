@@ -113,31 +113,44 @@ class UDCTWindow:
         dimension: int,
     ) -> torch.Tensor:
         """Compute Kronecker product for angle functions."""
-        # Use numpy for kron since PyTorch doesn't support 1D kron well
-        angle_np = angle_function_1d.numpy()
-        dim_perm = dimension_permutation.numpy()
+        dim_perm = dimension_permutation
         
-        kronecker_dimension_sizes = np.array(
+        # Compute dimension sizes
+        kronecker_dimension_sizes = torch.tensor(
             [
-                np.prod(shape[: dim_perm[0] - 1]),
-                np.prod(shape[dim_perm[0] : dim_perm[1] - 1]),
-                np.prod(shape[dim_perm[1] : dimension]),
+                int(torch.prod(torch.tensor(shape[: int(dim_perm[0]) - 1]))),
+                int(torch.prod(torch.tensor(shape[int(dim_perm[0]) : int(dim_perm[1]) - 1]))),
+                int(torch.prod(torch.tensor(shape[int(dim_perm[1]) : dimension]))),
             ],
-            dtype=int,
+            dtype=torch.int64,
         )
 
-        kron_step1 = np.kron(
-            np.ones((kronecker_dimension_sizes[1], 1), dtype=int), angle_np
-        )
-        kron_step1_travel = kron_step1.T.ravel()
-        kron_step2 = np.kron(
-            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_travel
-        ).ravel()
-        kron_step3 = (
-            np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int))
-        ).T.ravel()
-        result = kron_step3.reshape(*shape[::-1]).T.astype(angle_np.dtype)
-        return torch.from_numpy(result)
+        # Step 1: kron with ones, then transpose and flatten (matching NumPy's T.ravel())
+        # Ensure angle_function_1d is at least 2D for torch.kron
+        if angle_function_1d.ndim == 1:
+            angle_2d = angle_function_1d.unsqueeze(0)
+        else:
+            angle_2d = angle_function_1d
+
+        ones_step1 = torch.ones((int(kronecker_dimension_sizes[1]), 1), dtype=angle_2d.dtype, device=angle_2d.device)
+        kron_step1 = torch.kron(ones_step1, angle_2d)
+        # T.ravel() equivalent: transpose 2D then flatten
+        kron_step1_travel = kron_step1.T.flatten()
+
+        # Step 2: kron with ones again, then flatten
+        ones_step2 = torch.ones((int(kronecker_dimension_sizes[2]), 1), dtype=angle_2d.dtype, device=angle_2d.device)
+        kron_step2 = torch.kron(ones_step2, kron_step1_travel.unsqueeze(0)).flatten()
+
+        # Step 3: final kron, then transpose and flatten (matching NumPy's T.ravel())
+        ones_step3 = torch.ones((int(kronecker_dimension_sizes[0]), 1), dtype=angle_2d.dtype, device=angle_2d.device)
+        kron_step3 = torch.kron(kron_step2.unsqueeze(0), ones_step3).T.flatten()
+
+        # Reshape to reversed shape, then transpose (matching NumPy)
+        # For N-D tensors, use permute to reverse dimensions instead of deprecated .T
+        result = kron_step3.reshape(*shape[::-1])
+        # Transpose: reverse all dimensions
+        result = result.permute(*reversed(range(result.ndim)))
+        return result
 
     @staticmethod
     def _flip_with_fft_shift(input_tensor: torch.Tensor, axis: int) -> torch.Tensor:
