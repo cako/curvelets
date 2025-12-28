@@ -15,7 +15,7 @@ import numpy.typing as npt
 # F: Real floating point types
 F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
 
-if sys.version_info <= (3, 9):
+if sys.version_info < (3, 10):
     from typing import List, Tuple, Union  # noqa: UP035
 
     UDCTCoefficients: TypeAlias = List[List[List[npt.NDArray[np.complexfloating]]]]  # noqa: UP006
@@ -29,6 +29,8 @@ if sys.version_info <= (3, 9):
         List[List[List[npt.NDArray[Union[np.complexfloating, F]]]]]  # noqa: UP006
     ]
 else:
+    from typing import Union  # noqa: UP007
+
     UDCTCoefficients: TypeAlias = list[list[list[npt.NDArray[np.complexfloating]]]]
     UDCTWindows: TypeAlias = list[
         list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
@@ -37,7 +39,7 @@ else:
     # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
     # where scalar is complex, all riesz components are real
     MUDCTCoefficients: TypeAlias = list[
-        list[list[list[npt.NDArray[np.complexfloating | F]]]]
+        list[list[list[npt.NDArray[Union[np.complexfloating, F]]]]]
     ]
 
 # C: Complex floating point types
