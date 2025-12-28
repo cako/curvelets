@@ -144,7 +144,7 @@ def _apply_backward_transform_monogenic(
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
-    if is_wavelet_mode_highest_scale:
+    if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
         # Separate handling for wavelet mode at highest scale
         image_frequencies_wavelet = [
             np.zeros(parameters.shape, dtype=complex_dtype)
@@ -194,6 +194,7 @@ def _apply_backward_transform_monogenic(
             )
     else:
         # Normal curvelet mode
+        # pylint: disable=duplicate-code
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):

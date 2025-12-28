@@ -337,4 +337,3 @@ def test_numpy_round_trip_complex_input_relative(dim, rng):
 
     atol = 1e-4
     np.testing.assert_allclose(data, recon, atol=atol * np.abs(data).max())
-

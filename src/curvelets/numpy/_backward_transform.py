@@ -188,6 +188,7 @@ def _apply_backward_transform_real(
         # Other scales use factor of 2 as normal
         image_frequency_other_scales = np.zeros(parameters.shape, dtype=complex_dtype)
         image_frequency_wavelet_scale = np.zeros(parameters.shape, dtype=complex_dtype)
+        # pylint: disable=duplicate-code
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
@@ -213,6 +214,7 @@ def _apply_backward_transform_real(
                         image_frequency_other_scales.flat[idx] += contribution.flat[idx]
     else:
         # Normal curvelet mode: process all scales together
+        # pylint: disable=duplicate-code
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):

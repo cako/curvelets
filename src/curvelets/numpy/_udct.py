@@ -1,17 +1,11 @@
 from __future__ import annotations
 
 import logging
-import sys
 from math import prod
 from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
-
-if sys.version_info <= (3, 9):
-    from typing import List  # noqa: UP035
-else:
-    List = list
 
 from ._backward_transform import _apply_backward_transform
 from ._backward_transform_monogenic import _apply_backward_transform_monogenic
@@ -345,7 +339,6 @@ class UDCT:
         window_overlap: float | None,
         radial_frequency_params: tuple[float, float, float, float] | None,
         window_threshold: float,
-        _high_frequency_mode: Literal["curvelet", "wavelet"],
     ) -> dict[str, Any]:
         """
         Calculate all necessary parameters for UDCT initialization.

@@ -479,7 +479,7 @@ def _apply_forward_transform_monogenic(
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[IntegerNDArray],
-) -> MUDCTCoefficients:
+) -> MUDCTCoefficients:  # type: ignore[type-arg]
     """
     Apply forward monogenic curvelet transform.
 
