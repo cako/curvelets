@@ -71,167 +71,6 @@ def test_numpy_round_trip_parametrized(dim, shape_idx, rng):
     np.testing.assert_allclose(data, recon, atol=atol)
 
 
-# ============================================================================
-# Meyer mode tests
-# ============================================================================
-
-
-def _get_wavelet_config_idx(dim: int) -> int | None:
-    """
-    Get the config index for meyer mode tests.
-
-    Meyer mode requires at least 2 scales. Returns None if no suitable config exists.
-
-    Parameters
-    ----------
-    dim : int
-        Dimension.
-
-    Returns
-    -------
-    int | None
-        Config index with at least 2 scales, or None if not available.
-    """
-    configs = get_test_configs(dim)
-    for idx, cfg in enumerate(configs):
-        if len(cfg) >= 2:  # nscales >= 2
-            return idx
-    return None
-
-
-@pytest.mark.round_trip
-@pytest.mark.parametrize(
-    ("dim", "high"),
-    [
-        (2, "meyer"),
-        (3, "meyer"),
-        (4, "meyer"),
-    ],
-)
-def test_numpy_round_trip_wavelet_absolute(dim, high, rng):
-    """
-    Test NumPy implementation round-trip with meyer mode using absolute tolerance.
-
-    Meyer mode applies Meyer wavelet decomposition at the highest scale,
-    with curvelet transform on the lowpass component only.
-    """
-    cfg_idx = _get_wavelet_config_idx(dim)
-    if cfg_idx is None:
-        pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
-
-    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high)  # type: ignore[arg-type]
-    shapes = get_test_shapes(dim)
-    size = shapes[0]
-
-    data = rng.normal(size=size)
-    coeffs = transform.forward(data)
-    recon = transform.backward(coeffs)
-
-    # Meyer mode has slightly higher reconstruction error due to Meyer wavelet
-    atol = 1e-4 if dim == 2 else 2e-4
-    np.testing.assert_allclose(data, recon, atol=atol)
-
-
-@pytest.mark.round_trip
-@pytest.mark.parametrize(
-    ("dim", "high"),
-    [
-        (2, "meyer"),
-        (3, "meyer"),
-        (4, "meyer"),
-    ],
-)
-def test_numpy_round_trip_wavelet_relative(dim, high, rng):
-    """
-    Test NumPy implementation round-trip with meyer mode using relative tolerance.
-
-    Tests with random shapes and configs (that have at least 2 scales for meyer mode).
-    """
-    shapes = get_test_shapes(dim)
-    configs = get_test_configs(dim)
-
-    # Filter configs to only those with nscales >= 2 for meyer mode
-    valid_cfg_indices = [idx for idx, cfg in enumerate(configs) if len(cfg) >= 2]
-    if not valid_cfg_indices:
-        pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
-
-    shape_idx = rng.integers(0, len(shapes))
-    cfg_idx = valid_cfg_indices[rng.integers(0, len(valid_cfg_indices))]
-    transform = setup_numpy_transform(
-        dim, shape_idx=shape_idx, cfg_idx=cfg_idx, high=high
-    )
-
-    size = shapes[shape_idx]
-    data = rng.normal(size=size)
-    coeffs = transform.forward(data)
-    recon = transform.backward(coeffs)
-
-    atol = 1e-4
-    np.testing.assert_allclose(data, recon, atol=atol * data.max())
-
-
-@pytest.mark.round_trip
-@pytest.mark.parametrize("dim", [2, 3, 4])
-def test_numpy_round_trip_wavelet_num_scales_2(dim, rng):
-    """
-    Test NumPy implementation round-trip with meyer mode and num_scales=2.
-
-    This test specifically verifies that num_scales=2 works with meyer mode,
-    which should be equivalent to a Meyer wavelet transform (1 lowpass + 1 highpass).
-
-    Parameters
-    ----------
-    dim : int
-        Dimension (2, 3, or 4).
-    rng : numpy.random.Generator
-        Random number generator fixture.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy import UDCT
-    >>> transform = UDCT(
-    ...     shape=(64, 64),
-    ...     num_scales=2,
-    ...     wedges_per_direction=3,
-    ...     high_frequency_mode="meyer"
-    ... )
-    >>> data = np.random.randn(64, 64)
-    >>> coeffs = transform.forward(data)
-    >>> recon = transform.backward(coeffs)
-    >>> np.allclose(data, recon, atol=1e-4)
-    True
-    """
-    from curvelets.numpy import UDCT
-
-    shapes = get_test_shapes(dim)
-    if not shapes:
-        pytest.skip(f"No test shapes defined for dimension {dim}")
-
-    size = shapes[0]
-    data = rng.normal(size=size).astype(np.float64)
-
-    # Create transform with num_scales=2 and meyer mode
-    transform = UDCT(
-        shape=size,
-        num_scales=2,
-        wedges_per_direction=3,
-        high_frequency_mode="meyer",
-    )
-
-    # Test forward and backward transform
-    coeffs = transform.forward(data)
-    recon = transform.backward(coeffs)
-
-    # Verify structure: should have 2 scales (lowpass + 1 high-frequency)
-    assert len(coeffs) == 2, f"Expected 2 scales, got {len(coeffs)}"
-
-    # Verify reconstruction accuracy
-    # Meyer mode has slightly higher reconstruction error due to Meyer wavelet
-    atol = 1e-4 if dim == 2 else 2e-4
-    np.testing.assert_allclose(data, recon, atol=atol)
-
-
 @pytest.mark.round_trip
 @pytest.mark.parametrize("dim", [2, 3, 4])
 def test_numpy_round_trip_wavelet_mode(dim, rng):
@@ -371,39 +210,6 @@ def test_numpy_round_trip_complex_parametrized(dim, shape_idx, rng):
 
 
 @pytest.mark.round_trip
-@pytest.mark.parametrize(
-    ("dim", "high"),
-    [
-        (2, "meyer"),
-        (3, "meyer"),
-        (4, "meyer"),
-    ],
-)
-def test_numpy_round_trip_complex_wavelet_absolute(dim, high, rng):
-    """
-    Test NumPy implementation round-trip with complex transform in meyer mode.
-
-    Combines complex transform (separate +/- frequency bands) with meyer mode
-    (Meyer wavelet at highest scale).
-    """
-    cfg_idx = _get_wavelet_config_idx(dim)
-    if cfg_idx is None:
-        pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
-
-    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high, complex=True)  # type: ignore[arg-type]
-    shapes = get_test_shapes(dim)
-    size = shapes[0]
-
-    data = rng.normal(size=size)
-    coeffs = transform.forward(data)
-    recon = transform.backward(coeffs)
-
-    # Complex wavelet mode may have slightly higher reconstruction error
-    atol = 1e-4 if dim == 2 else 2e-4
-    np.testing.assert_allclose(data, recon.real, atol=atol)
-
-
-@pytest.mark.round_trip
 @pytest.mark.parametrize("dim", [2, 3, 4])
 def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
     """
@@ -533,35 +339,200 @@ def test_numpy_round_trip_complex_input_relative(dim, rng):
     np.testing.assert_allclose(data, recon, atol=atol * np.abs(data).max())
 
 
+# ============================================================================
+# Backward transform edge cases: decimation ratio handling
+# ============================================================================
+
+
 @pytest.mark.round_trip
-@pytest.mark.parametrize(
-    ("dim", "high"),
-    [
-        (2, "meyer"),
-        (3, "meyer"),
-        (4, "meyer"),
-    ],
-)
-def test_numpy_round_trip_complex_input_wavelet(dim, high, rng):
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_backward_decimation_ratio_single_direction(dim, rng):
     """
-    Test NumPy round-trip with complex-valued input in meyer mode.
+    Test backward transform when decimation_ratios has shape[0] == 1.
 
-    Combines complex-valued input with meyer mode (Meyer wavelet at highest scale).
+    This occurs in "wavelet" mode at the highest scale where all directions
+    share the same decimation ratio (decimation=1).
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet"
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon, atol=1e-4)
+    True
     """
-    cfg_idx = _get_wavelet_config_idx(dim)
-    if cfg_idx is None:
-        pytest.skip(f"No config with nscales >= 2 available for dimension {dim}")
+    from curvelets.numpy import UDCT
 
-    transform = setup_numpy_transform(dim, cfg_idx=cfg_idx, high=high, complex=True)  # type: ignore[arg-type]
     shapes = get_test_shapes(dim)
-    size = shapes[0]
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
 
-    data = rng.normal(size=size) + 1j * rng.normal(size=size)
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with wavelet mode (triggers shape[0] == 1 at highest scale)
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+    )
+
+    # Verify decimation_ratios at highest scale has shape[0] == 1
+    highest_scale_idx = 2
+    assert transform.decimation_ratios[highest_scale_idx].shape[0] == 1, (
+        "Expected decimation_ratios[highest_scale_idx].shape[0] == 1 in wavelet mode"
+    )
+
+    # Test forward and backward transform
     coeffs = transform.forward(data)
     recon = transform.backward(coeffs)
 
-    # Verify output is complex
-    assert np.iscomplexobj(recon), "Output should be complex for complex=True"
-
+    # Verify reconstruction accuracy
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon, atol=atol)
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_backward_complex_decimation_ratio_single(dim, rng):
+    """
+    Test complex backward transform with single decimation ratio (shape[0] == 1).
+
+    This tests the edge case in complex transform mode where decimation_ratios
+    has shape[0] == 1, which occurs in wavelet mode at the highest scale.
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet",
+    ...     use_complex_transform=True
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon.real, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with wavelet mode and complex transform
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+        use_complex_transform=True,
+    )
+
+    # Verify decimation_ratios at highest scale has shape[0] == 1
+    highest_scale_idx = 2
+    assert transform.decimation_ratios[highest_scale_idx].shape[0] == 1, (
+        "Expected decimation_ratios[highest_scale_idx].shape[0] == 1 in wavelet mode"
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify reconstruction accuracy
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon.real, atol=atol)
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_backward_complex_decimation_ratio_multi(dim, rng):
+    """
+    Test complex backward transform with multiple decimation ratios.
+
+    This tests the normal case where decimation_ratios has shape[0] > 1,
+    meaning different directions have different decimation ratios.
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     use_complex_transform=True
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon.real, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with complex transform (normal mode, not wavelet)
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        use_complex_transform=True,
+    )
+
+    # Verify decimation_ratios at scale 1 has shape[0] > 1 (multiple directions)
+    scale_idx = 1
+    assert transform.decimation_ratios[scale_idx].shape[0] > 1, (
+        "Expected decimation_ratios[scale_idx].shape[0] > 1 in normal mode"
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify reconstruction accuracy
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon.real, atol=atol)

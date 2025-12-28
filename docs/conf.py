@@ -54,12 +54,14 @@ nitpick_ignore = [
     ("py:class", "U"),
     ("py:class", "optional"),
     ("py:class", '"curvelet"'),
-    ("py:class", '"meyer"'),
     ("py:class", '"wavelet"'),
     ("py:class", '{"curvelet"'),
     ("py:class", '"wavelet"}'),
     ("py:class", "ParamUDCT"),
     ("py:class", "UDCTWindows"),
+    ("py:class", "MUDCTCoefficients"),
+    ("py:obj", "MUDCTCoefficients"),
+    ("py:obj", "curvelets.numpy.MUDCTCoefficients"),
 ]
 
 always_document_param_types = True

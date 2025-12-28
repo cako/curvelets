@@ -64,45 +64,6 @@ def test_non_multiple_of_3_raises_error(
 
 @pytest.mark.parametrize("wedges_per_direction", [4, 5])  # type: ignore[misc]
 @pytest.mark.parametrize("num_scales", [2, 3])  # type: ignore[misc]
-def test_nwedges_4_5_raises_error_wavelet_mode(
-    wedges_per_direction: int, num_scales: int
-) -> None:
-    """Test that wedges_per_direction=4,5 raises ValueError in wavelet mode.
-
-    Parameters
-    ----------
-    wedges_per_direction : int
-        Number of wedges per direction (4 or 5).
-    num_scales : int
-        Number of scales (2 or 3).
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy import UDCT
-    >>> import pytest
-    >>> with pytest.raises(ValueError, match="divisible by 3"):
-    ...     UDCT(
-    ...         shape=(64, 64),
-    ...         num_scales=3,
-    ...         wedges_per_direction=4,
-        ...         high_frequency_mode="meyer"
-    ...     )
-    """
-    shape = (64, 64)
-
-    # Verify that ValueError is raised
-    with pytest.raises(ValueError, match="divisible by 3"):
-        UDCT(
-            shape=shape,
-            num_scales=num_scales,
-            wedges_per_direction=wedges_per_direction,
-            high_frequency_mode="meyer",
-        )
-
-
-@pytest.mark.parametrize("wedges_per_direction", [4, 5])  # type: ignore[misc]
-@pytest.mark.parametrize("num_scales", [2, 3])  # type: ignore[misc]
 def test_nwedges_4_5_raises_error_complex_transform(
     wedges_per_direction: int, num_scales: int
 ) -> None:

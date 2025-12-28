@@ -1,62 +1,23 @@
 from __future__ import annotations
 
 import logging
-import sys
 from math import prod
 from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
 
-if sys.version_info <= (3, 9):
-    from typing import List  # noqa: UP035
-else:
-    List = list
-
 from ._backward_transform import _apply_backward_transform
+from ._backward_transform_monogenic import _apply_backward_transform_monogenic
 from ._forward_transform import (
     _apply_forward_transform_complex,
+    _apply_forward_transform_monogenic,
     _apply_forward_transform_real,
 )
-from ._meyerwavelet import MeyerWavelet
-from ._typing import C, F, UDCTWindows, _to_complex_dtype
+from ._riesz import riesz_filters
+from ._typing import C, F, MUDCTCoefficients, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
-
-
-class _CoefficientsList(List[List[List[npt.NDArray[np.complexfloating]]]]):
-    """
-    Wrapper class for coefficients list that supports attribute assignment.
-
-    This allows storing highpass bands as an attribute on the coefficients
-    list, making coefficients self-contained and thread-safe.
-    """
-
-    _meyer_highpass_bands: List[npt.NDArray] | None
-
-    @property
-    def meyer_highpass_bands(self) -> List[npt.NDArray] | None:
-        """
-        Get the Meyer highpass bands stored with these coefficients.
-
-        Returns
-        -------
-        List[npt.NDArray] | None
-            The Meyer highpass bands, or None if not available.
-        """
-        return self._meyer_highpass_bands
-
-    @meyer_highpass_bands.setter
-    def meyer_highpass_bands(self, value: List[npt.NDArray] | None) -> None:
-        """
-        Set the Meyer highpass bands for these coefficients.
-
-        Parameters
-        ----------
-        value : List[npt.NDArray] | None
-            The Meyer highpass bands to store, or None to clear.
-        """
-        self._meyer_highpass_bands = value
 
 
 class UDCT:
@@ -64,8 +25,7 @@ class UDCT:
     Uniform Discrete Curvelet Transform (UDCT) implementation.
 
     This class provides forward and backward curvelet transforms with support
-    for both real and complex transforms, as well as optional Meyer wavelet
-    decomposition at the highest scale.
+    for both real and complex transforms.
 
     Parameters
     ----------
@@ -93,13 +53,11 @@ class UDCT:
     window_threshold : float, optional
         Threshold for sparse window storage (values below this are stored as sparse).
         Default is 1e-5.
-    high_frequency_mode : {"curvelet", "meyer", "wavelet"}, optional
+    high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
-        "meyer" applies Meyer wavelet decomposition (H-L, L-H, H-H) at the highest scale,
         "wavelet" creates a single ring-shaped window (bandpass filter only,
         no angular components) at the highest scale with decimation=1.
-        When num_scales=2 with meyer mode, this is equivalent to a Meyer wavelet
-        transform (1 lowpass + 1 highpass scale). Default is "curvelet".
+        Default is "curvelet".
     use_complex_transform : bool, optional
         If True, use complex transform which separates positive and negative
         frequency components into different bands. Each band is scaled by
@@ -139,19 +97,6 @@ class UDCT:
     >>> recon2 = transform2.backward(coeffs2)
     >>> np.allclose(data, recon2, atol=1e-4)
     True
-    >>> # Create meyer mode with num_scales=2 (equivalent to Meyer wavelet)
-    >>> transform3 = UDCT(
-    ...     shape=(64, 64),
-    ...     num_scales=2,
-    ...     wedges_per_direction=3,
-    ...     high_frequency_mode="meyer"
-    ... )
-    >>> coeffs3 = transform3.forward(data)
-    >>> len(coeffs3)  # 2 scales: lowpass + 1 high-frequency
-    2
-    >>> recon3 = transform3.backward(coeffs3)
-    >>> np.allclose(data, recon3, atol=1e-4)
-    True
     """
 
     def __init__(
@@ -163,7 +108,7 @@ class UDCT:
         window_overlap: float | None = None,
         radial_frequency_params: tuple[float, float, float, float] | None = None,
         window_threshold: float = 1e-5,
-        high_frequency_mode: Literal["curvelet", "meyer", "wavelet"] = "curvelet",
+        high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         use_complex_transform: bool = False,
     ) -> None:
         # Store basic attributes
@@ -180,7 +125,6 @@ class UDCT:
             window_overlap=window_overlap,
             radial_frequency_params=radial_frequency_params,
             window_threshold=window_threshold,
-            high_frequency_mode=high_frequency_mode,
         )
 
         # Create ParamUDCT object
@@ -195,11 +139,57 @@ class UDCT:
         # Calculate windows
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
 
-        # Initialize Meyer wavelet if needed
-        self._meyer_wavelet: MeyerWavelet | None = None
-        self._meyer_highpass_bands: list[npt.NDArray] | None = None
-        if self.high_frequency_mode == "meyer":
-            self._meyer_wavelet = MeyerWavelet(shape=shape)
+    @staticmethod
+    def _compute_optimal_window_overlap(
+        wedges_per_scale: npt.NDArray[np.int_],
+    ) -> float:
+        """
+        Compute optimal window_overlap from Nguyen & Chauris (2010) constraint.
+
+        The constraint (2^(s/N))(1+2a)(1+a) < N must hold for all scales.
+        This method solves for the theoretical maximum at each scale,
+        takes the minimum across all scales, and returns 10% of this value.
+
+        The 10% factor was empirically determined to give better reconstruction
+        quality than both the theoretical maximum and previous hardcoded defaults.
+
+        Parameters
+        ----------
+        wedges_per_scale : ndarray
+            Array of wedge counts per scale.
+
+        Returns
+        -------
+        float
+            Optimal window_overlap value (10% of theoretical maximum).
+
+        References
+        ----------
+        .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
+           Transform": IEEE Transactions on Signal Processing, 58, 3618-3634.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> # For wedges_per_direction=3, num_scales=3
+        >>> wedges_per_scale = np.array([3, 6])
+        >>> alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
+        >>> 0.1 < alpha < 0.2  # Expected around 0.11
+        True
+        """
+        min_overlap = float("inf")
+
+        for scale_idx, num_wedges in enumerate(wedges_per_scale, start=1):
+            k = 2 ** (scale_idx / num_wedges)
+            # Solve: 2k*a^2 + 3k*a + (k - N) = 0
+            # a = (-3 + sqrt(1 + 8*N/k)) / 4
+            discriminant = 1 + 8 * num_wedges / k
+            a_max = (-3 + np.sqrt(discriminant)) / 4
+            min_overlap = min(min_overlap, a_max)
+
+        # Use 10% of theoretical max for optimal reconstruction quality
+        return 0.1 * min_overlap
 
     @staticmethod
     def _compute_from_angular_wedges_config(
@@ -215,7 +205,8 @@ class UDCT:
             Configuration array specifying the number of angular wedges per scale
             and dimension. Shape is (num_scales, dimension).
         window_overlap : float | None
-            Window overlap parameter. If None, defaults to 0.15.
+            Window overlap parameter. If None, automatically computed using
+            the Nguyen & Chauris (2010) constraint formula.
 
         Returns
         -------
@@ -242,8 +233,15 @@ class UDCT:
             )
             raise ValueError(msg)
 
-        # Use provided window_overlap or default
-        computed_window_overlap = window_overlap if window_overlap is not None else 0.15
+        # Use provided window_overlap or compute optimal from first dimension
+        if window_overlap is not None:
+            computed_window_overlap = window_overlap
+        else:
+            # Compute from first dimension's wedges (all dimensions should be consistent)
+            wedges_per_scale = angular_wedges_config[:, 0]
+            computed_window_overlap = UDCT._compute_optimal_window_overlap(
+                wedges_per_scale
+            )
 
         return computed_angular_wedges_config, computed_window_overlap
 
@@ -310,14 +308,9 @@ class UDCT:
 
         # Auto-select window_overlap if not provided
         if window_overlap is None:
-            if wedges_per_direction == 3:
-                computed_window_overlap = 0.15
-            elif wedges_per_direction == 4:
-                computed_window_overlap = 0.3
-            elif wedges_per_direction == 5:
-                computed_window_overlap = 0.5
-            else:
-                computed_window_overlap = 0.5
+            computed_window_overlap = UDCT._compute_optimal_window_overlap(
+                wedges_per_scale
+            )
         else:
             computed_window_overlap = window_overlap
 
@@ -331,7 +324,7 @@ class UDCT:
             if const >= num_wedges:
                 msg = (
                     f"window_overlap={computed_window_overlap:.3f} does not respect the relationship "
-                    f"(2^{scale_idx}/{num_wedges})(1+2a)(1+a) = {const:.3f} < 1 for scale {scale_idx + 1}"
+                    f"(2^{scale_idx}/{num_wedges})(1+2a)(1+a) = {const:.3f} < {num_wedges} for scale {scale_idx + 1}"
                 )
                 logging.warning(msg)
 
@@ -346,7 +339,6 @@ class UDCT:
         window_overlap: float | None,
         radial_frequency_params: tuple[float, float, float, float] | None,
         window_threshold: float,
-        high_frequency_mode: Literal["curvelet", "meyer", "wavelet"],
     ) -> dict[str, Any]:
         """
         Calculate all necessary parameters for UDCT initialization.
@@ -367,8 +359,6 @@ class UDCT:
             Radial frequency parameters.
         window_threshold : float
             Window threshold.
-        high_frequency_mode : str
-            High frequency mode.
 
         Returns
         -------
@@ -397,16 +387,13 @@ class UDCT:
         # Compute num_scales from computed_angular_wedges_config for validation
         computed_num_scales = 1 + len(computed_angular_wedges_config)
 
-        # Validate meyer and wavelet mode requirements
+        # Validate scale requirements
         if computed_num_scales < 2:
             msg = "requires at least 2 scales total (num_scales >= 2)"
             raise ValueError(msg)
 
-        # Calculate internal shape (meyer mode halves the size)
-        if high_frequency_mode == "meyer":
-            internal_shape = tuple(s // 2 for s in shape)
-        else:
-            internal_shape = shape
+        # Calculate internal shape
+        internal_shape = shape
 
         # Set default radial_frequency_params if not provided
         if radial_frequency_params is None:
@@ -619,19 +606,6 @@ class UDCT:
         """
         np.testing.assert_equal(self.shape, image.shape)
 
-        # Apply Meyer wavelet decomposition if enabled
-        # forward() returns all subbands in nested structure
-        meyer_highpass_bands: list[npt.NDArray] | None = None
-        if self.high_frequency_mode == "meyer":
-            if self._meyer_wavelet is None:
-                error_msg = "MeyerWavelet not initialized"
-                raise RuntimeError(error_msg)
-            # Get all subbands and store highpass bands for backward()
-            meyer_coeffs = self._meyer_wavelet.forward(image)
-            meyer_highpass_bands = meyer_coeffs[1]
-            # Extract lowpass from subband group 0
-            image = meyer_coeffs[0][0]
-
         # Apply curvelet transform
         # Runtime checks determine the appropriate transform path
         if self.use_complex_transform:
@@ -668,14 +642,6 @@ class UDCT:
                 self.decimation_ratios,
             )
 
-        # Wrap result in a list subclass that supports attribute assignment
-        # This allows storing highpass bands as an attribute, making coefficients
-        # self-contained and thread-safe
-        if meyer_highpass_bands is not None:
-            result_wrapped = _CoefficientsList(result)
-            result_wrapped.meyer_highpass_bands = meyer_highpass_bands
-            return result_wrapped
-
         return result
 
     def backward(self, coefficients: list[list[list[npt.NDArray[C]]]]) -> np.ndarray:
@@ -705,43 +671,6 @@ class UDCT:
         >>> np.allclose(data, recon, atol=1e-4)
         True
         """
-        if self.high_frequency_mode == "meyer":
-            # Reconstruct lowpass from curvelet coefficients
-            lowpass_recon = _apply_backward_transform(
-                coefficients,
-                self.parameters,
-                self.windows,
-                self.decimation_ratios,
-                use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
-            )
-
-            # Apply Meyer inverse using highpass bands from coefficients
-            if self._meyer_wavelet is None:
-                error_msg = "MeyerWavelet not initialized"
-                raise RuntimeError(error_msg)
-
-            # Extract highpass bands from coefficients attribute
-            # This makes coefficients self-contained and thread-safe
-            if not hasattr(coefficients, "meyer_highpass_bands"):
-                error_msg = (
-                    "Coefficients missing highpass bands attribute. "
-                    "This may indicate coefficients were created with an older version "
-                    "or were modified incorrectly."
-                )
-                raise RuntimeError(error_msg)
-
-            meyer_highpass_bands = coefficients.meyer_highpass_bands
-            if meyer_highpass_bands is None:
-                error_msg = (
-                    "Highpass bands are not available in coefficients. "
-                    "Coefficients may be incomplete."
-                )
-                raise RuntimeError(error_msg)
-
-            # Reconstruct full MeyerWavelet coefficient structure
-            meyer_coeffs = [[lowpass_recon], meyer_highpass_bands]
-            return self._meyer_wavelet.backward(meyer_coeffs)
-
         return _apply_backward_transform(
             coefficients,
             self.parameters,
@@ -749,3 +678,223 @@ class UDCT:
             self.decimation_ratios,
             use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
         )
+
+    def forward_monogenic(self, image: npt.NDArray[F]) -> MUDCTCoefficients:  # type: ignore[type-arg]
+        """
+        Apply forward monogenic curvelet transform.
+
+        This method applies the monogenic extension to the curvelet transform,
+        producing coefficients with ndim+1 components per band: scalar (same as
+        standard UDCT) plus all Riesz components (one per dimension). This enables
+        meaningful amplitude/phase decomposition over all scales.
+
+        The monogenic curvelet transform was originally defined for 2D signals by
+        Storath 2010 using quaternions, but this implementation extends it to arbitrary
+        N-D signals by using all Riesz transform components.
+
+        Parameters
+        ----------
+        image : :obj:`npt.NDArray[F] <numpy.typing.NDArray>`
+            Input image or volume. Must be real-valued (floating point dtype).
+            Complex inputs are not supported as the monogenic transform is
+            defined only for real-valued functions.
+
+        Returns
+        -------
+        MUDCTCoefficients
+            Monogenic coefficients as nested list structure with lists of ndim+1 arrays.
+            Structure: coefficients[scale][direction][wedge] = [coeff_0, coeff_1, ..., coeff_ndim]
+            where:
+            - coeff_0 (scalar): Complex array (matches UDCT behavior in real transform mode)
+            - coeff_k (Riesz): Real arrays for k = 1, 2, ..., ndim
+
+        Raises
+        ------
+        ValueError
+            If input is complex-valued. Use forward() for complex inputs.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64))
+        >>> data = np.random.randn(64, 64)
+        >>> coeffs = transform.forward_monogenic(data)
+        >>> len(coeffs)  # Number of scales
+        4
+        >>> isinstance(coeffs[0][0][0], list)  # Each coefficient is a list
+        True
+        >>> len(coeffs[0][0][0])  # List has ndim+1 components (3 for 2D)
+        3
+        >>> # Compute amplitude
+        >>> components = coeffs[1][0][0]
+        >>> scalar = components[0]
+        >>> riesz_components = components[1:]
+        >>> amplitude = np.sqrt(np.abs(scalar)**2 + sum(r**2 for r in riesz_components))
+        """
+        np.testing.assert_equal(self.shape, image.shape)
+
+        if np.iscomplexobj(image):
+            msg = (
+                "Monogenic transform requires real-valued input. "
+                "Got complex array. Use forward() for complex inputs."
+            )
+            raise ValueError(msg)
+
+        return _apply_forward_transform_monogenic(
+            image,
+            self.parameters,
+            self.windows,
+            self.decimation_ratios,
+        )
+
+    def backward_monogenic(
+        self,
+        coefficients: MUDCTCoefficients,  # type: ignore[type-arg]
+    ) -> tuple[npt.NDArray[F], ...]:
+        """
+        Apply backward monogenic curvelet transform (reconstruction).
+
+        This method uses the discrete tight frame property of UDCT rather than the
+        continuous quaternion formula from Storath 2010. The reconstruction uses the
+        partition of unity property, making each component independently reconstructable.
+
+        The monogenic curvelet transform was originally defined for 2D signals by
+        Storath 2010 using quaternions, but this implementation extends it to arbitrary
+        N-D signals by using all Riesz transform components.
+
+        Parameters
+        ----------
+        coefficients : MUDCTCoefficients
+            Monogenic curvelet coefficients from forward_monogenic().
+            Structure: coefficients[scale][direction][wedge] = [coeff_0, coeff_1, ..., coeff_ndim]
+
+        Returns
+        -------
+        tuple[:obj:`npt.NDArray[F] <numpy.typing.NDArray>`, ...]
+            Tuple of ndim+1 real-valued arrays with shape matching self.shape:
+            - scalar: Original input f
+            - riesz_k: -R_k f for k = 1, 2, ..., ndim
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64))
+        >>> data = np.random.randn(64, 64)
+        >>> coeffs = transform.forward_monogenic(data)
+        >>> components = transform.backward_monogenic(coeffs)
+        >>> scalar = components[0]
+        >>> np.allclose(data, scalar, atol=1e-4)
+        True
+        >>> # Verify Riesz components match direct Riesz transform
+        >>> from curvelets.numpy._riesz import riesz_filters
+        >>> filters = riesz_filters((64, 64))
+        >>> data_fft = np.fft.fftn(data)
+        >>> riesz1_direct = np.fft.ifftn(data_fft * filters[0]).real
+        >>> np.allclose(-riesz1_direct, components[1], atol=1e-4)
+        True
+        """
+        return _apply_backward_transform_monogenic(
+            coefficients,
+            self.parameters,
+            self.windows,
+            self.decimation_ratios,
+        )
+
+    def monogenic(self, image: npt.NDArray[F]) -> tuple[npt.NDArray[F], ...]:
+        """
+        Compute monogenic signal directly without curvelet transform.
+
+        This method computes the monogenic signal Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
+        directly from the input function without performing the curvelet transform.
+        The monogenic signal provides a representation that enables meaningful
+        amplitude/phase decomposition for N-D signals.
+
+        The monogenic signal was originally defined for 2D signals by Storath 2010 [1]_
+        using quaternions, but this implementation extends it to arbitrary N-D signals
+        by using all Riesz transform components.
+
+        Parameters
+        ----------
+        image : :obj:`npt.NDArray[F] <numpy.typing.NDArray>`
+            Input image or volume. Must be real-valued (floating point dtype).
+            Must have shape matching self.shape. Complex inputs are not supported
+            as the monogenic transform is defined only for real-valued functions.
+
+        Returns
+        -------
+        tuple[:obj:`npt.NDArray[F] <numpy.typing.NDArray>`, ...]
+            Tuple of ndim+1 real-valued arrays with shape matching self.shape:
+            - scalar: Original input f (unchanged)
+            - riesz_k: -R_k f for k = 1, 2, ..., ndim
+
+        Raises
+        ------
+        ValueError
+            If input is complex-valued. Use forward() for complex inputs.
+        AssertionError
+            If input shape does not match self.shape.
+
+        Notes
+        -----
+        This method computes the monogenic signal directly using Riesz transforms
+        without performing the curvelet decomposition. It is mathematically equivalent
+        to backward_monogenic(forward_monogenic(f)) but computationally simpler.
+
+        The monogenic signal is defined as:
+        Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
+
+        where R₁, R₂, ..., Rₙ are the Riesz transforms. Since Python doesn't have native
+        quaternion or Clifford algebra types, this method returns the components as a tuple.
+
+        References
+        ----------
+        .. [1] Storath, M., 2010, *The monogenic curvelet transform*: 2010 IEEE
+           International Conference on Image Processing.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64))
+        >>> data = np.random.randn(64, 64)
+        >>> components = transform.monogenic(data)
+        >>> scalar = components[0]
+        >>> scalar.shape
+        (64, 64)
+        >>> np.allclose(data, scalar)
+        True
+        >>> # Verify it matches backward_monogenic(forward_monogenic(f))
+        >>> coeffs = transform.forward_monogenic(data)
+        >>> components2 = transform.backward_monogenic(coeffs)
+        >>> np.allclose(scalar, components2[0], atol=1e-4)
+        True
+        >>> np.allclose(components[1], components2[1], atol=1e-4)
+        True
+        """
+        np.testing.assert_equal(self.shape, image.shape)
+
+        if np.iscomplexobj(image):
+            msg = (
+                "Monogenic transform requires real-valued input. "
+                "Got complex array. Use forward() for complex inputs."
+            )
+            raise ValueError(msg)
+
+        # Compute Riesz filters
+        riesz_filters_list = riesz_filters(self.shape)
+
+        # Compute FFT of input
+        image_frequency = np.fft.fftn(image)
+
+        # Preserve input dtype
+        real_dtype = image.dtype
+
+        # Compute all Riesz components: -Rₖf for k = 1, 2, ..., ndim
+        riesz_components: list[npt.NDArray[F]] = []
+        for riesz_filter in riesz_filters_list:
+            riesz_k = -np.fft.ifftn(image_frequency * riesz_filter).real
+            riesz_components.append(riesz_k.astype(real_dtype))
+
+        return (image.copy(), *tuple(riesz_components))

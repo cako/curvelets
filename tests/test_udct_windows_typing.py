@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing
 
 import numpy as np
+import pytest
 
 from curvelets.numpy._typing import (
     FloatingNDArray,
@@ -219,3 +220,54 @@ def test_complex_dtype_promotion_numpy2_compatible() -> None:
         (10,), dtype=np.complex64 if arr64.dtype == np.float32 else np.complex128
     )
     assert result64.dtype == np.complex128
+
+
+def test_compute_angle_component_invalid_direction() -> None:
+    """
+    Test that invalid direction values raise ValueError in _create_angle_functions.
+
+    The _create_angle_functions method should only accept direction values of 1 or 2.
+    Any other value should raise a ValueError.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy._udct_windows import UDCTWindow
+    >>> angle_grid = np.linspace(-1, 1, 64)
+    >>> try:
+    ...     UDCTWindow._create_angle_functions(angle_grid, direction=0, num_angular_wedges=3, window_overlap=0.15)
+    ... except ValueError as e:
+    ...     print(f"Error caught: {e}")
+    Error caught: Unrecognized direction: 0. Must be 1 or 2.
+    """
+    angle_grid = np.linspace(-1, 1, 64, dtype=np.float64)
+    num_angular_wedges = 3
+    window_overlap = 0.15
+
+    # Test invalid direction values
+    for invalid_direction in [0, 3, -1, 10]:
+        with pytest.raises(ValueError, match="Unrecognized direction.*Must be 1 or 2"):
+            UDCTWindow._create_angle_functions(
+                angle_grid,
+                direction=invalid_direction,
+                num_angular_wedges=num_angular_wedges,
+                window_overlap=window_overlap,
+            )
+
+    # Test valid direction values (should not raise)
+    result1 = UDCTWindow._create_angle_functions(
+        angle_grid,
+        direction=1,
+        num_angular_wedges=num_angular_wedges,
+        window_overlap=window_overlap,
+    )
+    result2 = UDCTWindow._create_angle_functions(
+        angle_grid,
+        direction=2,
+        num_angular_wedges=num_angular_wedges,
+        window_overlap=window_overlap,
+    )
+
+    # Verify results are valid arrays
+    assert isinstance(result1, np.ndarray)
+    assert isinstance(result2, np.ndarray)

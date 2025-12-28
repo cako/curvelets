@@ -11,22 +11,36 @@ else:
 import numpy as np
 import numpy.typing as npt
 
-if sys.version_info <= (3, 9):
-    from typing import List, Tuple  # noqa: UP035
+# TypeVars for numpy array dtypes
+# F: Real floating point types
+F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
+
+if sys.version_info < (3, 10):
+    from typing import List, Tuple, Union  # noqa: UP035
 
     UDCTCoefficients: TypeAlias = List[List[List[npt.NDArray[np.complexfloating]]]]  # noqa: UP006
     UDCTWindows: TypeAlias = List[  # noqa: UP006
         List[List[Tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]  # noqa: UP006
     ]
+    # MUDCTCoefficients: variable-length list structure
+    # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
+    # where scalar is complex, all riesz components are real
+    MUDCTCoefficients: TypeAlias = List[  # noqa: UP006
+        List[List[List[npt.NDArray[Union[np.complexfloating, F]]]]]  # noqa: UP006
+    ]
 else:
+    from typing import Union
+
     UDCTCoefficients: TypeAlias = list[list[list[npt.NDArray[np.complexfloating]]]]
     UDCTWindows: TypeAlias = list[
         list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
     ]
-
-# TypeVars for numpy array dtypes
-# F: Real floating point types
-F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
+    # MUDCTCoefficients: variable-length list structure
+    # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
+    # where scalar is complex, all riesz components are real
+    MUDCTCoefficients: TypeAlias = list[
+        list[list[list[npt.NDArray[Union[np.complexfloating, F]]]]]
+    ]
 
 # C: Complex floating point types
 # Note: complex256 is available on some platforms but not others (e.g., not on macOS/Apple Silicon)
