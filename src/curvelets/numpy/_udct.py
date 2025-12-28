@@ -694,7 +694,7 @@ class UDCT:
 
         Parameters
         ----------
-        image : npt.NDArray[F]
+        image : :obj:`npt.NDArray[F] <numpy.typing.NDArray>`
             Input image or volume. Must be real-valued (floating point dtype).
             Complex inputs are not supported as the monogenic transform is
             defined only for real-valued functions.
@@ -771,7 +771,7 @@ class UDCT:
 
         Returns
         -------
-        tuple[npt.NDArray[F], ...]
+        tuple[:obj:`npt.NDArray[F] <numpy.typing.NDArray>`, ...]
             Tuple of ndim+1 real-valued arrays with shape matching self.shape:
             - scalar: Original input f
             - riesz_k: -R_k f for k = 1, 2, ..., ndim
@@ -811,20 +811,20 @@ class UDCT:
         The monogenic signal provides a representation that enables meaningful
         amplitude/phase decomposition for N-D signals.
 
-        The monogenic signal was originally defined for 2D signals by Storath 2010
+        The monogenic signal was originally defined for 2D signals by Storath 2010 [1]_
         using quaternions, but this implementation extends it to arbitrary N-D signals
         by using all Riesz transform components.
 
         Parameters
         ----------
-        image : npt.NDArray[F]
+        image : :obj:`npt.NDArray[F] <numpy.typing.NDArray>`
             Input image or volume. Must be real-valued (floating point dtype).
             Must have shape matching self.shape. Complex inputs are not supported
             as the monogenic transform is defined only for real-valued functions.
 
         Returns
         -------
-        tuple[npt.NDArray[F], ...]
+        tuple[:obj:`npt.NDArray[F] <numpy.typing.NDArray>`, ...]
             Tuple of ndim+1 real-valued arrays with shape matching self.shape:
             - scalar: Original input f (unchanged)
             - riesz_k: -R_k f for k = 1, 2, ..., ndim
