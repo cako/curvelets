@@ -20,6 +20,7 @@ from ._forward_transform import (
     _apply_forward_transform_monogenic,
     _apply_forward_transform_real,
 )
+from ._riesz import riesz_filters
 from ._typing import C, F, MUDCTCoefficients, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
@@ -642,6 +643,14 @@ class UDCT:
         scalar (same as standard UDCT), Riesz_1, and Riesz_2. This enables
         meaningful amplitude/phase decomposition over all scales.
 
+        .. note::
+            **2D Limitation**: The monogenic curvelet transform is mathematically
+            defined only for 2D signals according to Storath 2010. While this
+            implementation accepts arbitrary dimensions, only the first two Riesz
+            components (R_1 and R_2) are computed, which is correct only for 2D
+            inputs. For 3D or higher dimensions, the transform will only use R_1
+            and R_2, which may not provide a complete monogenic representation.
+
         Parameters
         ----------
         image : npt.NDArray[F]
@@ -711,6 +720,13 @@ class UDCT:
         - Riesz_1: -c₀·R₁β + c₁·β → reconstructs -R₁f
         - Riesz_2: -c₀·R₂β + c₂·β → reconstructs -R₂f
 
+        .. note::
+            **2D Limitation**: The monogenic curvelet transform is mathematically
+            defined only for 2D signals according to Storath 2010. While this
+            implementation accepts arbitrary dimensions, only the first two Riesz
+            components (R_1 and R_2) are used in the reconstruction, which is
+            correct only for 2D inputs.
+
         Parameters
         ----------
         coefficients : MUDCTCoefficients
@@ -749,3 +765,108 @@ class UDCT:
             self.windows,
             self.decimation_ratios,
         )
+
+    def monogenic(
+        self, image: npt.NDArray[F]
+    ) -> tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]:
+        """
+        Compute monogenic signal directly without curvelet transform.
+
+        This method computes the monogenic signal Mf = f + i(-R₁f) + j(-R₂f)
+        directly from the input function without performing the curvelet transform.
+        The monogenic signal provides a quaternion-like representation that enables
+        meaningful amplitude/phase decomposition.
+
+        .. note::
+            **2D Limitation**: The monogenic signal is mathematically defined only
+            for 2D signals according to Storath 2010. While this implementation
+            accepts arbitrary dimensions, only the first two Riesz components (R_1
+            and R_2) are computed, which is correct only for 2D inputs. For 3D or
+            higher dimensions, the transform will only use R_1 and R_2, which may
+            not provide a complete monogenic representation.
+
+        Parameters
+        ----------
+        image : npt.NDArray[F]
+            Input image or volume. Must be real-valued (floating point dtype).
+            Must have shape matching self.shape. Complex inputs are not supported
+            as the monogenic transform is defined only for real-valued functions.
+
+        Returns
+        -------
+        tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]
+            Tuple of three real-valued arrays with shape matching self.shape:
+            - scalar: Original input f (unchanged)
+            - riesz_1: First Riesz component -R_1 f
+            - riesz_2: Second Riesz component -R_2 f
+
+        Raises
+        ------
+        ValueError
+            If input is complex-valued. Use forward() for complex inputs.
+        AssertionError
+            If input shape does not match self.shape.
+
+        Notes
+        -----
+        This method computes the monogenic signal directly using Riesz transforms
+        without performing the curvelet decomposition. It is mathematically equivalent
+        to backward_monogenic(forward_monogenic(f)) but computationally simpler.
+
+        The monogenic signal is defined as:
+        Mf = f + i(-R₁f) + j(-R₂f)
+
+        where R₁ and R₂ are the Riesz transforms. Since Python doesn't have native
+        quaternion types, this method returns the three components as a tuple.
+
+        References
+        ----------
+        .. [1] Storath, M., 2010, *The monogenic curvelet transform*: 2010 IEEE
+           International Conference on Image Processing.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64))
+        >>> data = np.random.randn(64, 64)
+        >>> scalar, riesz1, riesz2 = transform.monogenic(data)
+        >>> scalar.shape
+        (64, 64)
+        >>> np.allclose(data, scalar)
+        True
+        >>> # Verify it matches backward_monogenic(forward_monogenic(f))
+        >>> coeffs = transform.forward_monogenic(data)
+        >>> scalar2, riesz1_2, riesz2_2 = transform.backward_monogenic(coeffs)
+        >>> np.allclose(scalar, scalar2, atol=1e-4)
+        True
+        >>> np.allclose(riesz1, riesz1_2, atol=1e-4)
+        True
+        >>> np.allclose(riesz2, riesz2_2, atol=1e-4)
+        True
+        """
+        np.testing.assert_equal(self.shape, image.shape)
+
+        if np.iscomplexobj(image):
+            msg = (
+                "Monogenic transform requires real-valued input. "
+                "Got complex array. Use forward() for complex inputs."
+            )
+            raise ValueError(msg)
+
+        # Compute Riesz filters
+        riesz_filters_list = riesz_filters(self.shape)
+
+        # Compute FFT of input
+        image_frequency = np.fft.fftn(image)
+
+        # Compute Riesz components: -R₁f and -R₂f
+        riesz1 = -np.fft.ifftn(image_frequency * riesz_filters_list[0]).real
+        riesz2 = -np.fft.ifftn(image_frequency * riesz_filters_list[1]).real
+
+        # Preserve input dtype
+        real_dtype = image.dtype
+        riesz1 = riesz1.astype(real_dtype)
+        riesz2 = riesz2.astype(real_dtype)
+
+        return (image.copy(), riesz1, riesz2)

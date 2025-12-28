@@ -497,6 +497,14 @@ def _apply_forward_transform_monogenic(
     Each coefficient band produces three components: scalar (same as UDCT), Riesz_1,
     and Riesz_2.
 
+    .. note::
+        **2D Limitation**: The monogenic curvelet transform is mathematically
+        defined only for 2D signals according to Storath 2010. While this
+        implementation accepts arbitrary dimensions, only the first two Riesz
+        components (R_1 and R_2) are computed, which is correct only for 2D
+        inputs. For 3D or higher dimensions, the transform will only use R_1
+        and R_2, which may not provide a complete monogenic representation.
+
     Parameters
     ----------
     image : npt.NDArray[F]

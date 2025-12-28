@@ -63,7 +63,7 @@ Features
 +--------------------------+----------------------------+
 | Wavelet at highest scale |   ✅  [#wavelet-ftn]_      |
 +--------------------------+----------------------------+
-| Monogenic coefficients   |          ❌                |
+| Monogenic coefficients   |       ✅ [#monogenic-ftn]_ |
 +--------------------------+----------------------------+
 | PyTorch bindings         |          ❌                |
 +--------------------------+----------------------------+
@@ -71,6 +71,7 @@ Features
 .. [#real-ftn] Supports real inputs with reduced storage requirements which exploit the symmetry of the real-valued Fourier transform.
 .. [#asymmetric-ftn] The directional resolution is asymmetric in the sense that the number of wedges per direction is different for each direction. See :ref:`sphx_glr_auto_examples_plot_02_direction_resolution.py` for an example.
 .. [#wavelet-ftn] Isotropic wavelets are supported. See :ref:`sphx_glr_auto_examples_plot_05_curvelet_vs_wavelet.py` for an example.
+.. [#monogenic-ftn] The monogenic curvelet transform is only defined for 2D signals according to Storath 2010. While the implementation accepts arbitrary dimensions, only the first two Riesz components (R_1 and R_2) are used, which is mathematically correct only for 2D inputs.
 
 
 Credits
