@@ -71,7 +71,7 @@ from curvelets.plot import create_colorbar, despine
 
 shape = (256, 256)
 # Use smaller window overlap for better reconstruction accuracy
-transform = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, window_overlap=0.05)
+transform = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, window_overlap=0.1)
 
 # Create a delta function at the center to visualize the curvelet
 image = np.zeros(shape)
@@ -242,16 +242,11 @@ X, Y = np.meshgrid(x, y, indexing="ij")
 test_image = np.sin(20 * (X**2 + Y**2))
 
 # Method 1: Direct monogenic signal computation
-scalar_direct, riesz1_direct, riesz2_direct = transform_small_overlap.monogenic(test_image)
+scalar_direct, riesz1_direct, riesz2_direct = transform.monogenic(test_image)
 
-# Method 2: Round-trip through monogenic curvelet transform (with small overlap)
-coeffs = transform_small_overlap.forward_monogenic(test_image)
-scalar_round, riesz1_round, riesz2_round = transform_small_overlap.backward_monogenic(coeffs)
-
-# Also test with default overlap for comparison
-transform_default = UDCT(shape=shape, num_scales=3, wedges_per_direction=3)
-coeffs_default = transform_default.forward_monogenic(test_image)
-scalar_round_default, riesz1_round_default, riesz2_round_default = transform_default.backward_monogenic(coeffs_default)
+# Method 2: Round-trip through monogenic curvelet transform
+coeffs = transform.forward_monogenic(test_image)
+scalar_round, riesz1_round, riesz2_round = transform.backward_monogenic(coeffs)
 
 # %%
 # Scalar Component Comparison: f vs scalar
@@ -291,13 +286,14 @@ _, cb = create_colorbar(im=im, ax=axs[3])
 despine(axs[3])
 axs[3].set(title=f"Difference\nmax={vmax_diff:.4f}")
 
-plt.suptitle("Scalar Component: f vs backward_monogenic(forward_monogenic(f))[0]", y=1.02)
+plt.suptitle(
+    "Scalar Component: f vs backward_monogenic(forward_monogenic(f))[0]", y=1.02
+)
 plt.tight_layout()
 
 # Print statistics
 print("Scalar component comparison:")  # noqa: T201
-print(f"  Max diff (f vs scalar_round, overlap=0.05): {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(f"  Max diff (f vs scalar_round, default): {np.abs(test_image - scalar_round_default).max():.6e}")  # noqa: T201
+print(f"  Max diff (f vs scalar_round): {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
 print(f"  Ratio (scalar_round / f) at center: {scalar_round[128, 128] / test_image[128, 128]:.4f}")  # noqa: T201
 
 # %%
@@ -342,7 +338,10 @@ despine(axs[3])
 mean_ratio = np.mean(ratio[mask]) if mask.any() else 0
 axs[3].set(title=f"Ratio (round/direct)\nmean={mean_ratio:.4f}")
 
-plt.suptitle(r"Riesz_1 Component: $-R_1 f$ vs backward_monogenic(forward_monogenic(f))[1]", y=1.02)
+plt.suptitle(
+    r"Riesz_1 Component: $-R_1 f$ vs backward_monogenic(forward_monogenic(f))[1]",
+    y=1.02,
+)
 plt.tight_layout()
 
 # Print statistics
@@ -392,7 +391,10 @@ despine(axs[3])
 mean_ratio = np.mean(ratio[mask]) if mask.any() else 0
 axs[3].set(title=f"Ratio (round/direct)\nmean={mean_ratio:.4f}")
 
-plt.suptitle(r"Riesz_2 Component: $-R_2 f$ vs backward_monogenic(forward_monogenic(f))[2]", y=1.02)
+plt.suptitle(
+    r"Riesz_2 Component: $-R_2 f$ vs backward_monogenic(forward_monogenic(f))[2]",
+    y=1.02,
+)
 plt.tight_layout()
 
 # Print statistics
@@ -419,6 +421,7 @@ freq_scalar_round = np.fft.fftshift(np.fft.fft2(scalar_round))
 freq_r1_round = np.fft.fftshift(np.fft.fft2(riesz1_round))
 freq_r2_round = np.fft.fftshift(np.fft.fft2(riesz2_round))
 
+
 # Plot with log scale for better visualization
 def plot_freq(ax, data, title):
     """Plot frequency magnitude on log scale."""
@@ -428,6 +431,7 @@ def plot_freq(ax, data, title):
     create_colorbar(im=im, ax=ax)
     despine(ax)
     ax.set(title=title)
+
 
 plot_freq(axs[0, 0], freq_f, "FFT(f)\n(expected scalar)")
 plot_freq(axs[0, 1], freq_r1_direct, r"FFT($-R_1 f$)" + "\n(expected riesz1)")
@@ -463,7 +467,7 @@ scalar_coeffs_only = [
 ]
 
 # Apply standard backward to scalar-only coefficients
-recon_from_scalar = transform_small_overlap.backward(scalar_coeffs_only)
+recon_from_scalar = transform.backward(scalar_coeffs_only)
 
 fig, axs = plt.subplots(1, 4, figsize=(16, 4))
 
@@ -522,7 +526,7 @@ coeffs_scalar_only = [
     ]
     for scale in range(len(coeffs))
 ]
-f_recon = transform_small_overlap.backward(coeffs_scalar_only)
+f_recon = transform.backward(coeffs_scalar_only)
 
 # Apply Riesz transforms to reconstructed f
 filters = riesz_filters(shape)
@@ -533,14 +537,24 @@ riesz2_from_scalar = -np.fft.ifftn(f_fft * filters[1]).real
 # Compare with direct monogenic
 print("\nAlternative: Apply Riesz to reconstructed scalar:")  # noqa: T201
 print(f"  max|f_recon - f|: {np.abs(f_recon - test_image).max():.6e}")  # noqa: T201
-print(f"  max|-R₁f - riesz1_from_scalar|: {np.abs(riesz1_direct - riesz1_from_scalar).max():.6e}")  # noqa: T201
-print(f"  max|-R₂f - riesz2_from_scalar|: {np.abs(riesz2_direct - riesz2_from_scalar).max():.6e}")  # noqa: T201
+print(
+    f"  max|-R₁f - riesz1_from_scalar|: {np.abs(riesz1_direct - riesz1_from_scalar).max():.6e}"
+)  # noqa: T201
+print(
+    f"  max|-R₂f - riesz2_from_scalar|: {np.abs(riesz2_direct - riesz2_from_scalar).max():.6e}"
+)  # noqa: T201
 
 # Compare with backward_monogenic results
 print("\nComparison with backward_monogenic:")  # noqa: T201
-print(f"  Scalar: backward_monogenic error = {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(f"  Riesz1: backward_monogenic error = {np.abs(riesz1_direct - riesz1_round).max():.6e}")  # noqa: T201
-print(f"  Riesz2: backward_monogenic error = {np.abs(riesz2_direct - riesz2_round).max():.6e}")  # noqa: T201
+print(
+    f"  Scalar: backward_monogenic error = {np.abs(test_image - scalar_round).max():.6e}"
+)  # noqa: T201
+print(
+    f"  Riesz1: backward_monogenic error = {np.abs(riesz1_direct - riesz1_round).max():.6e}"
+)  # noqa: T201
+print(
+    f"  Riesz2: backward_monogenic error = {np.abs(riesz2_direct - riesz2_round).max():.6e}"
+)  # noqa: T201
 
 # %%
 # Cross-term Analysis
@@ -560,7 +574,9 @@ c0 = coeffs[scale_idx][dir_idx][wedge_idx][0]
 c1 = coeffs[scale_idx][dir_idx][wedge_idx][1]
 c2 = coeffs[scale_idx][dir_idx][wedge_idx][2]
 
-print(f"\nCoefficient magnitudes for scale={scale_idx}, dir={dir_idx}, wedge={wedge_idx}:")  # noqa: T201
+print(
+    f"\nCoefficient magnitudes for scale={scale_idx}, dir={dir_idx}, wedge={wedge_idx}:"
+)  # noqa: T201
 print(f"  |c₀| (scalar):  max={np.abs(c0).max():.6e}, mean={np.abs(c0).mean():.6e}")  # noqa: T201
 print(f"  |c₁| (riesz1):  max={np.abs(c1).max():.6e}, mean={np.abs(c1).mean():.6e}")  # noqa: T201
 print(f"  |c₂| (riesz2):  max={np.abs(c2).max():.6e}, mean={np.abs(c2).mean():.6e}")  # noqa: T201
@@ -574,15 +590,9 @@ print(f"  Ratio |c₂|/|c₀|: {np.abs(c2).mean() / np.abs(c0).mean():.6f}")  # 
 print("\n" + "=" * 60)  # noqa: T201
 print("SUMMARY: Component-by-Component Comparison")  # noqa: T201
 print("=" * 60)  # noqa: T201
-print(f"Window overlap = 0.05 (small):")  # noqa: T201
-print(f"  Scalar:  max|f - scalar_round| = {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(f"  Riesz1:  max|-R₁f - riesz1_round| = {np.abs(riesz1_direct - riesz1_round).max():.6e}")  # noqa: T201
-print(f"  Riesz2:  max|-R₂f - riesz2_round| = {np.abs(riesz2_direct - riesz2_round).max():.6e}")  # noqa: T201
-print()  # noqa: T201
-print(f"Window overlap = default (~0.15):")  # noqa: T201
-print(f"  Scalar:  max|f - scalar_round| = {np.abs(test_image - scalar_round_default).max():.6e}")  # noqa: T201
-print(f"  Riesz1:  max|-R₁f - riesz1_round| = {np.abs(riesz1_direct - riesz1_round_default).max():.6e}")  # noqa: T201
-print(f"  Riesz2:  max|-R₂f - riesz2_round| = {np.abs(riesz2_direct - riesz2_round_default).max():.6e}")  # noqa: T201
+print(f"Scalar:  max|f - scalar_round| = {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
+print(f"Riesz1:  max|-R₁f - riesz1_round| = {np.abs(riesz1_direct - riesz1_round).max():.6e}")  # noqa: T201
+print(f"Riesz2:  max|-R₂f - riesz2_round| = {np.abs(riesz2_direct - riesz2_round).max():.6e}")  # noqa: T201
 print()  # noqa: T201
 print("For consistency, all max differences should be < 1e-4")  # noqa: T201
 print("=" * 60)  # noqa: T201
