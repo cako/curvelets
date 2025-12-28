@@ -11,14 +11,9 @@ from curvelets.numpy import UDCT
 class TestFromSparseMethod:
     """Test suite for UDCT.from_sparse() method."""
 
-    def test_from_sparse(self, rng):
+    def test_from_sparse(self):
         """
         Test conversion from sparse to dense window representation.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
 
         Examples
         --------
@@ -57,14 +52,12 @@ class TestFromSparseMethod:
     @pytest.mark.parametrize(
         "dtype", [np.float32, np.float64, np.complex64, np.complex128]
     )
-    def test_from_sparse_different_dtypes(self, rng, dtype):
+    def test_from_sparse_different_dtypes(self, dtype):  # noqa: ARG002
         """
         Test from_sparse() with different dtypes.
 
         Parameters
         ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
         dtype : numpy.dtype
             Data type to test.
         """
@@ -80,14 +73,9 @@ class TestFromSparseMethod:
         _, val = sparse_window
         assert dense_window.dtype == val.dtype
 
-    def test_from_sparse_multiple_scales(self, rng):
+    def test_from_sparse_multiple_scales(self):
         """
         Test from_sparse() with windows from different scales.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
         """
         transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
 
@@ -111,14 +99,9 @@ class TestFromSparseMethod:
                     idx, val = sparse_window
                     np.testing.assert_array_equal(dense_window.flat[idx], val)
 
-    def test_from_sparse_3d(self, rng):
+    def test_from_sparse_3d(self):
         """
         Test from_sparse() with 3D transform.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
         """
         transform = UDCT(shape=(32, 32, 32), num_scales=2, wedges_per_direction=3)
 

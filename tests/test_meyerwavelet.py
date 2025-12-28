@@ -398,10 +398,7 @@ class TestMeyerWaveletRoundTrip:
         assert reconstructed.dtype == dtype
 
         # Verify reconstruction accuracy (tolerance depends on dtype)
-        if dtype in (np.float32, np.complex64):
-            atol = 1e-5
-        else:
-            atol = 1e-10
+        atol = 1e-5 if dtype in (np.float32, np.complex64) else 1e-10
         np.testing.assert_allclose(signal, reconstructed, atol=atol)
 
     def test_round_trip_2d(self, rng):
@@ -506,14 +503,9 @@ class TestMeyerWaveletRoundTrip:
 class TestMeyerWaveletInternal:
     """Test suite for internal methods."""
 
-    def test_filter_computation(self, rng):
+    def test_filter_computation(self):
         """
         Test _compute_single_filter() directly.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal_length = 64
@@ -532,14 +524,9 @@ class TestMeyerWaveletInternal:
         reconstruction_sum = np.abs(lowpass_filter) ** 2 + np.abs(highpass_filter) ** 2
         np.testing.assert_allclose(reconstruction_sum, 1.0, atol=1e-10)
 
-    def test_filter_initialization(self, rng):
+    def test_filter_initialization(self):
         """
         Test _initialize_filters() with different shapes.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
         """
         # Test with uniform shape (one filter size)
         wavelet1 = MeyerWavelet(shape=(64, 64))
