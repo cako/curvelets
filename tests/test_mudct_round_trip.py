@@ -25,7 +25,9 @@ def test_mudct_round_trip_absolute(dim, rng):
     components = transform._obj.backward_monogenic(coeffs)
 
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
 
     atol = 1e-4 if dim in {2, 3} else 1e-3
@@ -54,7 +56,9 @@ def test_mudct_round_trip_relative(dim, rng):
     components = transform._obj.backward_monogenic(coeffs)
 
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
 
     atol = 1e-4
@@ -78,7 +82,9 @@ def test_mudct_round_trip_parametrized(dim, shape_idx, rng):
     components = transform._obj.backward_monogenic(coeffs)
 
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
 
     atol = 1e-4 if dim in {2, 3} else 1e-3
@@ -116,7 +122,9 @@ def test_mudct_round_trip_wavelet_mode(dim, rng):
     components = transform.backward_monogenic(coeffs)
 
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
 
     # Verify structure: should have 3 scales
@@ -214,12 +222,16 @@ def test_mudct_amplitude_computation(dim, rng):
         for direction_coeffs in scale_coeffs:
             for wedge_coeffs in direction_coeffs:
                 # Verify correct number of components (ndim+1)
-                assert len(wedge_coeffs) == dim + 1, f"Expected {dim + 1} components, got {len(wedge_coeffs)}"
+                assert len(wedge_coeffs) == dim + 1, (
+                    f"Expected {dim + 1} components, got {len(wedge_coeffs)}"
+                )
                 scalar = wedge_coeffs[0]
                 riesz_components = wedge_coeffs[1:]
                 # Scalar is complex, Riesz components are real
                 # Amplitude: sqrt(|scalar|^2 + sum(riesz_k^2))
-                amplitude = np.sqrt(np.abs(scalar) ** 2 + sum(r**2 for r in riesz_components))
+                amplitude = np.sqrt(
+                    np.abs(scalar) ** 2 + sum(r**2 for r in riesz_components)
+                )
 
                 # Amplitude should be non-negative
                 assert np.all(amplitude >= 0), "Amplitude should be non-negative"
@@ -285,7 +297,9 @@ def test_mudct_reconstruction_vs_udct(dim, rng):
     coeffs_mono = transform.forward_monogenic(data)
     components = transform.backward_monogenic(coeffs_mono)
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
 
     # Both reconstructions should match input
@@ -325,7 +339,9 @@ def test_mudct_riesz_components_correctness(dim, rng):
     coeffs = transform.forward_monogenic(data)
     components = transform.backward_monogenic(coeffs)
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
     riesz1 = components[1] if len(components) > 1 else None
     riesz2 = components[2] if len(components) > 2 else None
@@ -371,14 +387,18 @@ def test_monogenic_matches_backward_monogenic(dim, rng):
     # Direct computation using monogenic method
     components_direct = transform.monogenic(data)
     # Verify correct number of components (ndim+1)
-    assert len(components_direct) == dim + 1, f"Expected {dim + 1} components, got {len(components_direct)}"
+    assert len(components_direct) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components_direct)}"
+    )
     scalar_direct = components_direct[0]
 
     # Round-trip through transform
     coeffs = transform.forward_monogenic(data)
     components_round = transform.backward_monogenic(coeffs)
     # Verify correct number of components (ndim+1)
-    assert len(components_round) == dim + 1, f"Expected {dim + 1} components, got {len(components_round)}"
+    assert len(components_round) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components_round)}"
+    )
     scalar_round = components_round[0]
 
     # Set tolerances based on dimension
@@ -420,13 +440,15 @@ def test_monogenic_riesz_components_correctness(dim, rng):
     # Get monogenic signal directly
     components = transform.monogenic(data)
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
 
     # Compute Riesz transforms directly
     filters = riesz_filters(size)
     data_fft = np.fft.fftn(data)
-    
+
     # Set tolerances based on dimension
     atol = 1e-4 if dim in {2, 3} else 1e-3
 
@@ -462,7 +484,9 @@ def test_monogenic_complex_input_rejection(dim, rng):
     transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
 
     # Should raise ValueError for complex input
-    with pytest.raises(ValueError, match="Monogenic transform requires real-valued input"):
+    with pytest.raises(
+        ValueError, match="Monogenic transform requires real-valued input"
+    ):
         transform.monogenic(data)
 
 
@@ -520,12 +544,22 @@ def test_monogenic_dtype_preservation(dim, dtype, rng):
 
     components = transform.monogenic(data)
     # Verify correct number of components (ndim+1)
-    assert len(components) == dim + 1, f"Expected {dim + 1} components, got {len(components)}"
+    assert len(components) == dim + 1, (
+        f"Expected {dim + 1} components, got {len(components)}"
+    )
     scalar = components[0]
     riesz1 = components[1] if len(components) > 1 else None
     riesz2 = components[2] if len(components) > 2 else None
 
     # Verify all output dtypes match input dtype
-    assert scalar.dtype == data.dtype, f"Scalar dtype {scalar.dtype} != input dtype {data.dtype}"
-    assert riesz1.dtype == data.dtype, f"Riesz1 dtype {riesz1.dtype} != input dtype {data.dtype}"
-    assert riesz2.dtype == data.dtype, f"Riesz2 dtype {riesz2.dtype} != input dtype {data.dtype}"
+    assert scalar.dtype == data.dtype, (
+        f"Scalar dtype {scalar.dtype} != input dtype {data.dtype}"
+    )
+    if riesz1 is not None:
+        assert riesz1.dtype == data.dtype, (
+            f"Riesz1 dtype {riesz1.dtype} != input dtype {data.dtype}"
+        )
+    if riesz2 is not None:
+        assert riesz2.dtype == data.dtype, (
+            f"Riesz2 dtype {riesz2.dtype} != input dtype {data.dtype}"
+        )

@@ -131,7 +131,6 @@ class UDCT:
             window_overlap=window_overlap,
             radial_frequency_params=radial_frequency_params,
             window_threshold=window_threshold,
-            high_frequency_mode=high_frequency_mode,
         )
 
         # Create ParamUDCT object
@@ -346,7 +345,7 @@ class UDCT:
         window_overlap: float | None,
         radial_frequency_params: tuple[float, float, float, float] | None,
         window_threshold: float,
-        high_frequency_mode: Literal["curvelet", "wavelet"],
+        _high_frequency_mode: Literal["curvelet", "wavelet"],
     ) -> dict[str, Any]:
         """
         Calculate all necessary parameters for UDCT initialization.
@@ -367,8 +366,6 @@ class UDCT:
             Radial frequency parameters.
         window_threshold : float
             Window threshold.
-        high_frequency_mode : str
-            High frequency mode.
 
         Returns
         -------
@@ -689,7 +686,7 @@ class UDCT:
             use_complex_transform=self.use_complex_transform,  # type: ignore[call-overload]
         )
 
-    def forward_monogenic(self, image: npt.NDArray[F]) -> MUDCTCoefficients:
+    def forward_monogenic(self, image: npt.NDArray[F]) -> MUDCTCoefficients:  # type: ignore[type-arg]
         """
         Apply forward monogenic curvelet transform.
 
@@ -700,7 +697,7 @@ class UDCT:
 
         The monogenic curvelet transform was originally defined for 2D signals by
         Storath 2010 using quaternions, but this implementation extends it to arbitrary
-        ND signals by using all Riesz transform components.
+        N-D signals by using all Riesz transform components.
 
         Parameters
         ----------
@@ -759,7 +756,8 @@ class UDCT:
         )
 
     def backward_monogenic(
-        self, coefficients: MUDCTCoefficients
+        self,
+        coefficients: MUDCTCoefficients,  # type: ignore[type-arg]
     ) -> tuple[npt.NDArray[F], ...]:
         """
         Apply backward monogenic curvelet transform (reconstruction).
@@ -770,7 +768,7 @@ class UDCT:
 
         The monogenic curvelet transform was originally defined for 2D signals by
         Storath 2010 using quaternions, but this implementation extends it to arbitrary
-        ND signals by using all Riesz transform components.
+        N-D signals by using all Riesz transform components.
 
         Parameters
         ----------
@@ -811,19 +809,17 @@ class UDCT:
             self.decimation_ratios,
         )
 
-    def monogenic(
-        self, image: npt.NDArray[F]
-    ) -> tuple[npt.NDArray[F], ...]:
+    def monogenic(self, image: npt.NDArray[F]) -> tuple[npt.NDArray[F], ...]:
         """
         Compute monogenic signal directly without curvelet transform.
 
         This method computes the monogenic signal Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
         directly from the input function without performing the curvelet transform.
         The monogenic signal provides a representation that enables meaningful
-        amplitude/phase decomposition for ND signals.
+        amplitude/phase decomposition for N-D signals.
 
         The monogenic signal was originally defined for 2D signals by Storath 2010
-        using quaternions, but this implementation extends it to arbitrary ND signals
+        using quaternions, but this implementation extends it to arbitrary N-D signals
         by using all Riesz transform components.
 
         Parameters
@@ -903,9 +899,9 @@ class UDCT:
         real_dtype = image.dtype
 
         # Compute all Riesz components: -Rₖf for k = 1, 2, ..., ndim
-        riesz_components = []
+        riesz_components: list[npt.NDArray[F]] = []
         for riesz_filter in riesz_filters_list:
             riesz_k = -np.fft.ifftn(image_frequency * riesz_filter).real
             riesz_components.append(riesz_k.astype(real_dtype))
 
-        return (image.copy(),) + tuple(riesz_components)
+        return (image.copy(), *tuple(riesz_components))

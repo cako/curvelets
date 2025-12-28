@@ -8,7 +8,7 @@ def riesz_filters(shape: tuple[int, ...]) -> list[npt.NDArray[np.complexfloating
     """
     Create Riesz transform filters in frequency domain.
 
-    The Riesz transform is an ND generalization of the Hilbert transform,
+    The Riesz transform is an N-D generalization of the Hilbert transform,
     defined componentwise in the frequency domain as:
     R_k(f)(xi) = i * (xi_k / |xi|) * f_hat(xi)
 
@@ -40,8 +40,6 @@ def riesz_filters(shape: tuple[int, ...]) -> list[npt.NDArray[np.complexfloating
     >>> filters[0][0, 0]
     0j
     """
-    dimension = len(shape)
-
     # Create frequency grids for each dimension
     # Using fftfreq to get FFT frequency coordinates (in cycles per sample)
     # Convert to radians by multiplying by 2*pi to match continuous Riesz transform definition

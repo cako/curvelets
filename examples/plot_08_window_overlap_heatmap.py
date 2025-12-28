@@ -161,10 +161,7 @@ for i in range(len(wedges_range)):
     for j in range(len(alpha_range)):
         error_val = error_matrix[i, j]
         # Format as scientific notation for small values
-        if error_val < 1e-3:
-            label = f"{error_val:.1e}"
-        else:
-            label = f"{error_val:.3f}"
+        label = f"{error_val:.1e}" if error_val < 0.001 else f"{error_val:.3f}"
         # Choose text color based on background brightness
         text_color = "white" if error_val > 0.01 else "black"
         ax.text(j, i, label, ha="center", va="center", color=text_color, fontsize=7)

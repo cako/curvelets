@@ -454,12 +454,14 @@ def _process_wedge_monogenic(
     real_dtype = np.real(np.empty(0, dtype=complex_dtype)).dtype
 
     # Process all Riesz components
-    riesz_coeffs = []
+    riesz_coeffs: list[npt.NDArray[F]] = []
     for riesz_filter in riesz_filters_list:
         freq_band.fill(0)
         # Apply window and Riesz filter
         freq_band.flat[idx] = (
-            image_frequency.flat[idx] * val.astype(complex_dtype) * riesz_filter.flat[idx]
+            image_frequency.flat[idx]
+            * val.astype(complex_dtype)
+            * riesz_filter.flat[idx]
         )
         curvelet_band_riesz = np.fft.ifftn(freq_band)
         coeff_riesz = downsample(curvelet_band_riesz, decimation_ratio)
@@ -469,7 +471,7 @@ def _process_wedge_monogenic(
 
     # Return list: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
     # Scalar is kept as complex (matches UDCT behavior)
-    return [coeff_scalar] + riesz_coeffs
+    return [coeff_scalar, *riesz_coeffs]
 
 
 def _apply_forward_transform_monogenic(
@@ -488,9 +490,9 @@ def _apply_forward_transform_monogenic(
 
     The monogenic curvelet transform was originally defined for 2D signals by
     Storath 2010 using quaternions, but this implementation extends it to arbitrary
-    ND signals by using all Riesz transform components. The reconstruction uses the
+    N-D signals by using all Riesz transform components. The reconstruction uses the
     discrete tight frame property of UDCT rather than quaternion multiplication,
-    making the ND extension straightforward.
+    making the N-D extension straightforward.
 
     Parameters
     ----------
@@ -597,7 +599,7 @@ def _apply_forward_transform_monogenic(
     real_dtype = np.real(np.empty(0, dtype=complex_dtype)).dtype
 
     # Process all Riesz components for low frequency
-    low_freq_riesz_coeffs = []
+    low_freq_riesz_coeffs: list[npt.NDArray[F]] = []
     for riesz_filter in riesz_filters_list:
         frequency_band.fill(0)
         frequency_band.flat[idx] = (
@@ -613,11 +615,11 @@ def _apply_forward_transform_monogenic(
 
     # Build list: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
     # Scalar is kept as complex (matches UDCT behavior)
-    low_freq_coeff = [low_freq_coeff_scalar] + low_freq_riesz_coeffs
+    low_freq_coeff = [low_freq_coeff_scalar, *low_freq_riesz_coeffs]
 
     # High-frequency bands using nested list comprehensions
     # Build entire structure with list comprehensions
-    coefficients: MUDCTCoefficients = [
+    coefficients: MUDCTCoefficients = [  # type: ignore[type-arg]
         [[low_freq_coeff]]  # Scale 0: 1 direction, 1 wedge
     ] + [
         [

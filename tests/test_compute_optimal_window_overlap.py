@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from curvelets.numpy import UDCT
 
@@ -166,14 +165,9 @@ class TestAutoWindowOverlapIntegration:
         error = np.max(np.abs(data - recon))
         assert error < 1e-3, f"Reconstruction error too high: {error}"
 
-    def test_explicit_overlap_overrides_auto(self, rng):
+    def test_explicit_overlap_overrides_auto(self):
         """
         Test that explicit window_overlap overrides auto computation.
-
-        Parameters
-        ----------
-        rng : numpy.random.Generator
-            Random number generator fixture.
         """
         explicit_overlap = 0.2
         transform = UDCT(
@@ -196,9 +190,7 @@ class TestAutoWindowOverlapIntegration:
             Random number generator fixture.
         """
         for wpd in [3, 6, 12]:
-            transform = UDCT(
-                shape=(64, 64), num_scales=3, wedges_per_direction=wpd
-            )
+            transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=wpd)
             data = rng.standard_normal((64, 64))
             coeffs = transform.forward(data)
             recon = transform.backward(coeffs)

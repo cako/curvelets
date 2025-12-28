@@ -31,11 +31,13 @@ backward transform, and cross-term analysis to understand the reconstruction beh
 from __future__ import annotations
 
 # %%
+from typing import Any
+
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
 from curvelets.numpy import UDCT
-from curvelets.numpy._riesz import riesz_filters
 from curvelets.plot import create_colorbar, despine
 
 # %%
@@ -133,9 +135,9 @@ plt.tight_layout()
 # Print statistics
 print("Scalar component comparison:")  # noqa: T201
 print(f"  Max diff (f vs scalar_round): {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(
+print(  # noqa: T201
     f"  Ratio (scalar_round / f) at center: {scalar_round[128, 128] / test_image[128, 128]:.4f}"
-)  # noqa: T201
+)
 
 # %%
 # -R₁f vs riesz1
@@ -234,7 +236,7 @@ freq_r2_round = np.fft.fftshift(np.fft.fft2(riesz2_round))
 
 
 # Plot with log scale for better visualization
-def plot_freq(ax, data, title):
+def plot_freq(ax: Any, data: npt.NDArray[np.complexfloating], title: str) -> None:
     """Plot frequency magnitude on log scale."""
     mag = np.abs(data)
     mag[mag < 1e-10] = 1e-10  # Avoid log(0)
@@ -336,9 +338,9 @@ c0 = coeffs[scale_idx][dir_idx][wedge_idx][0]
 c1 = coeffs[scale_idx][dir_idx][wedge_idx][1]
 c2 = coeffs[scale_idx][dir_idx][wedge_idx][2]
 
-print(
+print(  # noqa: T201
     f"\nCoefficient magnitudes for scale={scale_idx}, dir={dir_idx}, wedge={wedge_idx}:"
-)  # noqa: T201
+)
 print(f"  |c₀| (scalar):  max={np.abs(c0).max():.6e}, mean={np.abs(c0).mean():.6e}")  # noqa: T201
 print(f"  |c₁| (riesz1):  max={np.abs(c1).max():.6e}, mean={np.abs(c1).mean():.6e}")  # noqa: T201
 print(f"  |c₂| (riesz2):  max={np.abs(c2).max():.6e}, mean={np.abs(c2).mean():.6e}")  # noqa: T201
@@ -357,10 +359,10 @@ print("\n" + "=" * 60)  # noqa: T201
 print("SUMMARY: Component-by-Component Comparison")  # noqa: T201
 print("=" * 60)  # noqa: T201
 print(f"Scalar:  max|f - scalar_round| = {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(
+print(  # noqa: T201
     f"Riesz1:  max|-R₁f - riesz1_round| = {np.abs(riesz1_direct - riesz1_round).max():.6e}"
-)  # noqa: T201
-print(
+)
+print(  # noqa: T201
     f"Riesz2:  max|-R₂f - riesz2_round| = {np.abs(riesz2_direct - riesz2_round).max():.6e}"
-)  # noqa: T201
+)
 print("=" * 60)  # noqa: T201

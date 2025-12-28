@@ -47,7 +47,7 @@ meaningful phase/amplitude analysis at all scales.
 .. note::
    The monogenic curvelet transform was originally defined for 2D signals by
    :cite:`Storath2010` using quaternions, but this implementation extends it to
-   arbitrary ND signals by using all Riesz transform components (one per dimension).
+   arbitrary N-D signals by using all Riesz transform components (one per dimension).
 """
 
 from __future__ import annotations
@@ -55,7 +55,6 @@ from __future__ import annotations
 # %%
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import ticker
 
 from curvelets.numpy import UDCT
 from curvelets.numpy._riesz import riesz_filters

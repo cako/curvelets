@@ -75,7 +75,9 @@ def _process_wedge_backward_monogenic(
         # Undo normalization
         curvelet_band_riesz /= norm_factor
         # Transform to frequency domain
-        curvelet_freq_riesz = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band_riesz)
+        curvelet_freq_riesz = np.prod(decimation_ratio) * np.fft.fftn(
+            curvelet_band_riesz
+        )
         # Initialize contribution array and apply window
         contribution_riesz = np.zeros(curvelet_freq_riesz.shape, dtype=complex_dtype)
         contribution_riesz.flat[idx] = curvelet_freq_riesz.flat[idx] * window_values
@@ -85,7 +87,7 @@ def _process_wedge_backward_monogenic(
 
 
 def _apply_backward_transform_monogenic(
-    coefficients: MUDCTCoefficients,
+    coefficients: MUDCTCoefficients,  # type: ignore[type-arg]
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[IntegerNDArray],
@@ -97,7 +99,7 @@ def _apply_backward_transform_monogenic(
     continuous quaternion formula from Storath 2010. The result satisfies:
     backward_monogenic(forward_monogenic(f)) ≈ monogenic(f)
 
-    Where monogenic(f) = (f, -R₁f, -R₂f, ..., -Rₙf) for ND signals.
+    Where monogenic(f) = (f, -R₁f, -R₂f, ..., -Rₙf) for N-D signals.
 
     The reconstruction uses the partition of unity property:
     - scalar: ∑ c₀ · W = f
@@ -105,7 +107,7 @@ def _apply_backward_transform_monogenic(
 
     The monogenic curvelet transform was originally defined for 2D signals by
     Storath 2010 using quaternions, but this implementation extends it to arbitrary
-    ND signals by using all Riesz transform components.
+    N-D signals by using all Riesz transform components.
 
     Parameters
     ----------
@@ -135,8 +137,7 @@ def _apply_backward_transform_monogenic(
 
     # Initialize frequency domain arrays for all components dynamically
     image_frequencies = [
-        np.zeros(parameters.shape, dtype=complex_dtype)
-        for _ in range(num_components)
+        np.zeros(parameters.shape, dtype=complex_dtype) for _ in range(num_components)
     ]
 
     # Process high-frequency bands
@@ -176,15 +177,20 @@ def _apply_backward_transform_monogenic(
                     idx, _ = window
                     if scale_idx == highest_scale_idx:
                         for comp_idx, contrib in enumerate(contributions):
-                            image_frequencies_wavelet[comp_idx].flat[idx] += contrib.flat[idx]
+                            image_frequencies_wavelet[comp_idx].flat[idx] += (
+                                contrib.flat[idx]
+                            )
                     else:
                         for comp_idx, contrib in enumerate(contributions):
-                            image_frequencies_other[comp_idx].flat[idx] += contrib.flat[idx]
+                            image_frequencies_other[comp_idx].flat[idx] += contrib.flat[
+                                idx
+                            ]
 
         # Combine with factor of 2 for real transform mode
         for comp_idx in range(num_components):
             image_frequencies[comp_idx] = (
-                2 * image_frequencies_other[comp_idx] + image_frequencies_wavelet[comp_idx]
+                2 * image_frequencies_other[comp_idx]
+                + image_frequencies_wavelet[comp_idx]
             )
     else:
         # Normal curvelet mode
@@ -241,20 +247,20 @@ def _apply_backward_transform_monogenic(
         curvelet_freq_riesz = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(
             curvelet_band_riesz
         )
-        image_frequencies[comp_idx].flat[idx] += curvelet_freq_riesz.flat[idx] * window_values
+        image_frequencies[comp_idx].flat[idx] += (
+            curvelet_freq_riesz.flat[idx] * window_values
+        )
 
     # Transform back to spatial domain and take real part
     results = []
-    scalar: npt.NDArray[F] = np.fft.ifftn(image_frequencies[0]).real.astype(
-        real_dtype
-    )  # type: ignore[assignment]
+    scalar: npt.NDArray[F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
     results.append(scalar)
 
     # Negate Riesz components: forward computes Rₖf, we want -Rₖf
     for comp_idx in range(1, num_components):
-        riesz_k: npt.NDArray[F] = -np.fft.ifftn(image_frequencies[comp_idx]).real.astype(
-            real_dtype
-        )  # type: ignore[assignment]
+        riesz_k: npt.NDArray[F] = -np.fft.ifftn(
+            image_frequencies[comp_idx]
+        ).real.astype(real_dtype)
         results.append(riesz_k)
 
     return tuple(results)
