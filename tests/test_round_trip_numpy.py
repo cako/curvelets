@@ -337,3 +337,202 @@ def test_numpy_round_trip_complex_input_relative(dim, rng):
 
     atol = 1e-4
     np.testing.assert_allclose(data, recon, atol=atol * np.abs(data).max())
+
+
+# ============================================================================
+# Backward transform edge cases: decimation ratio handling
+# ============================================================================
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_backward_decimation_ratio_single_direction(dim, rng):
+    """
+    Test backward transform when decimation_ratios has shape[0] == 1.
+
+    This occurs in "wavelet" mode at the highest scale where all directions
+    share the same decimation ratio (decimation=1).
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet"
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with wavelet mode (triggers shape[0] == 1 at highest scale)
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+    )
+
+    # Verify decimation_ratios at highest scale has shape[0] == 1
+    highest_scale_idx = 2
+    assert transform.decimation_ratios[highest_scale_idx].shape[0] == 1, (
+        "Expected decimation_ratios[highest_scale_idx].shape[0] == 1 in wavelet mode"
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify reconstruction accuracy
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon, atol=atol)
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_backward_complex_decimation_ratio_single(dim, rng):
+    """
+    Test complex backward transform with single decimation ratio (shape[0] == 1).
+
+    This tests the edge case in complex transform mode where decimation_ratios
+    has shape[0] == 1, which occurs in wavelet mode at the highest scale.
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     high_frequency_mode="wavelet",
+    ...     use_complex_transform=True
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon.real, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with wavelet mode and complex transform
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+        use_complex_transform=True,
+    )
+
+    # Verify decimation_ratios at highest scale has shape[0] == 1
+    highest_scale_idx = 2
+    assert transform.decimation_ratios[highest_scale_idx].shape[0] == 1, (
+        "Expected decimation_ratios[highest_scale_idx].shape[0] == 1 in wavelet mode"
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify reconstruction accuracy
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon.real, atol=atol)
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize("dim", [2, 3, 4])
+def test_backward_complex_decimation_ratio_multi(dim, rng):
+    """
+    Test complex backward transform with multiple decimation ratios.
+
+    This tests the normal case where decimation_ratios has shape[0] > 1,
+    meaning different directions have different decimation ratios.
+
+    Parameters
+    ----------
+    dim : int
+        Dimension (2, 3, or 4).
+    rng : numpy.random.Generator
+        Random number generator fixture.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from curvelets.numpy import UDCT
+    >>> transform = UDCT(
+    ...     shape=(64, 64),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
+    ...     use_complex_transform=True
+    ... )
+    >>> data = np.random.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> np.allclose(data, recon.real, atol=1e-4)
+    True
+    """
+    from curvelets.numpy import UDCT
+
+    shapes = get_test_shapes(dim)
+    if not shapes:
+        pytest.skip(f"No test shapes defined for dimension {dim}")
+
+    size = shapes[0]
+    data = rng.normal(size=size).astype(np.float64)
+
+    # Create transform with complex transform (normal mode, not wavelet)
+    transform = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        use_complex_transform=True,
+    )
+
+    # Verify decimation_ratios at scale 1 has shape[0] > 1 (multiple directions)
+    scale_idx = 1
+    assert transform.decimation_ratios[scale_idx].shape[0] > 1, (
+        "Expected decimation_ratios[scale_idx].shape[0] > 1 in normal mode"
+    )
+
+    # Test forward and backward transform
+    coeffs = transform.forward(data)
+    recon = transform.backward(coeffs)
+
+    # Verify reconstruction accuracy
+    atol = 1e-4 if dim == 2 else 2e-4
+    np.testing.assert_allclose(data, recon.real, atol=atol)
