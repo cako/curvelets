@@ -22,16 +22,22 @@ if sys.version_info <= (3, 9):
     UDCTWindows: TypeAlias = List[  # noqa: UP006
         List[List[Tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]  # noqa: UP006
     ]
+    # MUDCTCoefficients: variable-length list structure
+    # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
+    # where scalar is complex, all riesz components are real
     MUDCTCoefficients: TypeAlias = List[  # noqa: UP006
-        List[List[Tuple[npt.NDArray[np.complexfloating], npt.NDArray[F], npt.NDArray[F]]]]  # noqa: UP006
+        List[List[List[npt.NDArray[np.complexfloating | F]]]]  # noqa: UP006
     ]
 else:
     UDCTCoefficients: TypeAlias = list[list[list[npt.NDArray[np.complexfloating]]]]
     UDCTWindows: TypeAlias = list[
         list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
     ]
+    # MUDCTCoefficients: variable-length list structure
+    # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
+    # where scalar is complex, all riesz components are real
     MUDCTCoefficients: TypeAlias = list[
-        list[list[tuple[npt.NDArray[np.complexfloating], npt.NDArray[F], npt.NDArray[F]]]]
+        list[list[list[npt.NDArray[np.complexfloating | F]]]]
     ]
 
 # C: Complex floating point types

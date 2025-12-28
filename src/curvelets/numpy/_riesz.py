@@ -8,16 +8,9 @@ def riesz_filters(shape: tuple[int, ...]) -> list[npt.NDArray[np.complexfloating
     """
     Create Riesz transform filters in frequency domain.
 
-    The Riesz transform is a 2D generalization of the Hilbert transform,
+    The Riesz transform is an ND generalization of the Hilbert transform,
     defined componentwise in the frequency domain as:
     R_k(f)(xi) = i * (xi_k / |xi|) * f_hat(xi)
-
-    .. note::
-        **Monogenic Transform Limitation**: The monogenic curvelet transform
-        (as defined by Storath 2010) uses only the first two Riesz components
-        (R_1 and R_2) and is mathematically defined only for 2D signals.
-        While this function creates filters for all dimensions, only R_1 and R_2
-        are used in the monogenic transform implementation.
 
     Parameters
     ----------

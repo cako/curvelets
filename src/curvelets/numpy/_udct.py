@@ -694,17 +694,13 @@ class UDCT:
         Apply forward monogenic curvelet transform.
 
         This method applies the monogenic extension to the curvelet transform,
-        producing quaternion-like coefficients with three components per band:
-        scalar (same as standard UDCT), Riesz_1, and Riesz_2. This enables
+        producing coefficients with ndim+1 components per band: scalar (same as
+        standard UDCT) plus all Riesz components (one per dimension). This enables
         meaningful amplitude/phase decomposition over all scales.
 
-        .. note::
-            **2D Limitation**: The monogenic curvelet transform is mathematically
-            defined only for 2D signals according to Storath 2010. While this
-            implementation accepts arbitrary dimensions, only the first two Riesz
-            components (R_1 and R_2) are computed, which is correct only for 2D
-            inputs. For 3D or higher dimensions, the transform will only use R_1
-            and R_2, which may not provide a complete monogenic representation.
+        The monogenic curvelet transform was originally defined for 2D signals by
+        Storath 2010 using quaternions, but this implementation extends it to arbitrary
+        ND signals by using all Riesz transform components.
 
         Parameters
         ----------
@@ -716,12 +712,11 @@ class UDCT:
         Returns
         -------
         MUDCTCoefficients
-            Quaternion-like coefficients as nested list structure with tuples
-            of 3 arrays: (scalar_component, riesz_1_component, riesz_2_component).
-            Structure: coefficients[scale][direction][wedge] = (coeff_0, coeff_1, coeff_2)
+            Monogenic coefficients as nested list structure with lists of ndim+1 arrays.
+            Structure: coefficients[scale][direction][wedge] = [coeff_0, coeff_1, ..., coeff_ndim]
             where:
             - coeff_0 (scalar): Complex array (matches UDCT behavior in real transform mode)
-            - coeff_1, coeff_2 (Riesz): Real arrays
+            - coeff_k (Riesz): Real arrays for k = 1, 2, ..., ndim
 
         Raises
         ------
@@ -737,13 +732,15 @@ class UDCT:
         >>> coeffs = transform.forward_monogenic(data)
         >>> len(coeffs)  # Number of scales
         4
-        >>> isinstance(coeffs[0][0][0], tuple)  # Each coefficient is a tuple
+        >>> isinstance(coeffs[0][0][0], list)  # Each coefficient is a list
         True
-        >>> len(coeffs[0][0][0])  # Tuple has 3 components
+        >>> len(coeffs[0][0][0])  # List has ndim+1 components (3 for 2D)
         3
         >>> # Compute amplitude
-        >>> scalar, riesz1, riesz2 = coeffs[1][0][0]
-        >>> amplitude = np.sqrt(scalar**2 + riesz1**2 + riesz2**2)
+        >>> components = coeffs[1][0][0]
+        >>> scalar = components[0]
+        >>> riesz_components = components[1:]
+        >>> amplitude = np.sqrt(np.abs(scalar)**2 + sum(r**2 for r in riesz_components))
         """
         np.testing.assert_equal(self.shape, image.shape)
 
@@ -763,38 +760,30 @@ class UDCT:
 
     def backward_monogenic(
         self, coefficients: MUDCTCoefficients
-    ) -> tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]:
+    ) -> tuple[npt.NDArray[F], ...]:
         """
         Apply backward monogenic curvelet transform (reconstruction).
 
-        This method implements the full reproducing formula from Storath 2010:
-        M_f(x) = ∫ M_f(a,b,θ) · M_β_{abθ}(x) db dθ da/a³
+        This method uses the discrete tight frame property of UDCT rather than the
+        continuous quaternion formula from Storath 2010. The reconstruction uses the
+        partition of unity property, making each component independently reconstructable.
 
-        The quaternion multiplication expands to three components:
-        - Scalar: c₀·β - c₁·R₁β - c₂·R₂β → reconstructs f
-        - Riesz_1: -c₀·R₁β + c₁·β → reconstructs -R₁f
-        - Riesz_2: -c₀·R₂β + c₂·β → reconstructs -R₂f
-
-        .. note::
-            **2D Limitation**: The monogenic curvelet transform is mathematically
-            defined only for 2D signals according to Storath 2010. While this
-            implementation accepts arbitrary dimensions, only the first two Riesz
-            components (R_1 and R_2) are used in the reconstruction, which is
-            correct only for 2D inputs.
+        The monogenic curvelet transform was originally defined for 2D signals by
+        Storath 2010 using quaternions, but this implementation extends it to arbitrary
+        ND signals by using all Riesz transform components.
 
         Parameters
         ----------
         coefficients : MUDCTCoefficients
             Monogenic curvelet coefficients from forward_monogenic().
-            Structure: coefficients[scale][direction][wedge] = (coeff_0, coeff_1, coeff_2)
+            Structure: coefficients[scale][direction][wedge] = [coeff_0, coeff_1, ..., coeff_ndim]
 
         Returns
         -------
-        tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]
-            Tuple of three real-valued arrays with shape matching self.shape:
-            - scalar: Original input f (reconstructed using full reproducing formula)
-            - riesz_1: First Riesz component -R_1 f
-            - riesz_2: Second Riesz component -R_2 f
+        tuple[npt.NDArray[F], ...]
+            Tuple of ndim+1 real-valued arrays with shape matching self.shape:
+            - scalar: Original input f
+            - riesz_k: -R_k f for k = 1, 2, ..., ndim
 
         Examples
         --------
@@ -803,7 +792,8 @@ class UDCT:
         >>> transform = UDCT(shape=(64, 64))
         >>> data = np.random.randn(64, 64)
         >>> coeffs = transform.forward_monogenic(data)
-        >>> scalar, riesz1, riesz2 = transform.backward_monogenic(coeffs)
+        >>> components = transform.backward_monogenic(coeffs)
+        >>> scalar = components[0]
         >>> np.allclose(data, scalar, atol=1e-4)
         True
         >>> # Verify Riesz components match direct Riesz transform
@@ -811,7 +801,7 @@ class UDCT:
         >>> filters = riesz_filters((64, 64))
         >>> data_fft = np.fft.fftn(data)
         >>> riesz1_direct = np.fft.ifftn(data_fft * filters[0]).real
-        >>> np.allclose(-riesz1_direct, riesz1, atol=1e-4)
+        >>> np.allclose(-riesz1_direct, components[1], atol=1e-4)
         True
         """
         return _apply_backward_transform_monogenic(
@@ -823,22 +813,18 @@ class UDCT:
 
     def monogenic(
         self, image: npt.NDArray[F]
-    ) -> tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]:
+    ) -> tuple[npt.NDArray[F], ...]:
         """
         Compute monogenic signal directly without curvelet transform.
 
-        This method computes the monogenic signal Mf = f + i(-R₁f) + j(-R₂f)
+        This method computes the monogenic signal Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
         directly from the input function without performing the curvelet transform.
-        The monogenic signal provides a quaternion-like representation that enables
-        meaningful amplitude/phase decomposition.
+        The monogenic signal provides a representation that enables meaningful
+        amplitude/phase decomposition for ND signals.
 
-        .. note::
-            **2D Limitation**: The monogenic signal is mathematically defined only
-            for 2D signals according to Storath 2010. While this implementation
-            accepts arbitrary dimensions, only the first two Riesz components (R_1
-            and R_2) are computed, which is correct only for 2D inputs. For 3D or
-            higher dimensions, the transform will only use R_1 and R_2, which may
-            not provide a complete monogenic representation.
+        The monogenic signal was originally defined for 2D signals by Storath 2010
+        using quaternions, but this implementation extends it to arbitrary ND signals
+        by using all Riesz transform components.
 
         Parameters
         ----------
@@ -849,11 +835,10 @@ class UDCT:
 
         Returns
         -------
-        tuple[npt.NDArray[F], npt.NDArray[F], npt.NDArray[F]]
-            Tuple of three real-valued arrays with shape matching self.shape:
+        tuple[npt.NDArray[F], ...]
+            Tuple of ndim+1 real-valued arrays with shape matching self.shape:
             - scalar: Original input f (unchanged)
-            - riesz_1: First Riesz component -R_1 f
-            - riesz_2: Second Riesz component -R_2 f
+            - riesz_k: -R_k f for k = 1, 2, ..., ndim
 
         Raises
         ------
@@ -869,10 +854,10 @@ class UDCT:
         to backward_monogenic(forward_monogenic(f)) but computationally simpler.
 
         The monogenic signal is defined as:
-        Mf = f + i(-R₁f) + j(-R₂f)
+        Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
 
-        where R₁ and R₂ are the Riesz transforms. Since Python doesn't have native
-        quaternion types, this method returns the three components as a tuple.
+        where R₁, R₂, ..., Rₙ are the Riesz transforms. Since Python doesn't have native
+        quaternion or Clifford algebra types, this method returns the components as a tuple.
 
         References
         ----------
@@ -885,19 +870,18 @@ class UDCT:
         >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64))
         >>> data = np.random.randn(64, 64)
-        >>> scalar, riesz1, riesz2 = transform.monogenic(data)
+        >>> components = transform.monogenic(data)
+        >>> scalar = components[0]
         >>> scalar.shape
         (64, 64)
         >>> np.allclose(data, scalar)
         True
         >>> # Verify it matches backward_monogenic(forward_monogenic(f))
         >>> coeffs = transform.forward_monogenic(data)
-        >>> scalar2, riesz1_2, riesz2_2 = transform.backward_monogenic(coeffs)
-        >>> np.allclose(scalar, scalar2, atol=1e-4)
+        >>> components2 = transform.backward_monogenic(coeffs)
+        >>> np.allclose(scalar, components2[0], atol=1e-4)
         True
-        >>> np.allclose(riesz1, riesz1_2, atol=1e-4)
-        True
-        >>> np.allclose(riesz2, riesz2_2, atol=1e-4)
+        >>> np.allclose(components[1], components2[1], atol=1e-4)
         True
         """
         np.testing.assert_equal(self.shape, image.shape)
@@ -915,13 +899,13 @@ class UDCT:
         # Compute FFT of input
         image_frequency = np.fft.fftn(image)
 
-        # Compute Riesz components: -R₁f and -R₂f
-        riesz1 = -np.fft.ifftn(image_frequency * riesz_filters_list[0]).real
-        riesz2 = -np.fft.ifftn(image_frequency * riesz_filters_list[1]).real
-
         # Preserve input dtype
         real_dtype = image.dtype
-        riesz1 = riesz1.astype(real_dtype)
-        riesz2 = riesz2.astype(real_dtype)
 
-        return (image.copy(), riesz1, riesz2)
+        # Compute all Riesz components: -Rₖf for k = 1, 2, ..., ndim
+        riesz_components = []
+        for riesz_filter in riesz_filters_list:
+            riesz_k = -np.fft.ifftn(image_frequency * riesz_filter).real
+            riesz_components.append(riesz_k.astype(real_dtype))
+
+        return (image.copy(),) + tuple(riesz_components)

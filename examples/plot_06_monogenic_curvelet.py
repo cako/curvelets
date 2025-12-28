@@ -45,10 +45,9 @@ This amplitude provides a scale-invariant measure of local structure, enabling
 meaningful phase/amplitude analysis at all scales.
 
 .. note::
-   The monogenic curvelet transform is mathematically defined only for 2D signals
-   according to :cite:`Storath2010`. While the implementation accepts arbitrary
-   dimensions, only the first two Riesz components (R_1 and R_2) are computed,
-   which is correct only for 2D inputs.
+   The monogenic curvelet transform was originally defined for 2D signals by
+   :cite:`Storath2010` using quaternions, but this implementation extends it to
+   arbitrary ND signals by using all Riesz transform components (one per dimension).
 """
 
 from __future__ import annotations
