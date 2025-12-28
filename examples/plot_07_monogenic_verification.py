@@ -45,9 +45,7 @@ from curvelets.plot import create_colorbar, despine
 # Create a UDCT transform and a test image for verification.
 
 shape = (256, 256)
-# Use optimal window_overlap for wedges_per_direction=3 (per Nguyen & Chauris 2010)
-# The overlap must satisfy: (2^(scale/num_wedges))(1+2a)(1+a) < num_wedges
-transform = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, window_overlap=0.15)
+transform = UDCT(shape=shape, num_scales=3, wedges_per_direction=3)
 
 # Create a test image (zone plate for interesting structure)
 # with a window that decays to zero at the edges
