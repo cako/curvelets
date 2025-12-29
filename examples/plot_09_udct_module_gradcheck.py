@@ -105,6 +105,7 @@ output = udct_module(input_tensor)
 #
 # - Forward pass: Uses forward transform to compute coefficients
 # - Backward pass: Automatically uses backward transform to compute gradients
+#
 # This happens transparently through PyTorch's autograd system.
 #
 # Compute a simple operation on the coefficients (use abs to ensure real scalar)
