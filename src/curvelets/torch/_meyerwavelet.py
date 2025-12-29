@@ -252,14 +252,14 @@ class MeyerWavelet:
         is_complex_input = signal.is_complex()
 
         # Transform to frequency domain
-        signal_frequency_domain = torch.fft.fft(signal, dim=last_axis_index)
+        signal_frequency_domain = torch.fft.fft(signal, dim=last_axis_index)  # pylint: disable=not-callable
 
         # Apply filters and transform back
-        lowpass_full_resolution = torch.fft.ifft(
+        lowpass_full_resolution = torch.fft.ifft(  # pylint: disable=not-callable
             lowpass_filter.to(signal_frequency_domain.dtype) * signal_frequency_domain,
             dim=last_axis_index,
         )
-        highpass_full_resolution = torch.fft.ifft(
+        highpass_full_resolution = torch.fft.ifft(  # pylint: disable=not-callable
             highpass_filter.to(signal_frequency_domain.dtype) * signal_frequency_domain,
             dim=last_axis_index,
         )
@@ -370,14 +370,14 @@ class MeyerWavelet:
         highpass_filter = highpass_filter.reshape(filter_shape)
 
         # Transform to frequency domain and combine
-        combined_frequency_domain = lowpass_filter.to(dtype) * torch.fft.fft(
+        combined_frequency_domain = lowpass_filter.to(dtype) * torch.fft.fft(  # pylint: disable=not-callable
             lowpass_upsampled, dim=last_axis_index
-        ) + highpass_filter.to(dtype) * torch.fft.fft(
+        ) + highpass_filter.to(dtype) * torch.fft.fft(  # pylint: disable=not-callable
             highpass_upsampled, dim=last_axis_index
         )
 
         # Transform back to spatial domain
-        reconstructed_full_resolution = torch.fft.ifft(
+        reconstructed_full_resolution = torch.fft.ifft(  # pylint: disable=not-callable
             combined_frequency_domain, dim=last_axis_index
         )
 
