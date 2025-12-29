@@ -146,10 +146,10 @@ class MeyerWavelet:
 
         Uses the same computation method as UDCT's `_create_bandpass_windows()` for
         num_scales=2 compatibility. The lowpass filter is computed using:
-        - Frequency grid: `np.linspace(-1.5*pi, 0.5*pi, signal_length, endpoint=False)`
-        - Meyer window parameters: `[-2, -1, pi/3, 2*pi/3]`
-        - Special case for num_scales=2: adds `meyer_window(abs(freq + 2*pi), ...)`
-        - Circular shift by `signal_length // 4` before square root
+        - Frequency grid: :math:`\\text{np.linspace}(-1.5\\pi, 0.5\\pi, \\text{signal\\_length}, \\text{endpoint=False})`
+        - Meyer window parameters: :math:`[-2, -1, \\pi/3, 2\\pi/3]`
+        - Special case for num_scales=2: adds :math:`\\text{meyer\\_window}(|\\text{freq} + 2\\pi|, ...)`
+        - Circular shift by :math:`\\text{signal\\_length} // 4` before square root
 
         The highpass filter is computed as the complement of the lowpass to ensure
         perfect reconstruction: `|lowpass|² + |highpass|² = 1`.

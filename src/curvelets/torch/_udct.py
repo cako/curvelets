@@ -20,27 +20,33 @@ from ._utils import ParamUDCT
 
 class UDCT:
     """
-    Uniform Discrete Curvelet Transform.
+    Uniform Discrete Curvelet Transform (UDCT) implementation.
 
-    Implements forward and backward curvelet transforms in N dimensions,
-    providing multi-scale, multi-directional representations of signals.
+    This class provides forward and backward curvelet transforms with support
+    for both real and complex transforms.
 
     Parameters
     ----------
     shape : tuple[int, ...]
         Shape of the input data.
     angular_wedges_config : torch.Tensor
-        Configuration specifying number of angular wedges per scale and dimension.
-        Shape is (num_scales-1, ndim).
+        Configuration array specifying the number of angular wedges per scale
+        and dimension. Shape is (num_scales - 1, dimension), where num_scales
+        includes the lowpass scale.
     window_overlap : float, optional
-        Window overlap parameter. Default is 0.15.
+        Window overlap parameter controlling the smoothness of window transitions.
+        Default is 0.15.
     radial_frequency_params : tuple[float, float, float, float], optional
-        Radial frequency band parameters.
-        Default is (pi/3, 2*pi/3, 2*pi/3, 4*pi/3).
+        Radial frequency parameters defining the frequency bands.
+        Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
     window_threshold : float, optional
-        Threshold for sparse window storage. Default is 1e-6.
+        Threshold for sparse window storage (values below this are stored as sparse).
+        Default is 1e-6.
     high_frequency_mode : {"curvelet", "wavelet"}, optional
-        High frequency mode. Default is "curvelet".
+        High frequency mode. "curvelet" uses curvelets at all scales,
+        "wavelet" creates a single ring-shaped window (bandpass filter only,
+        no angular components) at the highest scale with decimation=1.
+        Default is "curvelet".
     transform_kind : {"real", "complex", "monogenic"}, optional
         Type of transform to use:
 
@@ -48,12 +54,37 @@ class UDCT:
           positive and negative frequencies combined.
         - "complex": Complex transform which separates positive and negative
           frequency components into different bands. Each band is scaled by
-          sqrt(0.5).
+          :math:`\\sqrt{0.5}`.
         - "monogenic": Monogenic transform that extends the curvelet transform
           by applying Riesz transforms, producing ndim+1 components per band
           (scalar plus all Riesz components).
     use_complex_transform : bool, optional
         Deprecated. Use transform_kind instead. Default is None.
+
+    Attributes
+    ----------
+    shape : tuple[int, ...]
+        Shape of the input data.
+    high_frequency_mode : str
+        High frequency mode.
+    transform_kind : str
+        Type of transform being used ("real", "complex", or "monogenic").
+    windows : UDCTWindows
+        Curvelet windows in sparse format.
+    decimation_ratios : list
+        Decimation ratios for each scale/direction.
+
+    Examples
+    --------
+    >>> import torch
+    >>> from curvelets.torch import UDCT
+    >>> # Create a 2D transform
+    >>> transform = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3], [6, 6]]))
+    >>> data = torch.randn(64, 64)
+    >>> coeffs = transform.forward(data)
+    >>> recon = transform.backward(coeffs)
+    >>> torch.allclose(data, recon, atol=1e-4)
+    True
     """
 
     def __init__(

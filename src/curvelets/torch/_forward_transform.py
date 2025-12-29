@@ -14,7 +14,35 @@ def _process_wedge_real(
     image_frequency: torch.Tensor,
     freq_band: torch.Tensor,
 ) -> torch.Tensor:
-    """Process a single wedge for real transform mode."""
+    """
+    Process a single wedge for real transform mode.
+
+    This function applies a frequency-domain window to extract a specific
+    curvelet band, transforms it to spatial domain, downsamples it, and applies
+    normalization.
+
+    Parameters
+    ----------
+    window : tuple[torch.Tensor, torch.Tensor]
+        Sparse window representation as (indices, values) tuple.
+    decimation_ratio : torch.Tensor
+        Decimation ratio for this wedge (1D array with length equal to dimensions).
+    image_frequency : torch.Tensor
+        Input image in frequency domain (from FFT).
+    freq_band : torch.Tensor
+        Reusable frequency band buffer (will be cleared and filled).
+
+    Returns
+    -------
+    torch.Tensor
+        Downsampled and normalized coefficient array for this wedge.
+
+    Notes
+    -----
+    The real transform combines positive and negative frequencies, so no
+    :math:`\\sqrt{0.5}` scaling is applied. The normalization factor ensures proper
+    energy preservation.
+    """
     # Clear the frequency band buffer for reuse
     freq_band.zero_()
 
@@ -46,7 +74,39 @@ def _process_wedge_complex(
     parameters: ParamUDCT,
     flip_window: bool = False,
 ) -> torch.Tensor:
-    """Process a single wedge for complex transform mode."""
+    """
+    Process a single wedge for complex transform mode.
+
+    This function applies a frequency-domain window (optionally flipped for
+    negative frequencies) to extract a specific curvelet band, transforms it
+    to spatial domain with :math:`\\sqrt{0.5}` scaling, downsamples it, and applies
+    normalization.
+
+    Parameters
+    ----------
+    window : tuple[torch.Tensor, torch.Tensor]
+        Sparse window representation as (indices, values) tuple.
+    decimation_ratio : torch.Tensor
+        Decimation ratio for this wedge (1D array with length equal to dimensions).
+    image_frequency : torch.Tensor
+        Input image in frequency domain (from FFT).
+    parameters : ParamUDCT
+        UDCT parameters containing size information.
+    flip_window : bool, optional
+        If True, flip the window for negative frequency processing.
+        Default is False.
+
+    Returns
+    -------
+    torch.Tensor
+        Downsampled and normalized coefficient array for this wedge.
+
+    Notes
+    -----
+    The complex transform separates positive and negative frequencies, so
+    :math:`\\sqrt{0.5}` scaling is applied to each band. The normalization factor ensures
+    proper energy preservation.
+    """
     # Get the sparse window representation
     idx, val = window
 
@@ -59,9 +119,9 @@ def _process_wedge_complex(
         subwindow = flip_fft_all_axes(subwindow)
 
     # Apply window to frequency domain and transform to spatial domain
-    band_filtered = torch.sqrt(torch.tensor(0.5, device=image_frequency.device)) * torch.fft.ifftn(
-        image_frequency * subwindow.to(image_frequency.dtype)
-    )
+    band_filtered = torch.sqrt(
+        torch.tensor(0.5, device=image_frequency.device)
+    ) * torch.fft.ifftn(image_frequency * subwindow.to(image_frequency.dtype))
 
     # Downsample the curvelet band
     coeff = downsample(band_filtered, decimation_ratio)
@@ -78,7 +138,53 @@ def _apply_forward_transform_real(
     windows: UDCTWindows,
     decimation_ratios: list[torch.Tensor],
 ) -> UDCTCoefficients:
-    """Apply forward Uniform Discrete Curvelet Transform in real mode."""
+    """
+    Apply forward Uniform Discrete Curvelet Transform in real mode.
+
+    This function decomposes an input image or volume into real-valued curvelet
+    coefficients by applying frequency-domain windows and downsampling. Each
+    curvelet band captures both positive and negative frequencies combined.
+
+    Parameters
+    ----------
+    image : torch.Tensor
+        Input image or volume to decompose. Must have shape matching
+        `parameters.shape`. Must be real-valued (floating point dtype).
+    parameters : ParamUDCT
+        UDCT parameters containing transform configuration:
+        - num_scales : int
+            Total number of scales (including lowpass scale)
+        - ndim : int
+            Number of dimensions of the transform
+        - shape : tuple[int, ...]
+            Shape of the input data
+    windows : UDCTWindows
+        Curvelet windows in sparse format, typically computed by
+        `_udct_windows`. Structure is:
+        windows[scale][direction][wedge] = (indices, values) tuple
+    decimation_ratios : list[torch.Tensor]
+        Decimation ratios for each scale and direction. Structure:
+        - decimation_ratios[0]: shape (1, dim) for low-frequency band
+        - decimation_ratios[scale]: shape (dim, dim) for scale > 0
+
+    Returns
+    -------
+    UDCTCoefficients
+        Curvelet coefficients as nested list structure:
+        coefficients[scale][direction][wedge] = torch.Tensor
+        - scale 0: Low-frequency band (1 direction, 1 wedge)
+        - scale 1..(num_scales-1): High-frequency bands (ndim directions per scale)
+        Each coefficient array has shape determined by decimation ratios.
+        Coefficients are complex dtype matching the complex version of input dtype:
+        - torch.float32 input -> torch.complex64 coefficients
+        - torch.float64 input -> torch.complex128 coefficients
+
+    Notes
+    -----
+    The real transform combines positive and negative frequencies, resulting
+    in real-valued coefficients. This is suitable for real-valued inputs and
+    provides a more compact representation.
+    """
     image_frequency = torch.fft.fftn(image)
     complex_dtype = image_frequency.dtype
 
@@ -139,7 +245,57 @@ def _apply_forward_transform_complex(
     windows: UDCTWindows,
     decimation_ratios: list[torch.Tensor],
 ) -> UDCTCoefficients:
-    """Apply forward Uniform Discrete Curvelet Transform in complex mode."""
+    """
+    Apply forward Uniform Discrete Curvelet Transform in complex mode.
+
+    This function decomposes an input image or volume into complex-valued curvelet
+    coefficients by applying frequency-domain windows and downsampling. Positive
+    and negative frequency bands are separated into different directions.
+
+    Parameters
+    ----------
+    image : torch.Tensor
+        Input image or volume to decompose. Must have shape matching
+        `parameters.shape`. Must be complex-valued (complex floating point dtype).
+    parameters : ParamUDCT
+        UDCT parameters containing transform configuration:
+        - num_scales : int
+            Total number of scales (including lowpass scale)
+        - ndim : int
+            Number of dimensions of the transform
+        - shape : tuple[int, ...]
+            Shape of the input data
+    windows : UDCTWindows
+        Curvelet windows in sparse format, typically computed by
+        `_udct_windows`. Structure is:
+        windows[scale][direction][wedge] = (indices, values) tuple
+    decimation_ratios : list[torch.Tensor]
+        Decimation ratios for each scale and direction. Structure:
+        - decimation_ratios[0]: shape (1, dim) for low-frequency band
+        - decimation_ratios[scale]: shape (dim, dim) for scale > 0
+
+    Returns
+    -------
+    UDCTCoefficients
+        Curvelet coefficients as nested list structure:
+        coefficients[scale][direction][wedge] = torch.Tensor
+        - scale 0: Low-frequency band (1 direction, 1 wedge)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
+          * Directions 0..dim-1 are positive frequencies
+          * Directions dim..2*dim-1 are negative frequencies
+        Each coefficient array has shape determined by decimation ratios.
+        Coefficients have the same complex dtype as input.
+
+    Notes
+    -----
+    The complex transform separates positive and negative frequencies into
+    different directions. Each band is scaled by :math:`\\sqrt{0.5}` to maintain energy
+    preservation. The negative frequency windows are obtained by flipping the
+    positive frequency windows using `flip_fft_all_axes`.
+
+    This mode is required for complex-valued inputs and provides full frequency
+    information.
+    """
     image_frequency = torch.fft.fftn(image)
     complex_dtype = image_frequency.dtype
 
@@ -217,4 +373,3 @@ def _apply_forward_transform_complex(
         coefficients.append(scale_coeffs)
 
     return coefficients
-

@@ -75,7 +75,7 @@ def _process_wedge_backward_complex(
 
     This function upsamples a coefficient, transforms it to frequency domain,
     applies the window (optionally flipped for negative frequencies), and returns
-    the frequency-domain contribution with sqrt(0.5) scaling.
+    the frequency-domain contribution with :math:`\\sqrt{0.5}` scaling.
 
     Parameters
     ----------
@@ -101,7 +101,7 @@ def _process_wedge_backward_complex(
     Notes
     -----
     The contribution is a full array (not sparse) to allow efficient accumulation
-    in complex transform mode. The sqrt(0.5) scaling accounts for the separation
+    in complex transform mode. The :math:`\\sqrt{0.5}` scaling accounts for the separation
     of positive and negative frequencies.
     """
     # pylint: disable=duplicate-code
@@ -553,7 +553,7 @@ def _apply_backward_transform(
     of the curvelet windows.
 
     The normalization factors ensure energy preservation: coefficients
-    are scaled by sqrt(2 * prod(decimation_ratio)) in forward transform,
+    are scaled by :math:`\\sqrt{2 \\prod d}` where :math:`d` is the decimation ratio in forward transform,
     and divided by the same factor in backward transform.
     """
     if use_complex_transform:

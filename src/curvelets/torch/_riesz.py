@@ -11,7 +11,7 @@ def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) ->
 
     The Riesz transform is an N-D generalization of the Hilbert transform,
     defined componentwise in the frequency domain as:
-    R_k(f)(xi) = i * (xi_k / |xi|) * f_hat(xi)
+    :math:`R_k(f)(\xi) = i (\xi_k / |\xi|) \hat{f}(\xi)`
 
     Parameters
     ----------
@@ -23,10 +23,25 @@ def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) ->
     Returns
     -------
     list[torch.Tensor]
-        List of Riesz filters R_1, R_2, ... R_ndim where:
-        - R_k(xi) = i * xi_k / |xi|
+        List of Riesz filters :math:`R_1, R_2, \\ldots, R_{\\text{ndim}}` where:
+        - :math:`R_k(\\xi) = i \\xi_k / |\\xi|`
         - Each filter has the same shape as the input
         - DC component (zero frequency) is set to 0
+
+    Examples
+    --------
+    >>> import torch
+    >>> from curvelets.torch._riesz import riesz_filters
+    >>> filters = riesz_filters((64, 64))
+    >>> len(filters)  # Number of dimensions
+    2
+    >>> filters[0].shape  # Same shape as input
+    torch.Size([64, 64])
+    >>> filters[0].dtype  # Complex dtype
+    torch.complex128
+    >>> # DC component is zero
+    >>> filters[0][0, 0]
+    tensor(0.+0.j)
     """
     # Create frequency grids for each dimension
     # Using fftfreq to get FFT frequency coordinates (in cycles per sample)

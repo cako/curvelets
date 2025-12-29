@@ -106,7 +106,7 @@ class UDCTModule(nn.Module):
         Window overlap parameter. Default is 0.15.
     radial_frequency_params : tuple[float, float, float, float], optional
         Radial frequency band parameters.
-        Default is (pi/3, 2*pi/3, 2*pi/3, 4*pi/3).
+        Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
     window_threshold : float, optional
         Threshold for sparse window storage. Default is 1e-6.
     high_frequency_mode : {"curvelet", "wavelet"}, optional

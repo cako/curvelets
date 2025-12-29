@@ -49,7 +49,7 @@ class UDCT:
         based on wedges_per_direction. Default is None (auto) or 0.15.
     radial_frequency_params : tuple[float, float, float, float], optional
         Radial frequency parameters defining the frequency bands.
-        Default is (pi/3, 2*pi/3, 2*pi/3, 4*pi/3).
+        Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
     window_threshold : float, optional
         Threshold for sparse window storage (values below this are stored as sparse).
         Default is 1e-5.
@@ -65,7 +65,7 @@ class UDCT:
           positive and negative frequencies combined.
         - "complex": Complex transform which separates positive and negative
           frequency components into different bands. Each band is scaled by
-          sqrt(0.5).
+          :math:`\\sqrt{0.5}`.
         - "monogenic": Monogenic transform that extends the curvelet transform
           by applying Riesz transforms, producing ndim+1 components per band
           (scalar plus all Riesz components).
@@ -157,7 +157,7 @@ class UDCT:
         """
         Compute optimal window_overlap from Nguyen & Chauris (2010) constraint.
 
-        The constraint (2^(s/N))(1+2a)(1+a) < N must hold for all scales.
+        The constraint :math:`(2^{s/N})(1+2a)(1+a) < N` must hold for all scales.
         This method solves for the theoretical maximum at each scale,
         takes the minimum across all scales, and returns 10% of this value.
 
@@ -798,14 +798,14 @@ class UDCT:
             - When transform_kind="real": Returns real array (reconstructed input :math:`f`)
             - When transform_kind="complex": Returns complex array (reconstructed input :math:`f`)
             - When transform_kind="monogenic": Returns tuple of ndim+1 real-valued arrays
-              :math:`M_f = (f, -R_1f, -R_2f, \ldots, -R_nf)` where :math:`R_k` are the Riesz transforms.
+              :math:`M_f = (f, -R_1f, -R_2f, \\ldots, -R_nf)` where :math:`R_k` are the Riesz transforms.
               This is the monogenic signal :math:`M_f`, not just :math:`f`. To get only :math:`f`,
               use the first element of the tuple, or use ``.monogenic()`` method directly.
 
         Notes
         -----
         For transform_kind="monogenic", the backward transform returns the monogenic signal
-        :math:`M_f = (f, -R_1f, -R_2f, \ldots, -R_nf)` rather than just the original function :math:`f`.
+        :math:`M_f = (f, -R_1f, -R_2f, \\ldots, -R_nf)` rather than just the original function :math:`f`.
         This matches the output of the ``.monogenic()`` method. The first component of the tuple
         is :math:`f`, and the remaining components are the Riesz transform components.
 
@@ -891,8 +891,8 @@ class UDCT:
         -------
         tuple[:obj:`npt.NDArray[F] <numpy.typing.NDArray>`, ...]
             Tuple of ndim+1 real-valued arrays with shape matching self.shape:
-            - scalar: Original input f (unchanged)
-            - riesz_k: -R_k f for k = 1, 2, ..., ndim
+            - scalar: Original input :math:`f` (unchanged)
+            - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
 
         Raises
         ------

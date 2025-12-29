@@ -20,8 +20,28 @@ class MeyerWavelet:
     num_scales : int
         Number of decomposition scales.
     radial_frequency_params : tuple[float, float, float, float], optional
-        Four parameters defining radial frequency bands.
-        Default is (pi/3, 2*pi/3, 2*pi/3, 4*pi/3).
+        Four parameters defining radial frequency bands for Meyer wavelet
+        decomposition: (transition_start, plateau_start, plateau_end, transition_end).
+        These define the frequency ranges for the bandpass filters.
+        Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
+
+    Examples
+    --------
+    >>> import torch
+    >>> from curvelets.torch import MeyerWavelet
+    >>> wavelet = MeyerWavelet(shape=(64, 64), num_scales=3)
+    >>> signal = torch.randn(64, 64)
+    >>> coefficients = wavelet.forward(signal)
+    >>> len(coefficients)  # Number of scales
+    3
+    >>> reconstructed = wavelet.backward(coefficients)
+    >>> torch.allclose(signal, reconstructed.real, atol=1e-10)
+    True
+
+    Notes
+    -----
+    This implementation uses separable 1D wavelet transforms along each axis,
+    providing multi-scale, multi-dimensional decomposition of signals.
     """
 
     def __init__(

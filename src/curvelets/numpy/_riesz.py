@@ -10,7 +10,7 @@ def riesz_filters(shape: tuple[int, ...]) -> list[npt.NDArray[np.complexfloating
 
     The Riesz transform is an N-D generalization of the Hilbert transform,
     defined componentwise in the frequency domain as:
-    R_k(f)(xi) = i * (xi_k / |xi|) * f_hat(xi)
+    :math:`R_k(f)(\\xi) = i (\\xi_k / |\\xi|) \\hat{f}(\\xi)`
 
     Parameters
     ----------
@@ -20,8 +20,8 @@ def riesz_filters(shape: tuple[int, ...]) -> list[npt.NDArray[np.complexfloating
     Returns
     -------
     list[npt.NDArray[np.complexfloating]]
-        List of Riesz filters R_1, R_2, ... R_ndim where:
-        - R_k(xi) = i * xi_k / |xi|
+        List of Riesz filters :math:`R_1, R_2, \\ldots, R_{\\text{ndim}}` where:
+        - :math:`R_k(\\xi) = i \\xi_k / |\\xi|`
         - Each filter has the same shape as the input
         - DC component (zero frequency) is set to 0
 

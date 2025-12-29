@@ -20,14 +20,45 @@ class UDCTWindow:
 
     This class encapsulates all window computation functionality for the UDCT,
     including bandpass filter creation, angle function computation, window
-    normalization, and sparse format conversion.
+    normalization, and sparse format conversion. The class is initialized with
+    UDCT parameters and provides a compute() method to generate curvelet windows.
 
     Parameters
     ----------
     parameters : ParamUDCT
         UDCT parameters containing transform configuration.
     high_frequency_mode : str, optional
-        High frequency mode. Default is "curvelet".
+        High frequency mode. "curvelet" uses curvelets at all scales,
+        "wavelet" creates a single ring-shaped window (bandpass filter only,
+        no angular components) at the highest scale with decimation=1.
+        Default is "curvelet".
+
+    Examples
+    --------
+    >>> import torch
+    >>> from curvelets.torch._utils import ParamUDCT
+    >>> from curvelets.torch._udct_windows import UDCTWindow
+    >>>
+    >>> # Create parameters for 2D transform with 4 scales total (1 lowpass + 3 high-frequency)
+    >>> params = ParamUDCT(
+    ...     shape=(64, 64),
+    ...     angular_wedges_config=torch.tensor([[3], [6], [12]]),
+    ...     window_overlap=0.15,
+    ...     window_threshold=1e-5,
+    ...     radial_frequency_params=(torch.pi/3, 2*torch.pi/3, 2*torch.pi/3, 4*torch.pi/3)
+    ... )
+    >>>
+    >>> # Create window computer and compute windows
+    >>> window_computer = UDCTWindow(params)
+    >>> windows, decimation_ratios, indices = window_computer.compute()
+    >>>
+    >>> # Check structure
+    >>> len(windows)  # Number of scales
+    4
+    >>> len(windows[0][0])  # Low-frequency band has 1 window
+    1
+    >>> len(windows[1][0])  # First high-frequency scale has multiple wedges
+    3
     """
 
     def __init__(

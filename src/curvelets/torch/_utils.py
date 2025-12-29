@@ -24,21 +24,63 @@ class ParamUDCT:
         Shape of the input data (e.g., (64, 64) for 2D, (32, 32, 32) for 3D).
     angular_wedges_config : torch.Tensor
         Configuration array specifying the number of angular wedges per scale
-        and dimension. Shape is (num_scales - 1, ndim).
+        and dimension. Shape is (num_scales - 1, ndim), where num_scales includes
+        the lowpass scale. The last dimension must equal `len(shape)`. Each row
+        corresponds to a high-frequency scale (scales 1 to num_scales-1), each
+        column to a dimension.
     window_overlap : float
         Window overlap parameter controlling the smoothness of window transitions.
+        Typically between 0.1 and 0.3. Higher values create smoother transitions
+        but may reduce directional selectivity.
     radial_frequency_params : tuple[float, float, float, float]
         Four parameters defining radial frequency bands for Meyer wavelet
-        decomposition.
+        decomposition: (transition_start, plateau_start, plateau_end, transition_end).
+        These define the frequency ranges for the bandpass filters.
     window_threshold : float
-        Threshold for sparse window storage.
+        Threshold for sparse window storage. Window values below this threshold
+        are stored in sparse format. Typically 1e-5 to 1e-6.
 
     Attributes
     ----------
     ndim : int
-        Number of dimensions of the transform.
+        Number of dimensions of the transform. Computed automatically from
+        `len(shape)`.
     num_scales : int
-        Total number of scales (including lowpass scale 0).
+        Total number of scales (including lowpass scale 0). Computed automatically
+        as 1 + the first dimension of `angular_wedges_config`.
+
+    Examples
+    --------
+    >>> import torch
+    >>> from curvelets.torch._utils import ParamUDCT
+    >>>
+    >>> # Create parameters for 2D transform with 4 scales total (1 lowpass + 3 high-frequency)
+    >>> params = ParamUDCT(
+    ...     shape=(64, 64),
+    ...     angular_wedges_config=torch.tensor([[3], [6], [12]]),
+    ...     window_overlap=0.15,
+    ...     radial_frequency_params=(torch.pi/3, 2*torch.pi/3, 2*torch.pi/3, 4*torch.pi/3),
+    ...     window_threshold=1e-5
+    ... )
+    >>> params.ndim  # Number of dimensions (computed from shape)
+    2
+    >>> params.num_scales  # Total number of scales (including lowpass)
+    4
+    >>>
+    >>> # Create parameters for 3D transform with 3 scales total (1 lowpass + 2 high-frequency)
+    >>> params_3d = ParamUDCT(
+    ...     shape=(32, 32, 32),
+    ...     angular_wedges_config=torch.tensor([[3, 3, 3], [6, 6, 6]]),
+    ...     window_overlap=0.15,
+    ...     radial_frequency_params=(torch.pi/3, 2*torch.pi/3, 2*torch.pi/3, 4*torch.pi/3),
+    ...     window_threshold=1e-5
+    ... )
+    >>> params_3d.ndim
+    3
+    >>> params_3d.num_scales  # Total number of scales (including lowpass)
+    3
+    >>> params_3d.shape
+    (32, 32, 32)
     """
 
     shape: tuple[int, ...]

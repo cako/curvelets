@@ -124,8 +124,8 @@ def _apply_backward_transform_monogenic(
     -------
     tuple[npt.NDArray[F], ...]
         Reconstructed components: (scalar, riesz1, riesz2, ..., riesz_ndim)
-        - scalar: Original input f
-        - riesz_k: -R_k f for k = 1, 2, ..., ndim
+        - scalar: Original input :math:`f`
+        - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
     """
     # Determine dtype from coefficients
     scalar_coeff = coefficients[0][0][0][0]  # First scalar component
