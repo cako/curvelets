@@ -46,7 +46,7 @@ def color_windows(
     wins = C.windows
 
     def create_mask(wedge: np.ndarray) -> np.ndarray:
-        wedge = C.from_sparse(wedge)
+        wedge = C._from_sparse(wedge)
         wedge = fftshift(wedge)
         return wedge >= thresh
 

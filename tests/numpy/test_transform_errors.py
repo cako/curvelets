@@ -1,9 +1,9 @@
 """Test for uncovered forward transform error paths.
 
 Tests cover:
-- Lines 520-526: Complex input to real transform error
-- Lines 759-765: Fall-through case when use_complex_transform=True but input is not complex
-- Line 776: Fall-through case when use_complex_transform=False but input is complex
+- Complex input to real transform error (transform_kind="real")
+- Complex transform with real input (transform_kind="complex")
+- Real transform with complex input error (transform_kind="real")
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def test_complex_input_to_real_transform_error(rng):
     >>> import numpy as np
     >>> from curvelets.numpy import UDCT
     >>> from curvelets.numpy._forward_transform import _apply_forward_transform
-    >>> transform = UDCT(shape=(64, 64), use_complex_transform=False)
+    >>> transform = UDCT(shape=(64, 64), transform_kind="real")
     >>> data = np.random.randn(64, 64) + 1j * np.random.randn(64, 64)
     >>> try:
     ...     _apply_forward_transform(
@@ -45,33 +45,33 @@ def test_complex_input_to_real_transform_error(rng):
         shape=(64, 64),
         num_scales=3,
         wedges_per_direction=3,
-        use_complex_transform=False,
+        transform_kind="real",
     )
 
     # Create complex input
     data = rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))
 
     # Call _apply_forward_transform directly with use_complex_transform=False
-    # This should trigger the error at lines 520-526
+    # This should trigger the error for complex input to real transform
     with pytest.raises(
         ValueError,
-        match="Real transform requires real-valued input.*Use use_complex_transform=True",
+        match="Real transform requires real-valued input.*Use transform_kind='complex'",
     ):
         _apply_forward_transform(
             data,
             transform.parameters,
             transform.windows,
             transform.decimation_ratios,
-            use_complex_transform=False,
+            use_complex_transform=False,  # Testing internal function parameter
         )
 
 
 def test_forward_complex_transform_with_real_input(rng):
     """
-    Test complex transform mode with real input (lines 759-765).
+    Test complex transform mode with real input.
 
-    When use_complex_transform=True but input is not complex, the function
-    should still work by falling through to the complex transform path.
+    When transform_kind="complex" and input is real, the function
+    should convert the real input to complex and apply the complex transform.
 
     Parameters
     ----------
@@ -83,7 +83,7 @@ def test_forward_complex_transform_with_real_input(rng):
     >>> import numpy as np
     >>> from curvelets.numpy import UDCT
     >>> from curvelets.numpy._forward_transform import _apply_forward_transform
-    >>> transform = UDCT(shape=(64, 64), use_complex_transform=True)
+    >>> transform = UDCT(shape=(64, 64), transform_kind="complex")
     >>> data = np.random.randn(64, 64)  # Real input
     >>> coeffs = _apply_forward_transform(
     ...     data, transform.parameters, transform.windows,
@@ -97,7 +97,7 @@ def test_forward_complex_transform_with_real_input(rng):
         shape=(64, 64),
         num_scales=3,
         wedges_per_direction=3,
-        use_complex_transform=True,
+        transform_kind="complex",
     )
 
     # Create real input (not complex)
@@ -111,7 +111,7 @@ def test_forward_complex_transform_with_real_input(rng):
         transform.parameters,
         transform.windows,
         transform.decimation_ratios,
-        use_complex_transform=True,
+        use_complex_transform=True,  # Testing internal function parameter
     )
 
     # Verify coefficients structure is valid
@@ -122,11 +122,10 @@ def test_forward_complex_transform_with_real_input(rng):
 
 def test_forward_real_transform_with_complex_input(rng):
     """
-    Test real transform mode with complex input (line 776).
+    Test real transform mode with complex input.
 
-    When use_complex_transform=False but input is complex, the function
-    should fall through to the real transform path which will then raise
-    an error.
+    When transform_kind="real" and input is complex, the function
+    should raise an error because real transform requires real-valued input.
 
     Parameters
     ----------
@@ -138,7 +137,7 @@ def test_forward_real_transform_with_complex_input(rng):
     >>> import numpy as np
     >>> from curvelets.numpy import UDCT
     >>> from curvelets.numpy._forward_transform import _apply_forward_transform
-    >>> transform = UDCT(shape=(64, 64), use_complex_transform=False)
+    >>> transform = UDCT(shape=(64, 64), transform_kind="real")
     >>> data = np.random.randn(64, 64) + 1j * np.random.randn(64, 64)
     >>> try:
     ...     _apply_forward_transform(
@@ -155,23 +154,22 @@ def test_forward_real_transform_with_complex_input(rng):
         shape=(64, 64),
         num_scales=3,
         wedges_per_direction=3,
-        use_complex_transform=False,
+        transform_kind="real",
     )
 
     # Create complex input
     data = rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))
 
     # Call _apply_forward_transform with use_complex_transform=False
-    # This should fall through to real transform path (line 776) which will
-    # then raise an error because input is complex
+    # This should raise an error because input is complex and transform is real
     with pytest.raises(
         ValueError,
-        match="Real transform requires real-valued input.*Use use_complex_transform=True",
+        match="Real transform requires real-valued input.*Use transform_kind='complex'",
     ):
         _apply_forward_transform(
             data,
             transform.parameters,
             transform.windows,
             transform.decimation_ratios,
-            use_complex_transform=False,
+            use_complex_transform=False,  # Testing internal function parameter
         )

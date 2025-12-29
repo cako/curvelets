@@ -1,9 +1,12 @@
+"""Meyer wavelet transform for PyTorch UDCT implementation."""
+
+# pylint: disable=duplicate-code
+# Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
 import numpy as np
-import numpy.typing as npt
+import torch
 
-from ._typing import C, F
 from ._utils import circular_shift, meyer_window
 
 
@@ -18,7 +21,7 @@ class MeyerWavelet:
 
     The filter computation uses the same method as UDCT's `_create_bandpass_windows()`
     for num_scales=2, ensuring compatibility when used with UDCT in wavelet mode
-    with num_scales=2 and high_frequency_mode="meyer".
+    with num_scales=2 and high_frequency_mode="wavelet".
 
     Parameters
     ----------
@@ -47,19 +50,19 @@ class MeyerWavelet:
 
     Examples
     --------
-    >>> import numpy as np
-    >>> from curvelets.numpy import MeyerWavelet
+    >>> import torch
+    >>> from curvelets.torch import MeyerWavelet
     >>> wavelet = MeyerWavelet(shape=(64, 64))
-    >>> signal = np.random.randn(64, 64)
+    >>> signal = torch.randn(64, 64)
     >>> coefficients = wavelet.forward(signal)
     >>> len(coefficients)  # 2 subband groups
     2
     >>> coefficients[0][0].shape  # Lowpass subband
-    (32, 32)
+    torch.Size([32, 32])
     >>> len(coefficients[1])  # Highpass subbands
     3
     >>> reconstructed = wavelet.backward(coefficients)
-    >>> np.allclose(signal, reconstructed, atol=1e-10)
+    >>> torch.allclose(signal, reconstructed, atol=1e-10)
     True
     >>> # Odd dimensions raise an error
     >>> try:
@@ -91,8 +94,8 @@ class MeyerWavelet:
 
         Examples
         --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
+        >>> import torch
+        >>> from curvelets.torch import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
         >>> wavelet.shape
         (64, 64)
@@ -118,7 +121,7 @@ class MeyerWavelet:
 
         self.shape = shape
         self.dimension = len(shape)
-        self._filters: dict[int, tuple[npt.NDArray, npt.NDArray]] = {}
+        self._filters: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
 
         # Pre-compute all required filters
         self._initialize_filters()
@@ -140,7 +143,7 @@ class MeyerWavelet:
 
     def _compute_single_filter(
         self, signal_length: int
-    ) -> tuple[npt.NDArray, npt.NDArray]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Compute a single Meyer wavelet filter pair for given signal length.
 
@@ -161,8 +164,8 @@ class MeyerWavelet:
 
         Returns
         -------
-        tuple[npt.NDArray, npt.NDArray]
-            Lowpass and highpass filters as 1D arrays of length signal_length.
+        tuple[torch.Tensor, torch.Tensor]
+            Lowpass and highpass filters as 1D tensors of length signal_length.
             The filters satisfy perfect reconstruction: `|lowpass|² + |highpass|² = 1`.
         """
         # Compute frequency grid (matching UDCT)
@@ -171,172 +174,181 @@ class MeyerWavelet:
         )
 
         # Meyer window parameters (matching UDCT for num_scales=2)
-        meyer_params = np.array([-2, -1, np.pi / 3, 2 * np.pi / 3])
+        meyer_params = (-2.0, -1.0, np.pi / 3, 2 * np.pi / 3)
         abs_frequency_grid = np.abs(frequency_grid)
 
+        # Convert to torch tensor for meyer_window
+        abs_frequency_grid_tensor = torch.from_numpy(abs_frequency_grid)
+
         # Compute Meyer window function
-        window_values = meyer_window(abs_frequency_grid, *meyer_params)
+        window_values = meyer_window(abs_frequency_grid_tensor, *meyer_params)
 
         # Add num_scales=2 special case (matching UDCT)
-        window_values += meyer_window(np.abs(frequency_grid + 2 * np.pi), *meyer_params)
+        freq_shifted = np.abs(frequency_grid + 2 * np.pi)
+        freq_shifted_tensor = torch.from_numpy(freq_shifted)
+        window_values += meyer_window(freq_shifted_tensor, *meyer_params)
 
         # Lowpass filter: circular-shifted and square-rooted (matching UDCT)
         lowpass_window_sq_shifted = circular_shift(window_values, (signal_length // 4,))
-        lowpass_filter = np.sqrt(lowpass_window_sq_shifted)
+        lowpass_filter = torch.sqrt(lowpass_window_sq_shifted)
 
         # Highpass filter: complement of lowpass for perfect reconstruction
         # Compute as complement of the shifted lowpass window to ensure |lowpass|² + |highpass|² = 1
-        highpass_filter = np.sqrt(1.0 - lowpass_window_sq_shifted)
+        highpass_filter = torch.sqrt(1.0 - lowpass_window_sq_shifted)
 
         return lowpass_filter, highpass_filter
 
     def _forward_transform_1d(
-        self, signal: npt.NDArray, axis_index: int
-    ) -> tuple[npt.NDArray, npt.NDArray]:
+        self, signal: torch.Tensor, axis_index: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Apply 1D Meyer wavelet forward transform along specified axis.
 
         Parameters
         ----------
-        signal : npt.NDArray
-            Input array (real or complex).
+        signal : torch.Tensor
+            Input tensor (real or complex).
         axis_index : int
             Axis along which to apply the transform.
 
         Returns
         -------
-        tuple[npt.NDArray, npt.NDArray]
+        tuple[torch.Tensor, torch.Tensor]
             Lowpass and highpass subbands. Output dtype matches input:
             real input produces real output, complex input produces complex output.
 
         Examples
         --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
+        >>> import torch
+        >>> from curvelets.torch import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> signal = np.random.randn(64, 64)
+        >>> signal = torch.randn(64, 64)
         >>> lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
         >>> lowpass.shape
-        (32, 64)
+        torch.Size([32, 64])
         >>> highpass.shape
-        (32, 64)
+        torch.Size([32, 64])
         """
         last_axis_index = signal.ndim - 1
-        signal = np.swapaxes(signal, axis_index, last_axis_index)
+        signal = torch.swapaxes(signal, axis_index, last_axis_index)
         signal_shape = signal.shape
         signal_length = signal_shape[-1]
 
         # Get pre-computed filters
         lowpass_filter, highpass_filter = self._filters[signal_length]
 
+        # Move filters to same device as signal
+        lowpass_filter = lowpass_filter.to(signal.device)
+        highpass_filter = highpass_filter.to(signal.device)
+
         # Reshape filters for broadcasting
-        lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
-        highpass_filter = np.reshape(highpass_filter, (1, signal_length))
+        filter_shape = [1] * signal.ndim
+        filter_shape[-1] = signal_length
+        lowpass_filter = lowpass_filter.reshape(filter_shape)
+        highpass_filter = highpass_filter.reshape(filter_shape)
 
         # Preserve input dtype
         input_dtype = signal.dtype
-        is_complex_input = np.iscomplexobj(signal)
+        is_complex_input = signal.is_complex()
 
         # Transform to frequency domain
-        signal_frequency_domain = np.fft.fft(signal, axis=last_axis_index)
+        signal_frequency_domain = torch.fft.fft(signal, dim=last_axis_index)  # pylint: disable=not-callable
 
         # Apply filters and transform back
-        lowpass_full_resolution = np.fft.ifft(
-            lowpass_filter * signal_frequency_domain, axis=last_axis_index
+        lowpass_full_resolution = torch.fft.ifft(  # pylint: disable=not-callable
+            lowpass_filter.to(signal_frequency_domain.dtype) * signal_frequency_domain,
+            dim=last_axis_index,
         )
-        highpass_full_resolution = np.fft.ifft(
-            highpass_filter * signal_frequency_domain, axis=last_axis_index
+        highpass_full_resolution = torch.fft.ifft(  # pylint: disable=not-callable
+            highpass_filter.to(signal_frequency_domain.dtype) * signal_frequency_domain,
+            dim=last_axis_index,
         )
 
         # Preserve complex values for complex input, take real for real input
-        # Preserve the original dtype when taking real part or casting complex
         if not is_complex_input:
             # Take real part and cast back to original real dtype
             lowpass_full_resolution = lowpass_full_resolution.real
             highpass_full_resolution = highpass_full_resolution.real
-        lowpass_full_resolution = lowpass_full_resolution.astype(input_dtype)
-        highpass_full_resolution = highpass_full_resolution.astype(input_dtype)
+        lowpass_full_resolution = lowpass_full_resolution.to(input_dtype)
+        highpass_full_resolution = highpass_full_resolution.to(input_dtype)
 
         # Downsample by factor of 2 (take every other sample)
         lowpass_subband = lowpass_full_resolution[..., ::2]
         highpass_subband = highpass_full_resolution[..., 1::2]
 
         # Swap axes back to original order
-        lowpass_subband = np.swapaxes(lowpass_subband, axis_index, last_axis_index)
-        highpass_subband = np.swapaxes(highpass_subband, axis_index, last_axis_index)
+        lowpass_subband = torch.swapaxes(lowpass_subband, axis_index, last_axis_index)
+        highpass_subband = torch.swapaxes(highpass_subband, axis_index, last_axis_index)
 
         return lowpass_subband, highpass_subband
 
     def _inverse_transform_1d(
         self,
-        lowpass_subband: npt.NDArray,
-        highpass_subband: npt.NDArray,
+        lowpass_subband: torch.Tensor,
+        highpass_subband: torch.Tensor,
         axis_index: int,
-    ) -> npt.NDArray:
+    ) -> torch.Tensor:
         """
         Apply 1D Meyer wavelet inverse transform along specified axis.
 
         Parameters
         ----------
-        lowpass_subband : npt.NDArray
+        lowpass_subband : torch.Tensor
             Lowpass subband (real or complex).
-        highpass_subband : npt.NDArray
+        highpass_subband : torch.Tensor
             Highpass subband (real or complex).
         axis_index : int
             Axis along which to apply the transform.
 
         Returns
         -------
-        npt.NDArray
-            Reconstructed array. Output dtype matches input: real input produces
+        torch.Tensor
+            Reconstructed tensor. Output dtype matches input: real input produces
             real output, complex input produces complex output.
 
         Examples
         --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
+        >>> import torch
+        >>> from curvelets.torch import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> signal = np.random.randn(64, 64)
+        >>> signal = torch.randn(64, 64)
         >>> lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
         >>> reconstructed = wavelet._inverse_transform_1d(lowpass, highpass, 0)
-        >>> np.allclose(signal, reconstructed, atol=1e-10)
+        >>> torch.allclose(signal, reconstructed, atol=1e-10)
         True
         """
         last_axis_index = lowpass_subband.ndim - 1
-        lowpass_subband = np.swapaxes(lowpass_subband, axis_index, last_axis_index)
-        highpass_subband = np.swapaxes(highpass_subband, axis_index, last_axis_index)
+        lowpass_subband = torch.swapaxes(lowpass_subband, axis_index, last_axis_index)
+        highpass_subband = torch.swapaxes(highpass_subband, axis_index, last_axis_index)
 
         # Compute upsampled shape
         upsampled_shape = list(lowpass_subband.shape)
         upsampled_shape[-1] = 2 * upsampled_shape[-1]
 
         # Determine dtype based on input - preserve the original dtype
-        is_complex = np.iscomplexobj(lowpass_subband) or np.iscomplexobj(
-            highpass_subband
-        )
+        is_complex = lowpass_subband.is_complex() or highpass_subband.is_complex()
 
         # Determine the appropriate dtype for upsampled arrays
-        # If either subband is complex, we need complex dtype for both arrays
-        # Use the dtype of the complex subband, or promote to complex if needed
         if is_complex:
-            # If both are complex, use the dtype of lowpass (or highpass if lowpass is real)
-            if np.iscomplexobj(lowpass_subband):
+            if lowpass_subband.is_complex():
                 dtype = lowpass_subband.dtype
-            elif np.iscomplexobj(highpass_subband):
+            elif highpass_subband.is_complex():
                 dtype = highpass_subband.dtype
             else:
-                # Should not happen if is_complex is True, but handle gracefully
-                dtype = np.result_type(lowpass_subband, highpass_subband)
+                dtype = torch.result_type(lowpass_subband, highpass_subband)
         else:
-            # Both are real, use lowpass dtype as reference
             dtype = lowpass_subband.dtype
 
         # Preserve the input dtype for final output casting
         input_dtype = lowpass_subband.dtype
 
         # Pre-allocate upsampled arrays
-        lowpass_upsampled = np.zeros(upsampled_shape, dtype=dtype)
-        highpass_upsampled = np.zeros(upsampled_shape, dtype=dtype)
+        lowpass_upsampled = torch.zeros(
+            upsampled_shape, dtype=dtype, device=lowpass_subband.device
+        )
+        highpass_upsampled = torch.zeros(
+            upsampled_shape, dtype=dtype, device=highpass_subband.device
+        )
 
         # Interleave subbands (upsample by inserting zeros)
         lowpass_upsampled[..., ::2] = lowpass_subband
@@ -347,37 +359,41 @@ class MeyerWavelet:
         # Get pre-computed filters
         lowpass_filter, highpass_filter = self._filters[signal_length]
 
+        # Move filters to same device as subbands
+        lowpass_filter = lowpass_filter.to(lowpass_upsampled.device)
+        highpass_filter = highpass_filter.to(highpass_upsampled.device)
+
         # Reshape filters for broadcasting
-        lowpass_filter = np.reshape(lowpass_filter, (1, signal_length))
-        highpass_filter = np.reshape(highpass_filter, (1, signal_length))
+        filter_shape = [1] * lowpass_upsampled.ndim
+        filter_shape[-1] = signal_length
+        lowpass_filter = lowpass_filter.reshape(filter_shape)
+        highpass_filter = highpass_filter.reshape(filter_shape)
 
         # Transform to frequency domain and combine
-        combined_frequency_domain = lowpass_filter * np.fft.fft(
-            lowpass_upsampled, axis=last_axis_index
-        ) + highpass_filter * np.fft.fft(highpass_upsampled, axis=last_axis_index)
+        combined_frequency_domain = lowpass_filter.to(dtype) * torch.fft.fft(  # pylint: disable=not-callable
+            lowpass_upsampled, dim=last_axis_index
+        ) + highpass_filter.to(dtype) * torch.fft.fft(  # pylint: disable=not-callable
+            highpass_upsampled, dim=last_axis_index
+        )
 
         # Transform back to spatial domain
-        reconstructed_full_resolution = np.fft.ifft(
-            combined_frequency_domain, axis=last_axis_index
+        reconstructed_full_resolution = torch.fft.ifft(  # pylint: disable=not-callable
+            combined_frequency_domain, dim=last_axis_index
         )
 
         # Preserve complex values for complex input, take real for real input
-        # Preserve the appropriate dtype based on whether input was complex
         if is_complex:
-            # Cast back to appropriate complex dtype (FFT may promote complex64 to complex128)
-            # Use the dtype we determined earlier (which matches the complex subband)
+            # Cast back to appropriate complex dtype
             reconstructed_signal = 2 * reconstructed_full_resolution
-            reconstructed_signal = reconstructed_signal.astype(dtype)
+            reconstructed_signal = reconstructed_signal.to(dtype)
         else:
             # Take real part and cast back to original real dtype
             reconstructed_signal = 2 * reconstructed_full_resolution.real
-            reconstructed_signal = reconstructed_signal.astype(input_dtype)
+            reconstructed_signal = reconstructed_signal.to(input_dtype)
 
-        return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
+        return torch.swapaxes(reconstructed_signal, axis_index, last_axis_index)
 
-    def forward(
-        self, signal: npt.NDArray[F] | npt.NDArray[C]
-    ) -> list[list[npt.NDArray[F] | npt.NDArray[C]]]:
+    def forward(self, signal: torch.Tensor) -> list[list[torch.Tensor]]:
         """
         Apply multi-dimensional Meyer wavelet forward transform.
 
@@ -387,13 +403,13 @@ class MeyerWavelet:
 
         Parameters
         ----------
-        signal : ``npt.NDArray[F]`` | ``npt.NDArray[C]``
-            Input array (real or complex). Must match the shape specified
+        signal : torch.Tensor
+            Input tensor (real or complex). Must match the shape specified
             during initialization.
 
         Returns
         -------
-        list[list[``npt.NDArray[F]`` | ``npt.NDArray[C]``]]
+        list[list[torch.Tensor]]
             All subbands organized into 2 subband groups:
 
             - coefficients[0]: [lowpass] - single lowpass subband (1 subband)
@@ -410,15 +426,15 @@ class MeyerWavelet:
 
         Examples
         --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
+        >>> import torch
+        >>> from curvelets.torch import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> signal = np.random.randn(64, 64)
+        >>> signal = torch.randn(64, 64)
         >>> coefficients = wavelet.forward(signal)
         >>> len(coefficients)  # 2 subband groups
         2
         >>> coefficients[0][0].shape  # Lowpass subband
-        (32, 32)
+        torch.Size([32, 32])
         >>> len(coefficients[1])  # Highpass subbands
         3
         """
@@ -432,7 +448,7 @@ class MeyerWavelet:
 
         # Apply 1D transform along each dimension
         for dimension_index in range(self.dimension):
-            new_bands: list[npt.NDArray] = []
+            new_bands: list[torch.Tensor] = []
             for band in current_bands:
                 lowpass_subband, highpass_subband = self._forward_transform_1d(
                     band, dimension_index
@@ -445,9 +461,7 @@ class MeyerWavelet:
         # len(result) == 2 (num_subbands)
         return [[current_bands[0]], current_bands[1:]]
 
-    def backward(
-        self, coefficients: list[list[npt.NDArray[F] | npt.NDArray[C]]]
-    ) -> npt.NDArray[F] | npt.NDArray[C]:
+    def backward(self, coefficients: list[list[torch.Tensor]]) -> torch.Tensor:
         """
         Apply multi-dimensional Meyer wavelet inverse transform.
 
@@ -456,7 +470,7 @@ class MeyerWavelet:
 
         Parameters
         ----------
-        coefficients : list[list[``npt.NDArray[F]`` | ``npt.NDArray[C]``]]
+        coefficients : list[list[torch.Tensor]]
             Full coefficient structure from forward() with 2 subband groups:
 
             - coefficients[0]: [lowpass] - single lowpass subband
@@ -465,7 +479,7 @@ class MeyerWavelet:
 
         Returns
         -------
-        ``npt.NDArray[F]`` | ``npt.NDArray[C]``
+        torch.Tensor
             Reconstructed signal with shape matching the original input.
 
         Raises
@@ -475,13 +489,13 @@ class MeyerWavelet:
 
         Examples
         --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import MeyerWavelet
+        >>> import torch
+        >>> from curvelets.torch import MeyerWavelet
         >>> wavelet = MeyerWavelet(shape=(64, 64))
-        >>> signal = np.random.randn(64, 64)
+        >>> signal = torch.randn(64, 64)
         >>> coefficients = wavelet.forward(signal)
         >>> reconstructed = wavelet.backward(coefficients)
-        >>> np.allclose(signal, reconstructed, atol=1e-10)
+        >>> torch.allclose(signal, reconstructed, atol=1e-10)
         True
         """
         # Validate coefficient structure
@@ -493,7 +507,7 @@ class MeyerWavelet:
 
         # Extract lowpass and highpass bands
         lowpass_subband = coefficients[0][0]
-        highpass_bands: list[npt.NDArray[F] | npt.NDArray[C]] = coefficients[1]
+        highpass_bands: list[torch.Tensor] = coefficients[1]
 
         # Combine lowpass with highpass bands
         all_bands = [lowpass_subband, *highpass_bands]
@@ -501,7 +515,7 @@ class MeyerWavelet:
         # Apply inverse transform along each dimension in reverse order
         current_bands = all_bands
         for dimension_index in range(self.dimension - 1, -1, -1):
-            new_bands: list[npt.NDArray] = []
+            new_bands: list[torch.Tensor] = []
             for band_index in range(len(current_bands) // 2):
                 reconstructed = self._inverse_transform_1d(
                     current_bands[2 * band_index],

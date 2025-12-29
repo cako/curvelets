@@ -35,9 +35,9 @@ While this does not include libraries which wrap the CurveLab toolbox and theref
 
 A third flavor is the Uniform Discrete Curvelet Transform (UDCT) which does not have the same restrictive license as the FDCT. The UDCT was first implemented in Matlab (see `ucurvmd <https://github.com/nttruong7/ucurvmd>`_ [dead link] by one of its authors, Truong Nguyen. The 2D version was ported to Julia as the `Curvelet.jl <https://github.com/fundamental/Curvelet.jl>`_ package, whose development has since been abandoned.
 
-**This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use the UDCT more easily.
+**This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use the UDCT more easily. It also goes beyond the original implementation by providing a the support for complex signals, monogenic extension for real signals :cite:`Storath2010`, and a wavelet transform at the highest scale.
 
-.. [#f1] The Candès FDCTs and UDCTs are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili :cite:`Woiselle2010`, but the `code <www.cosmostat.org/software/f-cur3d>`__ seems to be unavailable online. Another type of continuous curvelet transform, the monogenic curvelet transform :cite:`Storath2010`, does not have a publicly available implementation. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
+.. [#f1] The FDCTs and UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) :cite:`Woiselle2010`, but the `code <www.cosmostat.org/software/f-cur3d>`__ seems to be unavailable online. The monogenic curvelet transform :cite:`Storath2010` does not have a publicly available implementation. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
 
 
 Can I use curvelets for deep-learning?
@@ -45,7 +45,7 @@ Can I use curvelets for deep-learning?
 
 This is another facet of the "data-centric" vs. "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering when used as part of the model architecture, or feature engineering when used as a preprocessing step.
 
-It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks :cite:`Luan2018`, :cite:`Andreux2018` in some cases. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data.
+It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks :cite:`Luan2018,Andreux2018` in some cases. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality tranining data.
 
 Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implement the wavelet scattering transform :cite:`Bruna2013` and dual-tree complex wavelet transform :cite:`Kingsbury2001`, respectively. The former provides PyTorch, TensorFlow and JAX bindings, while the latter provides PyTorch bindings.
 

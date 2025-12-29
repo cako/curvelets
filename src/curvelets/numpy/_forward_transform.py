@@ -53,7 +53,7 @@ def _process_wedge_real(
     Notes
     -----
     The real transform combines positive and negative frequencies, so no
-    sqrt(0.5) scaling is applied. The normalization factor ensures proper
+    :math:`\\sqrt{0.5}` scaling is applied. The normalization factor ensures proper
     energy preservation.
     """
     # Clear the frequency band buffer for reuse
@@ -92,7 +92,7 @@ def _process_wedge_complex(
 
     This function applies a frequency-domain window (optionally flipped for
     negative frequencies) to extract a specific curvelet band, transforms it
-    to spatial domain with sqrt(0.5) scaling, downsamples it, and applies
+    to spatial domain with :math:`\\sqrt{0.5}` scaling, downsamples it, and applies
     normalization.
 
     Parameters
@@ -119,7 +119,7 @@ def _process_wedge_complex(
     Notes
     -----
     The complex transform separates positive and negative frequencies, so
-    sqrt(0.5) scaling is applied to each band. The normalization factor ensures
+    :math:`\\sqrt{0.5}` scaling is applied to each band. The normalization factor ensures
     proper energy preservation.
     """
     # pylint: disable=duplicate-code
@@ -299,7 +299,7 @@ def _apply_forward_transform_complex(
     Notes
     -----
     The complex transform separates positive and negative frequencies into
-    different directions. Each band is scaled by sqrt(0.5) to maintain energy
+    different directions. Each band is scaled by :math:`\\sqrt{0.5}` to maintain energy
     preservation. The negative frequency windows are obtained by flipping the
     positive frequency windows using `flip_fft_all_axes`.
 
@@ -535,7 +535,7 @@ def _apply_forward_transform_monogenic(
     The monogenic transform is mathematically defined only for real-valued functions.
     This function computes:
     - Scalar component: same as standard UDCT
-    - Riesz_k component: applies R_k filter (i * xi_k / |xi|) for k = 1, 2, ..., ndim
+    - Riesz_k component: applies :math:`R_k` filter :math:`(i \\xi_k / |\\xi|)` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
 
     Structure mirrors _apply_forward_transform_real() but:
     - Computes Riesz filters once at the start
@@ -707,7 +707,7 @@ def _apply_forward_transform(
         - True: Complex transform mode. Positive and negative frequency bands
           are separated into different directions. Directions 0..dim-1 are
           positive frequencies, directions dim..2*dim-1 are negative frequencies.
-          Each band is scaled by sqrt(0.5). Coefficients are complex-valued.
+          Each band is scaled by :math:`\\sqrt{0.5}`. Coefficients are complex-valued.
           Required for complex-valued inputs.
 
     Returns
@@ -781,6 +781,6 @@ def _apply_forward_transform(
     # This enforces type safety: real transform requires real input
     error_msg = (
         "Real transform requires real-valued input. "
-        "Got complex array. Use use_complex_transform=True for complex inputs."
+        "Got complex array. Use transform_kind='complex' for complex inputs."
     )
     raise ValueError(error_msg)

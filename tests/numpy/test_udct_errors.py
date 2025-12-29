@@ -5,7 +5,7 @@ Tests cover:
 - Lines 291-292: num_scales < 2 error
 - Lines 294-295: wedges_per_direction < 3 error
 - Line 320: Auto-select window_overlap for wedges_per_direction > 5
-- Line 664: Complex input with use_complex_transform=False
+- Complex input with transform_kind="real" raises ValueError
 """
 
 from __future__ import annotations
@@ -56,18 +56,19 @@ def test_window_overlap_auto_select_wedges_6(rng):
 
 
 def test_complex_input_real_transform(rng):
-    """Test complex input with use_complex_transform=False (line 664)."""
-    # Create transform with use_complex_transform=False
+    """Test complex input with transform_kind="real" raises ValueError."""
+    # Create transform with transform_kind="real"
     transform = UDCT(
         shape=(64, 64),
         num_scales=3,
         wedges_per_direction=3,
-        use_complex_transform=False,
+        transform_kind="real",
     )
 
-    # Pass complex input - should convert to real (line 664)
+    # Pass complex input - should raise ValueError
     data = rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))
-    coeffs = transform.forward(data)
-
-    # Verify it works (coefficients should be computed from real part)
-    assert len(coeffs) == 3
+    with pytest.raises(
+        ValueError,
+        match="Real transform requires real-valued input.*Use transform_kind='complex'",
+    ):
+        transform.forward(data)

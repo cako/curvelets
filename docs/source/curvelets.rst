@@ -14,4 +14,5 @@ Subpackages
 
    curvelets.numpy
    curvelets.plot
+   curvelets.torch
    curvelets.utils

@@ -62,6 +62,11 @@ nitpick_ignore = [
     ("py:class", "MUDCTCoefficients"),
     ("py:obj", "MUDCTCoefficients"),
     ("py:obj", "curvelets.numpy.MUDCTCoefficients"),
+    ("py:class", "UDCTCoefficients"),
+    ("py:obj", "UDCTCoefficients"),
+    ("py:class", '{"real"'),
+    ("py:class", '"complex"'),
+    ("py:class", '"monogenic"}'),
 ]
 
 always_document_param_types = True
@@ -71,6 +76,7 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "matplotlib": ("https://matplotlib.org/stable/", None),
+    "torch": ("https://pytorch.org/docs/stable/", None),
 }
 
 # sphinx_copybutton

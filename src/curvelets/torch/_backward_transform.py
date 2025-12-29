@@ -1,22 +1,20 @@
-from __future__ import annotations
+"""Backward transform functions for PyTorch UDCT implementation."""
 
 # pylint: disable=duplicate-code
-# Duplicate code with torch implementation is expected
-from typing import Literal, overload
+# Duplicate code with numpy implementation is expected
+from __future__ import annotations
 
-import numpy as np
-import numpy.typing as npt
+import torch
 
-from ._typing import C, UDCTWindows, _to_complex_dtype, _to_real_dtype
+from ._typing import UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, flip_fft_all_axes, upsample
 
 
 def _process_wedge_backward_real(
-    coefficient: npt.NDArray[np.complexfloating],
-    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
-    decimation_ratio: npt.NDArray[np.int_],
-    complex_dtype: npt.DTypeLike,
-) -> npt.NDArray[np.complexfloating]:
+    coefficient: torch.Tensor,
+    window: tuple[torch.Tensor, torch.Tensor],
+    decimation_ratio: torch.Tensor,
+) -> torch.Tensor:
     """
     Process a single wedge for real backward transform mode.
 
@@ -25,18 +23,16 @@ def _process_wedge_backward_real(
 
     Parameters
     ----------
-    coefficient : npt.NDArray[np.complexfloating]
+    coefficient : torch.Tensor
         Downsampled coefficient array for this wedge.
-    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
+    window : tuple[torch.Tensor, torch.Tensor]
         Sparse window representation as (indices, values) tuple.
-    decimation_ratio : npt.NDArray[np.int_]
+    decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
-    complex_dtype : npt.DTypeLike
-        Complex dtype for output.
 
     Returns
     -------
-    npt.NDArray[np.complexfloating]
+    torch.Tensor
         Frequency-domain contribution as sparse array (only non-zero at window indices).
         Same shape as the full image size.
 
@@ -48,30 +44,34 @@ def _process_wedge_backward_real(
     # Upsample coefficient to full size
     curvelet_band = upsample(coefficient, decimation_ratio)
 
-    # Undo normalization: divide by sqrt(2 * prod(decimation_ratio))
-    curvelet_band /= np.sqrt(2 * np.prod(decimation_ratio))
+    # Undo normalization
+    curvelet_band = curvelet_band / torch.sqrt(2 * torch.prod(decimation_ratio.float()))
 
     # Transform to frequency domain
-    curvelet_band = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band)
+    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
 
     # Get window indices and values
     idx, val = window
+    idx_flat = idx.flatten()
 
-    # Create sparse contribution array (only non-zero at window indices)
-    contribution = np.zeros(curvelet_band.shape, dtype=complex_dtype)
-    contribution.flat[idx] = curvelet_band.flat[idx] * val.astype(complex_dtype)
+    # Create sparse contribution array
+    contribution = torch.zeros(
+        curvelet_band.shape, dtype=curvelet_band.dtype, device=curvelet_band.device
+    )
+    contribution.flatten()[idx_flat] = curvelet_band.flatten()[
+        idx_flat
+    ] * val.flatten().to(curvelet_band.dtype)
 
     return contribution
 
 
 def _process_wedge_backward_complex(
-    coefficient: npt.NDArray[np.complexfloating],
-    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
-    decimation_ratio: npt.NDArray[np.int_],
+    coefficient: torch.Tensor,
+    window: tuple[torch.Tensor, torch.Tensor],
+    decimation_ratio: torch.Tensor,
     parameters: ParamUDCT,
-    complex_dtype: npt.DTypeLike,
     flip_window: bool = False,
-) -> npt.NDArray[np.complexfloating]:
+) -> torch.Tensor:
     """
     Process a single wedge for complex backward transform mode.
 
@@ -81,24 +81,22 @@ def _process_wedge_backward_complex(
 
     Parameters
     ----------
-    coefficient : npt.NDArray[np.complexfloating]
+    coefficient : torch.Tensor
         Downsampled coefficient array for this wedge.
-    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
+    window : tuple[torch.Tensor, torch.Tensor]
         Sparse window representation as (indices, values) tuple.
-    decimation_ratio : npt.NDArray[np.int_]
+    decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     parameters : ParamUDCT
         UDCT parameters containing size information.
-    complex_dtype : npt.DTypeLike
-        Complex dtype for output.
     flip_window : bool, optional
         If True, flip the window for negative frequency processing.
         Default is False.
 
     Returns
     -------
-    npt.NDArray[np.complexfloating]
-        Full frequency-domain contribution array with sqrt(0.5) scaling applied.
+    torch.Tensor
+        Full frequency-domain contribution array with :math:`\\sqrt{0.5}` scaling applied.
 
     Notes
     -----
@@ -106,13 +104,12 @@ def _process_wedge_backward_complex(
     in complex transform mode. The :math:`\\sqrt{0.5}` scaling accounts for the separation
     of positive and negative frequencies.
     """
-    # pylint: disable=duplicate-code
     # Get window indices and values
     idx, val = window
 
-    # Convert sparse window to dense for manipulation
-    subwindow = np.zeros(parameters.shape, dtype=val.dtype)
-    subwindow.flat[idx] = val
+    # Convert sparse window to dense
+    subwindow = torch.zeros(parameters.shape, dtype=val.dtype, device=val.device)
+    subwindow.flatten()[idx.flatten()] = val.flatten()
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
@@ -121,22 +118,26 @@ def _process_wedge_backward_complex(
     # Upsample coefficient to full size
     curvelet_band = upsample(coefficient, decimation_ratio)
 
-    # Undo normalization: divide by sqrt(2 * prod(decimation_ratio))
-    curvelet_band /= np.sqrt(2 * np.prod(decimation_ratio))
+    # Undo normalization
+    curvelet_band = curvelet_band / torch.sqrt(2 * torch.prod(decimation_ratio.float()))
 
     # Transform to frequency domain
-    curvelet_band = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band)
+    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
 
     # Apply window with sqrt(0.5) scaling for complex transform
-    return np.sqrt(0.5) * curvelet_band * subwindow.astype(complex_dtype)
+    return (
+        torch.sqrt(torch.tensor(0.5, device=curvelet_band.device))
+        * curvelet_band
+        * subwindow.to(curvelet_band)
+    )
 
 
 def _apply_backward_transform_real(
-    coefficients: list[list[list[npt.NDArray[C]]]],
+    coefficients: UDCTCoefficients,
     parameters: ParamUDCT,
     windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-) -> np.ndarray:
+    decimation_ratios: list[torch.Tensor],
+) -> torch.Tensor:
     """
     Apply backward Uniform Discrete Curvelet Transform in real mode.
 
@@ -147,9 +148,9 @@ def _apply_backward_transform_real(
 
     Parameters
     ----------
-    coefficients : list[list[list[npt.NDArray[C]]]]
+    coefficients : UDCTCoefficients
         Curvelet coefficients from forward transform. Structure:
-        coefficients[scale][direction][wedge] = np.ndarray
+        coefficients[scale][direction][wedge] = torch.Tensor
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands (ndim directions per scale)
     parameters : ParamUDCT
@@ -157,13 +158,13 @@ def _apply_backward_transform_real(
     windows : UDCTWindows
         Curvelet windows in sparse format, must match those used in
         forward transform.
-    decimation_ratios : list[npt.NDArray[np.int_]]
+    decimation_ratios : list[torch.Tensor]
         Decimation ratios for each scale and direction, must match those
         used in forward transform.
 
     Returns
     -------
-    np.ndarray
+    torch.Tensor
         Reconstructed real-valued image or volume with shape `parameters.shape`.
 
     Notes
@@ -172,25 +173,24 @@ def _apply_backward_transform_real(
     in real-valued output. Contributions are accumulated using sparse indexing
     for efficiency.
     """
-    # Determine dtype from coefficients
-    real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
-    complex_dtype = _to_complex_dtype(real_dtype)
+    # Determine dtype and device from coefficients
+    complex_dtype = coefficients[0][0][0].dtype
+    device = coefficients[0][0][0].device
 
     # Initialize frequency domain
-    image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
+    image_frequency = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
 
-    # Process high-frequency bands using loops
-    # For "wavelet" mode at highest scale, we only have 1 window (ring-shaped, symmetric)
-    # so we don't need the factor of 2 (the window already covers all frequencies)
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
     if is_wavelet_mode_highest_scale:
-        # For wavelet mode: process highest scale separately without factor of 2
-        # Other scales use factor of 2 as normal
-        image_frequency_other_scales = np.zeros(parameters.shape, dtype=complex_dtype)
-        image_frequency_wavelet_scale = np.zeros(parameters.shape, dtype=complex_dtype)
-        # pylint: disable=duplicate-code
+        image_frequency_other_scales = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
+        image_frequency_wavelet_scale = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
+
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
@@ -205,18 +205,18 @@ def _apply_backward_transform_real(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         window,
                         decimation_ratio,
-                        complex_dtype,
                     )
                     idx, _ = window
+                    idx_flat = idx.flatten()
                     if scale_idx == highest_scale_idx:
-                        image_frequency_wavelet_scale.flat[idx] += contribution.flat[
-                            idx
-                        ]
+                        image_frequency_wavelet_scale.flatten()[idx_flat] += (
+                            contribution.flatten()[idx_flat]
+                        )
                     else:
-                        image_frequency_other_scales.flat[idx] += contribution.flat[idx]
+                        image_frequency_other_scales.flatten()[idx_flat] += (
+                            contribution.flatten()[idx_flat]
+                        )
     else:
-        # Normal curvelet mode: process all scales together
-        # pylint: disable=duplicate-code
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
@@ -231,22 +231,29 @@ def _apply_backward_transform_real(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         window,
                         decimation_ratio,
-                        complex_dtype,
                     )
                     idx, _ = window
-                    image_frequency.flat[idx] += contribution.flat[idx]
+                    idx_flat = idx.flatten()
+                    image_frequency.flatten()[idx_flat] += contribution.flatten()[
+                        idx_flat
+                    ]
 
     # Process low-frequency band
-    image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
+    image_frequency_low = torch.zeros(
+        parameters.shape, dtype=complex_dtype, device=device
+    )
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
-    curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
+    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
+        curvelet_band
+    )
     idx, val = windows[0][0][0]
-    image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
+    idx_flat = idx.flatten()
+    image_frequency_low.flatten()[idx_flat] += curvelet_band.flatten()[
+        idx_flat
+    ] * val.flatten().to(complex_dtype)
 
-    # Combine: low frequency + high frequency contributions
-    # For real transform mode, multiply high-frequency by 2 to account for combined +/- frequencies
-    # Exception: For "wavelet" mode at highest scale, we don't multiply by 2
+    # Combine
     if is_wavelet_mode_highest_scale:
         image_frequency = (
             2 * image_frequency_other_scales
@@ -255,28 +262,29 @@ def _apply_backward_transform_real(
         )
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
-    return np.fft.ifftn(image_frequency).real
+
+    return torch.fft.ifftn(image_frequency).real  # pylint: disable=not-callable
 
 
 def _apply_backward_transform_complex(
-    coefficients: list[list[list[npt.NDArray[C]]]],
+    coefficients: UDCTCoefficients,
     parameters: ParamUDCT,
     windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-) -> np.ndarray:
+    decimation_ratios: list[torch.Tensor],
+) -> torch.Tensor:
     """
     Apply backward Uniform Discrete Curvelet Transform in complex mode.
 
     This function reconstructs a complex-valued image or volume from curvelet
     coefficients by upsampling, applying frequency-domain windows, and combining
-    all bands. The complex transform mode processes positive and negative
-    frequency bands separately.
+    all bands. The complex transform mode processes separate positive and negative
+    frequency bands.
 
     Parameters
     ----------
-    coefficients : list[list[list[npt.NDArray[C]]]]
+    coefficients : UDCTCoefficients
         Curvelet coefficients from forward transform. Structure:
-        coefficients[scale][direction][wedge] = np.ndarray
+        coefficients[scale][direction][wedge] = torch.Tensor
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
           * Directions 0..dim-1 are positive frequencies
@@ -286,13 +294,13 @@ def _apply_backward_transform_complex(
     windows : UDCTWindows
         Curvelet windows in sparse format, must match those used in
         forward transform.
-    decimation_ratios : list[npt.NDArray[np.int_]]
+    decimation_ratios : list[torch.Tensor]
         Decimation ratios for each scale and direction, must match those
         used in forward transform.
 
     Returns
     -------
-    np.ndarray
+    torch.Tensor
         Reconstructed complex-valued image or volume with shape `parameters.shape`.
 
     Notes
@@ -301,26 +309,21 @@ def _apply_backward_transform_complex(
     in complex-valued output. Contributions are accumulated using full array
     operations for efficiency.
     """
-    # Determine dtype from coefficients
-    real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
-    complex_dtype = _to_complex_dtype(real_dtype)
+    complex_dtype = coefficients[0][0][0].dtype
+    device = coefficients[0][0][0].device
 
-    # Initialize frequency domain
-    # For "wavelet" mode at highest scale, we only have 1 window (ring-shaped, symmetric)
-    # so we don't need the factor of 2 (the window already covers all frequencies)
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
-    # pylint: disable=too-many-nested-blocks
-    if is_wavelet_mode_highest_scale:
-        # For wavelet mode: process highest scale separately without factor of 2
-        # Other scales use factor of 2 as normal
-        # Note: In wavelet mode, coefficients are identical for all directions,
-        # so we only process direction 0 for positive and direction 0 for negative
-        image_frequency_other_scales = np.zeros(parameters.shape, dtype=complex_dtype)
-        image_frequency_wavelet_scale = np.zeros(parameters.shape, dtype=complex_dtype)
+    if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
+        image_frequency_other_scales = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
+        image_frequency_wavelet_scale = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
 
-        # Process positive frequency bands (directions 0..dim-1)
+        # Process positive frequency bands
         for scale_idx in range(1, parameters.num_scales):
             num_window_directions = len(windows[scale_idx])
             for direction_idx in range(parameters.ndim):
@@ -337,17 +340,15 @@ def _apply_backward_transform_complex(
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
                         parameters,
-                        complex_dtype,
                         flip_window=False,
                     )
                     if scale_idx == highest_scale_idx:
-                        # For wavelet mode, only process direction 0 (coefficients are identical)
                         if direction_idx == 0:
                             image_frequency_wavelet_scale += contribution
                     else:
                         image_frequency_other_scales += contribution
 
-        # Process negative frequency bands (directions dim..2*dim-1)
+        # Process negative frequency bands
         for scale_idx in range(1, parameters.num_scales):
             num_window_directions = len(windows[scale_idx])
             for direction_idx in range(parameters.ndim):
@@ -366,19 +367,19 @@ def _apply_backward_transform_complex(
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
                         parameters,
-                        complex_dtype,
                         flip_window=True,
                     )
                     if scale_idx == highest_scale_idx:
-                        # For wavelet mode, only process direction 0 (coefficients are identical)
                         if direction_idx == 0:
                             image_frequency_wavelet_scale += contribution
                     else:
                         image_frequency_other_scales += contribution
     else:
-        # Normal curvelet mode: process all scales together
-        image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
-        # Process positive frequency bands (directions 0..dim-1)
+        image_frequency = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
+
+        # Process positive frequency bands
         for scale_idx in range(1, parameters.num_scales):
             num_window_directions = len(windows[scale_idx])
             for direction_idx in range(parameters.ndim):
@@ -395,12 +396,11 @@ def _apply_backward_transform_complex(
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
                         parameters,
-                        complex_dtype,
                         flip_window=False,
                     )
                     image_frequency += contribution
 
-        # Process negative frequency bands (directions dim..2*dim-1)
+        # Process negative frequency bands
         for scale_idx in range(1, parameters.num_scales):
             num_window_directions = len(windows[scale_idx])
             for direction_idx in range(parameters.ndim):
@@ -419,22 +419,26 @@ def _apply_backward_transform_complex(
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
                         parameters,
-                        complex_dtype,
                         flip_window=True,
                     )
                     image_frequency += contribution
 
     # Process low-frequency band
-    image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
+    image_frequency_low = torch.zeros(
+        parameters.shape, dtype=complex_dtype, device=device
+    )
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
-    curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
+    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
+        curvelet_band
+    )
     idx, val = windows[0][0][0]
-    image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
+    idx_flat = idx.flatten()
+    image_frequency_low.flatten()[idx_flat] += curvelet_band.flatten()[
+        idx_flat
+    ] * val.flatten().to(complex_dtype)
 
-    # Combine: low frequency + high frequency contributions
-    # For complex transform mode, multiply high-frequency by 2 to account for separate +/- frequencies
-    # Exception: For "wavelet" mode at highest scale, we don't multiply by 2
+    # Combine
     if is_wavelet_mode_highest_scale:
         image_frequency = (
             2 * image_frequency_other_scales
@@ -443,36 +447,17 @@ def _apply_backward_transform_complex(
         )
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
-    return np.fft.ifftn(image_frequency)
 
-
-@overload
-def _apply_backward_transform(
-    coefficients: list[list[list[npt.NDArray[C]]]],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-    use_complex_transform: Literal[True],
-) -> np.ndarray: ...
-
-
-@overload
-def _apply_backward_transform(
-    coefficients: list[list[list[npt.NDArray[C]]]],
-    parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
-    use_complex_transform: Literal[False] = False,
-) -> np.ndarray: ...
+    return torch.fft.ifftn(image_frequency)  # pylint: disable=not-callable
 
 
 def _apply_backward_transform(
-    coefficients: list[list[list[npt.NDArray[C]]]],
+    coefficients: UDCTCoefficients,
     parameters: ParamUDCT,
     windows: UDCTWindows,
-    decimation_ratios: list[npt.NDArray[np.int_]],
+    decimation_ratios: list[torch.Tensor],
     use_complex_transform: bool = False,
-) -> np.ndarray:
+) -> torch.Tensor:
     """
     Apply backward Uniform Discrete Curvelet Transform (reconstruction).
 
@@ -483,9 +468,9 @@ def _apply_backward_transform(
 
     Parameters
     ----------
-    coefficients : list[list[list[npt.NDArray[C]]]]
+    coefficients : UDCTCoefficients
         Curvelet coefficients from forward transform. Structure:
-        coefficients[scale][direction][wedge] = np.ndarray
+        coefficients[scale][direction][wedge] = torch.Tensor
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands
           * Real mode: ndim directions per scale
@@ -502,7 +487,7 @@ def _apply_backward_transform(
         Curvelet windows in sparse format, must match those used in
         forward transform. Structure:
         windows[scale][direction][wedge] = (indices, values) tuple
-    decimation_ratios : list[npt.NDArray[np.int_]]
+    decimation_ratios : list[torch.Tensor]
         Decimation ratios for each scale and direction, must match those
         used in forward transform. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band
@@ -518,10 +503,10 @@ def _apply_backward_transform(
 
     Returns
     -------
-    np.ndarray
+    torch.Tensor
         Reconstructed image or volume with shape `parameters.shape`.
-        - Real mode: Returns real-valued array (dtype matches input real part)
-        - Complex mode: Returns complex-valued array
+        - Real mode: Returns real-valued tensor (dtype matches input real part)
+        - Complex mode: Returns complex-valued tensor
 
     Notes
     -----

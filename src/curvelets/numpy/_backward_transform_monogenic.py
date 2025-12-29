@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pylint: disable=duplicate-code
+# Duplicate code with torch implementation is expected
 import numpy as np
 import numpy.typing as npt
 
@@ -28,7 +30,7 @@ def _process_wedge_backward_monogenic(
     ----------
     coefficients : list
         List of coefficient arrays: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-        - scalar: Complex array (from forward_monogenic)
+        - scalar: Complex array (from forward with transform_kind="monogenic")
         - riesz_k: Real arrays for k = 1, 2, ..., ndim
     window : tuple[IntpNDArray, npt.NDArray[np.floating]]
         Sparse window representation as (indices, values) tuple.
@@ -97,7 +99,7 @@ def _apply_backward_transform_monogenic(
 
     This uses the discrete tight frame property of UDCT rather than the
     continuous quaternion formula from Storath 2010. The result satisfies:
-    backward_monogenic(forward_monogenic(f)) ≈ monogenic(f)
+    backward(forward(f)) with transform_kind="monogenic" ≈ monogenic(f)
 
     Where monogenic(f) = (f, -R₁f, -R₂f, ..., -Rₙf) for N-D signals.
 
@@ -124,8 +126,8 @@ def _apply_backward_transform_monogenic(
     -------
     tuple[npt.NDArray[F], ...]
         Reconstructed components: (scalar, riesz1, riesz2, ..., riesz_ndim)
-        - scalar: Original input f
-        - riesz_k: -R_k f for k = 1, 2, ..., ndim
+        - scalar: Original input :math:`f`
+        - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
     """
     # Determine dtype from coefficients
     scalar_coeff = coefficients[0][0][0][0]  # First scalar component

@@ -30,6 +30,7 @@ def pylint(session: nox.Session) -> None:
     """
     # This needs to be installed into the package environment, and is slower
     # than a pre-commit check
+    session.install("-r", "docs/requirements.txt")
     session.install(".[docs]", "pylint")
     session.run("pylint", "curvelets", *session.posargs)
 
@@ -39,6 +40,7 @@ def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
     """
+    session.install("-r", "docs/requirements.txt")
     session.install(".[test]")
     session.run("pytest", *session.posargs)
 
@@ -61,6 +63,8 @@ def docs(session: nox.Session) -> None:
 
     extra_installs = ["sphinx-autobuild"] if args.serve else []
 
+    # Install CPU-only PyTorch for documentation builds
+    session.install("-r", "docs/requirements.txt")
     session.install("-e.[docs]", *extra_installs)
     session.chdir("docs")
 

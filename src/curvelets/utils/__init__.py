@@ -1,3 +1,5 @@
+# pylint: disable=duplicate-code
+# Duplicate code between numpy and torch implementations is expected and intentional
 from __future__ import annotations
 
 __all__ = [
