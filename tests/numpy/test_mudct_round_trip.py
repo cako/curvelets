@@ -117,14 +117,6 @@ def test_mudct_round_trip_wavelet_mode(dim, rng):
     size = shapes[0]
     data = rng.normal(size=size).astype(np.float64)
 
-    # Create transform with num_scales=3 and wavelet mode
-    transform = UDCT(
-        shape=size,
-        num_scales=3,
-        wedges_per_direction=3,
-        high_frequency_mode="wavelet",
-    )
-
     # Test forward and backward transform with transform_kind="monogenic"
     transform_mono = UDCT(
         shape=size,

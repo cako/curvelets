@@ -73,7 +73,6 @@ class _UDCTFunction(torch.autograd.Function):
             (not differentiable).
         """
         udct = ctx.udct
-        transform_type = ctx.transform_type
 
         # Restructure gradient and compute backward
         # UDCT handles dispatch based on transform_kind

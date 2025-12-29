@@ -20,10 +20,7 @@ def test_udct_forward_matches_numpy(ndim):
     image_np = rng.normal(size=shape)
     image_torch = torch.from_numpy(image_np)
 
-    if ndim == 2:
-        angular_config_np = np.array([[3, 3]])
-    else:
-        angular_config_np = np.array([[3, 3, 3]])
+    angular_config_np = np.array([[3, 3]]) if ndim == 2 else np.array([[3, 3, 3]])
     angular_config_torch = torch.from_numpy(angular_config_np)
 
     np_udct = np_curvelets.UDCT(
@@ -68,10 +65,7 @@ def test_udct_roundtrip_matches_numpy(ndim):
     image_np = rng.normal(size=shape)
     image_torch = torch.from_numpy(image_np)
 
-    if ndim == 2:
-        angular_config_np = np.array([[3, 3]])
-    else:
-        angular_config_np = np.array([[3, 3, 3]])
+    angular_config_np = np.array([[3, 3]]) if ndim == 2 else np.array([[3, 3, 3]])
     angular_config_torch = torch.from_numpy(angular_config_np)
 
     np_udct = np_curvelets.UDCT(
@@ -109,10 +103,7 @@ def test_udct_vect_struct_roundtrip(ndim):
     rng = np.random.default_rng(42)
     image_torch = torch.from_numpy(rng.normal(size=shape))
 
-    if ndim == 2:
-        angular_config = torch.tensor([[3, 3]])
-    else:
-        angular_config = torch.tensor([[3, 3, 3]])
+    angular_config = torch.tensor([[3, 3]]) if ndim == 2 else torch.tensor([[3, 3, 3]])
 
     torch_udct = torch_curvelets.UDCT(
         shape=shape,

@@ -94,9 +94,9 @@ udct_module = UDCTModule(
 # automatically flattened during the forward pass.
 input_tensor = torch.randn(*shape, dtype=torch.float64, requires_grad=True)
 output = udct_module(input_tensor)
-print(f"Input shape: {input_tensor.shape}")
-print(f"Output shape: {output.shape}")
-print("Note: Output is a flattened tensor, not a nested structure")
+# Input shape: input_tensor.shape
+# Output shape: output.shape
+# Note: Output is a flattened tensor, not a nested structure
 
 # %%
 # Reconstruction via Autograd
@@ -115,20 +115,20 @@ loss.backward()
 # The gradients in input_tensor.grad demonstrate the backward transform is working
 grad = input_tensor.grad
 assert grad is not None
-print(f"Gradient shape: {grad.shape}")
-print(f"Gradient norm: {grad.norm().item():.2e}")
-print("The backward transform is automatically used in the autograd graph!")
+# Gradient shape: grad.shape
+# Gradient norm: grad.norm().item()
+# The backward transform is automatically used in the autograd graph!
 
 # Verify reconstruction matches input
 # Get nested coefficients and reconstruct using backward transform
 coeffs_nested = udct_module.struct(output.detach())
 reconstructed = udct_module._udct.backward(coeffs_nested)
 reconstruction_error = torch.abs(input_tensor.detach() - reconstructed).max()
-print(f"Reconstruction error: {reconstruction_error.item():.2e}")
+# Reconstruction error: reconstruction_error.item()
 assert torch.allclose(input_tensor.detach(), reconstructed, atol=1e-4), (
     f"Reconstruction does not match input! Max error: {reconstruction_error.item():.2e}"
 )
-print("Reconstruction matches input tensor!")
+# Reconstruction matches input tensor!
 
 # %%
 # Using struct() Method
@@ -140,11 +140,9 @@ print("Reconstruction matches input tensor!")
 #
 # Convert flattened coefficients back to nested structure
 coeffs_nested_from_struct = udct_module.struct(output.detach())
-print(f"Flattened coefficients shape: {output.shape}")
-print(f"Restructured to nested format with {len(coeffs_nested_from_struct)} scales")
-print(
-    "struct() converts flattened coefficients to nested structure using internal state"
-)
+# Flattened coefficients shape: output.shape
+# Restructured to nested format with len(coeffs_nested_from_struct) scales
+# struct() converts flattened coefficients to nested structure using internal state
 
 # %%
 # Gradcheck Verification
@@ -162,5 +160,5 @@ result = torch.autograd.gradcheck(
     atol=1e-4,
     rtol=1e-3,
 )
-print(f"Gradcheck passed: {result}")
-print("This confirms the autograd integration is working correctly!")
+assert result, "Gradcheck failed"
+# This confirms the autograd integration is working correctly!

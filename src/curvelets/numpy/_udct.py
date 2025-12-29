@@ -470,11 +470,11 @@ class UDCT:
         """
         # Dispatch based on transform_kind
         if self.transform_kind == "monogenic":
-            return self._vect_monogenic(coefficients)  # type: ignore[arg-type]
+            return self._vect_monogenic(coefficients)
         if self.transform_kind == "complex":
-            return self._vect_complex(coefficients)  # type: ignore[arg-type]
+            return self._vect_complex(coefficients)
         # real
-        return self._vect_real(coefficients)  # type: ignore[arg-type]
+        return self._vect_real(coefficients)
 
     def _vect_real(
         self, coefficients: list[list[list[npt.NDArray[C]]]]
@@ -727,13 +727,12 @@ class UDCT:
         np.testing.assert_equal(self.shape, image.shape)
 
         # Validate input based on transform_kind
-        if self.transform_kind in ("real", "monogenic"):
-            if np.iscomplexobj(image):
-                msg = (
-                    f"{self.transform_kind.capitalize()} transform requires real-valued input. "
-                    "Got complex array. Use transform_kind='complex' for complex inputs."
-                )
-                raise ValueError(msg)
+        if self.transform_kind in ("real", "monogenic") and np.iscomplexobj(image):
+            msg = (
+                f"{self.transform_kind.capitalize()} transform requires real-valued input. "
+                "Got complex array. Use transform_kind='complex' for complex inputs."
+            )
+            raise ValueError(msg)
 
         # Dispatch to appropriate transform based on transform_kind
         if self.transform_kind == "real":

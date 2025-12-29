@@ -163,7 +163,7 @@ class UDCT:
         """Compute optimal window overlap for given configuration."""
         # Simple heuristic based on shape and config
         min_dim = min(shape)
-        max_wedges = angular_wedges_config.max().item()
+        max_wedges = float(angular_wedges_config.max().item())
         return min(0.25, 0.1 + 0.01 * max_wedges / min_dim)
 
     @staticmethod
@@ -424,23 +424,20 @@ class UDCT:
             Curvelet coefficients organized by scale, direction, and wedge.
         """
         # Validate input based on transform_kind
-        if self._transform_kind in ("real", "monogenic"):
-            if image.is_complex():
-                msg = (
-                    f"{self._transform_kind.capitalize()} transform requires real-valued input. "
-                    "Got complex tensor. Use transform_kind='complex' for complex inputs."
-                )
-                raise ValueError(msg)
+        if self._transform_kind in ("real", "monogenic") and image.is_complex():
+            msg = (
+                f"{self._transform_kind.capitalize()} transform requires real-valued input. "
+                "Got complex tensor. Use transform_kind='complex' for complex inputs."
+            )
+            raise ValueError(msg)
 
         # Dispatch based on transform_kind
         if self._transform_kind == "real":
             return self._forward_real(image)
         if self._transform_kind == "complex":
             return self._forward_complex(image)
-        if self._transform_kind == "monogenic":
-            return self._forward_monogenic(image)
-        msg = f"Invalid transform_kind: {self._transform_kind!r}"
-        raise ValueError(msg)
+        # Must be "monogenic" (checked by type system)
+        return self._forward_monogenic(image)
 
     def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for real forward transform (no input validation)."""
@@ -507,10 +504,8 @@ class UDCT:
             return self._backward_real(coefficients)
         if self._transform_kind == "complex":
             return self._backward_complex(coefficients)
-        if self._transform_kind == "monogenic":
-            return self._backward_monogenic(coefficients)
-        msg = f"Invalid transform_kind: {self._transform_kind!r}"
-        raise ValueError(msg)
+        # Must be "monogenic" (checked by type system)
+        return self._backward_monogenic(coefficients)
 
     def _backward_real(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """Private method for real backward transform (no input validation)."""

@@ -82,8 +82,6 @@ class MeyerWavelet:
             scale_factor = 2 ** (self.num_scales - 1 - scale_idx)
             r0 = self.radial_frequency_params[0] / scale_factor
             r1 = self.radial_frequency_params[1] / scale_factor
-            r2 = self.radial_frequency_params[2] / scale_factor
-            r3 = self.radial_frequency_params[3] / scale_factor
 
             # Lowpass filter
             lowpass = np.zeros(size, dtype=np.float64)

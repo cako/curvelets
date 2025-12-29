@@ -198,8 +198,7 @@ class UDCTWindow:
         # For N-D tensors, use permute to reverse dimensions instead of deprecated .T
         result = kron_step3.reshape(*shape[::-1])
         # Transpose: reverse all dimensions
-        result = result.permute(*reversed(range(result.ndim)))
-        return result
+        return result.permute(*reversed(range(result.ndim)))
 
     @staticmethod
     def _flip_with_fft_shift(input_tensor: torch.Tensor, axis: int) -> torch.Tensor:

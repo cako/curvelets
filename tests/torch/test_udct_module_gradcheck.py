@@ -21,7 +21,8 @@ def timeout(seconds: float):
     """Context manager that raises TimeoutError if code takes too long."""
 
     def _timeout_handler(signum, frame):  # noqa: ARG001
-        raise TimeoutError(f"Operation timed out after {seconds} seconds")
+        msg = f"Operation timed out after {seconds} seconds"
+        raise TimeoutError(msg)
 
     # Set the signal handler
     old_handler = signal.signal(signal.SIGALRM, _timeout_handler)

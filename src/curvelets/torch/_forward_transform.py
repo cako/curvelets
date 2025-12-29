@@ -127,9 +127,7 @@ def _process_wedge_complex(
     coeff = downsample(band_filtered, decimation_ratio)
 
     # Apply normalization factor
-    coeff = coeff * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
-
-    return coeff
+    return coeff * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
 
 
 def _apply_forward_transform_real(
