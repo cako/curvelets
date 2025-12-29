@@ -128,7 +128,7 @@ def _process_wedge_backward_complex(
     return (
         torch.sqrt(torch.tensor(0.5, device=curvelet_band.device))
         * curvelet_band
-        * subwindow.to(curvelet_band.dtype)
+        * subwindow.to(curvelet_band)
     )
 
 
@@ -185,10 +185,10 @@ def _apply_backward_transform_real(
 
     if is_wavelet_mode_highest_scale:
         image_frequency_other_scales = torch.zeros(
-            parameters.shape, dtype=complex_dtype
+            parameters.shape, dtype=complex_dtype, device=device
         )
         image_frequency_wavelet_scale = torch.zeros(
-            parameters.shape, dtype=complex_dtype
+            parameters.shape, dtype=complex_dtype, device=device
         )
 
         for scale_idx in range(1, parameters.num_scales):
@@ -239,7 +239,7 @@ def _apply_backward_transform_real(
                     ]
 
     # Process low-frequency band
-    image_frequency_low = torch.zeros(parameters.shape, dtype=complex_dtype)
+    image_frequency_low = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
@@ -315,10 +315,10 @@ def _apply_backward_transform_complex(
 
     if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
         image_frequency_other_scales = torch.zeros(
-            parameters.shape, dtype=complex_dtype
+            parameters.shape, dtype=complex_dtype, device=device
         )
         image_frequency_wavelet_scale = torch.zeros(
-            parameters.shape, dtype=complex_dtype
+            parameters.shape, dtype=complex_dtype, device=device
         )
 
         # Process positive frequency bands

@@ -121,7 +121,7 @@ def _process_wedge_complex(
     # Apply window to frequency domain and transform to spatial domain
     band_filtered = torch.sqrt(
         torch.tensor(0.5, device=image_frequency.device)
-    ) * torch.fft.ifftn(image_frequency * subwindow.to(image_frequency.dtype))  # pylint: disable=not-callable
+    ) * torch.fft.ifftn(image_frequency * subwindow.to(image_frequency))  # pylint: disable=not-callable
 
     # Downsample the curvelet band
     coeff = downsample(band_filtered, decimation_ratio)
