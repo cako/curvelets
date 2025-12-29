@@ -78,7 +78,9 @@ class UDCT:
 
         # Compute windows
         window_computer = UDCTWindow(self._parameters, high_frequency_mode)
-        self._windows, self._decimation_ratios, self._indices = window_computer.compute()
+        self._windows, self._decimation_ratios, self._indices = (
+            window_computer.compute()
+        )
 
         # Precompute MeyerWavelet for wavelet mode
         if high_frequency_mode == "wavelet":
@@ -151,7 +153,7 @@ class UDCT:
         # Create config with exponentially increasing wedges per scale
         config_list = []
         for scale_idx in range(num_scales - 1):
-            wedges = base_wedges * (2 ** scale_idx)
+            wedges = base_wedges * (2**scale_idx)
             config_list.append([wedges] * ndim)
         angular_wedges_config = torch.tensor(config_list, dtype=torch.int64)
         return UDCT(
@@ -240,7 +242,7 @@ class UDCT:
             for direction in scale:
                 direction_dense: list[torch.Tensor] = []
                 for idx, val in direction:
-                    dense = torch.zeros(self.shape, dtype=val.dtype)
+                    dense = torch.zeros(self.shape, dtype=val.dtype, device=val.device)
                     dense.flatten()[idx.flatten()] = val.flatten()
                     direction_dense.append(dense)
                 scale_dense.append(direction_dense)
@@ -329,9 +331,7 @@ class UDCT:
             coefficients, self._parameters, self._windows, self._decimation_ratios
         )
 
-    def monogenic(
-        self, image: torch.Tensor
-    ) -> tuple[torch.Tensor, ...]:
+    def monogenic(self, image: torch.Tensor) -> tuple[torch.Tensor, ...]:
         """
         Compute monogenic transform (scalar + Riesz components).
 
