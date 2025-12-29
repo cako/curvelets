@@ -103,7 +103,7 @@ What separates curvelets from the other X-lets are their interesting properties,
 
 ### Why do we need another curvelet transform library?
 
-There are three flavors of the discrete curvelet transform with publicly available implementations [^f1]. The first two are based on the Fast Discrete Curvelet Transform (FDCT) pioneered by Candès, Demanet, Donoho and Ying. They are the "wrapping" and "USFFT" (unequally-spaced Fast Fourier Transform) versions of the FDCT. Both are implemented (2D and 3D for the wrapping version and 2D for the USFFT version) in the proprietary [CurveLab Toolbox](http://www.curvelet.org/software.html) in Matlab and C++.
+There are three flavors of the discrete curvelet transform with publicly available implementations [^f1]. The first two are based on the Fast Discrete Curvelet Transform (FDCT) pioneered by Candès, Demanet, Donoho and Ying. They are the "wrapping" and "USFFT" (unequally-spaced Fast Fourier Transform) versions of the FDCT. Both are implemented (2D and 3D for the wrapping version and 2D for the USFFT version) in the proprietary [CurveLab Toolbox](http://www.curvelet.org/software.html) in MATLAB and C++.
 
 As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Any library which ports or converts Curvelab code to another language is also subject to Curvelab's license. While this does not include libraries which wrap the CurveLab toolbox and therefore do not contain any source code of Curvelab, their usage still requires Curvelab and therefore its license. Such wrappers include [curvelops](https://github.com/PyLops/curvelops), [PyCurvelab](https://github.com/slimgroup/PyCurvelab), both MIT licensed.
 
@@ -130,7 +130,7 @@ Another aspect to consider is the availability of high-performance, GPU-accelera
 | Project                                                     | Algorithm                            | Language        | License                                  | N-dimensional?       | Invertible? |
 | ----------------------------------------------------------- | ------------------------------------ | --------------- | ---------------------------------------- | ------------------- | ----------- |
 | [Curvelets](https://curvelets.readthedocs.io/)              | UDCT                                 | Python          | MIT                                      | Yes        | Yes       |
-| [Curvelab](https://curvelet.org/software.php)               | FDCT                                 | C++ and Matlab  | Proprietary (free for academic use only) | 2D, 3D     | Yes       |
+| [Curvelab](https://curvelet.org/software.php)               | FDCT                                 | C++ and MATLAB  | Proprietary (free for academic use only) | 2D, 3D     | Yes       |
 | [Curvelet.jl](https://github.com/fundamental/Curvelet.jl)   | UDCT                                 | Julia           | MIT                                      | 2D         | Yes       |
 | [Kymatio](https://www.kymat.io/)                            | Wavelet scattering transform        | Python          | BSD 3-clause                             | 1D, 2D, 3D | No |
 | [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform  | Python          | BSD 2-Clause                      | 1D, 2D, 3D | Yes       |
@@ -138,7 +138,7 @@ Another aspect to consider is the availability of high-performance, GPU-accelera
 
 ## Credits
 
-The original Matlab implementation was developed by one of the authors of the UDCT, Truong T. Nguyen. The Python implementation was developed by Carlos Alberto da Costa Filho and Duy Nguyen.
+The original MATLAB implementation was developed by one of the authors of the UDCT, Truong T. Nguyen. The Python implementation was developed by Carlos Alberto da Costa Filho and Duy Nguyen.
 
 ## References
 ##### [1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.

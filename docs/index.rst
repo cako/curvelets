@@ -77,7 +77,7 @@ Features
 
 Credits
 #######
-The original Matlab implementation was developed by one of the authors of the UDCT, Truong T. Nguyen.
+The original MATLAB implementation was developed by one of the authors of the UDCT, Truong T. Nguyen.
 The Python implementation was developed by Carlos Alberto da Costa Filho and Duy Nguyen.
 
 References
