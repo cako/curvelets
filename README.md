@@ -17,8 +17,6 @@
 [![codecov](https://codecov.io/github/cako/curvelets/graph/badge.svg?token=T16E0ANTLR)](https://codecov.io/github/cako/curvelets)
 
 [![PyPI version][pypi-version]][pypi-link]
-[![Conda-Forge][conda-badge]][conda-link]
-[![PyPI platforms][pypi-platforms]][pypi-link]
 ![PyPI downloads](https://img.shields.io/pypi/dm/curvelets.svg?label=Pypi%20downloads)
 ![OS-support](https://img.shields.io/badge/OS-linux,win,osx-850A8B.svg)
 ![License](https://img.shields.io/github/license/cako/curvelets)
