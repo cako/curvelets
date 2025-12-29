@@ -46,7 +46,7 @@ def _process_wedge_backward_real(
     curvelet_band = curvelet_band / torch.sqrt(2 * torch.prod(decimation_ratio.float()))
 
     # Transform to frequency domain
-    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)
+    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
 
     # Get window indices and values
     idx, val = window
@@ -120,7 +120,7 @@ def _process_wedge_backward_complex(
     curvelet_band = curvelet_band / torch.sqrt(2 * torch.prod(decimation_ratio.float()))
 
     # Transform to frequency domain
-    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)
+    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
 
     # Apply window with sqrt(0.5) scaling for complex transform
     return (
@@ -240,7 +240,7 @@ def _apply_backward_transform_real(
     image_frequency_low = torch.zeros(parameters.shape, dtype=complex_dtype)
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
-    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(
+    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
         curvelet_band
     )
     idx, val = windows[0][0][0]
@@ -259,7 +259,7 @@ def _apply_backward_transform_real(
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
 
-    return torch.fft.ifftn(image_frequency).real
+    return torch.fft.ifftn(image_frequency).real  # pylint: disable=not-callable
 
 
 def _apply_backward_transform_complex(
@@ -425,7 +425,7 @@ def _apply_backward_transform_complex(
     )
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
-    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(
+    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
         curvelet_band
     )
     idx, val = windows[0][0][0]

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# pylint: disable=duplicate-code
+# Duplicate code between numpy and torch implementations is expected
+
 __all__ = [
     "apply_along_wedges",
     "array_split_nd",

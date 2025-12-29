@@ -56,7 +56,7 @@ def _process_wedge_real(
     ] * val.flatten().to(freq_band.dtype)
 
     # Transform back to spatial domain using inverse FFT
-    curvelet_band = torch.fft.ifftn(freq_band)
+    curvelet_band = torch.fft.ifftn(freq_band)  # pylint: disable=not-callable
 
     # Downsample the curvelet band according to the decimation ratio
     coeff = downsample(curvelet_band, decimation_ratio)
@@ -119,7 +119,7 @@ def _process_wedge_complex(
     # Apply window to frequency domain and transform to spatial domain
     band_filtered = torch.sqrt(
         torch.tensor(0.5, device=image_frequency.device)
-    ) * torch.fft.ifftn(image_frequency * subwindow.to(image_frequency.dtype))
+    ) * torch.fft.ifftn(image_frequency * subwindow.to(image_frequency.dtype))  # pylint: disable=not-callable
 
     # Downsample the curvelet band
     coeff = downsample(band_filtered, decimation_ratio)
@@ -194,7 +194,7 @@ def _apply_forward_transform_real(
         idx_flat
     ] * val.flatten().to(complex_dtype)
 
-    curvelet_band = torch.fft.ifftn(frequency_band)
+    curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
 
     low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = torch.sqrt(
@@ -303,7 +303,7 @@ def _apply_forward_transform_complex(
         idx_flat
     ] * val.flatten().to(complex_dtype)
 
-    curvelet_band = torch.fft.ifftn(frequency_band)
+    curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
 
     low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = torch.sqrt(

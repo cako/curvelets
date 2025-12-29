@@ -184,7 +184,7 @@ class MeyerWavelet:
             dimension-wise decomposition.
         """
         # Transform to frequency domain
-        data_freq = torch.fft.fftn(data)
+        data_freq = torch.fft.fftn(data)  # pylint: disable=not-callable
 
         # Initialize coefficients
         coefficients: list[list[torch.Tensor]] = []
@@ -199,7 +199,7 @@ class MeyerWavelet:
                     current_freq, dim_idx, scale_idx
                 )
                 # Store highpass for this dimension
-                scale_coeffs.append(torch.fft.ifftn(highpass_band))
+                scale_coeffs.append(torch.fft.ifftn(highpass_band))  # pylint: disable=not-callable
                 current_freq = lowpass_band
 
             coefficients.append(scale_coeffs)
@@ -225,7 +225,7 @@ class MeyerWavelet:
             Reconstructed data with shape self.shape.
         """
         # Start with lowest scale approximation
-        current_freq = torch.fft.fftn(coefficients[-1][0])
+        current_freq = torch.fft.fftn(coefficients[-1][0])  # pylint: disable=not-callable
 
         # Reconstruct from coarse to fine
         for scale_idx in range(self.num_scales - 2, -1, -1):
@@ -235,4 +235,4 @@ class MeyerWavelet:
                     current_freq, highpass_band, dim_idx, scale_idx
                 )
 
-        return torch.fft.ifftn(current_freq).real
+        return torch.fft.ifftn(current_freq).real  # pylint: disable=not-callable

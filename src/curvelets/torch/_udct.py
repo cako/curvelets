@@ -481,7 +481,7 @@ class UDCT:
                     break
         return coeffs
 
-    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:
+    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
         # TODO: Implement monogenic forward transform for PyTorch
         # For now, raise NotImplementedError
@@ -531,7 +531,7 @@ class UDCT:
             use_complex_transform=True,
         )
 
-    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
         # TODO: Implement monogenic backward transform for PyTorch
         # For now, raise NotImplementedError
