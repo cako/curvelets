@@ -11,7 +11,7 @@ from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
 
 
-class _UDCTFunction(torch.autograd.Function):
+class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]
     """Private autograd Function that uses backward transform as gradient."""
 
     @staticmethod
@@ -82,7 +82,7 @@ class _UDCTFunction(torch.autograd.Function):
         return grad_input, None, None
 
 
-class UDCTModule(nn.Module):
+class UDCTModule(nn.Module):  # type: ignore[misc]
     """
     PyTorch nn.Module wrapper for UDCT with autograd support.
 

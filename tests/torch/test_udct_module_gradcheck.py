@@ -36,8 +36,8 @@ def timeout(seconds: float):
         signal.signal(signal.SIGALRM, old_handler)
 
 
-@pytest.mark.parametrize("dim", [2, 3, 4])
-@pytest.mark.parametrize("transform_type", ["real", "complex"])
+@pytest.mark.parametrize("dim", [2, 3, 4])  # type: ignore[misc]
+@pytest.mark.parametrize("transform_type", ["real", "complex"])  # type: ignore[misc]
 def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     """
     Test that UDCTModule passes gradcheck for all dimensions and transform types.

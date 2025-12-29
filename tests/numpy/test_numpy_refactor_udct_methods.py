@@ -459,9 +459,8 @@ class TestVectStructRoundTrip:
                 for wedge_idx in range(len(coeffs_orig[scale_idx][direction_idx])):
                     orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
                     recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
-                    assert isinstance(recon_wedge, np.ndarray) and isinstance(
-                        orig_wedge, np.ndarray
-                    )
+                    assert isinstance(recon_wedge, np.ndarray)
+                    assert isinstance(orig_wedge, np.ndarray)
                     assert recon_wedge.shape == orig_wedge.shape
                     np.testing.assert_array_equal(recon_wedge, orig_wedge)
 
@@ -525,8 +524,7 @@ class TestVectStructRoundTrip:
                 for wedge_idx in range(len(coeffs_orig[scale_idx][direction_idx])):
                     orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
                     recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
-                    assert isinstance(recon_wedge, np.ndarray) and isinstance(
-                        orig_wedge, np.ndarray
-                    )
+                    assert isinstance(recon_wedge, np.ndarray)
+                    assert isinstance(orig_wedge, np.ndarray)
                     assert recon_wedge.shape == orig_wedge.shape
                     np.testing.assert_array_equal(recon_wedge, orig_wedge)

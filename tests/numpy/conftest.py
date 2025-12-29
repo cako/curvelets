@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -155,7 +155,7 @@ def _create_numpy_transform(
     cfg: np.ndarray,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
-    transform_kind: str = "real",
+    transform_kind: Literal["real", "complex", "monogenic"] = "real",
 ) -> TransformWrapper:
     """Create NumPy UDCT transform."""
     import curvelets.numpy as numpy_udct

@@ -447,14 +447,16 @@ class UDCT:
         # Store coefficient dtype from first non-empty coefficient (Option B)
         if self._coefficient_dtype is None and len(coeffs) > 0:
             for scale in coeffs:
+                found = False
                 for direction in scale:
                     for wedge in direction:
                         if wedge.numel() > 0:
                             self._coefficient_dtype = wedge.dtype
+                            found = True
                             break
-                    if self._coefficient_dtype is not None:
+                    if found:
                         break
-                if self._coefficient_dtype is not None:  # type: ignore[unreachable]
+                if found:
                     break
         return coeffs
 
@@ -466,14 +468,16 @@ class UDCT:
         # Store coefficient dtype from first non-empty coefficient (Option B)
         if self._coefficient_dtype is None and len(coeffs) > 0:
             for scale in coeffs:
+                found = False
                 for direction in scale:
                     for wedge in direction:
                         if wedge.numel() > 0:
                             self._coefficient_dtype = wedge.dtype
+                            found = True
                             break
-                    if self._coefficient_dtype is not None:
+                    if found:
                         break
-                if self._coefficient_dtype is not None:  # type: ignore[unreachable]
+                if found:
                     break
         return coeffs
 

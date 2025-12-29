@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pytest
@@ -84,7 +84,7 @@ class TransformWrapper:
 
     def forward(self, data: torch.Tensor) -> torch_curvelets.UDCTCoefficients:
         """Forward transform."""
-        return self._obj.forward(data)
+        return self._obj.forward(data)  # type: ignore[no-any-return]
 
     def backward(self, coeffs: torch_curvelets.UDCTCoefficients) -> torch.Tensor:
         """Backward transform."""
@@ -97,7 +97,7 @@ def setup_torch_transform(
     cfg_idx: int = 0,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
-    transform_kind: str = "real",
+    transform_kind: Literal["real", "complex", "monogenic"] = "real",
 ) -> TransformWrapper:
     """
     Set up PyTorch UDCT transform for round-trip tests.
