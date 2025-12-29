@@ -1,6 +1,6 @@
 # pylint: disable=duplicate-code
 # Duplicate code between numpy and torch implementations is expected and intentional
-from __future__ import annotations  # noqa: E402
+from __future__ import annotations
 
 __all__ = [
     "apply_along_wedges",
