@@ -145,9 +145,7 @@ class TestMeyerWavelet1DTransform:
         True
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
         reconstructed = wavelet._inverse_transform_1d(lowpass, highpass, 0)
@@ -199,9 +197,7 @@ class TestMeyerWavelet1DTransform:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
 
@@ -239,9 +235,7 @@ class TestMeyerWaveletMultiDimensional:
         torch.Size([32, 32])
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
 
@@ -267,9 +261,7 @@ class TestMeyerWaveletMultiDimensional:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(32, 32, 32))
-        signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
 
@@ -323,9 +315,7 @@ class TestMeyerWaveletMultiDimensional:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -346,9 +336,7 @@ class TestMeyerWaveletMultiDimensional:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(32, 32, 32))
-        signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -440,9 +428,7 @@ class TestMeyerWaveletRoundTrip:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -476,9 +462,7 @@ class TestMeyerWaveletRoundTrip:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(16, 16, 16, 16))
-        signal = torch.from_numpy(
-            rng.normal(size=(16, 16, 16, 16)).astype(np.float64)
-        )
+        signal = torch.from_numpy(rng.normal(size=(16, 16, 16, 16)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -506,9 +490,7 @@ class TestMeyerWaveletRoundTrip:
             Random number generator fixture.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
