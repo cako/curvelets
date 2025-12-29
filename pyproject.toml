@@ -34,16 +34,13 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = [
-  "numpy>=1.20",
-  "torch",
-  "typing_extensions; python_version<='3.10'",
-]
+dependencies = ["numpy>=1.20", "typing_extensions; python_version<='3.10'"]
 
 [project.optional-dependencies]
-test = ["pytest >=6", "pytest-cov >=3", "matplotlib"]
+test = ["pytest >=6", "pytest-cov >=3", "matplotlib", "torch"]
 dev = ["pytest >=6", "pytest-cov >=3"]
 matplotlib = ["matplotlib"]
+torch = ["torch"]
 docs = [
   "sphinx>=8.2.1",
   "myst_parser",
