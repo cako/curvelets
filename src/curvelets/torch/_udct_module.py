@@ -14,8 +14,8 @@ from ._udct import UDCT
 class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: disable=abstract-method
     """Private autograd Function that uses backward transform as gradient."""
 
-    @staticmethod  # pylint: disable=arguments-differ
-    def forward(
+    @staticmethod
+    def forward(  # pylint: disable=arguments-differ
         ctx: torch.autograd.function.FunctionCtx,
         image: torch.Tensor,
         udct: UDCT,

@@ -311,7 +311,7 @@ def _apply_backward_transform_complex(
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
-    if is_wavelet_mode_highest_scale:
+    if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
         image_frequency_other_scales = torch.zeros(
             parameters.shape, dtype=complex_dtype
         )

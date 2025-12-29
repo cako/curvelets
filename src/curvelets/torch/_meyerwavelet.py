@@ -205,7 +205,7 @@ class MeyerWavelet:
             coefficients.append(scale_coeffs)
 
         # Store lowpass approximation at final scale
-        final_coeffs = [torch.fft.ifftn(current_freq)]
+        final_coeffs = [torch.fft.ifftn(current_freq)]  # pylint: disable=not-callable
         coefficients.append(final_coeffs)
 
         return coefficients
