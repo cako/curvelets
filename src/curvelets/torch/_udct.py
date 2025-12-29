@@ -225,9 +225,7 @@ class UDCT:
                     parts.append(wedge_coeff.flatten())
         return torch.cat(parts)
 
-    def struct(
-        self, vector: torch.Tensor
-    ) -> UDCTCoefficients:
+    def struct(self, vector: torch.Tensor) -> UDCTCoefficients:
         """
         Restructure vectorized coefficients to nested list format.
 
@@ -262,9 +260,7 @@ class UDCT:
         else:  # real
             return self._struct_real(vector)
 
-    def _struct_real(
-        self, vector: torch.Tensor
-    ) -> UDCTCoefficients:
+    def _struct_real(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for real coefficient restructuring (no input validation)."""
         begin_idx = 0
         coefficients: UDCTCoefficients = []
@@ -294,9 +290,7 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
-    def _struct_complex(
-        self, vector: torch.Tensor
-    ) -> UDCTCoefficients:
+    def _struct_complex(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for complex coefficient restructuring (no input validation)."""
         begin_idx = 0
         coefficients: UDCTCoefficients = []
@@ -345,9 +339,7 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
-    def _struct_monogenic(
-        self, vector: torch.Tensor
-    ) -> UDCTCoefficients:
+    def _struct_monogenic(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for monogenic coefficient restructuring (no input validation)."""
         begin_idx = 0
         coefficients: UDCTCoefficients = []
