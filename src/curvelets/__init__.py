@@ -1,5 +1,5 @@
 """
-Copyright (c) 2024 Carlos Alberto da Costa Filho. All rights reserved.
+Copyright (c) 2026 Carlos Alberto da Costa Filho. All rights reserved.
 
 Curvelets: Python package for curvelet transforms.
 """
