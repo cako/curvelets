@@ -18,7 +18,7 @@ import curvelets.torch as torch_curvelets
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Timeout-based tests hang on Windows due to thread-based timeout limitations",
-)
+)  # type: ignore[misc]
 def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     """
     Test that UDCTModule passes gradcheck for all dimensions and transform types.
