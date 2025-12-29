@@ -1,7 +1,6 @@
-from __future__ import annotations
-
 # pylint: disable=duplicate-code
 # Duplicate code between numpy and torch implementations is expected
+from __future__ import annotations
 
 __all__ = [
     "apply_along_wedges",

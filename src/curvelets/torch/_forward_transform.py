@@ -181,7 +181,7 @@ def _apply_forward_transform_real(
     in real-valued coefficients. This is suitable for real-valued inputs and
     provides a more compact representation.
     """
-    image_frequency = torch.fft.fftn(image)
+    image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
     complex_dtype = image_frequency.dtype
 
     # Allocate frequency_band once for reuse
@@ -292,7 +292,7 @@ def _apply_forward_transform_complex(
     This mode is required for complex-valued inputs and provides full frequency
     information.
     """
-    image_frequency = torch.fft.fftn(image)
+    image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
     complex_dtype = image_frequency.dtype
 
     # Low frequency band processing

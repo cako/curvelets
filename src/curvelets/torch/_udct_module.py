@@ -51,8 +51,8 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
 
         return flattened
 
-    @staticmethod  # pylint: disable=arguments-differ
-    def backward(
+    @staticmethod
+    def backward(  # pylint: disable=arguments-differ
         ctx: torch.autograd.function.FunctionCtx,
         grad_output: torch.Tensor,
     ) -> tuple[torch.Tensor | None, None, None]:

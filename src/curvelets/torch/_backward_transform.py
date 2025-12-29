@@ -444,7 +444,7 @@ def _apply_backward_transform_complex(
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
 
-    return torch.fft.ifftn(image_frequency)
+    return torch.fft.ifftn(image_frequency)  # pylint: disable=not-callable
 
 
 def _apply_backward_transform(

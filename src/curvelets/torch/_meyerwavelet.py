@@ -230,7 +230,7 @@ class MeyerWavelet:
         # Reconstruct from coarse to fine
         for scale_idx in range(self.num_scales - 2, -1, -1):
             for dim_idx in range(self.ndim - 1, -1, -1):
-                highpass_band = torch.fft.fftn(coefficients[scale_idx][dim_idx])
+                highpass_band = torch.fft.fftn(coefficients[scale_idx][dim_idx])  # pylint: disable=not-callable
                 current_freq = self._inverse_transform_1d(
                     current_freq, highpass_band, dim_idx, scale_idx
                 )
