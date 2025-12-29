@@ -30,8 +30,6 @@
 <!-- prettier-ignore-start -->
 [actions-badge]:            https://github.com/cako/curvelets/workflows/CI/badge.svg
 [actions-link]:             https://github.com/cako/curvelets/actions
-[conda-badge]:              https://img.shields.io/conda/vn/conda-forge/Curvelets
-[conda-link]:               https://github.com/conda-forge/Curvelets-feedstock
 [github-discussions-badge]: https://img.shields.io/static/v1?label=Discussions&message=Ask&color=blue&logo=github
 [github-discussions-link]:  https://github.com/cako/curvelets/discussions
 [pypi-link]:                https://pypi.org/project/Curvelets/
