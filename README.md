@@ -52,7 +52,7 @@ pip install curvelets
 
 ### First Steps
 
-**Curvelets** provides a very simple interface to use the UDCT, `UDCT`. Its only required argument is the shape of the inputs, but you can also supply the number of "scale" or "resolutions" (`num_scales`) as well as the number of wedges per direction (`wedges_per_direction`). The more scales there are, the more granular the distinction between a slowly-varying and a highly-varying feature. The more wedges there are, the more granular the distinction between the directions of the features.
+**Curvelets** provides a very simple interface to use the UDCT, `UDCT`. Its only required argument is the shape of the inputs, but you can also supply the number of "scale" or "resolutions" (`num_scales`) as well as the number of wedges per direction (`wedges_per_direction`). The more scales there are, the more granular the distinction between a slowly-varying and a highly-varying feature. The more wedges there are, the more granular the distinction between the directions of the features. Explore the [direction resolution example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_02_direction_resolution.html) to better understand the effect of the scales and the wedges on the decomposition.
 
 ```python
 import numpy as np
@@ -72,16 +72,16 @@ np.testing.assert_allclose(x, C.backward(y))
 | Arbitrary input shapes   | ✅                         |
 | Real inputs              | ✅ [^real-ftn]             |
 | Complex inputs           | ✅                         |
-| Asymmetric directional resolution | ✅ [^asymmetric-ftn] |
+| Asymmetric diretionality | ✅ [^asymmetric-ftn]       |
 | Wavelet at highest scale | ✅ [^wavelet-ftn]          |
 | Monogenic coefficients   | ✅ [^monogenic-ftn]        |
 | PyTorch bindings         | ✅ [^torch-ftn]            |
 
 [^real-ftn]: Supports real inputs with reduced storage requirements which exploit the symmetry of the real-valued Fourier transform.
-[^asymmetric-ftn]: The directional resolution is asymmetric in the sense that the number of wedges per direction is different for each direction.
-[^wavelet-ftn]: Isotropic wavelets are supported.
+[^asymmetric-ftn]: The directional resolution is asymmetric in the sense that the number of wedges per direction is different for each direction. See the [direction resolution example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_02_direction_resolution.html) for an example.
+[^wavelet-ftn]: Isotropic wavelets are supported. See the [curvelet vs wavelet example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_05_curvelet_vs_wavelet.html) for an example.
 [^monogenic-ftn]: The monogenic curvelet transform was originally defined for 2D signals by Storath 2010, but this implementation extends it to arbitrary N-D signals by using all Riesz transform components (one per dimension).
-[^torch-ftn]: PyTorch bindings are supported. `UDCTModule` does not support the monogenic mode yet.
+[^torch-ftn]: PyTorch bindings are supported. See the [UDCT module gradcheck example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_09_udct_module_gradcheck.html) for an example. `UDCTModule` does not support the monogenic mode yet.
 
 ## FAQs
 
@@ -89,9 +89,9 @@ np.testing.assert_allclose(x, C.backward(y))
 
 Curvelets have a long history and rich history in signal processing. They have been used for a multitude of tasks related in areas such as biomedical imaging (ultrasound, MRI), seismic imaging, synthetic aperture radar, among others. They allow us to extract useful features which can be used to attack problems such as segmentation, inpaining, classification, adaptive subtraction, etc.
 
-You can find a good overview (plug: I wrote it!) of curvelets in the Medium article [Demystifying Curvelets](https://medium.com/data-science/desmystifying-curvelets-c6d88faba0bf).
+You can find a good overview (disclaimer: I wrote it!) of curvelets in the Medium article [Demystifying Curvelets](https://medium.com/data-science/desmystifying-curvelets-c6d88faba0bf).
 
-Curvelets are like wavelets, but in 2D (3D, 4D, etc.). So are steerable wavelets, Gabor wavelets, wedgelets, beamlets, bandlets, contourlets, shearlets, wave atoms, platelets, surfacelets… you get the idea. Like wavelets, these "X-lets" allow us to separate a signal into different "scales" (analog to frequency in 1D, that is, how fast the signal is varying), "location" (equivalent to time in 1D) and the direction in which the signal is varying (which does not have 1D analog).
+Curvelets are like wavelets, but in 2D (3D, 4D, etc.). So are steerable wavelets, Gabor wavelets, wedgelets, beamlets, bandlets, contourlets, shearlets, wave atoms, platelets, surfacelets… you get the idea. Like wavelets, these "X-lets" allow us to separate a signal into different "scales" (analog to frequency in 1D, that is, *how fast* the signal is varying), "location" (equivalent to time in 1D, that is, *where* the signal is varying), and the direction in which the signal is varying (no 1D analog).
 
 What separates curvelets from the other X-lets are their interesting properties, including:
 
@@ -99,38 +99,42 @@ What separates curvelets from the other X-lets are their interesting properties,
 * Forward and inverse discrete curvelet transforms are *efficient* [[1](#1-candès-e-l-demanet-d-donoho-and-l-ying-2006-fast-discrete-curvelet-transforms-multiscale-modeling--simulation-5-861899), [2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634)],
 * The curvelet transform is *N-dimensional*,
 * Curvelets are *optimally sparse* for wave phenomena (seismic, ultrasound, electromagnetic, etc.) [[3](#3-candès-e-j-and-l-demanet-2005-the-curvelet-representation-of-wave-propagators-is-optimally-sparse-communications-on-pure-and-applied-mathematics-58-14721528)],
-* Curvelets have little redundancy, forming a [*tight frame*](https://en.wikipedia.org/wiki/Frame_(linear_algebra)#Tight_frames) [[4](#4-candès-e-j-and-d-l-donoho-2003-new-tight-frames-of-curvelets-and-optimal-representations-of-objects-with-piecewise-c2-singularities-communications-on-pure-and-applied-mathematics-57-219266)].
+* Curvelets have little redundancy, forming a [*tight frame*](https://en.wikipedia.org/wiki/Frame_(linear_algebra)#Tight_frames) [[4](#4-candès-e-j-and-d-l-donoho-2003-new-tight-frames-of-curvelets-and-optimal-representations-of-objects-with-piecewise-c2-singularities-communications-on-pure-and-applied-mathematics-57-219266), [2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634), [7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)].
 
 ### Why do we need another curvelet transform library?
 
 There are three flavors of the discrete curvelet transform with publicly available implementations [^f1]. The first two are based on the Fast Discrete Curvelet Transform (FDCT) pioneered by Candès, Demanet, Donoho and Ying. They are the "wrapping" and "USFFT" (unequally-spaced Fast Fourier Transform) versions of the FDCT. Both are implemented (2D and 3D for the wrapping version and 2D for the USFFT version) in the proprietary [CurveLab Toolbox](http://www.curvelet.org/software.html) in Matlab and C++.
 
-As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Any library which ports or converts Curvelab code to another language is also subject to Curvelab's license. While this does not include libraries which wrap the CurveLab toolbox and therefore do not contain any source code of Curvelab, their usage still requires Curvelab and therefore its license. Such wrappers include [curvelops](https://github.com/PyLops/curvelops), [PyCurvelab](https://github.com/slimgroup/PyCurvelab) which are both MIT licensed.
+As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Any library which ports or converts Curvelab code to another language is also subject to Curvelab's license. While this does not include libraries which wrap the CurveLab toolbox and therefore do not contain any source code of Curvelab, their usage still requires Curvelab and therefore its license. Such wrappers include [curvelops](https://github.com/PyLops/curvelops), [PyCurvelab](https://github.com/slimgroup/PyCurvelab), both MIT licensed.
 
-A third flavor is the Uniform Discrete Curvelet Transform (UDCT) which does not have the same restrictive license as the FDCT. The UDCT was first implemented in Matlab (see [ucurvmd](https://github.com/nttruong7/ucurvmd) [dead link]) by one of its authors, Truong Nguyen. The 2D version was ported to Julia as the [Curvelet.jl](https://github.com/fundamental/Curvelet.jl) package, whose development has since been abandoned.
+A third flavor is the **Uniform Discrete Curvelet Transform (UDCT)** which does not have the same restrictive license as the FDCT. The UDCT was first implemented in MATLAB ([ucurvmd](https://github.com/nttruong7/ucurvmd) [dead link]) by one of its authors, Truong Nguyen.
 
-**This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use the UDCT more easily. It also goes beyond the original implementation by providing support for complex signals, monogenic [[7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)] extension for real signals and a wavelet transform at the highest scale.
+**This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing support for complex signals, monogenic extension for real signals [[7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)], and a wavelet transform at the highest scale.
 
-[^f1]: The Candès FDCTs and UDCTs are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili [[5](#5-woiselle-a-j-l-starck-and-j-fadili-2010-3d-curvelet-transforms-and-astronomical-data-restoration-applied-and-computational-harmonic-analysis-28-171188)], but the [code](www.cosmostat.org/software/f-cur3d) seems to be unavailable online. The monogenic curvelet transform [[7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)] does not have a publicly available implementation. The [S2LET](https://astro-informatics.github.io/s2let/) package implements curvelets on the sphere [[8](#8-chan-j-y-h-b-leistedt-t-d-kitching-and-j-d-mcewen-2017-second-generation-curvelets-on-the-sphere-ieee-transactions-on-signal-processing-65-514)].
+[^f1]: The FDCTs and the UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) by Woiselle, Stack and Fadili [[5](#5-woiselle-a-j-l-starck-and-j-fadili-2010-3d-curvelet-transforms-and-astronomical-data-restoration-applied-and-computational-harmonic-analysis-28-171188)], but the implementation, [F-CUR3D](https://www.cosmostat.org/software/f-cur3d), is unavailable. The monogenic curvelet transform [[7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)] does not have a publicly available implementation. The [S2LET](https://astro-informatics.github.io/s2let/) package implements curvelets on the sphere [[8](#8-chan-j-y-h-b-leistedt-t-d-kitching-and-j-d-mcewen-2017-second-generation-curvelets-on-the-sphere-ieee-transactions-on-signal-processing-65-514)].
 
-### Can I use curvelets for deep-learning?
+### Can I use the **Curvelets** package for deep learning?
 
-This is another facet of the "data-centric" vs. "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering when used as part of the model architecture, or feature engineering when used as a preprocessing step.
+Yes! The package provides a PyTorch module, `UDCTModule`, which can be used to train deep networks.
 
-It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks [[9](#9-luan-s-c-chen-b-zhang-j-han-and-j-liu-2018-gabor-convolutional-networks-ieee-transactions-on-image-processing-27-43574366)], [10](#10-bruna-j-and-s-mallat-2013-invariant-scattering-convolution-networks-ieee-transactions-on-pattern-analysis-and-machine-intelligence-35-18721886)] in some cases. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality training data.
+### Should I use curvelets for deep learning?
 
-Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (including this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/) and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/) which implement the wavelet scattering transform [[11](#11-andreux-m-t-angles-g-exarchakis-r-leonarduzzi-g-rochette-l-thiry-j-zarka-s-mallat-j-andén-e-belilovsky-j-bruna-v-lostanlen-m-chaudhary-m-j-hirn-e-oyallon-s-zhang-c-cella-and-m-eickenberg-2020-kymatio-scattering-transforms-in-python-journal-of-machine-learning-research-2160-16)] and dual-tree complex wavelet transform [[12](#12-kingsbury-n-2001-complex-wavelets-for-shift-invariant-analysis-and-filtering-of-signals-applied-and-computational-harmonic-analysis-10-234253)], respectively. The former provides PyTorch, TensorFlow and JAX bindings, while the latter provides PyTorch bindings.
+This is yet another facet of the "data-centric" vs. "model-centric" debate in machine learning. Exploiting curvelets is a type of model engineering when used as part of the model architecture, or feature engineering when used as a preprocessing step.
+
+It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks in some situations [[9](#9-luan-s-c-chen-b-zhang-j-han-and-j-liu-2018-gabor-convolutional-networks-ieee-transactions-on-image-processing-27-43574366), [11](#11-andreux-m-t-angles-g-exarchakis-r-leonarduzzi-g-rochette-l-thiry-j-zarka-s-mallat-j-andén-e-belilovsky-j-bruna-v-lostanlen-m-chaudhary-m-j-hirn-e-oyallon-s-zhang-c-cella-and-m-eickenberg-2020-kymatio-scattering-transforms-in-python-journal-of-machine-learning-research-2160-16)]. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality training data.
+
+Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/) which implements the wavelet scattering transform [[10](#10-bruna-j-and-s-mallat-2013-invariant-scattering-convolution-networks-ieee-transactions-on-pattern-analysis-and-machine-intelligence-35-18721886)] in PyTorch, TensorFlow and JAX, and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/) which implements the dual-tree complex wavelet transform [[12](#12-kingsbury-n-2001-complex-wavelets-for-shift-invariant-analysis-and-filtering-of-signals-applied-and-computational-harmonic-analysis-10-234253)] in PyTorch.
 
 ### Related Projects
 
-| Project                                                     | Description                         | License                                  | N-D?       | Invertible? |
-| ----------------------------------------------------------- | ----------------------------------- | ---------------------------------------- | ---------- | ----------- |
-| [Curvelets](https://curvelets.readthedocs.io/)              | UDCT in Python                      | MIT                                      | N-D        | Exact       |
-| [Curvelab](https://curvelet.org/software.php)               | FDCT in C++ and Matlab              | Proprietary (free for academic use only) | 2D, 3D     | Exact       |
-| [curvelops](https://github.com/PyLops/curvelops)            | Curvelab Python wrapper             | MIT, depedends on Curvelab               | 2D, 3D     | Exact       |
-| [Kymatio](https://www.kymat.io/)                            | Wavelet scattering transform        | BSD 3-clause                             | 1D, 2D, 3D | Approximate |
-| [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform | Custom BSD 2-clause                      | 1D, 2D, 3D | Exact       |
-| [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io) | Discrete WT and Dual-Tree CWT       | MIT                                      | 2D         | Exact       |
+| Project                                                     | Algorithm                            | Language        | License                                  | N-dimensional?       | Invertible? |
+| ----------------------------------------------------------- | ------------------------------------ | --------------- | ---------------------------------------- | ------------------- | ----------- |
+| [Curvelets](https://curvelets.readthedocs.io/)              | UDCT                                 | Python          | MIT                                      | Yes        | Yes       |
+| [Curvelab](https://curvelet.org/software.php)               | FDCT                                 | C++ and Matlab  | Proprietary (free for academic use only) | 2D, 3D     | Yes       |
+| [Curvelet.jl](https://github.com/fundamental/Curvelet.jl)   | UDCT                                 | Julia           | MIT                                      | 2D         | Yes       |
+| [Kymatio](https://www.kymat.io/)                            | Wavelet scattering transform        | Python          | BSD 3-clause                             | 1D, 2D, 3D | No |
+| [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform  | Python          | BSD 2-Clause                      | 1D, 2D, 3D | Yes       |
+| [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io) | Discrete WT and Dual-Tree CWT       | Python          | MIT                                      | 2D         | Yes       |
 
 ## Credits
 
