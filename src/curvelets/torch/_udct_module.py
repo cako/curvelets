@@ -90,10 +90,10 @@ class UDCTModule(nn.Module):
     """
     PyTorch nn.Module wrapper for UDCT with autograd support.
 
-    This module provides the same interface as UDCT but can be used as a
     PyTorch module with automatic differentiation. When called, it returns
     flattened coefficients as a single tensor, enabling gradient computation
-    through the backward transform.
+    through the backward transform. The backward transform is automatically
+    used in the autograd graph when computing gradients.
 
     Parameters
     ----------
@@ -143,9 +143,9 @@ class UDCTModule(nn.Module):
     >>> torch.autograd.gradcheck(udct, input_tensor, atol=1e-5, rtol=1e-3)
     True
     >>>
-    >>> # Still has UDCT interface methods
-    >>> coeffs_nested = udct.forward_nested(input_tensor)  # Returns nested coefficients
-    >>> reconstructed = udct.backward(coeffs_nested)  # Reconstruct from nested coefficients
+    >>> # Use struct() to convert flattened coefficients to nested structure
+    >>> template = udct._udct.forward(input_tensor.detach())
+    >>> coeffs_nested = udct.struct(output.detach(), template)
     """
 
     def __init__(
@@ -187,41 +187,6 @@ class UDCTModule(nn.Module):
             Flattened curvelet coefficients as a single tensor.
         """
         return _UDCTFunction.apply(image, self._udct, self._transform_type)
-
-    def forward_nested(self, image: torch.Tensor) -> UDCTCoefficients:
-        """
-        Apply forward curvelet transform and return nested coefficients.
-
-        This method provides access to the nested coefficient structure,
-        similar to UDCT.forward().
-
-        Parameters
-        ----------
-        image : torch.Tensor
-            Input image with shape matching self.shape.
-
-        Returns
-        -------
-        UDCTCoefficients
-            Curvelet coefficients organized by scale, direction, and wedge.
-        """
-        return self._udct.forward(image)
-
-    def backward(self, coefficients: UDCTCoefficients) -> torch.Tensor:
-        """
-        Apply backward (inverse) curvelet transform.
-
-        Parameters
-        ----------
-        coefficients : UDCTCoefficients
-            Curvelet coefficients from forward transform.
-
-        Returns
-        -------
-        torch.Tensor
-            Reconstructed image with shape self.shape.
-        """
-        return self._udct.backward(coefficients)
 
     def vect(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
