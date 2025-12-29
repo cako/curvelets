@@ -12,7 +12,9 @@ from curvelets.torch import UDCT
 class TestComplexTransformIntegration:
     """Test suite for complex transform edge cases and end-to-end workflows."""
 
-    @pytest.mark.parametrize("device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"])
+    @pytest.mark.parametrize(
+        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+    )
     def test_complex_transform_round_trip(self, rng, device):
         """
         Test complex transform round-trip with PyTorch UDCT.
@@ -37,7 +39,9 @@ class TestComplexTransformIntegration:
         assert recon.shape == data.shape
         torch.testing.assert_close(recon.real, data, atol=1e-4, rtol=1e-4)
 
-    @pytest.mark.parametrize("device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"])
+    @pytest.mark.parametrize(
+        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+    )
     def test_complex_transform_wavelet_mode(self, rng, device):
         """
         Test complex transform in wavelet mode.
@@ -71,7 +75,9 @@ class TestComplexTransformIntegration:
         torch.testing.assert_close(recon.real, data, atol=1e-4, rtol=1e-4)
 
     @pytest.mark.parametrize("num_scales", [2, 3, 4, 5])
-    @pytest.mark.parametrize("device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"])
+    @pytest.mark.parametrize(
+        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+    )
     def test_complex_transform_different_scales(self, rng, num_scales, device):
         """
         Test complex transform with different numbers of scales.
@@ -104,7 +110,9 @@ class TestComplexTransformIntegration:
         assert recon.shape == data.shape
         torch.testing.assert_close(recon.real, data, atol=1e-4, rtol=1e-4)
 
-    @pytest.mark.parametrize("device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"])
+    @pytest.mark.parametrize(
+        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+    )
     def test_complex_transform_vect_struct(self, rng, device):
         """
         Test vect() and struct() with complex transform coefficients.
@@ -140,10 +148,14 @@ class TestComplexTransformIntegration:
 
                     assert isinstance(recon_wedge, torch.Tensor)
                     assert recon_wedge.shape == orig_wedge.shape
-                    torch.testing.assert_close(recon_wedge, orig_wedge, atol=1e-6, rtol=1e-6)
+                    torch.testing.assert_close(
+                        recon_wedge, orig_wedge, atol=1e-6, rtol=1e-6
+                    )
 
     @pytest.mark.parametrize("dim", [2, 3, 4])
-    @pytest.mark.parametrize("device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"])
+    @pytest.mark.parametrize(
+        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+    )
     def test_complex_transform_multidim(self, rng, dim, device):
         """
         Test complex transform with different dimensions.
@@ -183,7 +195,9 @@ class TestComplexTransformIntegration:
         assert recon.shape == data.shape
         torch.testing.assert_close(recon.real, data, atol=atol, rtol=rtol)
 
-    @pytest.mark.parametrize("device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"])
+    @pytest.mark.parametrize(
+        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
+    )
     def test_complex_transform_complex_input(self, rng, device):
         """
         Test complex transform with complex-valued input.
@@ -201,7 +215,9 @@ class TestComplexTransformIntegration:
             transform_kind="complex",
         )
         data = torch.from_numpy(
-            (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(np.complex128)
+            (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
+                np.complex128
+            )
         ).to(device)
         coeffs = transform.forward(data)
         recon = transform.backward(coeffs)

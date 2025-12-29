@@ -239,7 +239,9 @@ def _apply_backward_transform_real(
                     ]
 
     # Process low-frequency band
-    image_frequency_low = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
+    image_frequency_low = torch.zeros(
+        parameters.shape, dtype=complex_dtype, device=device
+    )
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable

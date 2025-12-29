@@ -189,9 +189,7 @@ class MeyerWavelet:
         window_values += meyer_window(freq_shifted_tensor, *meyer_params)
 
         # Lowpass filter: circular-shifted and square-rooted (matching UDCT)
-        lowpass_window_sq_shifted = circular_shift(
-            window_values, (signal_length // 4,)
-        )
+        lowpass_window_sq_shifted = circular_shift(window_values, (signal_length // 4,))
         lowpass_filter = torch.sqrt(lowpass_window_sq_shifted)
 
         # Highpass filter: complement of lowpass for perfect reconstruction
@@ -345,8 +343,12 @@ class MeyerWavelet:
         input_dtype = lowpass_subband.dtype
 
         # Pre-allocate upsampled arrays
-        lowpass_upsampled = torch.zeros(upsampled_shape, dtype=dtype, device=lowpass_subband.device)
-        highpass_upsampled = torch.zeros(upsampled_shape, dtype=dtype, device=highpass_subband.device)
+        lowpass_upsampled = torch.zeros(
+            upsampled_shape, dtype=dtype, device=lowpass_subband.device
+        )
+        highpass_upsampled = torch.zeros(
+            upsampled_shape, dtype=dtype, device=highpass_subband.device
+        )
 
         # Interleave subbands (upsample by inserting zeros)
         lowpass_upsampled[..., ::2] = lowpass_subband
@@ -370,7 +372,9 @@ class MeyerWavelet:
         # Transform to frequency domain and combine
         combined_frequency_domain = lowpass_filter.to(dtype) * torch.fft.fft(
             lowpass_upsampled, dim=last_axis_index
-        ) + highpass_filter.to(dtype) * torch.fft.fft(highpass_upsampled, dim=last_axis_index)
+        ) + highpass_filter.to(dtype) * torch.fft.fft(
+            highpass_upsampled, dim=last_axis_index
+        )
 
         # Transform back to spatial domain
         reconstructed_full_resolution = torch.fft.ifft(
