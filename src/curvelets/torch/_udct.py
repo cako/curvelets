@@ -15,7 +15,6 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._meyerwavelet import MeyerWavelet
 from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
@@ -124,14 +123,6 @@ class UDCT:
         self._windows, self._decimation_ratios, self._indices = (
             window_computer.compute()
         )
-
-        # Precompute MeyerWavelet for wavelet mode
-        if high_frequency_mode == "wavelet":
-            self._meyerwavelet = MeyerWavelet(
-                shape=shape,
-                num_scales=self._parameters.num_scales,
-                radial_frequency_params=radial_frequency_params,
-            )
 
     @property
     def shape(self) -> tuple[int, ...]:
