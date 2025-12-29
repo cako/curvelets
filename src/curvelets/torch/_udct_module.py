@@ -46,9 +46,8 @@ class _UDCTFunction(torch.autograd.Function):
         coefficients = udct.forward(image)
         flattened = udct.vect(coefficients)
 
-        # Save UDCT instance, coefficient template, and transform type for backward
+        # Save UDCT instance and transform type for backward
         ctx.udct = udct
-        ctx.coefficient_template = coefficients
         ctx.transform_type = transform_type
 
         return flattened
@@ -75,12 +74,11 @@ class _UDCTFunction(torch.autograd.Function):
             (not differentiable).
         """
         udct = ctx.udct
-        template = ctx.coefficient_template
         transform_type = ctx.transform_type
 
         # Restructure gradient and compute backward
         # UDCT handles dispatch based on transform_kind
-        grad_coefficients = udct.struct(grad_output, template)
+        grad_coefficients = udct.struct(grad_output)
         grad_input = udct.backward(grad_coefficients)
 
         return grad_input, None, None
@@ -144,8 +142,7 @@ class UDCTModule(nn.Module):
     True
     >>>
     >>> # Use struct() to convert flattened coefficients to nested structure
-    >>> template = udct._udct.forward(input_tensor.detach())
-    >>> coeffs_nested = udct.struct(output.detach(), template)
+    >>> coeffs_nested = udct.struct(output.detach())
     """
 
     def __init__(
@@ -208,7 +205,6 @@ class UDCTModule(nn.Module):
     def struct(
         self,
         vector: torch.Tensor,
-        template: UDCTCoefficients,
     ) -> UDCTCoefficients:
         """
         Restructure vectorized coefficients to nested list format.
@@ -217,16 +213,26 @@ class UDCTModule(nn.Module):
         ----------
         vector : torch.Tensor
             1D tensor of coefficients.
-        template : UDCTCoefficients
-            Template coefficients for structure information.
 
         Returns
         -------
         UDCTCoefficients
-            Restructured coefficients.
+            Restructured coefficients. The dtype is preserved from the forward
+            transform if available, otherwise uses the vector's dtype.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCTModule
+        >>> udct = UDCTModule(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
+        >>> input_tensor = torch.randn(64, 64)
+        >>> output = udct(input_tensor)
+        >>> coeffs_nested = udct.struct(output.detach())
+        >>> len(coeffs_nested) > 0
+        True
         """
         # Delegate to UDCT - it handles dispatch based on transform_kind
-        return self._udct.struct(vector, template)
+        return self._udct.struct(vector)
 
     @property
     def shape(self) -> tuple[int, ...]:

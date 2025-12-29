@@ -55,7 +55,7 @@ def test_torch_vect_struct_roundtrip(rng, dim):
     
     # Vectorize then restructure
     vec = transform._obj.vect(coeffs)
-    coeffs_reconstructed = transform._obj.struct(vec, coeffs)
+    coeffs_reconstructed = transform._obj.struct(vec)
 
     # Check all coefficients match
     for scale_idx in range(len(coeffs)):

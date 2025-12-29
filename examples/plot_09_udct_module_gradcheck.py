@@ -1,6 +1,6 @@
 """
-UDCTModule Gradcheck
-====================
+PyTorch UDCT Module
+===================
 """
 
 from __future__ import annotations
@@ -45,8 +45,7 @@ print("The backward transform is automatically used in the autograd graph!")
 
 # Verify reconstruction matches input
 # Get nested coefficients and reconstruct using backward transform
-template = udct_module._udct.forward(input_tensor.detach())
-coeffs_nested = udct_module.struct(output.detach(), template)
+coeffs_nested = udct_module.struct(output.detach())
 reconstructed = udct_module._udct.backward(coeffs_nested)
 reconstruction_error = torch.abs(input_tensor.detach() - reconstructed).max()
 print(f"Reconstruction error: {reconstruction_error.item():.2e}")
@@ -59,12 +58,11 @@ print("Reconstruction matches input tensor!")
 # Using struct() Method
 # #####################
 # struct() can be used to convert flattened coefficients back to nested structure
-# Note: template was already computed above for reconstruction verification
 # Use struct() to convert flattened coefficients to nested structure
-coeffs_nested_from_struct = udct_module.struct(output.detach(), template)
+coeffs_nested_from_struct = udct_module.struct(output.detach())
 print(f"Flattened coefficients shape: {output.shape}")
 print(f"Restructured to nested format with {len(coeffs_nested_from_struct)} scales")
-print("struct() converts flattened coefficients to nested structure using a template")
+print("struct() converts flattened coefficients to nested structure using internal state")
 
 # %%
 # Gradcheck Verification

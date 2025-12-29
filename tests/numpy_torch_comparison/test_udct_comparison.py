@@ -121,7 +121,7 @@ def test_udct_vect_struct_roundtrip(ndim):
     
     coeffs = torch_udct.forward(image_torch)
     vec = torch_udct.vect(coeffs)
-    coeffs_reconstructed = torch_udct.struct(vec, coeffs)
+    coeffs_reconstructed = torch_udct.struct(vec)
     
     # Check reconstruction matches original
     for scale_idx in range(len(coeffs)):

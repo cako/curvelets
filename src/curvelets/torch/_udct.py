@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from math import prod
 from typing import Literal
 
 import numpy as np
@@ -63,16 +64,10 @@ class UDCT:
 
     Attributes
     ----------
-    shape : tuple[int, ...]
-        Shape of the input data.
     high_frequency_mode : str
         High frequency mode.
     transform_kind : str
         Type of transform being used ("real", "complex", or "monogenic").
-    windows : UDCTWindows
-        Curvelet windows in sparse format.
-    decimation_ratios : list
-        Decimation ratios for each scale/direction.
 
     Examples
     --------
@@ -120,6 +115,7 @@ class UDCT:
 
         self._high_frequency_mode = high_frequency_mode
         self._transform_kind = transform_kind
+        self._coefficient_dtype: torch.dtype | None = None
 
         # Compute windows
         window_computer = UDCTWindow(self._parameters, high_frequency_mode)
@@ -230,7 +226,7 @@ class UDCT:
         return torch.cat(parts)
 
     def struct(
-        self, vector: torch.Tensor, template: UDCTCoefficients
+        self, vector: torch.Tensor
     ) -> UDCTCoefficients:
         """
         Restructure vectorized coefficients to nested list format.
@@ -239,56 +235,153 @@ class UDCT:
         ----------
         vector : torch.Tensor
             1D tensor of coefficients.
-        template : UDCTCoefficients
-            Template coefficients for structure information.
 
         Returns
         -------
         UDCTCoefficients
-            Restructured coefficients.
+            Restructured coefficients. The dtype is preserved from the forward
+            transform if available, otherwise uses the vector's dtype.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> transform = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
+        >>> data = torch.randn(64, 64)
+        >>> coeffs = transform.forward(data)
+        >>> vec = transform.vect(coeffs)
+        >>> coeffs_recon = transform.struct(vec)
+        >>> len(coeffs_recon) == len(coeffs)
+        True
         """
         # Dispatch based on transform_kind
         if self._transform_kind == "monogenic":
-            return self._struct_monogenic(vector, template)
+            return self._struct_monogenic(vector)
         elif self._transform_kind == "complex":
-            return self._struct_complex(vector, template)
+            return self._struct_complex(vector)
         else:  # real
-            return self._struct_real(vector, template)
+            return self._struct_real(vector)
 
     def _struct_real(
-        self, vector: torch.Tensor, template: UDCTCoefficients
+        self, vector: torch.Tensor
     ) -> UDCTCoefficients:
         """Private method for real coefficient restructuring (no input validation)."""
-        result: UDCTCoefficients = []
-        offset = 0
-        for scale_idx, scale in enumerate(template):
-            scale_coeffs: list[list[torch.Tensor]] = []
-            for direction_idx, direction in enumerate(scale):
-                direction_coeffs: list[torch.Tensor] = []
-                for wedge_coeff in direction:
-                    size = wedge_coeff.numel()
-                    coeff = vector[offset : offset + size].reshape(wedge_coeff.shape)
-                    direction_coeffs.append(coeff.to(wedge_coeff.dtype))
-                    offset += size
-                scale_coeffs.append(direction_coeffs)
-            result.append(scale_coeffs)
-        return result
+        begin_idx = 0
+        coefficients: UDCTCoefficients = []
+        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+            coefficients.append([])
+            num_directions = len(decimation_ratios_scale)
+
+            for direction_idx in range(num_directions):
+                coefficients[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self._windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+
+                for _ in self._windows[scale_idx][window_direction_idx]:
+                    shape_decimated = (internal_shape // decimation_ratio_dir).tolist()
+                    size = prod(shape_decimated)
+                    end_idx = begin_idx + size
+                    coeff = vector[begin_idx:end_idx].reshape(shape_decimated)
+                    # Preserve dtype from forward transform (Option B)
+                    if self._coefficient_dtype is not None:
+                        coeff = coeff.to(self._coefficient_dtype)
+                    coefficients[scale_idx][direction_idx].append(coeff)
+                    begin_idx = end_idx
+        return coefficients
 
     def _struct_complex(
-        self, vector: torch.Tensor, template: UDCTCoefficients
+        self, vector: torch.Tensor
     ) -> UDCTCoefficients:
         """Private method for complex coefficient restructuring (no input validation)."""
-        # Complex transform uses same structure as real
-        return self._struct_real(vector, template)
+        begin_idx = 0
+        coefficients: UDCTCoefficients = []
+        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+            coefficients.append([])
+            # In complex transform mode, we have 2*dim directions per scale (for scale > 0)
+            # but decimation_ratios_scale only has dim rows, so we need to handle this
+            if scale_idx > 0:
+                num_directions = 2 * self._parameters.ndim
+            else:
+                num_directions = len(decimation_ratios_scale)
+
+            for direction_idx in range(num_directions):
+                coefficients[scale_idx].append([])
+                # In complex transform mode, directions >= dim reuse windows and decimation ratios
+                # from directions < dim. Negative frequency directions (dim..2*dim-1) use the same
+                # windows and decimation ratios as positive frequency directions (0..dim-1)
+                # For "wavelet" mode at highest scale, windows only has 1 direction, so use index 0
+                if scale_idx > 0 and direction_idx >= self._parameters.ndim:
+                    window_direction_idx = direction_idx % self._parameters.ndim
+                    # Clamp to available windows (for "wavelet" mode at highest scale)
+                    window_direction_idx = min(
+                        window_direction_idx, len(self._windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(window_direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                else:
+                    window_direction_idx = min(
+                        direction_idx, len(self._windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+
+                for _ in self._windows[scale_idx][window_direction_idx]:
+                    shape_decimated = (internal_shape // decimation_ratio_dir).tolist()
+                    size = prod(shape_decimated)
+                    end_idx = begin_idx + size
+                    coeff = vector[begin_idx:end_idx].reshape(shape_decimated)
+                    # Preserve dtype from forward transform (Option B)
+                    if self._coefficient_dtype is not None:
+                        coeff = coeff.to(self._coefficient_dtype)
+                    coefficients[scale_idx][direction_idx].append(coeff)
+                    begin_idx = end_idx
+        return coefficients
 
     def _struct_monogenic(
-        self, vector: torch.Tensor, template: UDCTCoefficients
+        self, vector: torch.Tensor
     ) -> UDCTCoefficients:
         """Private method for monogenic coefficient restructuring (no input validation)."""
-        # TODO: Implement monogenic restructuring for PyTorch
-        # For now, raise NotImplementedError
-        msg = "Monogenic transform not yet implemented for PyTorch"
-        raise NotImplementedError(msg)
+        begin_idx = 0
+        coefficients: UDCTCoefficients = []
+        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        num_components = self._parameters.ndim + 1  # scalar + all Riesz components
+
+        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+            coefficients.append([])
+            num_directions = len(decimation_ratios_scale)
+
+            for direction_idx in range(num_directions):
+                coefficients[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self._windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+
+                for _ in self._windows[scale_idx][window_direction_idx]:
+                    shape_decimated = (internal_shape // decimation_ratio_dir).tolist()
+                    # For monogenic, each wedge has ndim+1 components
+                    wedge_components: list[torch.Tensor] = []
+                    for _ in range(num_components):
+                        size = prod(shape_decimated)
+                        end_idx = begin_idx + size
+                        component = vector[begin_idx:end_idx].reshape(shape_decimated)
+                        # Preserve dtype from forward transform (Option B)
+                        if self._coefficient_dtype is not None:
+                            component = component.to(self._coefficient_dtype)
+                        wedge_components.append(component)
+                        begin_idx = end_idx
+                    coefficients[scale_idx][direction_idx].append(wedge_components)
+        return coefficients
 
     def from_sparse(
         self, windows: UDCTWindows | None = None
@@ -360,20 +453,47 @@ class UDCT:
 
     def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for real forward transform (no input validation)."""
-        return _apply_forward_transform_real(
+        coeffs = _apply_forward_transform_real(
             image, self._parameters, self._windows, self._decimation_ratios
         )
+        # Store coefficient dtype from first non-empty coefficient (Option B)
+        if self._coefficient_dtype is None and len(coeffs) > 0:
+            for scale in coeffs:
+                for direction in scale:
+                    for wedge in direction:
+                        if wedge.numel() > 0:
+                            self._coefficient_dtype = wedge.dtype
+                            break
+                    if self._coefficient_dtype is not None:
+                        break
+                if self._coefficient_dtype is not None:
+                    break
+        return coeffs
 
     def _forward_complex(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for complex forward transform (no input validation)."""
-        return _apply_forward_transform_complex(
+        coeffs = _apply_forward_transform_complex(
             image, self._parameters, self._windows, self._decimation_ratios
         )
+        # Store coefficient dtype from first non-empty coefficient (Option B)
+        if self._coefficient_dtype is None and len(coeffs) > 0:
+            for scale in coeffs:
+                for direction in scale:
+                    for wedge in direction:
+                        if wedge.numel() > 0:
+                            self._coefficient_dtype = wedge.dtype
+                            break
+                    if self._coefficient_dtype is not None:
+                        break
+                if self._coefficient_dtype is not None:
+                    break
+        return coeffs
 
     def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for monogenic forward transform (no input validation)."""
         # TODO: Implement monogenic forward transform for PyTorch
         # For now, raise NotImplementedError
+        # When implemented, store dtype like in _forward_real and _forward_complex
         msg = "Monogenic transform not yet implemented for PyTorch"
         raise NotImplementedError(msg)
 
