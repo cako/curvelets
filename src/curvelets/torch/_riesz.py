@@ -6,7 +6,7 @@ import torch
 
 
 def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) -> list[torch.Tensor]:
-    """
+    r"""
     Create Riesz transform filters in frequency domain.
 
     The Riesz transform is an N-D generalization of the Hilbert transform,
@@ -23,8 +23,8 @@ def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) ->
     Returns
     -------
     list[torch.Tensor]
-        List of Riesz filters :math:`R_1, R_2, \\ldots, R_{\\text{ndim}}` where:
-        - :math:`R_k(\\xi) = i \\xi_k / |\\xi|`
+        List of Riesz filters :math:`R_1, R_2, \ldots, R_{\text{ndim}}` where:
+        - :math:`R_k(\xi) = i \xi_k / |\xi|`
         - Each filter has the same shape as the input
         - DC component (zero frequency) is set to 0
 
