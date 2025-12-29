@@ -1,4 +1,5 @@
-# pylint: disable=too-many-lines
+# pylint: disable=too-many-lines,duplicate-code
+# Duplicate code with torch implementation is expected
 from __future__ import annotations
 
 from collections.abc import Iterable

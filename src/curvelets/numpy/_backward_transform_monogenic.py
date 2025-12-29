@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pylint: disable=duplicate-code
+# Duplicate code with torch implementation is expected
 import numpy as np
 import numpy.typing as npt
 

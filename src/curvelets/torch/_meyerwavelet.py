@@ -1,5 +1,7 @@
 """Meyer wavelet transform for PyTorch UDCT implementation."""
 
+# pylint: disable=duplicate-code
+# Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
 import numpy as np
