@@ -11,8 +11,8 @@ import curvelets.torch as torch_curvelets
 
 @pytest.mark.parametrize("dim", [2, 3, 4])  # type: ignore[misc]
 @pytest.mark.parametrize("transform_type", ["real", "complex"])  # type: ignore[misc]
-@pytest.mark.timeout(10)
-@pytest.mark.timeout_to_skip
+@pytest.mark.timeout(10)  # type: ignore[misc]
+@pytest.mark.timeout_to_skip  # type: ignore[misc]
 def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     """
     Test that UDCTModule passes gradcheck for all dimensions and transform types.
