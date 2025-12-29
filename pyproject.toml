@@ -94,7 +94,7 @@ testpaths = ["tests"]
 markers = [
   "round_trip: Tests for forward+backward round-trip functionality",
   "slow: Slow-running tests that should be run separately",
-  "timeout_to_skip: Convert timeout failures to skips instead of failures",
+  "timeout_to_xfail: Convert timeout failures to xfail instead of failures",
 ]
 
 

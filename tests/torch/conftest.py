@@ -154,7 +154,7 @@ def rng():
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item, call):
-    """Convert timeout failures to xfail for tests marked with timeout_to_skip."""
+    """Convert timeout failures to xfail for tests marked with timeout_to_xfail."""
     outcome = yield
     rep = outcome.get_result()
 
@@ -162,8 +162,8 @@ def pytest_runtest_makereport(item, call):
     if rep.when != "call" or not rep.failed:
         return
 
-    # Check if the test has the timeout_to_skip marker
-    marker = item.get_closest_marker("timeout_to_skip")
+    # Check if the test has the timeout_to_xfail marker
+    marker = item.get_closest_marker("timeout_to_xfail")
     if marker is None:
         return
 

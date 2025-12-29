@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 import torch
@@ -12,7 +14,11 @@ import curvelets.torch as torch_curvelets
 @pytest.mark.parametrize("dim", [2, 3, 4])  # type: ignore[misc]
 @pytest.mark.parametrize("transform_type", ["real", "complex"])  # type: ignore[misc]
 @pytest.mark.timeout(10)  # type: ignore[misc]
-@pytest.mark.timeout_to_skip  # type: ignore[misc]
+@pytest.mark.timeout_to_xfail  # type: ignore[misc]
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Timeout-based tests hang on Windows due to thread-based timeout limitations",
+)
 def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     """
     Test that UDCTModule passes gradcheck for all dimensions and transform types.
