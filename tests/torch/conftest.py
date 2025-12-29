@@ -97,7 +97,7 @@ def setup_torch_transform(
     cfg_idx: int = 0,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
-    complex_transform: bool = False,
+    transform_kind: str = "real",
 ) -> TransformWrapper:
     """
     Set up PyTorch UDCT transform for round-trip tests.
@@ -114,8 +114,9 @@ def setup_torch_transform(
         High frequency mode ("curvelet" or "wavelet"). Default is "curvelet".
     alpha : float, optional
         Alpha parameter for window overlap. Default is COMMON_ALPHA.
-    complex_transform : bool, optional
-        If True, use complex transform. Default is False.
+    transform_kind : str, optional
+        Type of transform ("real", "complex", or "monogenic").
+        Default is "real".
 
     Returns
     -------
@@ -131,7 +132,7 @@ def setup_torch_transform(
 
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
-    
+
     transform_obj = torch_curvelets.UDCT(
         shape=size,
         angular_wedges_config=cfg,
@@ -139,9 +140,9 @@ def setup_torch_transform(
         radial_frequency_params=COMMON_R,
         window_threshold=COMMON_WINTHRESH,
         high_frequency_mode=high,  # type: ignore[arg-type]
-        use_complex_transform=complex_transform,
+        transform_kind=transform_kind,
     )
-    
+
     return TransformWrapper(transform_obj)
 
 

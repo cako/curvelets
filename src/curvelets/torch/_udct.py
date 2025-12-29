@@ -41,8 +41,19 @@ class UDCT:
         Threshold for sparse window storage. Default is 1e-6.
     high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. Default is "curvelet".
+    transform_kind : {"real", "complex", "monogenic"}, optional
+        Type of transform to use:
+
+        - "real" (default): Real transform where each band captures both
+          positive and negative frequencies combined.
+        - "complex": Complex transform which separates positive and negative
+          frequency components into different bands. Each band is scaled by
+          sqrt(0.5).
+        - "monogenic": Monogenic transform that extends the curvelet transform
+          by applying Riesz transforms, producing ndim+1 components per band
+          (scalar plus all Riesz components).
     use_complex_transform : bool, optional
-        Whether to use complex transform mode. Default is False.
+        Deprecated. Use transform_kind instead. Default is None.
     """
 
     def __init__(
@@ -53,7 +64,7 @@ class UDCT:
         radial_frequency_params: tuple[float, float, float, float] | None = None,
         window_threshold: float = 1e-6,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
-        use_complex_transform: bool = False,
+        transform_kind: Literal["real", "complex", "monogenic"] = "real",
     ) -> None:
         if radial_frequency_params is None:
             radial_frequency_params = (
@@ -62,6 +73,11 @@ class UDCT:
                 2 * np.pi / 3,
                 4 * np.pi / 3,
             )
+
+        # Validate transform_kind
+        if transform_kind not in ("real", "complex", "monogenic"):
+            msg = f"transform_kind must be 'real', 'complex', or 'monogenic', got {transform_kind!r}"
+            raise ValueError(msg)
 
         self._parameters = ParamUDCT(
             shape=shape,
@@ -72,7 +88,7 @@ class UDCT:
         )
 
         self._high_frequency_mode = high_frequency_mode
-        self._use_complex_transform = use_complex_transform
+        self._transform_kind = transform_kind
 
         # Compute windows
         window_computer = UDCTWindow(self._parameters, high_frequency_mode)
@@ -128,14 +144,14 @@ class UDCT:
         shape: tuple[int, ...],
         angular_wedges_config: torch.Tensor,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
-        use_complex_transform: bool = False,
+        transform_kind: Literal["real", "complex", "monogenic"] = "real",
     ) -> "UDCT":
         """Create UDCT from angular wedges configuration."""
         return UDCT(
             shape=shape,
             angular_wedges_config=angular_wedges_config,
             high_frequency_mode=high_frequency_mode,
-            use_complex_transform=use_complex_transform,
+            transform_kind=transform_kind,
         )
 
     @staticmethod
@@ -144,7 +160,7 @@ class UDCT:
         num_scales: int,
         base_wedges: int = 3,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
-        use_complex_transform: bool = False,
+        transform_kind: Literal["real", "complex", "monogenic"] = "real",
     ) -> "UDCT":
         """Create UDCT from number of scales."""
         ndim = len(shape)
@@ -158,7 +174,7 @@ class UDCT:
             shape=shape,
             angular_wedges_config=angular_wedges_config,
             high_frequency_mode=high_frequency_mode,
-            use_complex_transform=use_complex_transform,
+            transform_kind=transform_kind,
         )
 
     def vect(self, coefficients: UDCTCoefficients) -> torch.Tensor:
@@ -200,6 +216,18 @@ class UDCT:
         UDCTCoefficients
             Restructured coefficients.
         """
+        # Dispatch based on transform_kind
+        if self._transform_kind == "monogenic":
+            return self._struct_monogenic(vector, template)
+        elif self._transform_kind == "complex":
+            return self._struct_complex(vector, template)
+        else:  # real
+            return self._struct_real(vector, template)
+
+    def _struct_real(
+        self, vector: torch.Tensor, template: UDCTCoefficients
+    ) -> UDCTCoefficients:
+        """Private method for real coefficient restructuring (no input validation)."""
         result: UDCTCoefficients = []
         offset = 0
         for scale_idx, scale in enumerate(template):
@@ -215,66 +243,21 @@ class UDCT:
             result.append(scale_coeffs)
         return result
 
-    def vect_complex(self, coefficients: UDCTCoefficients) -> torch.Tensor:
-        """
-        Vectorize complex curvelet coefficients.
-
-        Parameters
-        ----------
-        coefficients : UDCTCoefficients
-            Complex curvelet coefficients from complex transform.
-
-        Returns
-        -------
-        torch.Tensor
-            1D tensor containing all coefficients.
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch import UDCT
-        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]), use_complex_transform=True)
-        >>> image = torch.randn(64, 64, dtype=torch.complex64)
-        >>> coeffs = udct.forward(image)
-        >>> flattened = udct.vect_complex(coeffs)
-        >>> flattened.shape
-        torch.Size([...])
-        """
-        # Complex transforms have same structure as real, just different number of directions
-        return self.vect(coefficients)
-
-    def struct_complex(
+    def _struct_complex(
         self, vector: torch.Tensor, template: UDCTCoefficients
     ) -> UDCTCoefficients:
-        """
-        Restructure vectorized complex coefficients to nested list format.
+        """Private method for complex coefficient restructuring (no input validation)."""
+        # Complex transform uses same structure as real
+        return self._struct_real(vector, template)
 
-        Parameters
-        ----------
-        vector : torch.Tensor
-            1D tensor of coefficients.
-        template : UDCTCoefficients
-            Template coefficients for structure information.
-
-        Returns
-        -------
-        UDCTCoefficients
-            Restructured coefficients.
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch import UDCT
-        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]), use_complex_transform=True)
-        >>> image = torch.randn(64, 64, dtype=torch.complex64)
-        >>> coeffs = udct.forward(image)
-        >>> flattened = udct.vect_complex(coeffs)
-        >>> reconstructed = udct.struct_complex(flattened, coeffs)
-        >>> len(reconstructed) == len(coeffs)
-        True
-        """
-        # Complex transforms have same structure as real, just different number of directions
-        return self.struct(vector, template)
+    def _struct_monogenic(
+        self, vector: torch.Tensor, template: UDCTCoefficients
+    ) -> UDCTCoefficients:
+        """Private method for monogenic coefficient restructuring (no input validation)."""
+        # TODO: Implement monogenic restructuring for PyTorch
+        # For now, raise NotImplementedError
+        msg = "Monogenic transform not yet implemented for PyTorch"
+        raise NotImplementedError(msg)
 
     def from_sparse(
         self, windows: UDCTWindows | None = None
@@ -316,19 +299,52 @@ class UDCT:
         ----------
         image : torch.Tensor
             Input image with shape matching self.shape.
+            - For transform_kind="real" or "monogenic": must be real-valued
+            - For transform_kind="complex": can be real-valued or complex-valued
 
         Returns
         -------
         UDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge.
         """
-        if self._use_complex_transform:
-            return _apply_forward_transform_complex(
-                image, self._parameters, self._windows, self._decimation_ratios
-            )
+        # Validate input based on transform_kind
+        if self._transform_kind in ("real", "monogenic"):
+            if image.is_complex():
+                msg = (
+                    f"{self._transform_kind.capitalize()} transform requires real-valued input. "
+                    "Got complex tensor. Use transform_kind='complex' for complex inputs."
+                )
+                raise ValueError(msg)
+
+        # Dispatch based on transform_kind
+        if self._transform_kind == "real":
+            return self._forward_real(image)
+        elif self._transform_kind == "complex":
+            return self._forward_complex(image)
+        elif self._transform_kind == "monogenic":
+            return self._forward_monogenic(image)
+        else:
+            msg = f"Invalid transform_kind: {self._transform_kind!r}"
+            raise ValueError(msg)
+
+    def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
+        """Private method for real forward transform (no input validation)."""
         return _apply_forward_transform_real(
             image, self._parameters, self._windows, self._decimation_ratios
         )
+
+    def _forward_complex(self, image: torch.Tensor) -> UDCTCoefficients:
+        """Private method for complex forward transform (no input validation)."""
+        return _apply_forward_transform_complex(
+            image, self._parameters, self._windows, self._decimation_ratios
+        )
+
+    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:
+        """Private method for monogenic forward transform (no input validation)."""
+        # TODO: Implement monogenic forward transform for PyTorch
+        # For now, raise NotImplementedError
+        msg = "Monogenic transform not yet implemented for PyTorch"
+        raise NotImplementedError(msg)
 
     def backward(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
@@ -344,11 +360,40 @@ class UDCT:
         torch.Tensor
             Reconstructed image with shape self.shape.
         """
+        # Dispatch based on transform_kind
+        if self._transform_kind == "real":
+            return self._backward_real(coefficients)
+        elif self._transform_kind == "complex":
+            return self._backward_complex(coefficients)
+        elif self._transform_kind == "monogenic":
+            return self._backward_monogenic(coefficients)
+        else:
+            msg = f"Invalid transform_kind: {self._transform_kind!r}"
+            raise ValueError(msg)
+
+    def _backward_real(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+        """Private method for real backward transform (no input validation)."""
         return _apply_backward_transform(
             coefficients,
             self._parameters,
             self._windows,
             self._decimation_ratios,
-            self._use_complex_transform,
+            use_complex_transform=False,
         )
 
+    def _backward_complex(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+        """Private method for complex backward transform (no input validation)."""
+        return _apply_backward_transform(
+            coefficients,
+            self._parameters,
+            self._windows,
+            self._decimation_ratios,
+            use_complex_transform=True,
+        )
+
+    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+        """Private method for monogenic backward transform (no input validation)."""
+        # TODO: Implement monogenic backward transform for PyTorch
+        # For now, raise NotImplementedError
+        msg = "Monogenic transform not yet implemented for PyTorch"
+        raise NotImplementedError(msg)

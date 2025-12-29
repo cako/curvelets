@@ -781,6 +781,6 @@ def _apply_forward_transform(
     # This enforces type safety: real transform requires real input
     error_msg = (
         "Real transform requires real-valued input. "
-        "Got complex array. Use use_complex_transform=True for complex inputs."
+        "Got complex array. Use transform_kind='complex' for complex inputs."
     )
     raise ValueError(error_msg)

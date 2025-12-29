@@ -20,13 +20,13 @@ def test_mudct_round_trip_absolute(dim, rng):
 
     For specific parameters, we can guarantee an absolute precision of approximately 1e-4.
     """
-    transform = setup_numpy_transform(dim)
+    transform = setup_numpy_transform(dim, transform_kind="monogenic")
     shapes = get_test_shapes(dim)
     size = shapes[0]
 
     data = rng.normal(size=size)
-    coeffs = transform._obj.forward_monogenic(data)
-    components = transform._obj.backward_monogenic(coeffs)
+    coeffs = transform.forward(data)
+    components = transform.backward(coeffs)
 
     # Verify correct number of components (ndim+1)
     assert len(components) == dim + 1, (
@@ -52,12 +52,14 @@ def test_mudct_round_trip_relative(dim, rng):
     configs = get_test_configs(dim)
     shape_idx = rng.integers(0, len(shapes))
     cfg_idx = rng.integers(0, len(configs))
-    transform = setup_numpy_transform(dim, shape_idx=shape_idx, cfg_idx=cfg_idx)
+    transform = setup_numpy_transform(
+        dim, shape_idx=shape_idx, cfg_idx=cfg_idx, transform_kind="monogenic"
+    )
 
     size = shapes[shape_idx]
     data = rng.normal(size=size)
-    coeffs = transform._obj.forward_monogenic(data)
-    components = transform._obj.backward_monogenic(coeffs)
+    coeffs = transform.forward(data)
+    components = transform.backward(coeffs)
 
     # Verify correct number of components (ndim+1)
     assert len(components) == dim + 1, (
@@ -79,11 +81,13 @@ def test_mudct_round_trip_parametrized(dim, shape_idx, rng):
     if shape_idx >= len(shapes):
         pytest.skip(f"Shape index {shape_idx} out of range for dimension {dim}")
 
-    transform = setup_numpy_transform(dim, shape_idx=shape_idx)
+    transform = setup_numpy_transform(
+        dim, shape_idx=shape_idx, transform_kind="monogenic"
+    )
     size = shapes[shape_idx]
     data = rng.normal(size=size)
-    coeffs = transform._obj.forward_monogenic(data)
-    components = transform._obj.backward_monogenic(coeffs)
+    coeffs = transform.forward(data)
+    components = transform.backward(coeffs)
 
     # Verify correct number of components (ndim+1)
     assert len(components) == dim + 1, (
@@ -121,9 +125,16 @@ def test_mudct_round_trip_wavelet_mode(dim, rng):
         high_frequency_mode="wavelet",
     )
 
-    # Test forward and backward transform
-    coeffs = transform.forward_monogenic(data)
-    components = transform.backward_monogenic(coeffs)
+    # Test forward and backward transform with transform_kind="monogenic"
+    transform_mono = UDCT(
+        shape=size,
+        num_scales=3,
+        wedges_per_direction=3,
+        high_frequency_mode="wavelet",
+        transform_kind="monogenic",
+    )
+    coeffs = transform_mono.forward(data)
+    components = transform_mono.backward(coeffs)
 
     # Verify correct number of components (ndim+1)
     assert len(components) == dim + 1, (
@@ -178,12 +189,15 @@ def test_mudct_scalar_component_equivalence(dim, rng):
     data = rng.normal(size=size).astype(np.float64)
 
     transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
+    transform_mono = UDCT(
+        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+    )
 
     # Get standard UDCT coefficients
     coeffs_udct = transform.forward(data)
 
     # Get monogenic coefficients
-    coeffs_mono = transform.forward_monogenic(data)
+    coeffs_mono = transform_mono.forward(data)
 
     # Compare scalar component with standard UDCT
     # Note: Both UDCT and monogenic scalar components are complex
@@ -218,8 +232,10 @@ def test_mudct_amplitude_computation(dim, rng):
     size = shapes[0]
     data = rng.normal(size=size).astype(np.float64)
 
-    transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
-    coeffs = transform.forward_monogenic(data)
+    transform = UDCT(
+        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+    )
+    coeffs = transform.forward(data)
 
     # Compute amplitude for each coefficient
     for scale_coeffs in coeffs:
@@ -265,13 +281,15 @@ def test_mudct_complex_input_rejection(dim, rng):
     # Create complex input
     data = rng.normal(size=size) + 1j * rng.normal(size=size)
 
-    transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
+    transform = UDCT(
+        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+    )
 
     # Should raise ValueError for complex input
     with pytest.raises(
         ValueError, match="Monogenic transform requires real-valued input"
     ):
-        transform.forward_monogenic(data)
+        transform.forward(data)
 
 
 @pytest.mark.round_trip
@@ -298,8 +316,11 @@ def test_mudct_reconstruction_vs_udct(dim, rng):
     recon_udct = transform.backward(coeffs_udct)
 
     # Monogenic round-trip
-    coeffs_mono = transform.forward_monogenic(data)
-    components = transform.backward_monogenic(coeffs_mono)
+    transform_mono = UDCT(
+        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+    )
+    coeffs_mono = transform_mono.forward(data)
+    components = transform_mono.backward(coeffs_mono)
     # Verify correct number of components (ndim+1)
     assert len(components) == dim + 1, (
         f"Expected {dim + 1} components, got {len(components)}"
@@ -321,9 +342,9 @@ def test_mudct_reconstruction_vs_udct(dim, rng):
 @pytest.mark.parametrize("dim", [2, 3, 4])
 def test_mudct_riesz_components_correctness(dim, rng):
     """
-    Test that Riesz components from backward_monogenic match direct Riesz transforms.
+    Test that Riesz components from backward() with transform_kind="monogenic" match direct Riesz transforms.
 
-    The backward_monogenic should return (f, -R_1f, -R_2f) where:
+    The backward() with transform_kind="monogenic" should return (f, -R_1f, -R_2f) where:
     - f is the original input
     - -R_1f and -R_2f match the direct Riesz transform computation
     """
@@ -337,11 +358,13 @@ def test_mudct_riesz_components_correctness(dim, rng):
     size = shapes[0]
     data = rng.normal(size=size).astype(np.float64)
 
-    transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
+    transform = UDCT(
+        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+    )
 
     # Get monogenic coefficients and reconstruct
-    coeffs = transform.forward_monogenic(data)
-    components = transform.backward_monogenic(coeffs)
+    coeffs = transform.forward(data)
+    components = transform.backward(coeffs)
     # Verify correct number of components (ndim+1)
     assert len(components) == dim + 1, (
         f"Expected {dim + 1} components, got {len(components)}"
@@ -361,7 +384,7 @@ def test_mudct_riesz_components_correctness(dim, rng):
     np.testing.assert_allclose(data, scalar, atol=atol_scalar)
 
     # Verify Riesz components match direct computation
-    # Note: backward_monogenic returns -R_1f and -R_2f
+    # Note: backward() with transform_kind="monogenic" returns -R_1f and -R_2f
     # Use relaxed tolerance for Riesz components due to numerical precision
     atol_riesz = 2.0 if dim == 2 else (2.5 if dim == 3 else 1.5)
     np.testing.assert_allclose(-riesz1_direct, riesz1, atol=atol_riesz)
@@ -370,9 +393,9 @@ def test_mudct_riesz_components_correctness(dim, rng):
 
 @pytest.mark.round_trip
 @pytest.mark.parametrize("dim", [2, 3, 4])
-def test_monogenic_matches_backward_monogenic(dim, rng):
+def test_monogenic_matches_backward_forward(dim, rng):
     """
-    Test that monogenic(f) produces the same result as backward_monogenic(forward_monogenic(f)).
+    Test that monogenic(f) produces the same result as backward(forward(f)) with transform_kind="monogenic".
 
     The monogenic method computes the monogenic signal directly without the curvelet
     transform, and should produce identical results to the round-trip through the transform.
@@ -387,6 +410,9 @@ def test_monogenic_matches_backward_monogenic(dim, rng):
     data = rng.normal(size=size).astype(np.float64)
 
     transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
+    transform_mono = UDCT(
+        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+    )
 
     # Direct computation using monogenic method
     components_direct = transform.monogenic(data)
@@ -397,8 +423,8 @@ def test_monogenic_matches_backward_monogenic(dim, rng):
     scalar_direct = components_direct[0]
 
     # Round-trip through transform
-    coeffs = transform.forward_monogenic(data)
-    components_round = transform.backward_monogenic(coeffs)
+    coeffs = transform_mono.forward(data)
+    components_round = transform_mono.backward(coeffs)
     # Verify correct number of components (ndim+1)
     assert len(components_round) == dim + 1, (
         f"Expected {dim + 1} components, got {len(components_round)}"

@@ -69,14 +69,20 @@ from curvelets.plot import create_colorbar, despine
 
 shape = (256, 256)
 # Use smaller window overlap for better reconstruction accuracy
-transform = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, window_overlap=0.1)
+transform = UDCT(
+    shape=shape,
+    num_scales=3,
+    wedges_per_direction=3,
+    window_overlap=0.1,
+    transform_kind="monogenic",
+)
 
 # Create a delta function at the center to visualize the curvelet
 image = np.zeros(shape)
 image[shape[0] // 2, shape[1] // 2] = 1.0
 
 # Get monogenic coefficients
-coeffs_mono = transform.forward_monogenic(image)
+coeffs_mono = transform.forward(image)
 
 # Extract the low-frequency band (scale 0, isotropic)
 scalar_low = coeffs_mono[0][0][0][0]  # Scalar component

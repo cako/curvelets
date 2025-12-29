@@ -33,7 +33,7 @@ class _UDCTFunction(torch.autograd.Function):
             Input image tensor.
         udct : UDCT
             UDCT instance to use for transform.
-        transform_type : {"real", "complex"}
+        transform_type : ``"real"`` or ``"complex"``
             Type of transform to apply.
 
         Returns
@@ -41,13 +41,10 @@ class _UDCTFunction(torch.autograd.Function):
         torch.Tensor
             Flattened curvelet coefficients.
         """
-        # Compute forward transform based on type
-        if transform_type == "complex":
-            coefficients = udct.forward(image)
-            flattened = udct.vect_complex(coefficients)
-        else:  # transform_type == "real"
-            coefficients = udct.forward(image)
-            flattened = udct.vect(coefficients)
+        # Compute forward transform and vectorize
+        # UDCT handles dispatch based on transform_kind
+        coefficients = udct.forward(image)
+        flattened = udct.vect(coefficients)
 
         # Save UDCT instance, coefficient template, and transform type for backward
         ctx.udct = udct
@@ -81,13 +78,10 @@ class _UDCTFunction(torch.autograd.Function):
         template = ctx.coefficient_template
         transform_type = ctx.transform_type
 
-        # Restructure gradient and compute backward based on type
-        if transform_type == "complex":
-            grad_coefficients = udct.struct_complex(grad_output, template)
-            grad_input = udct.backward(grad_coefficients)
-        else:  # transform_type == "real"
-            grad_coefficients = udct.struct(grad_output, template)
-            grad_input = udct.backward(grad_coefficients)
+        # Restructure gradient and compute backward
+        # UDCT handles dispatch based on transform_kind
+        grad_coefficients = udct.struct(grad_output, template)
+        grad_input = udct.backward(grad_coefficients)
 
         return grad_input, None, None
 
@@ -117,15 +111,15 @@ class UDCTModule(nn.Module):
         Threshold for sparse window storage. Default is 1e-6.
     high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. Default is "curvelet".
-    transform_type : {"real", "complex"}, optional
+    transform_type : ``"real"`` or ``"complex"``, optional
         Type of transform to use:
 
-        - "real": Real transform (default). Each band captures both positive
+        - ``"real"``: Real transform (default). Each band captures both positive
           and negative frequencies combined.
-        - "complex": Complex transform. Positive and negative frequency bands
+        - ``"complex"``: Complex transform. Positive and negative frequency bands
           are separated into different directions.
 
-        Default is "real".
+        Default is ``"real"``.
 
     Examples
     --------
@@ -166,8 +160,8 @@ class UDCTModule(nn.Module):
     ) -> None:
         super().__init__()
         self._transform_type = transform_type
-        # For real/complex transforms, pass use_complex_transform to UDCT
-        use_complex_transform = transform_type == "complex"
+        # Pass transform_kind to UDCT (UDCTModule only supports "real" and "complex")
+        transform_kind = transform_type  # "real" or "complex"
         self._udct = UDCT(
             shape=shape,
             angular_wedges_config=angular_wedges_config,
@@ -175,7 +169,7 @@ class UDCTModule(nn.Module):
             radial_frequency_params=radial_frequency_params,
             window_threshold=window_threshold,
             high_frequency_mode=high_frequency_mode,
-            use_complex_transform=use_complex_transform,
+            transform_kind=transform_kind,
         )
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
@@ -194,9 +188,7 @@ class UDCTModule(nn.Module):
         """
         return _UDCTFunction.apply(image, self._udct, self._transform_type)
 
-    def forward_nested(
-        self, image: torch.Tensor
-    ) -> UDCTCoefficients:
+    def forward_nested(self, image: torch.Tensor) -> UDCTCoefficients:
         """
         Apply forward curvelet transform and return nested coefficients.
 
@@ -215,9 +207,7 @@ class UDCTModule(nn.Module):
         """
         return self._udct.forward(image)
 
-    def backward(
-        self, coefficients: UDCTCoefficients
-    ) -> torch.Tensor:
+    def backward(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
         Apply backward (inverse) curvelet transform.
 
@@ -247,8 +237,7 @@ class UDCTModule(nn.Module):
         torch.Tensor
             1D tensor containing all coefficients.
         """
-        if self._transform_type == "complex":
-            return self._udct.vect_complex(coefficients)
+        # Delegate to UDCT - it handles dispatch based on transform_kind
         return self._udct.vect(coefficients)
 
     def struct(
@@ -271,8 +260,7 @@ class UDCTModule(nn.Module):
         UDCTCoefficients
             Restructured coefficients.
         """
-        if self._transform_type == "complex":
-            return self._udct.struct_complex(vector, template)
+        # Delegate to UDCT - it handles dispatch based on transform_kind
         return self._udct.struct(vector, template)
 
     @property

@@ -86,7 +86,7 @@ def test_nwedges_4_5_raises_error_complex_transform(
     ...         shape=(64, 64),
     ...         num_scales=3,
     ...         wedges_per_direction=4,
-    ...         use_complex_transform=True
+    ...         transform_kind="complex"
     ...     )
     """
     shape = (64, 64)
@@ -97,7 +97,7 @@ def test_nwedges_4_5_raises_error_complex_transform(
             shape=shape,
             num_scales=num_scales,
             wedges_per_direction=wedges_per_direction,
-            use_complex_transform=True,
+            transform_kind="complex",
         )
 
 

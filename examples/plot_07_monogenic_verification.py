@@ -12,7 +12,7 @@ reproducing formula:
 .. math::
    M_f(x) = \\int \\langle M\\beta_{ab\\theta}, f \\rangle \\cdot M\\beta_{ab\\theta}(x) \\, db \\, d\\theta \\, \\frac{da}{a^3}
 
-This means that ``backward_monogenic(forward_monogenic(f))`` should produce the same
+This means that ``backward(forward(f))`` with ``transform_kind="monogenic"`` should produce the same
 result as ``monogenic(f)``, which directly computes:
 
 .. math::
@@ -48,6 +48,9 @@ from curvelets.plot import create_colorbar, despine
 
 shape = (256, 256)
 transform = UDCT(shape=shape, num_scales=3, wedges_per_direction=3)
+transform_mono = UDCT(
+    shape=shape, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
+)
 
 # Create a test image (zone plate for interesting structure)
 # with a window that decays to zero at the edges
@@ -71,7 +74,7 @@ test_image = zone_plate * window
 #    M_f(x) = \int M_f(a,b,\theta) \cdot M_{\beta_{ab\theta}}(x) \, db \, d\theta \, \frac{da}{a^3}
 #
 # where :math:`M_f(a,b,\theta) = \langle M_{\beta_{ab\theta}}, f \rangle` are the monogenic
-# curvelet coefficients. This means that ``backward_monogenic(forward_monogenic(f))``
+# curvelet coefficients. This means that ``backward(forward(f))`` with ``transform_kind="monogenic"``
 # should produce the same result as ``monogenic(f)``, which directly computes:
 #
 # .. math::
@@ -83,8 +86,13 @@ test_image = zone_plate * window
 scalar_direct, riesz1_direct, riesz2_direct = transform.monogenic(test_image)
 
 # Method 2: Round-trip through monogenic curvelet transform
-coeffs = transform.forward_monogenic(test_image)
-scalar_round, riesz1_round, riesz2_round = transform.backward_monogenic(coeffs)
+coeffs = transform_mono.forward(test_image)
+components_round = transform_mono.backward(coeffs)
+scalar_round, riesz1_round, riesz2_round = (
+    components_round[0],
+    components_round[1],
+    components_round[2],
+)
 
 # %%
 # Component Comparisons
@@ -311,14 +319,14 @@ im = axs[3].imshow(scalar_round.T, **opts)
 _, cb = create_colorbar(im=im, ax=axs[3])
 despine(axs[3])
 diff_mono = np.abs(test_image - scalar_round).max()
-axs[3].set(title=f"backward_monogenic()[0]\nmax diff={diff_mono:.2e}")
+axs[3].set(title=f"backward()[0] (monogenic)\nmax diff={diff_mono:.2e}")
 
 plt.tight_layout()
 
 print("\nScalar reconstruction comparison:")  # noqa: T201
 print(f"  Standard backward:          max diff = {diff_std:.6e}")  # noqa: T201
 print(f"  backward(c₀ only):          max diff = {diff_scalar_only:.6e}")  # noqa: T201
-print(f"  backward_monogenic()[0]:    max diff = {diff_mono:.6e}")  # noqa: T201
+print(f"  backward()[0] (monogenic):  max diff = {diff_mono:.6e}")  # noqa: T201
 
 # %%
 # Cross-term Analysis
@@ -347,7 +355,7 @@ print(f"  |c₂| (riesz2):  max={np.abs(c2).max():.6e}, mean={np.abs(c2).mean():
 
 # The cross-terms c₁·(W·R₁) and c₂·(W·R₂) contribute to the scalar reconstruction
 # through quaternion multiplication. When the Riesz coefficients c₁ and c₂ are
-# significant relative to c₀, these cross-terms explain why backward_monogenic()[0]
+# significant relative to c₀, these cross-terms explain why backward()[0] with transform_kind="monogenic"
 # may differ from the original input f even though the scalar coefficients c₀ alone
 # would perfectly reconstruct f through the standard backward transform.
 

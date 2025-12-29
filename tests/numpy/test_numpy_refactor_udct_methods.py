@@ -53,7 +53,7 @@ class TestVectMethod:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            use_complex_transform=True,
+            transform_kind="complex",
         )
         data = (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
             np.complex128
@@ -224,7 +224,7 @@ class TestStructMethod:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            use_complex_transform=True,
+            transform_kind="complex",
         )
         data = (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
             np.complex128
@@ -316,7 +316,7 @@ class TestVectStructRoundTrip:
             shape=(64, 64),
             num_scales=3,
             wedges_per_direction=3,
-            use_complex_transform=True,
+            transform_kind="complex",
         )
         data = (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
             np.complex128
@@ -470,7 +470,7 @@ class TestVectStructRoundTrip:
             shape=(32, 32, 32),
             num_scales=2,
             wedges_per_direction=3,
-            use_complex_transform=True,
+            transform_kind="complex",
         )
         data = (
             rng.normal(size=(32, 32, 32)) + 1j * rng.normal(size=(32, 32, 32))

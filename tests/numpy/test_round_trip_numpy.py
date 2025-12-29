@@ -157,7 +157,7 @@ def test_numpy_round_trip_complex_absolute(dim, rng):
     Complex transform separates positive and negative frequency components
     into different bands, each scaled by sqrt(0.5).
     """
-    transform = setup_numpy_transform(dim, complex=True)
+    transform = setup_numpy_transform(dim, transform_kind="complex")
     shapes = get_test_shapes(dim)
     size = shapes[0]
 
@@ -182,7 +182,7 @@ def test_numpy_round_trip_complex_relative(dim, rng):
     shape_idx = rng.integers(0, len(shapes))
     cfg_idx = rng.integers(0, len(configs))
     transform = setup_numpy_transform(
-        dim, shape_idx=shape_idx, cfg_idx=cfg_idx, complex=True
+        dim, shape_idx=shape_idx, cfg_idx=cfg_idx, transform_kind="complex"
     )
 
     size = shapes[shape_idx]
@@ -203,7 +203,7 @@ def test_numpy_round_trip_complex_parametrized(dim, shape_idx, rng):
     if shape_idx >= len(shapes):
         pytest.skip(f"Shape index {shape_idx} out of range for dimension {dim}")
 
-    transform = setup_numpy_transform(dim, shape_idx=shape_idx, complex=True)
+    transform = setup_numpy_transform(dim, shape_idx=shape_idx, transform_kind="complex")
     size = shapes[shape_idx]
     data = rng.normal(size=size)
     coeffs = transform.forward(data)
@@ -238,7 +238,7 @@ def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
     ...     num_scales=3,
     ...     wedges_per_direction=3,
     ...     high_frequency_mode="wavelet",
-    ...     use_complex_transform=True
+    ...     transform_kind="complex"
     ... )
     >>> data = np.random.randn(64, 64)
     >>> coeffs = transform.forward(data)
@@ -261,7 +261,7 @@ def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
         num_scales=3,
         wedges_per_direction=3,
         high_frequency_mode="wavelet",
-        use_complex_transform=True,
+        transform_kind="complex",
     )
 
     # Test forward and backward transform
@@ -289,7 +289,7 @@ def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
 
 
 # ============================================================================
-# Complex-valued input array tests (requires complex=True)
+# Complex-valued input array tests (requires transform_kind="complex")
 # ============================================================================
 
 
@@ -299,10 +299,10 @@ def test_numpy_round_trip_complex_input_absolute(dim, rng):
     """
     Test NumPy implementation round-trip with complex-valued input arrays.
 
-    Complex-valued inputs require complex=True to preserve both real and
+    Complex-valued inputs require transform_kind="complex" to preserve both real and
     imaginary components through the round-trip.
     """
-    transform = setup_numpy_transform(dim, complex=True)
+    transform = setup_numpy_transform(dim, transform_kind="complex")
     shapes = get_test_shapes(dim)
     size = shapes[0]
 
@@ -312,7 +312,7 @@ def test_numpy_round_trip_complex_input_absolute(dim, rng):
     recon = transform.backward(coeffs)
 
     # Verify output is complex
-    assert np.iscomplexobj(recon), "Output should be complex for complex=True"
+    assert np.iscomplexobj(recon), "Output should be complex for transform_kind='complex'"
 
     atol = 1e-4 if dim in {2, 3} else 1e-3
     np.testing.assert_allclose(data, recon, atol=atol)
@@ -331,7 +331,7 @@ def test_numpy_round_trip_complex_input_relative(dim, rng):
     shape_idx = rng.integers(0, len(shapes))
     cfg_idx = rng.integers(0, len(configs))
     transform = setup_numpy_transform(
-        dim, shape_idx=shape_idx, cfg_idx=cfg_idx, complex=True
+        dim, shape_idx=shape_idx, cfg_idx=cfg_idx, transform_kind="complex"
     )
 
     size = shapes[shape_idx]
@@ -437,7 +437,7 @@ def test_backward_complex_decimation_ratio_single(dim, rng):
     ...     num_scales=3,
     ...     wedges_per_direction=3,
     ...     high_frequency_mode="wavelet",
-    ...     use_complex_transform=True
+    ...     transform_kind="complex"
     ... )
     >>> data = np.random.randn(64, 64)
     >>> coeffs = transform.forward(data)
@@ -460,7 +460,7 @@ def test_backward_complex_decimation_ratio_single(dim, rng):
         num_scales=3,
         wedges_per_direction=3,
         high_frequency_mode="wavelet",
-        use_complex_transform=True,
+        transform_kind="complex",
     )
 
     # Verify decimation_ratios at highest scale has shape[0] == 1
@@ -502,7 +502,7 @@ def test_backward_complex_decimation_ratio_multi(dim, rng):
     ...     shape=(64, 64),
     ...     num_scales=3,
     ...     wedges_per_direction=3,
-    ...     use_complex_transform=True
+    ...     transform_kind="complex"
     ... )
     >>> data = np.random.randn(64, 64)
     >>> coeffs = transform.forward(data)
@@ -524,7 +524,7 @@ def test_backward_complex_decimation_ratio_multi(dim, rng):
         shape=size,
         num_scales=3,
         wedges_per_direction=3,
-        use_complex_transform=True,
+        transform_kind="complex",
     )
 
     # Verify decimation_ratios at scale 1 has shape[0] > 1 (multiple directions)

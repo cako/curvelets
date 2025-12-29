@@ -155,7 +155,7 @@ def _create_numpy_transform(
     cfg: np.ndarray,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
-    complex: bool = False,
+    transform_kind: str = "real",
 ) -> TransformWrapper:
     """Create NumPy UDCT transform."""
     import curvelets.numpy as numpy_udct
@@ -167,7 +167,7 @@ def _create_numpy_transform(
         radial_frequency_params=COMMON_R,
         window_threshold=COMMON_WINTHRESH,
         high_frequency_mode=high,  # type: ignore[arg-type]
-        use_complex_transform=complex,
+        transform_kind=transform_kind,
     )
 
     def forward(data):
@@ -185,7 +185,7 @@ def setup_numpy_transform(
     cfg_idx: int = 0,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
-    complex: bool = False,
+    transform_kind: str = "real",
 ) -> TransformWrapper:
     """
     Set up NumPy UDCT transform for round-trip tests.
@@ -202,9 +202,9 @@ def setup_numpy_transform(
         High frequency mode ("curvelet" or "wavelet"). Default is "curvelet".
     alpha : float, optional
         Alpha parameter for window overlap. Default is COMMON_ALPHA.
-    complex : bool, optional
-        If True, use complex transform (separate +/- frequency bands).
-        If False, use real transform (combined +/- frequencies). Default is False.
+    transform_kind : str, optional
+        Type of transform ("real", "complex", or "monogenic").
+        Default is "real".
 
     Returns
     -------
@@ -220,4 +220,6 @@ def setup_numpy_transform(
 
     size = shapes[shape_idx]
     cfg = configs[cfg_idx]
-    return _create_numpy_transform(size, cfg, high=high, alpha=alpha, complex=complex)
+    return _create_numpy_transform(
+        size, cfg, high=high, alpha=alpha, transform_kind=transform_kind
+    )
