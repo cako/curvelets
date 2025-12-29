@@ -637,7 +637,7 @@ class TestMeyerWaveletInternal:
     @pytest.mark.parametrize(
         "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
     )
-    def test_filter_computation(self, device):
+    def test_filter_computation(self, device):  # noqa: ARG002
         """
         Test _compute_single_filter() directly.
 
@@ -673,7 +673,7 @@ class TestMeyerWaveletInternal:
     @pytest.mark.parametrize(
         "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
     )
-    def test_filter_initialization(self, device):
+    def test_filter_initialization(self, device):  # noqa: ARG002
         """
         Test _initialize_filters() with different shapes.
 
@@ -703,7 +703,7 @@ class TestMeyerWaveletInternal:
     @pytest.mark.parametrize(
         "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
     )
-    def test_odd_dimensions_error(self, device):
+    def test_odd_dimensions_error(self, device):  # noqa: ARG002
         """
         Test that odd dimensions raise appropriate errors.
 
@@ -714,4 +714,4 @@ class TestMeyerWaveletInternal:
         """
         # Odd dimensions should raise ValueError
         with pytest.raises(ValueError, match="All dimensions must be even"):
-            wavelet = MeyerWavelet(shape=(65, 65))
+            MeyerWavelet(shape=(65, 65))
