@@ -185,7 +185,7 @@ def setup_numpy_transform(
     cfg_idx: int = 0,
     high: str = "curvelet",
     alpha: float = COMMON_ALPHA,
-    transform_kind: str = "real",
+    transform_kind: Literal["real", "complex", "monogenic"] = "real",
 ) -> TransformWrapper:
     """
     Set up NumPy UDCT transform for round-trip tests.
