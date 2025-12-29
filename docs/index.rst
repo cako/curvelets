@@ -3,7 +3,7 @@
     :hidden:
 
     self
-    curvelets.rst
+    curvelet_faqs.rst
     auto_examples/index.rst
     API <source/modules.rst>
 
