@@ -180,6 +180,7 @@ def _apply_backward_transform_complex(
 ) -> torch.Tensor:
     """Apply backward Uniform Discrete Curvelet Transform in complex mode."""
     complex_dtype = coefficients[0][0][0].dtype
+    device = coefficients[0][0][0].device
 
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
@@ -244,7 +245,9 @@ def _apply_backward_transform_complex(
                     else:
                         image_frequency_other_scales += contribution
     else:
-        image_frequency = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
+        image_frequency = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
 
         # Process positive frequency bands
         for scale_idx in range(1, parameters.num_scales):
@@ -291,7 +294,9 @@ def _apply_backward_transform_complex(
                     image_frequency += contribution
 
     # Process low-frequency band
-    image_frequency_low = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
+    image_frequency_low = torch.zeros(
+        parameters.shape, dtype=complex_dtype, device=device
+    )
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(

@@ -217,6 +217,156 @@ class UDCT:
             result.append(scale_coeffs)
         return result
 
+    def vect_complex(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+        """
+        Vectorize complex curvelet coefficients.
+
+        Parameters
+        ----------
+        coefficients : UDCTCoefficients
+            Complex curvelet coefficients from complex transform.
+
+        Returns
+        -------
+        torch.Tensor
+            1D tensor containing all coefficients.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]), use_complex_transform=True)
+        >>> image = torch.randn(64, 64, dtype=torch.complex64)
+        >>> coeffs = udct.forward(image)
+        >>> flattened = udct.vect_complex(coeffs)
+        >>> flattened.shape
+        torch.Size([...])
+        """
+        # Complex transforms have same structure as real, just different number of directions
+        return self.vect(coefficients)
+
+    def struct_complex(
+        self, vector: torch.Tensor, template: UDCTCoefficients
+    ) -> UDCTCoefficients:
+        """
+        Restructure vectorized complex coefficients to nested list format.
+
+        Parameters
+        ----------
+        vector : torch.Tensor
+            1D tensor of coefficients.
+        template : UDCTCoefficients
+            Template coefficients for structure information.
+
+        Returns
+        -------
+        UDCTCoefficients
+            Restructured coefficients.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]), use_complex_transform=True)
+        >>> image = torch.randn(64, 64, dtype=torch.complex64)
+        >>> coeffs = udct.forward(image)
+        >>> flattened = udct.vect_complex(coeffs)
+        >>> reconstructed = udct.struct_complex(flattened, coeffs)
+        >>> len(reconstructed) == len(coeffs)
+        True
+        """
+        # Complex transforms have same structure as real, just different number of directions
+        return self.struct(vector, template)
+
+    def vect_monogenic(self, coefficients: MUDCTCoefficients) -> torch.Tensor:
+        """
+        Vectorize monogenic curvelet coefficients.
+
+        Parameters
+        ----------
+        coefficients : MUDCTCoefficients
+            Monogenic curvelet coefficients. Structure is:
+            coefficients[scale][direction][wedge] = [scalar, riesz_1, ..., riesz_ndim]
+
+        Returns
+        -------
+        torch.Tensor
+            1D tensor containing all coefficients flattened in order:
+            for each scale/direction/wedge: [scalar, riesz_1, ..., riesz_ndim]
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
+        >>> image = torch.randn(64, 64, dtype=torch.float64)
+        >>> coeffs = udct.forward_monogenic(image)
+        >>> flattened = udct.vect_monogenic(coeffs)
+        >>> flattened.shape
+        torch.Size([...])
+        """
+        parts: list[torch.Tensor] = []
+        for scale in coefficients:
+            for direction in scale:
+                for wedge_components in direction:
+                    # wedge_components is a list: [scalar, riesz_1, ..., riesz_ndim]
+                    for component in wedge_components:
+                        parts.append(component.flatten())
+        return torch.cat(parts)
+
+    def struct_monogenic(
+        self, vector: torch.Tensor, template: MUDCTCoefficients
+    ) -> MUDCTCoefficients:
+        """
+        Restructure vectorized monogenic coefficients to nested list format.
+
+        Parameters
+        ----------
+        vector : torch.Tensor
+            1D tensor of coefficients.
+        template : MUDCTCoefficients
+            Template coefficients for structure information.
+
+        Returns
+        -------
+        MUDCTCoefficients
+            Restructured coefficients.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
+        >>> image = torch.randn(64, 64, dtype=torch.float64)
+        >>> coeffs = udct.forward_monogenic(image)
+        >>> flattened = udct.vect_monogenic(coeffs)
+        >>> reconstructed = udct.struct_monogenic(flattened, coeffs)
+        >>> len(reconstructed) == len(coeffs)
+        True
+        """
+        result: MUDCTCoefficients = []
+        offset = 0
+        for scale_idx, scale in enumerate(template):
+            scale_coeffs: list[list[list[torch.Tensor]]] = []
+            for direction_idx, direction in enumerate(scale):
+                direction_coeffs: list[list[torch.Tensor]] = []
+                for wedge_components in direction:
+                    # wedge_components is a list: [scalar, riesz_1, ..., riesz_ndim]
+                    reconstructed_components: list[torch.Tensor] = []
+                    for component_template in wedge_components:
+                        size = component_template.numel()
+                        coeff = vector[offset : offset + size].reshape(
+                            component_template.shape
+                        )
+                        reconstructed_components.append(
+                            coeff.to(component_template.dtype)
+                        )
+                        offset += size
+                    direction_coeffs.append(reconstructed_components)
+                scale_coeffs.append(direction_coeffs)
+            result.append(scale_coeffs)
+        return result
+
     def from_sparse(
         self, windows: UDCTWindows | None = None
     ) -> list[list[list[torch.Tensor]]]:
