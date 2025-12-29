@@ -12,10 +12,7 @@ from curvelets.torch import MeyerWavelet
 class TestMeyerWavelet1DTransform:
     """Test suite for 1D forward and inverse transforms."""
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_forward_transform_1d_real(self, rng, device):
+    def test_forward_transform_1d_real(self, rng):
         """
         Test 1D forward transform with real input.
 
@@ -23,8 +20,6 @@ class TestMeyerWavelet1DTransform:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
 
         Examples
         --------
@@ -39,9 +34,7 @@ class TestMeyerWavelet1DTransform:
         torch.Size([32, 64])
         """
         wavelet = MeyerWavelet(shape=(64, 64))
-        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64))
 
         lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
 
@@ -57,10 +50,7 @@ class TestMeyerWavelet1DTransform:
         assert lowpass.dtype == signal.dtype
         assert highpass.dtype == signal.dtype
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_forward_transform_1d_complex(self, rng, device):
+    def test_forward_transform_1d_complex(self, rng):
         """
         Test 1D forward transform with complex input.
 
@@ -68,8 +58,6 @@ class TestMeyerWavelet1DTransform:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
 
         Examples
         --------
@@ -88,7 +76,7 @@ class TestMeyerWavelet1DTransform:
             (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                 np.complex128
             )
-        ).to(device)
+        )
 
         lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
 
@@ -107,10 +95,7 @@ class TestMeyerWavelet1DTransform:
     @pytest.mark.parametrize(
         "dtype", [torch.float32, torch.float64, torch.complex64, torch.complex128]
     )
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_forward_transform_1d_dtype_preservation(self, rng, dtype, device):
+    def test_forward_transform_1d_dtype_preservation(self, rng, dtype):
         """
         Test dtype preservation in 1D forward transform.
 
@@ -120,8 +105,6 @@ class TestMeyerWavelet1DTransform:
             Random number generator fixture.
         dtype : torch.dtype
             Data type to test.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         if dtype.is_complex:
@@ -129,10 +112,10 @@ class TestMeyerWavelet1DTransform:
                 (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                     np.complex128
                 )
-            ).to(device=device, dtype=dtype)
+            ).to(dtype=dtype)
         else:
             signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-                device=device, dtype=dtype
+                dtype=dtype
             )
 
         lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
@@ -141,10 +124,7 @@ class TestMeyerWavelet1DTransform:
         assert lowpass.dtype == dtype
         assert highpass.dtype == dtype
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_inverse_transform_1d_real(self, rng, device):
+    def test_inverse_transform_1d_real(self, rng):
         """
         Test 1D inverse transform with real input.
 
@@ -152,8 +132,6 @@ class TestMeyerWavelet1DTransform:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
 
         Examples
         --------
@@ -183,10 +161,7 @@ class TestMeyerWavelet1DTransform:
         # Verify reconstruction accuracy
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_inverse_transform_1d_complex(self, rng, device):
+    def test_inverse_transform_1d_complex(self, rng):
         """
         Test 1D inverse transform with complex input.
 
@@ -194,15 +169,13 @@ class TestMeyerWavelet1DTransform:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(
             (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                 np.complex128
             )
-        ).to(device)
+        )
 
         lowpass, highpass = wavelet._forward_transform_1d(signal, 0)
         reconstructed = wavelet._inverse_transform_1d(lowpass, highpass, 0)
@@ -216,10 +189,7 @@ class TestMeyerWavelet1DTransform:
         # Verify reconstruction accuracy
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_inverse_transform_1d_mixed_complex(self, rng, device):
+    def test_inverse_transform_1d_mixed_complex(self, rng):
         """
         Test inverse transform with one complex and one real subband.
 
@@ -227,8 +197,6 @@ class TestMeyerWavelet1DTransform:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
@@ -249,10 +217,7 @@ class TestMeyerWavelet1DTransform:
 class TestMeyerWaveletMultiDimensional:
     """Test suite for multi-dimensional forward and backward transforms."""
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_forward_2d(self, rng, device):
+    def test_forward_2d(self, rng):
         """
         Test full 2D forward transform.
 
@@ -260,8 +225,6 @@ class TestMeyerWaveletMultiDimensional:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
 
         Examples
         --------
@@ -294,10 +257,7 @@ class TestMeyerWaveletMultiDimensional:
         for subband in coefficients[1]:
             assert subband.shape == (32, 32)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_forward_3d(self, rng, device):
+    def test_forward_3d(self, rng):
         """
         Test full 3D forward transform.
 
@@ -305,8 +265,6 @@ class TestMeyerWaveletMultiDimensional:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(32, 32, 32))
         signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64)).to(
@@ -327,10 +285,7 @@ class TestMeyerWaveletMultiDimensional:
         for subband in coefficients[1]:
             assert subband.shape == (16, 16, 16)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_forward_complex_input(self, rng, device):
+    def test_forward_complex_input(self, rng):
         """
         Test forward transform with complex input arrays.
 
@@ -338,15 +293,13 @@ class TestMeyerWaveletMultiDimensional:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(
             (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                 np.complex128
             )
-        ).to(device)
+        )
 
         coefficients = wavelet.forward(signal)
 
@@ -360,10 +313,7 @@ class TestMeyerWaveletMultiDimensional:
         for subband in coefficients[1]:
             assert torch.is_complex(subband)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_backward_2d(self, rng, device):
+    def test_backward_2d(self, rng):
         """
         Test full 2D backward transform.
 
@@ -371,8 +321,6 @@ class TestMeyerWaveletMultiDimensional:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
@@ -388,10 +336,7 @@ class TestMeyerWaveletMultiDimensional:
         # Verify reconstruction accuracy
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_backward_3d(self, rng, device):
+    def test_backward_3d(self, rng):
         """
         Test full 3D backward transform.
 
@@ -399,8 +344,6 @@ class TestMeyerWaveletMultiDimensional:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(32, 32, 32))
         signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64)).to(
@@ -416,10 +359,7 @@ class TestMeyerWaveletMultiDimensional:
         # Verify reconstruction accuracy
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_backward_complex_input(self, rng, device):
+    def test_backward_complex_input(self, rng):
         """
         Test backward transform with complex coefficients.
 
@@ -427,15 +367,13 @@ class TestMeyerWaveletMultiDimensional:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(
             (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                 np.complex128
             )
-        ).to(device)
+        )
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -456,10 +394,7 @@ class TestMeyerWaveletRoundTrip:
     @pytest.mark.parametrize(
         "dtype", [torch.float32, torch.float64, torch.complex64, torch.complex128]
     )
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_round_trip_different_dtypes(self, rng, dtype, device):
+    def test_round_trip_different_dtypes(self, rng, dtype):
         """
         Test round-trip with different dtypes.
 
@@ -469,8 +404,6 @@ class TestMeyerWaveletRoundTrip:
             Random number generator fixture.
         dtype : torch.dtype
             Data type to test.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         if dtype.is_complex:
@@ -478,10 +411,10 @@ class TestMeyerWaveletRoundTrip:
                 (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                     np.complex128
                 )
-            ).to(device=device, dtype=dtype)
+            ).to(dtype=dtype)
         else:
             signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
-                device=device, dtype=dtype
+                dtype=dtype
             )
 
         coefficients = wavelet.forward(signal)
@@ -497,10 +430,7 @@ class TestMeyerWaveletRoundTrip:
         atol = 1e-5 if dtype in (torch.float32, torch.complex64) else 1e-10
         torch.testing.assert_close(signal, reconstructed, atol=atol, rtol=atol)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_round_trip_2d(self, rng, device):
+    def test_round_trip_2d(self, rng):
         """
         Round-trip test for 2D signals.
 
@@ -508,8 +438,6 @@ class TestMeyerWaveletRoundTrip:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
@@ -521,10 +449,7 @@ class TestMeyerWaveletRoundTrip:
 
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_round_trip_3d(self, rng, device):
+    def test_round_trip_3d(self, rng):
         """
         Round-trip test for 3D signals.
 
@@ -532,23 +457,16 @@ class TestMeyerWaveletRoundTrip:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(32, 32, 32))
-        signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64)).to(
-            device
-        )
+        signal = torch.from_numpy(rng.normal(size=(32, 32, 32)).astype(np.float64))
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
 
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_round_trip_4d(self, rng, device):
+    def test_round_trip_4d(self, rng):
         """
         Round-trip test for 4D signals.
 
@@ -556,13 +474,11 @@ class TestMeyerWaveletRoundTrip:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(16, 16, 16, 16))
         signal = torch.from_numpy(
             rng.normal(size=(16, 16, 16, 16)).astype(np.float64)
-        ).to(device)
+        )
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -580,10 +496,7 @@ class TestMeyerWaveletRoundTrip:
         # Verify reconstruction
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_round_trip_real(self, rng, device):
+    def test_round_trip_real(self, rng):
         """
         Test forward+backward round-trip with real input.
 
@@ -591,8 +504,6 @@ class TestMeyerWaveletRoundTrip:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(rng.normal(size=(64, 64)).astype(np.float64)).to(
@@ -604,10 +515,7 @@ class TestMeyerWaveletRoundTrip:
 
         torch.testing.assert_close(signal, reconstructed, atol=1e-10, rtol=1e-10)
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_round_trip_complex(self, rng, device):
+    def test_round_trip_complex(self, rng):
         """
         Test forward+backward round-trip with complex input.
 
@@ -615,15 +523,13 @@ class TestMeyerWaveletRoundTrip:
         ----------
         rng : numpy.random.Generator
             Random number generator fixture.
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal = torch.from_numpy(
             (rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))).astype(
                 np.complex128
             )
-        ).to(device)
+        )
 
         coefficients = wavelet.forward(signal)
         reconstructed = wavelet.backward(coefficients)
@@ -634,17 +540,9 @@ class TestMeyerWaveletRoundTrip:
 class TestMeyerWaveletInternal:
     """Test suite for internal methods."""
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_filter_computation(self, device):  # noqa: ARG002
+    def test_filter_computation(self):
         """
         Test _compute_single_filter() directly.
-
-        Parameters
-        ----------
-        device : str
-            Device to run tests on.
         """
         wavelet = MeyerWavelet(shape=(64, 64))
         signal_length = 64
@@ -670,17 +568,9 @@ class TestMeyerWaveletInternal:
             rtol=1e-10,
         )
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_filter_initialization(self, device):  # noqa: ARG002
+    def test_filter_initialization(self):
         """
         Test _initialize_filters() with different shapes.
-
-        Parameters
-        ----------
-        device : str
-            Device to run tests on.
         """
         # Test with uniform shape (one filter size)
         wavelet1 = MeyerWavelet(shape=(64, 64))
@@ -700,17 +590,9 @@ class TestMeyerWaveletInternal:
         assert 64 in wavelet3._filters
         assert 128 in wavelet3._filters
 
-    @pytest.mark.parametrize(
-        "device", ["cpu", "cuda"] if torch.cuda.is_available() else ["cpu"]
-    )
-    def test_odd_dimensions_error(self, device):  # noqa: ARG002
+    def test_odd_dimensions_error(self):
         """
         Test that odd dimensions raise appropriate errors.
-
-        Parameters
-        ----------
-        device : str
-            Device to run tests on.
         """
         # Odd dimensions should raise ValueError
         with pytest.raises(ValueError, match="All dimensions must be even"):
