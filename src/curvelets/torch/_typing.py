@@ -16,9 +16,5 @@ UDCTCoefficients = list[list[list[torch.Tensor]]]
 # Structure: windows[scale][direction][wedge] = (indices, values) tuple
 UDCTWindows = list[list[list[tuple[torch.Tensor, torch.Tensor]]]]
 
-# Monogenic coefficients: coefficients[scale][direction][wedge] = list of Tensors
-# Each list has ndim+1 elements: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-MUDCTCoefficients = list[list[list[list[torch.Tensor]]]]
-
 # Integer tensor type alias for decimation ratios, indices, etc.
 IntegerTensor = torch.Tensor

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ._meyerwavelet import MeyerWavelet
-from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
+from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
 from ._udct_module import UDCTModule
 
@@ -13,5 +13,4 @@ __all__ = [
     "MeyerWavelet",
     "UDCTCoefficients",
     "UDCTWindows",
-    "MUDCTCoefficients",
 ]

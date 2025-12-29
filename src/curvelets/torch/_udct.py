@@ -8,14 +8,12 @@ import numpy as np
 import torch
 
 from ._backward_transform import _apply_backward_transform
-from ._backward_transform_monogenic import _apply_backward_transform_monogenic
 from ._forward_transform import (
     _apply_forward_transform_complex,
-    _apply_forward_transform_monogenic,
     _apply_forward_transform_real,
 )
 from ._meyerwavelet import MeyerWavelet
-from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
+from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
 
@@ -278,95 +276,6 @@ class UDCT:
         # Complex transforms have same structure as real, just different number of directions
         return self.struct(vector, template)
 
-    def vect_monogenic(self, coefficients: MUDCTCoefficients) -> torch.Tensor:
-        """
-        Vectorize monogenic curvelet coefficients.
-
-        Parameters
-        ----------
-        coefficients : MUDCTCoefficients
-            Monogenic curvelet coefficients. Structure is:
-            coefficients[scale][direction][wedge] = [scalar, riesz_1, ..., riesz_ndim]
-
-        Returns
-        -------
-        torch.Tensor
-            1D tensor containing all coefficients flattened in order:
-            for each scale/direction/wedge: [scalar, riesz_1, ..., riesz_ndim]
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch import UDCT
-        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
-        >>> image = torch.randn(64, 64, dtype=torch.float64)
-        >>> coeffs = udct.forward_monogenic(image)
-        >>> flattened = udct.vect_monogenic(coeffs)
-        >>> flattened.shape
-        torch.Size([...])
-        """
-        parts: list[torch.Tensor] = []
-        for scale in coefficients:
-            for direction in scale:
-                for wedge_components in direction:
-                    # wedge_components is a list: [scalar, riesz_1, ..., riesz_ndim]
-                    for component in wedge_components:
-                        parts.append(component.flatten())
-        return torch.cat(parts)
-
-    def struct_monogenic(
-        self, vector: torch.Tensor, template: MUDCTCoefficients
-    ) -> MUDCTCoefficients:
-        """
-        Restructure vectorized monogenic coefficients to nested list format.
-
-        Parameters
-        ----------
-        vector : torch.Tensor
-            1D tensor of coefficients.
-        template : MUDCTCoefficients
-            Template coefficients for structure information.
-
-        Returns
-        -------
-        MUDCTCoefficients
-            Restructured coefficients.
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch import UDCT
-        >>> udct = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
-        >>> image = torch.randn(64, 64, dtype=torch.float64)
-        >>> coeffs = udct.forward_monogenic(image)
-        >>> flattened = udct.vect_monogenic(coeffs)
-        >>> reconstructed = udct.struct_monogenic(flattened, coeffs)
-        >>> len(reconstructed) == len(coeffs)
-        True
-        """
-        result: MUDCTCoefficients = []
-        offset = 0
-        for scale_idx, scale in enumerate(template):
-            scale_coeffs: list[list[list[torch.Tensor]]] = []
-            for direction_idx, direction in enumerate(scale):
-                direction_coeffs: list[list[torch.Tensor]] = []
-                for wedge_components in direction:
-                    # wedge_components is a list: [scalar, riesz_1, ..., riesz_ndim]
-                    reconstructed_components: list[torch.Tensor] = []
-                    for component_template in wedge_components:
-                        size = component_template.numel()
-                        coeff = vector[offset : offset + size].reshape(
-                            component_template.shape
-                        )
-                        reconstructed_components.append(
-                            coeff.to(component_template.dtype)
-                        )
-                        offset += size
-                    direction_coeffs.append(reconstructed_components)
-                scale_coeffs.append(direction_coeffs)
-            result.append(scale_coeffs)
-        return result
-
     def from_sparse(
         self, windows: UDCTWindows | None = None
     ) -> list[list[list[torch.Tensor]]]:
@@ -443,57 +352,3 @@ class UDCT:
             self._use_complex_transform,
         )
 
-    def forward_monogenic(self, image: torch.Tensor) -> MUDCTCoefficients:
-        """
-        Apply forward monogenic curvelet transform.
-
-        Parameters
-        ----------
-        image : torch.Tensor
-            Input image with shape matching self.shape.
-
-        Returns
-        -------
-        MUDCTCoefficients
-            Monogenic curvelet coefficients.
-        """
-        return _apply_forward_transform_monogenic(
-            image, self._parameters, self._windows, self._decimation_ratios
-        )
-
-    def backward_monogenic(
-        self, coefficients: MUDCTCoefficients
-    ) -> tuple[torch.Tensor, ...]:
-        """
-        Apply backward (inverse) monogenic curvelet transform.
-
-        Parameters
-        ----------
-        coefficients : MUDCTCoefficients
-            Monogenic curvelet coefficients from forward_monogenic.
-
-        Returns
-        -------
-        tuple[torch.Tensor, ...]
-            Tuple of (scalar, riesz_1, riesz_2, ..., riesz_ndim) components.
-        """
-        return _apply_backward_transform_monogenic(
-            coefficients, self._parameters, self._windows, self._decimation_ratios
-        )
-
-    def monogenic(self, image: torch.Tensor) -> tuple[torch.Tensor, ...]:
-        """
-        Compute monogenic transform (scalar + Riesz components).
-
-        Parameters
-        ----------
-        image : torch.Tensor
-            Input image with shape matching self.shape.
-
-        Returns
-        -------
-        tuple[torch.Tensor, ...]
-            Tuple of (scalar, riesz_1, riesz_2, ..., riesz_ndim) components.
-        """
-        coefficients = self.forward_monogenic(image)
-        return self.backward_monogenic(coefficients)
