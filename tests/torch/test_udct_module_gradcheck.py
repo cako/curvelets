@@ -2,14 +2,37 @@
 
 from __future__ import annotations
 
-import threading
-import time
+import signal
+from contextlib import contextmanager
 
 import numpy as np
 import pytest
 import torch
 
 import curvelets.torch as torch_curvelets
+
+
+class TimeoutError(Exception):
+    """Timeout exception for test timeouts."""
+
+
+@contextmanager
+def timeout(seconds: float):
+    """Context manager that raises TimeoutError if code takes too long."""
+
+    def _timeout_handler(signum, frame):  # noqa: ARG001
+        raise TimeoutError(f"Operation timed out after {seconds} seconds")
+
+    # Set the signal handler
+    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(int(seconds))
+
+    try:
+        yield
+    finally:
+        # Restore the old handler and cancel the alarm
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 
 @pytest.mark.parametrize("dim", [2, 3, 4])
@@ -63,14 +86,10 @@ def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
 
     # Run gradcheck with timeout protection
     # UDCT involves FFT operations which can have numerical precision issues
+    # If timeout occurs, mark as expected failure (xfail)
     timeout_seconds = 10.0
-    result_container: list[bool] = []
-    exception_container: list[Exception] = []
-
-    def run_gradcheck() -> None:
-        """Run gradcheck in a separate thread."""
-        try:
-            start_time = time.time()
+    try:
+        with timeout(timeout_seconds):
             result = torch.autograd.gradcheck(
                 udct_module,
                 input_tensor,
@@ -81,43 +100,15 @@ def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
                 rtol=1e-3,
                 eps=1e-6,
             )
-            elapsed = time.time() - start_time
-            result_container.append(result)
-            print(
-                f"\n[gradcheck] dim={dim}, transform_type={transform_type}: {elapsed:.2f}s"
+            assert result, (
+                f"gradcheck failed for dim={dim}, transform_type={transform_type}"
             )
-        except Exception as e:
-            exception_container.append(e)
-
-    # Run gradcheck in a thread with timeout
-    thread = threading.Thread(target=run_gradcheck, daemon=True)
-    thread.start()
-    thread.join(timeout=timeout_seconds)
-
-    # Check if test timed out - mark as passed but log the timeout
-    if thread.is_alive():
-        print(
-            f"\n[gradcheck] dim={dim}, transform_type={transform_type}: "
-            f"TIMEOUT after {timeout_seconds}s (too slow, marking as passed)"
+    except TimeoutError:
+        # Mark as expected failure when timeout occurs (too slow)
+        pytest.xfail(
+            f"gradcheck timed out after {timeout_seconds}s for "
+            f"dim={dim}, transform_type={transform_type} (too slow)"
         )
-        # Test passes but gradcheck didn't complete due to timeout
-        return
-
-    # Check if an exception occurred
-    if exception_container:
-        raise exception_container[0]
-
-    # Check if result was obtained
-    if not result_container:
-        print(
-            f"\n[gradcheck] dim={dim}, transform_type={transform_type}: "
-            "did not complete (marking as passed)"
-        )
-        # Test passes but gradcheck didn't complete
-        return
-
-    result = result_container[0]
-    assert result, f"gradcheck failed for dim={dim}, transform_type={transform_type}"
 
 
 def test_udct_module_forward_backward_consistency() -> None:
