@@ -2,74 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeoutError
-from typing import TypeVar
-
 import numpy as np
 import pytest
 import torch
 
 import curvelets.torch as torch_curvelets
 
-T = TypeVar("T")
-
-
-class TimeoutError(Exception):
-    """Timeout exception for test timeouts."""
-
-
-def timeout(seconds: float, func: Callable[[], T]) -> T:
-    """
-    Execute a function with a timeout, raising TimeoutError if it takes too long.
-
-    Cross-platform implementation using ThreadPoolExecutor that works on
-    Windows, Linux, and macOS. The function is executed in a separate
-    thread and monitored for timeout.
-
-    Parameters
-    ----------
-    seconds : float
-        Maximum number of seconds to allow the function to run.
-    func : Callable[[], T]
-        Function to execute with timeout. Must take no arguments.
-
-    Returns
-    -------
-    T
-        The return value of the function.
-
-    Raises
-    ------
-    TimeoutError
-        If the function takes longer than the specified timeout.
-    Any exception raised by func
-        Any exception raised by the function will be propagated.
-
-    Examples
-    --------
-    >>> def long_operation():
-    ...     import time
-    ...     time.sleep(10)
-    ...     return 42
-    >>> result = timeout(5.0, long_operation)  # Will raise TimeoutError
-    """
-    executor = ThreadPoolExecutor(max_workers=1)
-    try:
-        future = executor.submit(func)
-        try:
-            return future.result(timeout=seconds)
-        except FuturesTimeoutError:
-            future.cancel()
-            msg = f"Operation timed out after {seconds} seconds"
-            raise TimeoutError(msg) from None
-    finally:
-        executor.shutdown(wait=False)
-
 
 @pytest.mark.parametrize("dim", [2, 3, 4])  # type: ignore[misc]
 @pytest.mark.parametrize("transform_type", ["real", "complex"])  # type: ignore[misc]
+@pytest.mark.timeout(10)
+@pytest.mark.timeout_to_skip
 def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     """
     Test that UDCTModule passes gradcheck for all dimensions and transform types.
@@ -117,31 +60,17 @@ def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     # Use fast_mode for real transforms (not complex)
     use_fast_mode = transform_type == "real"
 
-    # Run gradcheck with timeout protection
+    # Run gradcheck with timeout protection via pytest-timeout
     # UDCT involves FFT operations which can have numerical precision issues
-    # If timeout occurs, mark as expected failure (xfail)
-    timeout_seconds = 10.0
-    try:
-
-        def run_gradcheck():
-            return torch.autograd.gradcheck(
-                udct_module,
-                input_tensor,
-                fast_mode=use_fast_mode,
-                check_undefined_grad=False,
-                check_batched_grad=False,
-                atol=1e-5,
-                rtol=1e-3,
-                eps=1e-6,
-            )
-
-        result = timeout(timeout_seconds, run_gradcheck)
-        assert result, (
-            f"gradcheck failed for dim={dim}, transform_type={transform_type}"
-        )
-    except TimeoutError:
-        # Mark as expected failure when timeout occurs (too slow)
-        pytest.xfail(
-            f"gradcheck timed out after {timeout_seconds}s for "
-            f"dim={dim}, transform_type={transform_type} (too slow)"
-        )
+    # If timeout occurs, test is skipped (via conftest hook)
+    result = torch.autograd.gradcheck(
+        udct_module,
+        input_tensor,
+        fast_mode=use_fast_mode,
+        check_undefined_grad=False,
+        check_batched_grad=False,
+        atol=1e-5,
+        rtol=1e-3,
+        eps=1e-6,
+    )
+    assert result, f"gradcheck failed for dim={dim}, transform_type={transform_type}"

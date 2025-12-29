@@ -150,3 +150,31 @@ def setup_torch_transform(
 def rng():
     """Random number generator fixture."""
     return np.random.default_rng(42)
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Convert timeout failures to xfail for tests marked with timeout_to_skip."""
+    outcome = yield
+    rep = outcome.get_result()
+
+    # Only handle call phase failures
+    if rep.when != "call" or not rep.failed:
+        return
+
+    # Check if the test has the timeout_to_skip marker
+    marker = item.get_closest_marker("timeout_to_skip")
+    if marker is None:
+        return
+
+    # Check if this is a timeout failure
+    if call.excinfo is None:
+        return
+
+    exc_value_str = str(call.excinfo.value).lower()
+    if "timeout" not in exc_value_str:
+        return
+
+    # Convert to xfail by modifying the report
+    rep.outcome = "skipped"
+    rep.wasxfail = f"reason: {call.excinfo.value}"
