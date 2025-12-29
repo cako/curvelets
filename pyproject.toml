@@ -118,6 +118,10 @@ disallow_incomplete_defs = true
 module = ["matplotlib.*", "mpl_toolkits.*", "numpy.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["torch.*"]
+ignore_missing_imports = true
+
 
 [tool.ruff]
 src = ["src"]

@@ -454,7 +454,7 @@ class UDCT:
                             break
                     if self._coefficient_dtype is not None:
                         break
-                if self._coefficient_dtype is not None:
+                if self._coefficient_dtype is not None:  # type: ignore[unreachable]
                     break
         return coeffs
 
@@ -473,7 +473,7 @@ class UDCT:
                             break
                     if self._coefficient_dtype is not None:
                         break
-                if self._coefficient_dtype is not None:
+                if self._coefficient_dtype is not None:  # type: ignore[unreachable]
                     break
         return coeffs
 

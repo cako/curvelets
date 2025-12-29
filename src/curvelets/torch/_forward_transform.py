@@ -62,9 +62,7 @@ def _process_wedge_real(
     coeff = downsample(curvelet_band, decimation_ratio)
 
     # Apply normalization factor
-    coeff = coeff * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
-
-    return coeff
+    return coeff * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
 
 
 def _process_wedge_complex(
