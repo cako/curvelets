@@ -5,7 +5,7 @@ from __future__ import annotations
 import torch
 
 
-def riesz_filters(shape: tuple[int, ...]) -> list[torch.Tensor]:
+def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) -> list[torch.Tensor]:
     """
     Create Riesz transform filters in frequency domain.
 
@@ -17,6 +17,8 @@ def riesz_filters(shape: tuple[int, ...]) -> list[torch.Tensor]:
     ----------
     shape : tuple[int, ...]
         Shape of the input data. Determines the size of frequency grids.
+    device : torch.device, optional
+        Device on which to create the filters. Default is None (CPU).
 
     Returns
     -------
@@ -30,6 +32,10 @@ def riesz_filters(shape: tuple[int, ...]) -> list[torch.Tensor]:
     # Using fftfreq to get FFT frequency coordinates (in cycles per sample)
     # Convert to radians by multiplying by 2*pi
     grids = [2 * torch.pi * torch.fft.fftfreq(s) for s in shape]
+    
+    # Move grids to device if specified
+    if device is not None:
+        grids = [g.to(device) for g in grids]
 
     # Create meshgrids for all dimensions
     meshgrids = torch.meshgrid(*grids, indexing="ij")

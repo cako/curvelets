@@ -25,7 +25,9 @@ def _process_wedge_backward_monogenic(
     curvelet_band_scalar = curvelet_band_scalar / norm_factor
 
     # Transform to frequency domain
-    curvelet_freq_scalar = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band_scalar)
+    curvelet_freq_scalar = torch.prod(decimation_ratio.float()) * torch.fft.fftn(
+        curvelet_band_scalar
+    )
 
     # Get window indices and values
     idx, val = window
@@ -33,17 +35,29 @@ def _process_wedge_backward_monogenic(
     window_values = val.flatten().to(curvelet_freq_scalar.dtype)
 
     # Initialize contribution for scalar
-    contribution_scalar = torch.zeros(curvelet_freq_scalar.shape, dtype=curvelet_freq_scalar.dtype)
-    contribution_scalar.flatten()[idx_flat] = curvelet_freq_scalar.flatten()[idx_flat] * window_values
+    contribution_scalar = torch.zeros(
+        curvelet_freq_scalar.shape, dtype=curvelet_freq_scalar.dtype
+    )
+    contribution_scalar.flatten()[idx_flat] = (
+        curvelet_freq_scalar.flatten()[idx_flat] * window_values
+    )
 
     # Process all Riesz components
     contributions = [contribution_scalar]
     for coeff_riesz_k in coeff_riesz_list:
-        curvelet_band_riesz = upsample(coeff_riesz_k.to(curvelet_freq_scalar.dtype), decimation_ratio)
+        curvelet_band_riesz = upsample(
+            coeff_riesz_k.to(curvelet_freq_scalar.dtype), decimation_ratio
+        )
         curvelet_band_riesz = curvelet_band_riesz / norm_factor
-        curvelet_freq_riesz = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band_riesz)
-        contribution_riesz = torch.zeros(curvelet_freq_riesz.shape, dtype=curvelet_freq_riesz.dtype)
-        contribution_riesz.flatten()[idx_flat] = curvelet_freq_riesz.flatten()[idx_flat] * window_values
+        curvelet_freq_riesz = torch.prod(decimation_ratio.float()) * torch.fft.fftn(
+            curvelet_band_riesz
+        )
+        contribution_riesz = torch.zeros(
+            curvelet_freq_riesz.shape, dtype=curvelet_freq_riesz.dtype, device=curvelet_freq_riesz.device
+        )
+        contribution_riesz.flatten()[idx_flat] = (
+            curvelet_freq_riesz.flatten()[idx_flat] * window_values
+        )
         contributions.append(contribution_riesz)
 
     return contributions
@@ -58,7 +72,9 @@ def _apply_backward_transform_monogenic(
     """Apply backward monogenic curvelet transform."""
     # Determine dtype from coefficients
     scalar_coeff = coefficients[0][0][0][0]
-    complex_dtype = torch.complex64 if scalar_coeff.dtype == torch.float32 else torch.complex128
+    complex_dtype = (
+        torch.complex64 if scalar_coeff.dtype == torch.float32 else torch.complex128
+    )
     real_dtype = torch.float32 if scalar_coeff.dtype == torch.float32 else torch.float64
 
     # Determine number of components
@@ -66,7 +82,8 @@ def _apply_backward_transform_monogenic(
 
     # Initialize frequency domain arrays
     image_frequencies = [
-        torch.zeros(parameters.shape, dtype=complex_dtype) for _ in range(num_components)
+        torch.zeros(parameters.shape, dtype=complex_dtype)
+        for _ in range(num_components)
     ]
 
     highest_scale_idx = parameters.num_scales - 1
@@ -74,11 +91,11 @@ def _apply_backward_transform_monogenic(
 
     if is_wavelet_mode_highest_scale:
         image_frequencies_wavelet = [
-            torch.zeros(parameters.shape, dtype=complex_dtype)
+            torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
             for _ in range(num_components)
         ]
         image_frequencies_other = [
-            torch.zeros(parameters.shape, dtype=complex_dtype)
+            torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
             for _ in range(num_components)
         ]
 
@@ -89,7 +106,9 @@ def _apply_backward_transform_monogenic(
                     if decimation_ratios[scale_idx].shape[0] == 1:
                         decimation_ratio = decimation_ratios[scale_idx][0, :]
                     else:
-                        decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            direction_idx, :
+                        ]
 
                     coeffs = coefficients[scale_idx][direction_idx][wedge_idx]
                     contributions = _process_wedge_backward_monogenic(
@@ -102,10 +121,14 @@ def _apply_backward_transform_monogenic(
                     idx_flat = idx.flatten()
                     if scale_idx == highest_scale_idx:
                         for comp_idx, contrib in enumerate(contributions):
-                            image_frequencies_wavelet[comp_idx].flatten()[idx_flat] += contrib.flatten()[idx_flat]
+                            image_frequencies_wavelet[comp_idx].flatten()[idx_flat] += (
+                                contrib.flatten()[idx_flat]
+                            )
                     else:
                         for comp_idx, contrib in enumerate(contributions):
-                            image_frequencies_other[comp_idx].flatten()[idx_flat] += contrib.flatten()[idx_flat]
+                            image_frequencies_other[comp_idx].flatten()[idx_flat] += (
+                                contrib.flatten()[idx_flat]
+                            )
 
         for comp_idx in range(num_components):
             image_frequencies[comp_idx] = (
@@ -120,7 +143,9 @@ def _apply_backward_transform_monogenic(
                     if decimation_ratios[scale_idx].shape[0] == 1:
                         decimation_ratio = decimation_ratios[scale_idx][0, :]
                     else:
-                        decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                        decimation_ratio = decimation_ratios[scale_idx][
+                            direction_idx, :
+                        ]
 
                     coeffs = coefficients[scale_idx][direction_idx][wedge_idx]
                     contributions = _process_wedge_backward_monogenic(
@@ -132,7 +157,9 @@ def _apply_backward_transform_monogenic(
                     idx, _ = window
                     idx_flat = idx.flatten()
                     for comp_idx, contrib in enumerate(contributions):
-                        image_frequencies[comp_idx].flatten()[idx_flat] += contrib.flatten()[idx_flat]
+                        image_frequencies[comp_idx].flatten()[idx_flat] += (
+                            contrib.flatten()[idx_flat]
+                        )
 
         for comp_idx in range(num_components):
             image_frequencies[comp_idx] = image_frequencies[comp_idx] * 2
@@ -147,14 +174,24 @@ def _apply_backward_transform_monogenic(
     low_coeff_scalar = low_coeffs[0]
 
     curvelet_band_scalar = upsample(low_coeff_scalar, decimation_ratio)
-    curvelet_freq_scalar = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(curvelet_band_scalar)
-    image_frequencies[0].flatten()[idx_flat] += curvelet_freq_scalar.flatten()[idx_flat] * window_values
+    curvelet_freq_scalar = torch.sqrt(
+        torch.prod(decimation_ratio.float())
+    ) * torch.fft.fftn(curvelet_band_scalar)
+    image_frequencies[0].flatten()[idx_flat] += (
+        curvelet_freq_scalar.flatten()[idx_flat] * window_values
+    )
 
     for comp_idx in range(1, num_components):
         low_coeff_riesz = low_coeffs[comp_idx]
-        curvelet_band_riesz = upsample(low_coeff_riesz.to(complex_dtype), decimation_ratio)
-        curvelet_freq_riesz = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(curvelet_band_riesz)
-        image_frequencies[comp_idx].flatten()[idx_flat] += curvelet_freq_riesz.flatten()[idx_flat] * window_values
+        curvelet_band_riesz = upsample(
+            low_coeff_riesz.to(complex_dtype), decimation_ratio
+        )
+        curvelet_freq_riesz = torch.sqrt(
+            torch.prod(decimation_ratio.float())
+        ) * torch.fft.fftn(curvelet_band_riesz)
+        image_frequencies[comp_idx].flatten()[idx_flat] += (
+            curvelet_freq_riesz.flatten()[idx_flat] * window_values
+        )
 
     # Transform back to spatial domain
     results = []

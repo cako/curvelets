@@ -24,7 +24,9 @@ def _process_wedge_real(
 
     # Apply the window to the frequency domain
     idx_flat = idx.flatten()
-    freq_band.flatten()[idx_flat] = image_frequency.flatten()[idx_flat] * val.flatten().to(freq_band.dtype)
+    freq_band.flatten()[idx_flat] = image_frequency.flatten()[
+        idx_flat
+    ] * val.flatten().to(freq_band.dtype)
 
     # Transform back to spatial domain using inverse FFT
     curvelet_band = torch.fft.ifftn(freq_band)
@@ -58,7 +60,7 @@ def _process_wedge_complex(
         subwindow = flip_fft_all_axes(subwindow)
 
     # Apply window to frequency domain and transform to spatial domain
-    band_filtered = torch.sqrt(torch.tensor(0.5)) * torch.fft.ifftn(
+    band_filtered = torch.sqrt(torch.tensor(0.5, device=image_frequency.device)) * torch.fft.ifftn(
         image_frequency * subwindow.to(image_frequency.dtype)
     )
 
@@ -87,14 +89,20 @@ def _apply_forward_transform_real(
     # Low frequency band processing
     idx, val = windows[0][0][0]
     idx_flat = idx.flatten()
-    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[idx_flat] * val.flatten().to(complex_dtype)
+    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[
+        idx_flat
+    ] * val.flatten().to(complex_dtype)
 
     curvelet_band = torch.fft.ifftn(frequency_band)
 
     low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = torch.sqrt(
         torch.prod(
-            torch.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 2), dtype=torch.float64)
+            torch.full(
+                (parameters.ndim,),
+                fill_value=2 ** (parameters.num_scales - 2),
+                dtype=torch.float64,
+            )
         )
     )
     low_freq_coeff = low_freq_coeff * norm
@@ -112,7 +120,7 @@ def _apply_forward_transform_real(
                     decimation_ratio = decimation_ratios[scale_idx][0, :]
                 else:
                     decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
-                
+
                 coeff = _process_wedge_real(
                     window,
                     decimation_ratio,
@@ -140,14 +148,20 @@ def _apply_forward_transform_complex(
     frequency_band = torch.zeros_like(image_frequency)
     idx, val = windows[0][0][0]
     idx_flat = idx.flatten()
-    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[idx_flat] * val.flatten().to(complex_dtype)
+    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[
+        idx_flat
+    ] * val.flatten().to(complex_dtype)
 
     curvelet_band = torch.fft.ifftn(frequency_band)
 
     low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
     norm = torch.sqrt(
         torch.prod(
-            torch.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 2), dtype=torch.float64)
+            torch.full(
+                (parameters.ndim,),
+                fill_value=2 ** (parameters.num_scales - 2),
+                dtype=torch.float64,
+            )
         )
     )
     low_freq_coeff = low_freq_coeff * norm
@@ -156,7 +170,7 @@ def _apply_forward_transform_complex(
 
     for scale_idx in range(1, parameters.num_scales):
         scale_coeffs = []
-        
+
         # Positive frequency bands (directions 0..dim-1)
         for direction_idx in range(parameters.ndim):
             direction_coeffs = []
@@ -165,8 +179,10 @@ def _apply_forward_transform_complex(
                 if decimation_ratios[scale_idx].shape[0] == 1:
                     decimation_ratio = decimation_ratios[scale_idx][0, :]
                 else:
-                    decimation_ratio = decimation_ratios[scale_idx][window_direction_idx, :]
-                
+                    decimation_ratio = decimation_ratios[scale_idx][
+                        window_direction_idx, :
+                    ]
+
                 coeff = _process_wedge_complex(
                     windows[scale_idx][window_direction_idx][wedge_idx],
                     decimation_ratio,
@@ -176,7 +192,7 @@ def _apply_forward_transform_complex(
                 )
                 direction_coeffs.append(coeff)
             scale_coeffs.append(direction_coeffs)
-        
+
         # Negative frequency bands (directions dim..2*dim-1)
         for direction_idx in range(parameters.ndim):
             direction_coeffs = []
@@ -185,8 +201,10 @@ def _apply_forward_transform_complex(
                 if decimation_ratios[scale_idx].shape[0] == 1:
                     decimation_ratio = decimation_ratios[scale_idx][0, :]
                 else:
-                    decimation_ratio = decimation_ratios[scale_idx][window_direction_idx, :]
-                
+                    decimation_ratio = decimation_ratios[scale_idx][
+                        window_direction_idx, :
+                    ]
+
                 coeff = _process_wedge_complex(
                     windows[scale_idx][window_direction_idx][wedge_idx],
                     decimation_ratio,
@@ -196,7 +214,7 @@ def _apply_forward_transform_complex(
                 )
                 direction_coeffs.append(coeff)
             scale_coeffs.append(direction_coeffs)
-        
+
         coefficients.append(scale_coeffs)
 
     return coefficients
@@ -214,7 +232,9 @@ def _process_wedge_monogenic(
     freq_band.zero_()
     idx, val = window
     idx_flat = idx.flatten()
-    freq_band.flatten()[idx_flat] = image_frequency.flatten()[idx_flat] * val.flatten().to(freq_band.dtype)
+    freq_band.flatten()[idx_flat] = image_frequency.flatten()[
+        idx_flat
+    ] * val.flatten().to(freq_band.dtype)
     curvelet_band_scalar = torch.fft.ifftn(freq_band)
     coeff_scalar = downsample(curvelet_band_scalar, decimation_ratio)
     coeff_scalar = coeff_scalar * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
@@ -247,7 +267,7 @@ def _apply_forward_transform_monogenic(
     complex_dtype = image_frequency.dtype
 
     # Compute Riesz filters once
-    riesz_filters_list = riesz_filters(parameters.shape)
+    riesz_filters_list = riesz_filters(parameters.shape, device=image_frequency.device)
 
     frequency_band = torch.zeros_like(image_frequency)
 
@@ -255,13 +275,20 @@ def _apply_forward_transform_monogenic(
     idx, val = windows[0][0][0]
     idx_flat = idx.flatten()
     frequency_band.zero_()
-    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[idx_flat] * val.flatten().to(complex_dtype)
+    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[
+        idx_flat
+    ] * val.flatten().to(complex_dtype)
 
     curvelet_band_scalar = torch.fft.ifftn(frequency_band)
     low_freq_coeff_scalar = downsample(curvelet_band_scalar, decimation_ratios[0][0])
     norm = torch.sqrt(
         torch.prod(
-            torch.full((parameters.ndim,), fill_value=2 ** (parameters.num_scales - 2), dtype=torch.float64)
+            torch.full(
+                (parameters.ndim,),
+                fill_value=2 ** (parameters.num_scales - 2),
+                dtype=torch.float64,
+                device=image_frequency.device,
+            )
         )
     )
     low_freq_coeff_scalar = low_freq_coeff_scalar * norm
@@ -294,7 +321,7 @@ def _apply_forward_transform_monogenic(
                     decimation_ratio = decimation_ratios[scale_idx][0, :]
                 else:
                     decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
-                
+
                 coeffs = _process_wedge_monogenic(
                     window,
                     decimation_ratio,
