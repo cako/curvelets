@@ -383,7 +383,7 @@ class UDCT:
                     coefficients[scale_idx][direction_idx].append(wedge_components)
         return coefficients
 
-    def from_sparse(
+    def _from_sparse(
         self, windows: UDCTWindows | None = None
     ) -> list[list[list[torch.Tensor]]]:
         """

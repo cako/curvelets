@@ -656,7 +656,7 @@ class UDCT:
                     coefficients[scale_idx][direction_idx].append(wedge_components)
         return coefficients
 
-    def from_sparse(
+    def _from_sparse(
         self, arr_sparse: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
     ) -> npt.NDArray[np.floating]:
         """
@@ -680,7 +680,7 @@ class UDCT:
         >>> # Get a sparse window
         >>> sparse_window = transform.windows[0][0][0]
         >>> # Convert to dense
-        >>> dense_window = transform.from_sparse(sparse_window)
+        >>> dense_window = transform._from_sparse(sparse_window)
         >>> dense_window.shape
         (64, 64)
         """

@@ -1,4 +1,4 @@
-"""Tests for UDCT.from_sparse() method."""
+"""Tests for UDCT._from_sparse() method."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from curvelets.numpy import UDCT
 
 
 class TestFromSparseMethod:
-    """Test suite for UDCT.from_sparse() method."""
+    """Test suite for UDCT._from_sparse() method."""
 
     def test_from_sparse(self):
         """
@@ -21,7 +21,7 @@ class TestFromSparseMethod:
         >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
         >>> sparse_window = transform.windows[0][0][0]
-        >>> dense_window = transform.from_sparse(sparse_window)
+        >>> dense_window = transform._from_sparse(sparse_window)
         >>> dense_window.shape
         (64, 64)
         """
@@ -31,7 +31,7 @@ class TestFromSparseMethod:
         sparse_window = transform.windows[0][0][0]
 
         # Convert to dense
-        dense_window = transform.from_sparse(sparse_window)
+        dense_window = transform._from_sparse(sparse_window)
 
         # Verify shape matches transform parameters
         assert dense_window.shape == transform.parameters.shape
@@ -54,7 +54,7 @@ class TestFromSparseMethod:
     )
     def test_from_sparse_different_dtypes(self, dtype):  # noqa: ARG002
         """
-        Test from_sparse() with different dtypes.
+        Test _from_sparse() with different dtypes.
 
         Parameters
         ----------
@@ -67,7 +67,7 @@ class TestFromSparseMethod:
         sparse_window = transform.windows[0][0][0]
 
         # Convert to dense
-        dense_window = transform.from_sparse(sparse_window)
+        dense_window = transform._from_sparse(sparse_window)
 
         # Verify dtype (should match the sparse window values dtype)
         _, val = sparse_window
@@ -75,7 +75,7 @@ class TestFromSparseMethod:
 
     def test_from_sparse_multiple_scales(self):
         """
-        Test from_sparse() with windows from different scales.
+        Test _from_sparse() with windows from different scales.
         """
         transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
 
@@ -90,7 +90,7 @@ class TestFromSparseMethod:
                     ]
 
                     # Convert to dense
-                    dense_window = transform.from_sparse(sparse_window)
+                    dense_window = transform._from_sparse(sparse_window)
 
                     # Verify shape
                     assert dense_window.shape == transform.parameters.shape
@@ -101,7 +101,7 @@ class TestFromSparseMethod:
 
     def test_from_sparse_3d(self):
         """
-        Test from_sparse() with 3D transform.
+        Test _from_sparse() with 3D transform.
         """
         transform = UDCT(shape=(32, 32, 32), num_scales=2, wedges_per_direction=3)
 
@@ -109,7 +109,7 @@ class TestFromSparseMethod:
         sparse_window = transform.windows[0][0][0]
 
         # Convert to dense
-        dense_window = transform.from_sparse(sparse_window)
+        dense_window = transform._from_sparse(sparse_window)
 
         # Verify shape
         assert dense_window.shape == transform.parameters.shape
