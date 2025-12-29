@@ -233,7 +233,11 @@ def meyer_window(
     """
     # Use numpy for polyval since PyTorch doesn't have it
     # Convert to numpy, compute, convert back
-    freq_np = frequency.numpy()
+    # Store original device and dtype to restore later
+    original_device = frequency.device
+    original_dtype = frequency.dtype
+    # Move to CPU for NumPy conversion (required for GPU tensors)
+    freq_np = frequency.cpu().numpy()
     window_values = np.zeros_like(freq_np)
 
     poly_coeffs = np.array([-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0])
@@ -261,7 +265,7 @@ def meyer_window(
             window_values[falling_mask] = np.polyval(poly_coeffs, normalized_freq)
 
     return torch.from_numpy(window_values).to(
-        dtype=frequency.dtype, device=frequency.device
+        dtype=original_dtype, device=original_device
     )
 
 
