@@ -25,9 +25,7 @@ def test_riesz_filters_matches_numpy(ndim):
     # Check each filter matches
     # Use atol=1e-6 due to floating point precision differences between NumPy and PyTorch
     for i in range(ndim):
-        np.testing.assert_allclose(
-            result_np[i], result_torch[i].numpy(), atol=1e-6
-        )
+        np.testing.assert_allclose(result_np[i], result_torch[i].numpy(), atol=1e-6)
 
 
 @pytest.mark.parametrize("ndim", [2, 3, 4])

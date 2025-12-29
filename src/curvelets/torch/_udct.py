@@ -172,7 +172,7 @@ class UDCT:
         angular_wedges_config: torch.Tensor,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
-    ) -> "UDCT":
+    ) -> UDCT:
         """Create UDCT from angular wedges configuration."""
         return UDCT(
             shape=shape,
@@ -188,7 +188,7 @@ class UDCT:
         base_wedges: int = 3,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
-    ) -> "UDCT":
+    ) -> UDCT:
         """Create UDCT from number of scales."""
         ndim = len(shape)
         # Create config with exponentially increasing wedges per scale
@@ -255,10 +255,10 @@ class UDCT:
         # Dispatch based on transform_kind
         if self._transform_kind == "monogenic":
             return self._struct_monogenic(vector)
-        elif self._transform_kind == "complex":
+        if self._transform_kind == "complex":
             return self._struct_complex(vector)
-        else:  # real
-            return self._struct_real(vector)
+        # real
+        return self._struct_real(vector)
 
     def _struct_real(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for real coefficient restructuring (no input validation)."""
@@ -435,13 +435,12 @@ class UDCT:
         # Dispatch based on transform_kind
         if self._transform_kind == "real":
             return self._forward_real(image)
-        elif self._transform_kind == "complex":
+        if self._transform_kind == "complex":
             return self._forward_complex(image)
-        elif self._transform_kind == "monogenic":
+        if self._transform_kind == "monogenic":
             return self._forward_monogenic(image)
-        else:
-            msg = f"Invalid transform_kind: {self._transform_kind!r}"
-            raise ValueError(msg)
+        msg = f"Invalid transform_kind: {self._transform_kind!r}"
+        raise ValueError(msg)
 
     def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for real forward transform (no input validation)."""
@@ -506,13 +505,12 @@ class UDCT:
         # Dispatch based on transform_kind
         if self._transform_kind == "real":
             return self._backward_real(coefficients)
-        elif self._transform_kind == "complex":
+        if self._transform_kind == "complex":
             return self._backward_complex(coefficients)
-        elif self._transform_kind == "monogenic":
+        if self._transform_kind == "monogenic":
             return self._backward_monogenic(coefficients)
-        else:
-            msg = f"Invalid transform_kind: {self._transform_kind!r}"
-            raise ValueError(msg)
+        msg = f"Invalid transform_kind: {self._transform_kind!r}"
+        raise ValueError(msg)
 
     def _backward_real(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """Private method for real backward transform (no input validation)."""

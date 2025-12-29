@@ -471,10 +471,10 @@ class UDCT:
         # Dispatch based on transform_kind
         if self.transform_kind == "monogenic":
             return self._vect_monogenic(coefficients)  # type: ignore[arg-type]
-        elif self.transform_kind == "complex":
+        if self.transform_kind == "complex":
             return self._vect_complex(coefficients)  # type: ignore[arg-type]
-        else:  # real
-            return self._vect_real(coefficients)  # type: ignore[arg-type]
+        # real
+        return self._vect_real(coefficients)  # type: ignore[arg-type]
 
     def _vect_real(
         self, coefficients: list[list[list[npt.NDArray[C]]]]
@@ -540,10 +540,10 @@ class UDCT:
         # Dispatch based on transform_kind
         if self.transform_kind == "monogenic":
             return self._struct_monogenic(coefficients_vec)
-        elif self.transform_kind == "complex":
+        if self.transform_kind == "complex":
             return self._struct_complex(coefficients_vec)
-        else:  # real
-            return self._struct_real(coefficients_vec)
+        # real
+        return self._struct_real(coefficients_vec)
 
     def _struct_real(
         self, coefficients_vec: npt.NDArray[np.complexfloating]
@@ -738,13 +738,12 @@ class UDCT:
         # Dispatch to appropriate transform based on transform_kind
         if self.transform_kind == "real":
             return self._forward_real(image)
-        elif self.transform_kind == "complex":
+        if self.transform_kind == "complex":
             return self._forward_complex(image)
-        elif self.transform_kind == "monogenic":
+        if self.transform_kind == "monogenic":
             return self._forward_monogenic(image)
-        else:
-            msg = f"Invalid transform_kind: {self.transform_kind!r}"
-            raise ValueError(msg)
+        msg = f"Invalid transform_kind: {self.transform_kind!r}"
+        raise ValueError(msg)
 
     def _forward_real(
         self, image: npt.NDArray[F]
@@ -823,13 +822,12 @@ class UDCT:
         # Dispatch to appropriate transform based on transform_kind
         if self.transform_kind == "real":
             return self._backward_real(coefficients)
-        elif self.transform_kind == "complex":
+        if self.transform_kind == "complex":
             return self._backward_complex(coefficients)
-        elif self.transform_kind == "monogenic":
+        if self.transform_kind == "monogenic":
             return self._backward_monogenic(coefficients)
-        else:
-            msg = f"Invalid transform_kind: {self.transform_kind!r}"
-            raise ValueError(msg)
+        msg = f"Invalid transform_kind: {self.transform_kind!r}"
+        raise ValueError(msg)
 
     def _backward_real(
         self, coefficients: list[list[list[npt.NDArray[C]]]]

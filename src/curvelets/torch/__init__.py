@@ -9,8 +9,8 @@ from ._udct_module import UDCTModule
 
 __all__ = [
     "UDCT",
-    "UDCTModule",
     "MeyerWavelet",
     "UDCTCoefficients",
+    "UDCTModule",
     "UDCTWindows",
 ]

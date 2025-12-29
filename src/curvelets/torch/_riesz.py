@@ -5,7 +5,9 @@ from __future__ import annotations
 import torch
 
 
-def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) -> list[torch.Tensor]:
+def riesz_filters(
+    shape: tuple[int, ...], device: torch.device | None = None
+) -> list[torch.Tensor]:
     r"""
     Create Riesz transform filters in frequency domain.
 
@@ -47,7 +49,7 @@ def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) ->
     # Using fftfreq to get FFT frequency coordinates (in cycles per sample)
     # Convert to radians by multiplying by 2*pi
     grids = [2 * torch.pi * torch.fft.fftfreq(s) for s in shape]
-    
+
     # Move grids to device if specified
     if device is not None:
         grids = [g.to(device) for g in grids]
@@ -64,9 +66,7 @@ def riesz_filters(shape: tuple[int, ...], device: torch.device | None = None) ->
     xi_norm = torch.where(xi_norm == 0, torch.ones_like(xi_norm), xi_norm)
 
     # Compute Riesz filters: R_k = i * xi_k / |xi|
-    riesz_filters_list: list[torch.Tensor] = [
-        1j * g / xi_norm for g in meshgrids
-    ]
+    riesz_filters_list: list[torch.Tensor] = [1j * g / xi_norm for g in meshgrids]
 
     # Set DC component (zero frequency) to 0 for all filters
     # The zero frequency point is at index (0, 0, ...) in all dimensions

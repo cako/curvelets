@@ -164,7 +164,9 @@ def upsample(tensor: torch.Tensor, decimation_ratios: torch.Tensor) -> torch.Ten
     assert tensor.ndim == len(decimation_ratios)
     ratios = decimation_ratios.tolist()
     upsampled_shape = tuple(int(s * d) for s, d in zip(tensor.shape, ratios))
-    upsampled_tensor = torch.zeros(upsampled_shape, dtype=tensor.dtype, device=tensor.device)
+    upsampled_tensor = torch.zeros(
+        upsampled_shape, dtype=tensor.dtype, device=tensor.device
+    )
     upsampled_tensor[tuple(slice(None, None, int(d)) for d in ratios)] = tensor
     return upsampled_tensor
 
@@ -231,7 +233,7 @@ def meyer_window(
     # Convert to numpy, compute, convert back
     freq_np = frequency.numpy()
     window_values = np.zeros_like(freq_np)
-    
+
     poly_coeffs = np.array([-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0])
 
     # Region 1: Rising transition from transition_start to plateau_start
@@ -256,7 +258,9 @@ def meyer_window(
             )
             window_values[falling_mask] = np.polyval(poly_coeffs, normalized_freq)
 
-    return torch.from_numpy(window_values).to(dtype=frequency.dtype, device=frequency.device)
+    return torch.from_numpy(window_values).to(
+        dtype=frequency.dtype, device=frequency.device
+    )
 
 
 def from_sparse_new(

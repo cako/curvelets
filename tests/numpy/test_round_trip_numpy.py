@@ -203,7 +203,9 @@ def test_numpy_round_trip_complex_parametrized(dim, shape_idx, rng):
     if shape_idx >= len(shapes):
         pytest.skip(f"Shape index {shape_idx} out of range for dimension {dim}")
 
-    transform = setup_numpy_transform(dim, shape_idx=shape_idx, transform_kind="complex")
+    transform = setup_numpy_transform(
+        dim, shape_idx=shape_idx, transform_kind="complex"
+    )
     size = shapes[shape_idx]
     data = rng.normal(size=size)
     coeffs = transform.forward(data)
@@ -312,7 +314,9 @@ def test_numpy_round_trip_complex_input_absolute(dim, rng):
     recon = transform.backward(coeffs)
 
     # Verify output is complex
-    assert np.iscomplexobj(recon), "Output should be complex for transform_kind='complex'"
+    assert np.iscomplexobj(recon), (
+        "Output should be complex for transform_kind='complex'"
+    )
 
     atol = 1e-4 if dim in {2, 3} else 1e-3
     np.testing.assert_allclose(data, recon, atol=atol)

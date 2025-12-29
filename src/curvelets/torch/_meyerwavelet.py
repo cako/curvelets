@@ -68,9 +68,7 @@ class MeyerWavelet:
         for dim_idx, size in enumerate(shape):
             self._filters[dim_idx] = self._compute_single_filter(size)
 
-    def _compute_single_filter(
-        self, size: int
-    ) -> dict[str, list[torch.Tensor]]:
+    def _compute_single_filter(self, size: int) -> dict[str, list[torch.Tensor]]:
         """Compute Meyer wavelet filters for a single dimension."""
         # Use numpy for polyval since PyTorch doesn't have it
         frequency_grid = np.linspace(-1.5 * np.pi, 0.5 * np.pi, size + 1)[:-1]
@@ -89,7 +87,9 @@ class MeyerWavelet:
 
             # Lowpass filter
             lowpass = np.zeros(size, dtype=np.float64)
-            rising_mask = (np.abs(frequency_grid) >= -2) & (np.abs(frequency_grid) <= r1)
+            rising_mask = (np.abs(frequency_grid) >= -2) & (
+                np.abs(frequency_grid) <= r1
+            )
             if np.any(rising_mask):
                 normalized_freq = (np.abs(frequency_grid[rising_mask]) + 2) / (r1 + 2)
                 lowpass[rising_mask] = np.polyval(poly_coeffs, normalized_freq)
@@ -102,9 +102,13 @@ class MeyerWavelet:
                 next_r0 = self.radial_frequency_params[0] / next_scale_factor
                 next_r1 = self.radial_frequency_params[1] / next_scale_factor
 
-                falling_mask = (np.abs(frequency_grid) >= next_r0) & (np.abs(frequency_grid) <= next_r1)
+                falling_mask = (np.abs(frequency_grid) >= next_r0) & (
+                    np.abs(frequency_grid) <= next_r1
+                )
                 if np.any(falling_mask):
-                    normalized_freq = (np.abs(frequency_grid[falling_mask]) - next_r0) / (next_r1 - next_r0)
+                    normalized_freq = (
+                        np.abs(frequency_grid[falling_mask]) - next_r0
+                    ) / (next_r1 - next_r0)
                     highpass[falling_mask] = np.polyval(poly_coeffs, normalized_freq)
                 highpass[np.abs(frequency_grid) < next_r0] = 1.0
 
@@ -120,8 +124,12 @@ class MeyerWavelet:
         scale_idx: int,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Apply 1D forward Meyer wavelet transform along specified dimension."""
-        lowpass_filter = self._filters[dim_idx]["lowpass"][scale_idx].to(data_freq.device)
-        highpass_filter = self._filters[dim_idx]["highpass"][scale_idx].to(data_freq.device)
+        lowpass_filter = self._filters[dim_idx]["lowpass"][scale_idx].to(
+            data_freq.device
+        )
+        highpass_filter = self._filters[dim_idx]["highpass"][scale_idx].to(
+            data_freq.device
+        )
 
         # Reshape filter for broadcasting
         filter_shape = [1] * data_freq.ndim
@@ -143,8 +151,12 @@ class MeyerWavelet:
         scale_idx: int,
     ) -> torch.Tensor:
         """Apply 1D inverse Meyer wavelet transform along specified dimension."""
-        lowpass_filter = self._filters[dim_idx]["lowpass"][scale_idx].to(lowpass_band.device)
-        highpass_filter = self._filters[dim_idx]["highpass"][scale_idx].to(lowpass_band.device)
+        lowpass_filter = self._filters[dim_idx]["lowpass"][scale_idx].to(
+            lowpass_band.device
+        )
+        highpass_filter = self._filters[dim_idx]["highpass"][scale_idx].to(
+            lowpass_band.device
+        )
 
         # Reshape filter for broadcasting
         filter_shape = [1] * lowpass_band.ndim
@@ -153,11 +165,11 @@ class MeyerWavelet:
         highpass_filter = highpass_filter.reshape(filter_shape)
 
         # Combine bands
-        return lowpass_band * lowpass_filter.to(lowpass_band.dtype) + highpass_band * highpass_filter.to(highpass_band.dtype)
+        return lowpass_band * lowpass_filter.to(
+            lowpass_band.dtype
+        ) + highpass_band * highpass_filter.to(highpass_band.dtype)
 
-    def forward(
-        self, data: torch.Tensor
-    ) -> list[list[torch.Tensor]]:
+    def forward(self, data: torch.Tensor) -> list[list[torch.Tensor]]:
         """
         Apply forward Meyer wavelet transform.
 
@@ -200,9 +212,7 @@ class MeyerWavelet:
 
         return coefficients
 
-    def backward(
-        self, coefficients: list[list[torch.Tensor]]
-    ) -> torch.Tensor:
+    def backward(self, coefficients: list[list[torch.Tensor]]) -> torch.Tensor:
         """
         Apply backward (inverse) Meyer wavelet transform.
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 import torch
 
@@ -52,7 +51,7 @@ def test_torch_vect_struct_roundtrip(rng, dim):
     data = torch.from_numpy(rng.random(transform._obj.shape))
 
     coeffs = transform.forward(data)
-    
+
     # Vectorize then restructure
     vec = transform._obj.vect(coeffs)
     coeffs_reconstructed = transform._obj.struct(vec)
@@ -92,9 +91,9 @@ def test_torch_coefficient_structure(rng, dim):
 def test_torch_windows_are_sparse(dim):
     """Test that windows are stored in sparse format."""
     transform = setup_torch_transform(dim, shape_idx=0, cfg_idx=0)
-    
+
     windows = transform._obj.windows
-    
+
     for scale in windows:
         for direction in scale:
             for window in direction:
