@@ -205,6 +205,7 @@ def _apply_forward_transform_real(
                 (parameters.ndim,),
                 fill_value=2 ** (parameters.num_scales - 2),
                 dtype=torch.float64,
+                device=image_frequency.device,
             )
         )
     )
@@ -314,6 +315,7 @@ def _apply_forward_transform_complex(
                 (parameters.ndim,),
                 fill_value=2 ** (parameters.num_scales - 2),
                 dtype=torch.float64,
+                device=image_frequency.device,
             )
         )
     )
