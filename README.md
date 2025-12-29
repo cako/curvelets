@@ -17,8 +17,6 @@
 [![codecov](https://codecov.io/github/cako/curvelets/graph/badge.svg?token=T16E0ANTLR)](https://codecov.io/github/cako/curvelets)
 
 [![PyPI version][pypi-version]][pypi-link]
-[![Conda-Forge][conda-badge]][conda-link]
-[![PyPI platforms][pypi-platforms]][pypi-link]
 ![PyPI downloads](https://img.shields.io/pypi/dm/curvelets.svg?label=Pypi%20downloads)
 ![OS-support](https://img.shields.io/badge/OS-linux,win,osx-850A8B.svg)
 ![License](https://img.shields.io/github/license/cako/curvelets)
@@ -30,8 +28,6 @@
 <!-- prettier-ignore-start -->
 [actions-badge]:            https://github.com/cako/curvelets/workflows/CI/badge.svg
 [actions-link]:             https://github.com/cako/curvelets/actions
-[conda-badge]:              https://img.shields.io/conda/vn/conda-forge/Curvelets
-[conda-link]:               https://github.com/conda-forge/Curvelets-feedstock
 [github-discussions-badge]: https://img.shields.io/static/v1?label=Discussions&message=Ask&color=blue&logo=github
 [github-discussions-link]:  https://github.com/cako/curvelets/discussions
 [pypi-link]:                https://pypi.org/project/Curvelets/
