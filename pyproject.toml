@@ -125,7 +125,11 @@ module = ["matplotlib.*", "mpl_toolkits.*", "numpy.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["torch.*"]
+module = ["torch.*", "torchvision.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
 ignore_missing_imports = true
 
 

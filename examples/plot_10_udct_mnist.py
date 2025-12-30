@@ -9,7 +9,7 @@ Instead of using convolutional layers, this network:
 
 1. Applies the Uniform Discrete Curvelet Transform (UDCT) to each image
 2. Uses all curvelet coefficients as features (every pixel in every wedge)
-3. Uses a linear layer to classify into 10 digit classes
+3. Passes features through a two-layer MLP to classify into 10 digit classes
 
 The key insight is that curvelet coefficients capture directional information
 at multiple scales, providing a meaningful representation for classification.
@@ -20,27 +20,24 @@ Architecture Overview
 - **Input**: MNIST images (28x28 grayscale)
 - **Feature extraction**: UDCTModule transforms each image into curvelet coefficients
 - **Features**: All coefficient values (every pixel in every wedge) form the feature vector
-- **Classification**: Linear layer maps features to 10 classes
+- **Classification**: Two-layer MLP (Linear -> ReLU -> Linear) maps features to 10 classes
 - **Batch processing**: ``torch.vmap`` enables efficient batched inference
 
 Credits
 -------
 
-This example is adapted from the PyTorch MNIST example:
-https://github.com/pytorch/examples/blob/main/mnist/main.py
+This example is adapted from the `PyTorch MNIST example <https://github.com/pytorch/examples/blob/main/mnist/main.py>`_.
 """
 
 from __future__ import annotations
 
 # %%
 # sphinx_gallery_thumbnail_number = 2
-
 import matplotlib.pyplot as plt
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
 from sklearn.manifold import TSNE
+from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
@@ -55,12 +52,12 @@ from curvelets.torch import UDCTModule
 #
 # 1. ``UDCTModule``: Computes curvelet coefficients for each image
 # 2. Feature extraction: Uses all coefficient values as features
-# 3. Linear classifier: Maps features to class probabilities
+# 3. Two-layer MLP: Maps features to class probabilities
 #
 # We use ``torch.vmap`` to efficiently process batches of images.
 
 
-class UDCTNet(nn.Module):
+class UDCTNet(nn.Module):  # type: ignore[misc]
     """Neural network using UDCT for feature extraction."""
 
     def __init__(
@@ -68,6 +65,7 @@ class UDCTNet(nn.Module):
         shape: tuple[int, int] = (28, 28),
         num_scales: int = 2,
         wedges_per_direction: int = 3,
+        hidden_size: int = 128,
     ) -> None:
         super().__init__()
         self.udct = UDCTModule(
@@ -80,7 +78,8 @@ class UDCTNet(nn.Module):
         with torch.inference_mode():
             dummy = torch.zeros(shape)
             n_features = self.udct(dummy).numel()
-        self.linear = nn.Linear(n_features, 10)
+        self.fc1 = nn.Linear(n_features, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, 10)
 
     def _extract_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract all curvelet coefficients from a single 2D image."""
@@ -93,7 +92,8 @@ class UDCTNet(nn.Module):
         x = x.squeeze(1)
         # Use vmap for batch processing
         features = torch.vmap(self._extract_features)(x)
-        return F.log_softmax(self.linear(features), dim=1)
+        x = F.relu(self.fc1(features))
+        return F.log_softmax(self.fc2(x), dim=1)
 
     def get_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract features without classification (for visualization)."""
@@ -113,27 +113,19 @@ def train(
     device: torch.device,
     train_loader: torch.utils.data.DataLoader,
     optimizer: optim.Optimizer,
-    epoch: int,
-    log_interval: int = 100,
 ) -> float:
     """Train the model for one epoch and return average loss."""
     model.train()
     total_loss = 0.0
-    for batch_idx, (data, target) in enumerate(train_loader):
-        data, target = data.to(device), target.to(device)
+    for _, (data, target) in enumerate(train_loader):
+        data_device = data.to(device)
+        target_device = target.to(device)
         optimizer.zero_grad()
-        output = model(data)
-        loss = F.nll_loss(output, target)
+        output = model(data_device)
+        loss = F.nll_loss(output, target_device)
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
-        if batch_idx % log_interval == 0:
-            print(
-                f"Train Epoch: {epoch} "
-                f"[{batch_idx * len(data)}/{len(train_loader.dataset)} "
-                f"({100.0 * batch_idx / len(train_loader):.0f}%)]\t"
-                f"Loss: {loss.item():.6f}"
-            )
     return total_loss / len(train_loader)
 
 
@@ -145,22 +137,14 @@ def test(
     """Evaluate the model on the test set and return average loss."""
     model.eval()
     test_loss = 0.0
-    correct = 0
     with torch.inference_mode():
         for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
-            test_loss += F.nll_loss(output, target, reduction="sum").item()
-            pred = output.argmax(dim=1, keepdim=True)
-            correct += pred.eq(target.view_as(pred)).sum().item()
+            data_device = data.to(device)
+            target_device = target.to(device)
+            output = model(data_device)
+            test_loss += F.nll_loss(output, target_device, reduction="sum").item()
 
     test_loss /= len(test_loader.dataset)
-    accuracy = 100.0 * correct / len(test_loader.dataset)
-
-    print(
-        f"\nTest set: Average loss: {test_loss:.4f}, "
-        f"Accuracy: {correct}/{len(test_loader.dataset)} ({accuracy:.0f}%)\n"
-    )
     return test_loss
 
 
@@ -179,7 +163,6 @@ if torch.accelerator.is_available():
     device = torch.accelerator.current_accelerator()
 else:
     device = torch.device("cpu")
-print(f"Using device: {device}")
 
 # Data loading
 transform = transforms.Compose(
@@ -201,8 +184,6 @@ test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000)
 # feature vector that preserves all transform information.
 
 model = UDCTNet(shape=(28, 28), num_scales=2, wedges_per_direction=3).to(device)
-print(f"Model: {model}")
-print(f"Linear layer input features: {model.linear.in_features}")
 
 # %%
 # Training Loop
@@ -217,8 +198,8 @@ num_epochs = 3
 train_losses: list[float] = []
 test_losses: list[float] = []
 
-for epoch in range(1, num_epochs + 1):
-    train_loss = train(model, device, train_loader, optimizer, epoch)
+for _ in range(1, num_epochs + 1):
+    train_loss = train(model, device, train_loader, optimizer)
     test_loss = test(model, device, test_loader)
     train_losses.append(train_loss)
     test_losses.append(test_loss)
@@ -230,8 +211,10 @@ for epoch in range(1, num_epochs + 1):
 #
 # Visualize the training and test loss over epochs.
 
-fig, ax = plt.subplots(figsize=(8, 5))
 epochs = range(1, num_epochs + 1)
+
+# %%
+fig, ax = plt.subplots(figsize=(8, 5))
 ax.plot(epochs, train_losses, "o-", label="Train Loss", linewidth=2, markersize=8)
 ax.plot(epochs, test_losses, "s-", label="Test Loss", linewidth=2, markersize=8)
 ax.set_xlabel("Epoch", fontsize=12)
@@ -270,6 +253,7 @@ labels_np = labels_batch.numpy()
 tsne = TSNE(n_components=2, random_state=42, perplexity=30)
 features_tsne = tsne.fit_transform(features_batch)
 
+# %%
 fig, ax = plt.subplots(figsize=(10, 8))
 scatter = ax.scatter(
     features_tsne[:, 0],
