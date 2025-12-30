@@ -2,3 +2,4 @@
 # This ensures we use the smaller CPU-only build instead of the CUDA build
 --index-url https://download.pytorch.org/whl/cpu
 torch
+torchvision

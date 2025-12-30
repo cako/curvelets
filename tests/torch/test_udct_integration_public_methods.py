@@ -114,6 +114,10 @@ class TestComplexTransformIntegration:
         vec = transform.vect(coeffs_orig)
         coeffs_recon = transform.struct(vec)
 
+        # Type narrowing: complex transform returns UDCTCoefficients, not MUDCTCoefficients
+        assert isinstance(coeffs_recon, list)  # Both are lists, but helps mypy
+        assert isinstance(coeffs_orig, list)  # Both are lists, but helps mypy
+
         # Verify structure matches
         assert len(coeffs_recon) == len(coeffs_orig)
         for scale_idx in range(len(coeffs_orig)):
@@ -127,6 +131,8 @@ class TestComplexTransformIntegration:
                     recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
 
                     assert isinstance(recon_wedge, torch.Tensor)
+                    assert isinstance(orig_wedge, torch.Tensor)
+                    # Type narrowing: we know these are UDCTCoefficients (Tensor), not MUDCTCoefficients (list)
                     assert recon_wedge.shape == orig_wedge.shape
                     torch.testing.assert_close(
                         recon_wedge, orig_wedge, atol=1e-6, rtol=1e-6

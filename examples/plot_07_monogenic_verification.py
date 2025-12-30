@@ -67,7 +67,7 @@ test_image = zone_plate * window
 # Reproducing Formula
 # ###################
 #
-# According to :cite:`Storath2010`, the monogenic curvelet transform should satisfy
+# According to :cite:t:`Storath2010`, the monogenic curvelet transform should satisfy
 # the reproducing formula:
 #
 # .. math::
