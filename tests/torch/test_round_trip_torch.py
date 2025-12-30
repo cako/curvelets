@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 import torch
 
+from curvelets.torch._sparse_window import SparseWindow
+
 from .conftest import setup_torch_transform
 
 
@@ -97,8 +99,13 @@ def test_torch_windows_are_sparse(dim):
     for scale in windows:
         for direction in scale:
             for window in direction:
-                assert isinstance(window, tuple), "Window should be tuple"
-                assert len(window) == 2, "Window tuple should have 2 elements"
-                indices, values = window
-                assert isinstance(indices, torch.Tensor), "Indices should be tensor"
-                assert isinstance(values, torch.Tensor), "Values should be tensor"
+                assert isinstance(window, SparseWindow), "Window should be SparseWindow"
+                assert isinstance(window.indices, torch.Tensor), (
+                    "Indices should be tensor"
+                )
+                assert isinstance(window.values, torch.Tensor), (
+                    "Values should be tensor"
+                )
+                assert window.shape == transform._obj.shape, (
+                    "Window shape should match transform shape"
+                )

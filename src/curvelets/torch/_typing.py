@@ -7,7 +7,13 @@ tensors handle dtype internally.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import torch
+
+if TYPE_CHECKING:
+    from ._sparse_window import SparseWindow
+
 
 # Simple type aliases - every array is just a Tensor
 # Structure: coefficients[scale][direction][wedge] = Tensor
@@ -18,8 +24,8 @@ UDCTCoefficients = list[list[list[torch.Tensor]]]
 # Each wedge contains ndim+1 components: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
 MUDCTCoefficients = list[list[list[list[torch.Tensor]]]]
 
-# Structure: windows[scale][direction][wedge] = (indices, values) tuple
-UDCTWindows = list[list[list[tuple[torch.Tensor, torch.Tensor]]]]
+# Structure: windows[scale][direction][wedge] = SparseWindow
+UDCTWindows = list[list[list["SparseWindow"]]]
 
 # Integer tensor type alias for decimation ratios, indices, etc.
 IntegerTensor = torch.Tensor

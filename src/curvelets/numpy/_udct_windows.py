@@ -10,7 +10,8 @@ from typing import Union
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import F, IntegerNDArray, IntpNDArray, UDCTWindows
+from ._sparse_window import SparseWindow
+from ._typing import F, IntegerNDArray, UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
 
 
@@ -232,14 +233,18 @@ class UDCTWindow:
         """
         Compute Kronecker product for angle functions.
 
+        Expands a 1D angle function to an N-D array by replicating values along
+        dimensions not in the permutation, using Kronecker products.
+
         Parameters
         ----------
         angle_function_1d : npt.NDArray[F]
-            Angle function array.
+            Angle function array representing a 2D grid of values.
         dimension_permutation : IntegerNDArray
-            Dimension permutation indices.
+            Dimension permutation indices (1-indexed) specifying which two
+            dimensions the angle function spans.
         shape : tuple[int, ...]
-            Shape of the input data.
+            Shape of the output array.
         dimension : int
             Dimensionality of the transform.
 
@@ -247,9 +252,9 @@ class UDCTWindow:
         -------
         npt.NDArray[F]
             Kronecker product result with shape matching input shape.
-            The dtype matches the input angle_function_1d dtype (preserves TypeVar F).
+            The output is C-contiguous with dtype matching the input.
         """
-        # Pre-compute dimension sizes for Kronecker product
+        # Pre-compute dimension sizes for Kronecker product replication
         kronecker_dimension_sizes: npt.NDArray[np.int_] = np.array(
             [
                 np.prod(shape[: dimension_permutation[0] - 1]),
@@ -259,23 +264,26 @@ class UDCTWindow:
             dtype=int,
         )
 
-        # Expand 1D angle function to N-D using multi-step Kronecker products:
-        # This matches the original angle_kron implementation which uses travel() = T.ravel()
+        # Expand 1D angle function to N-D using multi-step Kronecker products
         # Step 1: Expand along dimension 1 (kronecker_dimension_sizes[1])
         kron_step1 = np.kron(
             np.ones((kronecker_dimension_sizes[1], 1), dtype=int), angle_function_1d
         )
-        # Use travel() = T.ravel() instead of ravel() to match original implementation
-        kron_step1_travel = kron_step1.T.ravel()
+        kron_step1_flat = kron_step1.ravel(order="F")
+
+        # Step 2: Expand along dimension 2 (kronecker_dimension_sizes[2])
         kron_step2 = np.kron(
-            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_travel
+            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_flat
         ).ravel()
-        # Use travel() = T.ravel() for the final step as well
-        kron_step3 = (
-            np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int))
-        ).T.ravel()
-        # Match original: reshape with reversed size and transpose
-        return kron_step3.reshape(*shape[::-1]).T.astype(angle_function_1d.dtype)
+
+        # Step 3: Expand along dimension 0 (kronecker_dimension_sizes[0])
+        kron_step3 = np.kron(
+            kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int)
+        ).ravel(order="F")
+
+        # Reshape to final shape and ensure C-contiguous output
+        result = kron_step3.reshape(shape, order="F").astype(angle_function_1d.dtype)
+        return np.ascontiguousarray(result)
 
     @staticmethod
     def _flip_with_fft_shift(input_array: npt.NDArray[F], axis: int) -> npt.NDArray[F]:
@@ -298,30 +306,6 @@ class UDCTWindow:
         shift_vector[axis] = 1
         flipped_array = np.flip(input_array, axis)
         return circular_shift(flipped_array, tuple(shift_vector))
-
-    @staticmethod
-    def _to_sparse(
-        arr: npt.NDArray[F], threshold: float
-    ) -> tuple[IntpNDArray, npt.NDArray[F]]:
-        """
-        Convert array to sparse format.
-
-        Parameters
-        ----------
-        arr : npt.NDArray[F]
-            Input array.
-        threshold : float
-            Threshold for sparse storage (values above threshold are kept).
-
-        Returns
-        -------
-        tuple[IntpNDArray, npt.NDArray[F]]
-            Tuple of (indices, values) where indices are positions and values
-            are the array values at those positions.
-        """
-        arr_flat = arr.ravel()
-        indices = np.argwhere(arr_flat > threshold)
-        return (indices, arr_flat[indices])
 
     @staticmethod
     def _nchoosek(n: Union[Iterable[int], IntegerNDArray], k: int) -> IntegerNDArray:
@@ -575,17 +559,17 @@ class UDCTWindow:
         # Phase 1: Compute sum of squares of all windows (including flipped versions)
         # This ensures the tight frame property: sum of squares equals 1 at each frequency
         sum_squared_windows = np.zeros(size)
-        indices, values = windows[0][0][0]
-        idx_flat = indices.ravel()
-        val_flat = values.ravel()
+        window = windows[0][0][0]
+        idx_flat = window.indices
+        val_flat = window.values
         sum_squared_windows.flat[idx_flat] += val_flat**2
         for scale_idx in range(1, num_scales):
             # Iterate over actual number of directions (may be less than dimension for "wavelet" mode)
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = indices.ravel()
-                    val_flat = values.ravel()
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = window.indices
+                    val_flat = window.values
                     sum_squared_windows.flat[idx_flat] += val_flat**2
                     # Also accumulate flipped version for symmetry
                     # Only flip if we have the full number of directions (not for "wavelet" mode at highest scale)
@@ -602,17 +586,17 @@ class UDCTWindow:
         # This ensures perfect reconstruction (tight frame property)
         sum_squared_windows = np.sqrt(sum_squared_windows)
         sum_squared_windows_flat = sum_squared_windows.ravel()
-        indices, values = windows[0][0][0]
-        idx_flat = indices.ravel()
-        val_flat = values.ravel()
+        window = windows[0][0][0]
+        idx_flat = window.indices
+        val_flat = window.values
         val_flat[:] /= sum_squared_windows_flat[idx_flat]
         for scale_idx in range(1, num_scales):
             # Iterate over actual number of directions (may be less than dimension for "wavelet" mode)
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = indices.ravel()
-                    val_flat = values.ravel()
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = window.indices
+                    val_flat = window.values
                     val_flat[:] /= sum_squared_windows_flat[idx_flat]
 
     @staticmethod
@@ -769,7 +753,7 @@ class UDCTWindow:
         shape: tuple[int, ...],
         dimension: int,
         window_threshold: float,
-    ) -> tuple[list[tuple[IntpNDArray, npt.NDArray[F]]], IntegerNDArray]:
+    ) -> tuple[list[SparseWindow], IntegerNDArray]:
         r"""
         Process a single window_index value, constructing curvelet windows with symmetry.
 
@@ -1036,7 +1020,7 @@ class UDCTWindow:
 
         # Convert all window functions to sparse format
         window_tuples = [
-            UDCTWindow._to_sparse(
+            SparseWindow.from_dense(
                 window_functions[function_index],
                 window_threshold,
             )
@@ -1066,7 +1050,7 @@ class UDCTWindow:
         -------
         windows : UDCTWindows
             Curvelet windows in sparse format. Structure is:
-            windows[scale][direction][wedge] = (indices, values) tuple
+            windows[scale][direction][wedge] = SparseWindow
             where scale 0 is low-frequency, scales 1..(num_scales-1) are high-frequency bands.
             For "wavelet" mode at highest scale, windows[highest_scale] has 1 direction with 1 wedge
             (ring-shaped window encompassing the entire frequency ring, no angular components).
@@ -1152,7 +1136,7 @@ class UDCTWindow:
         windows.append([])
         windows[0].append([])
         windows[0][0] = [
-            UDCTWindow._to_sparse(low_frequency_window, self.window_threshold)
+            SparseWindow.from_dense(low_frequency_window, self.window_threshold)
         ]
 
         indices: dict[int, dict[int, IntegerNDArray]] = {}
@@ -1207,7 +1191,7 @@ class UDCTWindow:
                 )
 
                 # Convert to sparse format
-                ring_window_sparse = UDCTWindow._to_sparse(
+                ring_window_sparse = SparseWindow.from_dense(
                     ring_window, self.window_threshold
                 )
 
@@ -1234,7 +1218,7 @@ class UDCTWindow:
                     # Process each window_index independently using list comprehension
                     # Each call returns (list of window tuples, angle_indices_2d array)
                     # Windows include original and flipped versions for symmetry
-                    window_results = [
+                    window_results: list[tuple[list[SparseWindow], IntegerNDArray]] = [
                         UDCTWindow._process_single_window(
                             scale_idx=scale_idx,
                             dimension_idx=dimension_idx,
@@ -1255,7 +1239,7 @@ class UDCTWindow:
                     # Combine results from all window_index values:
                     # - Flatten nested window lists into a single list
                     # - Concatenate all angle_indices_2d arrays into one array
-                    all_windows = [
+                    all_windows: list[SparseWindow] = [
                         window
                         for window_list, _ in window_results
                         for window in window_list

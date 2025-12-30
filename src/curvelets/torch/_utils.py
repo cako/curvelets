@@ -267,22 +267,3 @@ def meyer_window(
     return torch.from_numpy(window_values).to(
         dtype=original_dtype, device=original_device
     )
-
-
-def from_sparse_new(
-    arr_list: tuple[torch.Tensor, torch.Tensor],
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """
-    Identity function for sparse array format.
-
-    Parameters
-    ----------
-    arr_list : tuple[torch.Tensor, torch.Tensor]
-        Sparse array format as a tuple of (indices, values).
-
-    Returns
-    -------
-    tuple[torch.Tensor, torch.Tensor]
-        The input tuple unchanged.
-    """
-    return arr_list

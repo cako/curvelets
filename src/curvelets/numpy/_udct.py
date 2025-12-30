@@ -19,7 +19,7 @@ from ._forward_transform import (
 from ._riesz import riesz_filters
 from ._typing import C, F, MUDCTCoefficients, UDCTWindows, _to_complex_dtype
 from ._udct_windows import UDCTWindow
-from ._utils import ParamUDCT, from_sparse_new
+from ._utils import ParamUDCT
 
 
 class UDCT:
@@ -658,39 +658,6 @@ class UDCT:
                         begin_idx = end_idx
                     coefficients[scale_idx][direction_idx].append(wedge_components)
         return coefficients
-
-    def _from_sparse(
-        self, arr_sparse: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-    ) -> npt.NDArray[np.floating]:
-        """
-        Convert sparse window format to dense array.
-
-        Parameters
-        ----------
-        arr_sparse : tuple[:obj:`NDArray <numpy.typing.NDArray>` [:obj:`intp <numpy.intp>`], :obj:`NDArray <numpy.typing.NDArray>` [:obj:`floating <numpy.floating>`]]
-            Sparse window format as a tuple of (indices, values).
-
-        Returns
-        -------
-        :obj:`NDArray <numpy.typing.NDArray>` [:obj:`floating <numpy.floating>`]
-            Dense array with the same shape as the transform input.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from curvelets.numpy import UDCT
-        >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
-        >>> # Get a sparse window
-        >>> sparse_window = transform.windows[0][0][0]
-        >>> # Convert to dense
-        >>> dense_window = transform._from_sparse(sparse_window)
-        >>> dense_window.shape
-        (64, 64)
-        """
-        idx, val = from_sparse_new(arr_sparse)
-        arr_full = np.zeros(self.parameters.shape, dtype=val.dtype)
-        arr_full.flat[idx] += val
-        return arr_full
 
     def forward(
         self, image: npt.NDArray[F] | npt.NDArray[C]
