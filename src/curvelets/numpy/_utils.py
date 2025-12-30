@@ -514,30 +514,3 @@ def upsample(
     upsampled_array = np.zeros(upsampled_shape, dtype=array.dtype)
     upsampled_array[tuple(slice(None, None, d) for d in decimation_ratios)] = array[...]
     return upsampled_array
-
-
-def from_sparse_new(
-    arr_list: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
-) -> tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]:
-    """
-    Identity function for sparse array format.
-
-    This function is kept for backward compatibility. It simply returns the
-    input tuple unchanged. The sparse format is (indices, values).
-
-    Parameters
-    ----------
-    arr_list : tuple[NDArray[intp], NDArray[floating]]
-        Sparse array format as a tuple of (indices, values).
-
-    Returns
-    -------
-    tuple[NDArray[intp], NDArray[floating]]
-        The input tuple unchanged.
-
-    Notes
-    -----
-    This function is internal and used primarily in tests. It exists for
-    compatibility with the old API.
-    """
-    return arr_list

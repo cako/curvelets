@@ -7,13 +7,14 @@ from typing import Literal, overload
 import numpy as np
 import numpy.typing as npt
 
+from ._sparse_window import SparseWindow
 from ._typing import C, UDCTWindows, _to_complex_dtype, _to_real_dtype
 from ._utils import ParamUDCT, flip_fft_all_axes, upsample
 
 
 def _process_wedge_backward_real(
     coefficient: npt.NDArray[np.complexfloating],
-    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+    window: "SparseWindow",
     decimation_ratio: npt.NDArray[np.int_],
     complex_dtype: npt.DTypeLike,
 ) -> npt.NDArray[np.complexfloating]:
@@ -27,8 +28,8 @@ def _process_wedge_backward_real(
     ----------
     coefficient : npt.NDArray[np.complexfloating]
         Downsampled coefficient array for this wedge.
-    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : npt.NDArray[np.int_]
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     complex_dtype : npt.DTypeLike
@@ -54,19 +55,16 @@ def _process_wedge_backward_real(
     # Transform to frequency domain
     curvelet_band = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band)
 
-    # Get window indices and values
-    idx, val = window
-
     # Create sparse contribution array (only non-zero at window indices)
     contribution = np.zeros(curvelet_band.shape, dtype=complex_dtype)
-    contribution.flat[idx] = curvelet_band.flat[idx] * val.astype(complex_dtype)
+    window.scatter_add(contribution, curvelet_band, dtype=complex_dtype)
 
     return contribution
 
 
 def _process_wedge_backward_complex(
     coefficient: npt.NDArray[np.complexfloating],
-    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+    window: "SparseWindow",
     decimation_ratio: npt.NDArray[np.int_],
     parameters: ParamUDCT,
     complex_dtype: npt.DTypeLike,
@@ -83,8 +81,8 @@ def _process_wedge_backward_complex(
     ----------
     coefficient : npt.NDArray[np.complexfloating]
         Downsampled coefficient array for this wedge.
-    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : npt.NDArray[np.int_]
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     parameters : ParamUDCT
@@ -107,12 +105,8 @@ def _process_wedge_backward_complex(
     of positive and negative frequencies.
     """
     # pylint: disable=duplicate-code
-    # Get window indices and values
-    idx, val = window
-
     # Convert sparse window to dense for manipulation
-    subwindow = np.zeros(parameters.shape, dtype=val.dtype)
-    subwindow.flat[idx] = val
+    subwindow = window.to_dense()
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
@@ -207,13 +201,10 @@ def _apply_backward_transform_real(
                         decimation_ratio,
                         complex_dtype,
                     )
-                    idx, _ = window
                     if scale_idx == highest_scale_idx:
-                        image_frequency_wavelet_scale.flat[idx] += contribution.flat[
-                            idx
-                        ]
+                        image_frequency_wavelet_scale += contribution
                     else:
-                        image_frequency_other_scales.flat[idx] += contribution.flat[idx]
+                        image_frequency_other_scales += contribution
     else:
         # Normal curvelet mode: process all scales together
         # pylint: disable=duplicate-code
@@ -233,16 +224,14 @@ def _apply_backward_transform_real(
                         decimation_ratio,
                         complex_dtype,
                     )
-                    idx, _ = window
-                    image_frequency.flat[idx] += contribution.flat[idx]
+                    image_frequency += contribution
 
     # Process low-frequency band
     image_frequency_low = np.zeros(parameters.shape, dtype=complex_dtype)
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
-    idx, val = windows[0][0][0]
-    image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
+    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band, dtype=complex_dtype)
 
     # Combine: low frequency + high frequency contributions
     # For real transform mode, multiply high-frequency by 2 to account for combined +/- frequencies
@@ -429,8 +418,7 @@ def _apply_backward_transform_complex(
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
-    idx, val = windows[0][0][0]
-    image_frequency_low.flat[idx] += curvelet_band.flat[idx] * val.astype(complex_dtype)
+    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band, dtype=complex_dtype)
 
     # Combine: low frequency + high frequency contributions
     # For complex transform mode, multiply high-frequency by 2 to account for separate +/- frequencies
@@ -501,7 +489,7 @@ def _apply_backward_transform(
     windows : UDCTWindows
         Curvelet windows in sparse format, must match those used in
         forward transform. Structure:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[npt.NDArray[np.int_]]
         Decimation ratios for each scale and direction, must match those
         used in forward transform. Structure:

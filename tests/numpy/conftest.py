@@ -8,8 +8,8 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
+from curvelets.numpy._sparse_window import SparseWindow
 from curvelets.numpy._typing import UDCTCoefficients
-from curvelets.numpy._utils import from_sparse_new
 
 # Common test parameters
 COMMON_ALPHA = 0.15
@@ -88,40 +88,6 @@ def get_test_configs(dim: int) -> list[np.ndarray]:
             np.array([[3, 3, 3, 3]]),
         ]
     return []
-
-
-def extract_numpy_window_dense(
-    window_sparse: tuple[np.ndarray, np.ndarray], size: tuple[int, ...]
-) -> np.ndarray:
-    """
-    Extract a dense window from NumPy's sparse format.
-
-    Parameters
-    ----------
-    window_sparse : tuple[np.ndarray, np.ndarray]
-        Sparse window format (indices, values).
-    size : tuple[int, ...]
-        Size of the full window array.
-
-    Returns
-    -------
-    np.ndarray
-        Dense window array.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from tests.numpy.conftest import extract_numpy_window_dense
-    >>> idx = np.array([0, 1, 2])
-    >>> val = np.array([1.0, 2.0, 3.0])
-    >>> win = extract_numpy_window_dense((idx, val), (4,))
-    >>> win.shape
-    (4,)
-    """
-    idx, val = from_sparse_new(window_sparse)
-    win_dense = np.zeros(size, dtype=val.dtype)
-    win_dense.flat[idx] = val
-    return win_dense
 
 
 # Transform fixtures for round-trip tests

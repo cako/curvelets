@@ -12,6 +12,7 @@ from typing import Union
 import numpy as np
 import torch
 
+from ._sparse_window import SparseWindow
 from ._typing import UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
 
@@ -238,15 +239,6 @@ class UDCTWindow:
         return circular_shift(flipped_tensor, tuple(shift_vector))
 
     @staticmethod
-    def _to_sparse(
-        arr: torch.Tensor, threshold: float
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Convert tensor to sparse format."""
-        arr_flat = arr.flatten()
-        indices = torch.argwhere(arr_flat > threshold)
-        return (indices, arr_flat[indices])
-
-    @staticmethod
     def _nchoosek(n: Union[Iterable[int], torch.Tensor], k: int) -> torch.Tensor:
         """Generate all combinations of k elements from n."""
         if isinstance(n, torch.Tensor):
@@ -428,23 +420,22 @@ class UDCTWindow:
     ) -> None:
         """Normalize windows in-place to ensure tight frame property."""
         # Get device from windows
-        _, val = windows[0][0][0]
-        device = val.device
+        window = windows[0][0][0]
+        device = window.device
         sum_squared_windows = torch.zeros(size, dtype=torch.float64, device=device)
-        indices, values = windows[0][0][0]
-        idx_flat = indices.flatten()
-        val_flat = values.flatten()
+        idx_flat = window.indices
+        val_flat = window.values
         sum_squared_windows.flatten()[idx_flat] += val_flat**2
 
         for scale_idx in range(1, num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = indices.flatten()
-                    val_flat = values.flatten()
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = window.indices
+                    val_flat = window.values
                     sum_squared_windows.flatten()[idx_flat] += val_flat**2
                     if len(windows[scale_idx]) == dimension:
-                        temp_window = torch.zeros(size, dtype=torch.float64)
+                        temp_window = torch.zeros(size, dtype=torch.float64, device=device)
                         temp_window.flatten()[idx_flat] = val_flat**2
                         temp_window = UDCTWindow._flip_with_fft_shift(
                             temp_window, direction_idx
@@ -454,17 +445,17 @@ class UDCTWindow:
         sum_squared_windows = torch.sqrt(sum_squared_windows)
         sum_squared_windows_flat = sum_squared_windows.flatten()
 
-        indices, values = windows[0][0][0]
-        idx_flat = indices.flatten()
-        val_flat = values.flatten()
+        window = windows[0][0][0]
+        idx_flat = window.indices
+        val_flat = window.values
         val_flat /= sum_squared_windows_flat[idx_flat]
 
         for scale_idx in range(1, num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = indices.flatten()
-                    val_flat = values.flatten()
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = window.indices
+                    val_flat = window.values
                     val_flat /= sum_squared_windows_flat[idx_flat]
 
     @staticmethod
@@ -704,7 +695,7 @@ class UDCTWindow:
             )
 
         window_tuples = [
-            UDCTWindow._to_sparse(window_functions[i], window_threshold)
+            SparseWindow.from_dense(window_functions[i], window_threshold)
             for i in range(num_windows)
         ]
 
@@ -738,7 +729,7 @@ class UDCTWindow:
         windows.append([])
         windows[0].append([])
         windows[0][0] = [
-            UDCTWindow._to_sparse(low_frequency_window, self.window_threshold)
+            SparseWindow.from_dense(low_frequency_window, self.window_threshold)
         ]
 
         indices: dict[int, dict[int, torch.Tensor]] = {}
@@ -780,7 +771,7 @@ class UDCTWindow:
                 ring_window = torch.sqrt(
                     circular_shift(ring_window, tuple(s // 4 for s in self.shape))
                 )
-                ring_window_sparse = UDCTWindow._to_sparse(
+                ring_window_sparse = SparseWindow.from_dense(
                     ring_window, self.window_threshold
                 )
                 windows[scale_idx].append([ring_window_sparse])

@@ -10,6 +10,7 @@ from typing import Union
 import numpy as np
 import numpy.typing as npt
 
+from ._sparse_window import SparseWindow
 from ._typing import F, IntegerNDArray, IntpNDArray, UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
 
@@ -307,30 +308,6 @@ class UDCTWindow:
         return circular_shift(flipped_array, tuple(shift_vector))
 
     @staticmethod
-    def _to_sparse(
-        arr: npt.NDArray[F], threshold: float
-    ) -> tuple[IntpNDArray, npt.NDArray[F]]:
-        """
-        Convert array to sparse format.
-
-        Parameters
-        ----------
-        arr : npt.NDArray[F]
-            Input array.
-        threshold : float
-            Threshold for sparse storage (values above threshold are kept).
-
-        Returns
-        -------
-        tuple[IntpNDArray, npt.NDArray[F]]
-            Tuple of (indices, values) where indices are positions and values
-            are the array values at those positions.
-        """
-        arr_flat = arr.ravel()
-        indices = np.argwhere(arr_flat > threshold)
-        return (indices, arr_flat[indices])
-
-    @staticmethod
     def _nchoosek(n: Union[Iterable[int], IntegerNDArray], k: int) -> IntegerNDArray:
         """
         Generate all combinations of k elements from n.
@@ -582,17 +559,17 @@ class UDCTWindow:
         # Phase 1: Compute sum of squares of all windows (including flipped versions)
         # This ensures the tight frame property: sum of squares equals 1 at each frequency
         sum_squared_windows = np.zeros(size)
-        indices, values = windows[0][0][0]
-        idx_flat = indices.ravel()
-        val_flat = values.ravel()
+        window = windows[0][0][0]
+        idx_flat = window.indices
+        val_flat = window.values
         sum_squared_windows.flat[idx_flat] += val_flat**2
         for scale_idx in range(1, num_scales):
             # Iterate over actual number of directions (may be less than dimension for "wavelet" mode)
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = indices.ravel()
-                    val_flat = values.ravel()
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = window.indices
+                    val_flat = window.values
                     sum_squared_windows.flat[idx_flat] += val_flat**2
                     # Also accumulate flipped version for symmetry
                     # Only flip if we have the full number of directions (not for "wavelet" mode at highest scale)
@@ -609,17 +586,17 @@ class UDCTWindow:
         # This ensures perfect reconstruction (tight frame property)
         sum_squared_windows = np.sqrt(sum_squared_windows)
         sum_squared_windows_flat = sum_squared_windows.ravel()
-        indices, values = windows[0][0][0]
-        idx_flat = indices.ravel()
-        val_flat = values.ravel()
+        window = windows[0][0][0]
+        idx_flat = window.indices
+        val_flat = window.values
         val_flat[:] /= sum_squared_windows_flat[idx_flat]
         for scale_idx in range(1, num_scales):
             # Iterate over actual number of directions (may be less than dimension for "wavelet" mode)
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    indices, values = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = indices.ravel()
-                    val_flat = values.ravel()
+                    window = windows[scale_idx][direction_idx][wedge_idx]
+                    idx_flat = window.indices
+                    val_flat = window.values
                     val_flat[:] /= sum_squared_windows_flat[idx_flat]
 
     @staticmethod
@@ -1043,7 +1020,7 @@ class UDCTWindow:
 
         # Convert all window functions to sparse format
         window_tuples = [
-            UDCTWindow._to_sparse(
+            SparseWindow.from_dense(
                 window_functions[function_index],
                 window_threshold,
             )
@@ -1073,7 +1050,7 @@ class UDCTWindow:
         -------
         windows : UDCTWindows
             Curvelet windows in sparse format. Structure is:
-            windows[scale][direction][wedge] = (indices, values) tuple
+            windows[scale][direction][wedge] = SparseWindow
             where scale 0 is low-frequency, scales 1..(num_scales-1) are high-frequency bands.
             For "wavelet" mode at highest scale, windows[highest_scale] has 1 direction with 1 wedge
             (ring-shaped window encompassing the entire frequency ring, no angular components).
@@ -1159,7 +1136,7 @@ class UDCTWindow:
         windows.append([])
         windows[0].append([])
         windows[0][0] = [
-            UDCTWindow._to_sparse(low_frequency_window, self.window_threshold)
+            SparseWindow.from_dense(low_frequency_window, self.window_threshold)
         ]
 
         indices: dict[int, dict[int, IntegerNDArray]] = {}
@@ -1214,7 +1191,7 @@ class UDCTWindow:
                 )
 
                 # Convert to sparse format
-                ring_window_sparse = UDCTWindow._to_sparse(
+                ring_window_sparse = SparseWindow.from_dense(
                     ring_window, self.window_threshold
                 )
 

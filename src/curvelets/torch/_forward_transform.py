@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import torch
 
+from ._sparse_window import SparseWindow
 from ._typing import UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 
 
 def _process_wedge_real(
-    window: tuple[torch.Tensor, torch.Tensor],
+    window: SparseWindow,
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
     freq_band: torch.Tensor,
@@ -25,8 +26,8 @@ def _process_wedge_real(
 
     Parameters
     ----------
-    window : tuple[torch.Tensor, torch.Tensor]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : torch.Tensor
@@ -45,17 +46,8 @@ def _process_wedge_real(
     :math:`\\sqrt{0.5}` scaling is applied. The normalization factor ensures proper
     energy preservation.
     """
-    # Clear the frequency band buffer for reuse
-    freq_band.zero_()
-
-    # Get the sparse window representation (indices and values)
-    idx, val = window
-
     # Apply the window to the frequency domain
-    idx_flat = idx.flatten()
-    freq_band.flatten()[idx_flat] = image_frequency.flatten()[
-        idx_flat
-    ] * val.flatten().to(freq_band.dtype)
+    freq_band = window.multiply_extract(image_frequency, out=freq_band)
 
     # Transform back to spatial domain using inverse FFT
     curvelet_band = torch.fft.ifftn(freq_band)  # pylint: disable=not-callable
@@ -68,10 +60,9 @@ def _process_wedge_real(
 
 
 def _process_wedge_complex(
-    window: tuple[torch.Tensor, torch.Tensor],
+    window: SparseWindow,
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
-    parameters: ParamUDCT,
     flip_window: bool = False,
 ) -> torch.Tensor:
     """
@@ -84,14 +75,12 @@ def _process_wedge_complex(
 
     Parameters
     ----------
-    window : tuple[torch.Tensor, torch.Tensor]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : torch.Tensor
         Input image in frequency domain (from FFT).
-    parameters : ParamUDCT
-        UDCT parameters containing size information.
     flip_window : bool, optional
         If True, flip the window for negative frequency processing.
         Default is False.
@@ -107,12 +96,8 @@ def _process_wedge_complex(
     :math:`\\sqrt{0.5}` scaling is applied to each band. The normalization factor ensures
     proper energy preservation.
     """
-    # Get the sparse window representation
-    idx, val = window
-
     # Convert sparse window to dense
-    subwindow = torch.zeros(parameters.shape, dtype=val.dtype, device=val.device)
-    subwindow.flatten()[idx.flatten()] = val.flatten()
+    subwindow = window.to_dense()
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
@@ -159,7 +144,7 @@ def _apply_forward_transform_real(
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[torch.Tensor]
         Decimation ratios for each scale and direction. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band
@@ -190,11 +175,7 @@ def _apply_forward_transform_real(
     frequency_band = torch.zeros_like(image_frequency)
 
     # Low frequency band processing
-    idx, val = windows[0][0][0]
-    idx_flat = idx.flatten()
-    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[
-        idx_flat
-    ] * val.flatten().to(complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band)
 
     curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
 
@@ -267,7 +248,7 @@ def _apply_forward_transform_complex(
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[torch.Tensor]
         Decimation ratios for each scale and direction. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band
@@ -300,11 +281,7 @@ def _apply_forward_transform_complex(
 
     # Low frequency band processing
     frequency_band = torch.zeros_like(image_frequency)
-    idx, val = windows[0][0][0]
-    idx_flat = idx.flatten()
-    frequency_band.flatten()[idx_flat] = image_frequency.flatten()[
-        idx_flat
-    ] * val.flatten().to(complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band)
 
     curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
 
@@ -342,7 +319,6 @@ def _apply_forward_transform_complex(
                     windows[scale_idx][window_direction_idx][wedge_idx],
                     decimation_ratio,
                     image_frequency,
-                    parameters,
                     flip_window=False,
                 )
                 direction_coeffs.append(coeff)
@@ -364,7 +340,6 @@ def _apply_forward_transform_complex(
                     windows[scale_idx][window_direction_idx][wedge_idx],
                     decimation_ratio,
                     image_frequency,
-                    parameters,
                     flip_window=True,
                 )
                 direction_coeffs.append(coeff)

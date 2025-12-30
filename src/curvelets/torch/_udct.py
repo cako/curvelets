@@ -19,7 +19,7 @@ from ._forward_transform import (
 )
 from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
-from ._utils import ParamUDCT, from_sparse_new
+from ._utils import ParamUDCT
 
 
 class UDCT:
@@ -645,41 +645,6 @@ class UDCT:
                     coefficients[scale_idx][direction_idx].append(wedge_components)
         return coefficients
 
-    def _from_sparse(
-        self, arr_sparse: tuple[torch.Tensor, torch.Tensor]
-    ) -> torch.Tensor:
-        """
-        Convert sparse window format to dense array.
-
-        Parameters
-        ----------
-        arr_sparse : tuple[torch.Tensor, torch.Tensor]
-            Sparse window format as a tuple of (indices, values).
-
-        Returns
-        -------
-        torch.Tensor
-            Dense tensor with the same shape as the transform input.
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch import UDCT
-        >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
-        >>> # Get a sparse window
-        >>> sparse_window = transform.windows[0][0][0]
-        >>> # Convert to dense
-        >>> dense_window = transform._from_sparse(sparse_window)
-        >>> dense_window.shape
-        torch.Size([64, 64])
-        """
-        idx, val = from_sparse_new(arr_sparse)
-        arr_full = torch.zeros(
-            self._parameters.shape, dtype=val.dtype, device=val.device
-        )
-        arr_full.flatten()[idx.flatten()] = val.flatten()
-        return arr_full
-
     def forward(self, image: torch.Tensor) -> UDCTCoefficients | MUDCTCoefficients:
         """
         Apply forward curvelet transform.
@@ -837,11 +802,16 @@ class UDCT:
         >>> if torch.cuda.is_available():
         ...     transform.apply_to_tensors(lambda t: t.cuda())  # doctest: +SKIP
         """
-        # Apply to windows (nested structure of (idx, val) tuples)
+        # Apply to windows (nested structure of SparseWindow objects)
         for scale_idx, scale_windows in enumerate(self._windows):
             for dir_idx, dir_windows in enumerate(scale_windows):
-                for wedge_idx, (idx, val) in enumerate(dir_windows):
-                    self._windows[scale_idx][dir_idx][wedge_idx] = (fn(idx), fn(val))
+                for wedge_idx, window in enumerate(dir_windows):
+                    new_indices = fn(window.indices)
+                    new_values = fn(window.values)
+                    from ._sparse_window import SparseWindow
+                    self._windows[scale_idx][dir_idx][wedge_idx] = SparseWindow(
+                        new_indices, new_values, window.shape
+                    )
 
         # Apply to decimation_ratios (list of tensors)
         for i, ratio in enumerate(self._decimation_ratios):

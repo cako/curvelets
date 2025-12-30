@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import torch
 
+from ._sparse_window import SparseWindow
 from ._typing import UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, flip_fft_all_axes, upsample
 
 
 def _process_wedge_backward_real(
     coefficient: torch.Tensor,
-    window: tuple[torch.Tensor, torch.Tensor],
+    window: SparseWindow,
     decimation_ratio: torch.Tensor,
 ) -> torch.Tensor:
     """
@@ -25,8 +26,8 @@ def _process_wedge_backward_real(
     ----------
     coefficient : torch.Tensor
         Downsampled coefficient array for this wedge.
-    window : tuple[torch.Tensor, torch.Tensor]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
 
@@ -50,26 +51,19 @@ def _process_wedge_backward_real(
     # Transform to frequency domain
     curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
 
-    # Get window indices and values
-    idx, val = window
-    idx_flat = idx.flatten()
-
     # Create sparse contribution array
     contribution = torch.zeros(
         curvelet_band.shape, dtype=curvelet_band.dtype, device=curvelet_band.device
     )
-    contribution.flatten()[idx_flat] = curvelet_band.flatten()[
-        idx_flat
-    ] * val.flatten().to(curvelet_band.dtype)
+    window.scatter_add(contribution, curvelet_band)
 
     return contribution
 
 
 def _process_wedge_backward_complex(
     coefficient: torch.Tensor,
-    window: tuple[torch.Tensor, torch.Tensor],
+    window: SparseWindow,
     decimation_ratio: torch.Tensor,
-    parameters: ParamUDCT,
     flip_window: bool = False,
 ) -> torch.Tensor:
     """
@@ -83,12 +77,10 @@ def _process_wedge_backward_complex(
     ----------
     coefficient : torch.Tensor
         Downsampled coefficient array for this wedge.
-    window : tuple[torch.Tensor, torch.Tensor]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
-    parameters : ParamUDCT
-        UDCT parameters containing size information.
     flip_window : bool, optional
         If True, flip the window for negative frequency processing.
         Default is False.
@@ -104,12 +96,8 @@ def _process_wedge_backward_complex(
     in complex transform mode. The :math:`\\sqrt{0.5}` scaling accounts for the separation
     of positive and negative frequencies.
     """
-    # Get window indices and values
-    idx, val = window
-
     # Convert sparse window to dense
-    subwindow = torch.zeros(parameters.shape, dtype=val.dtype, device=val.device)
-    subwindow.flatten()[idx.flatten()] = val.flatten()
+    subwindow = window.to_dense()
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
@@ -232,11 +220,7 @@ def _apply_backward_transform_real(
                         window,
                         decimation_ratio,
                     )
-                    idx, _ = window
-                    idx_flat = idx.flatten()
-                    image_frequency.flatten()[idx_flat] += contribution.flatten()[
-                        idx_flat
-                    ]
+                    image_frequency += contribution
 
     # Process low-frequency band
     image_frequency_low = torch.zeros(
@@ -247,11 +231,7 @@ def _apply_backward_transform_real(
     curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
         curvelet_band
     )
-    idx, val = windows[0][0][0]
-    idx_flat = idx.flatten()
-    image_frequency_low.flatten()[idx_flat] += curvelet_band.flatten()[
-        idx_flat
-    ] * val.flatten().to(complex_dtype)
+    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band)
 
     # Combine
     if is_wavelet_mode_highest_scale:
@@ -339,7 +319,6 @@ def _apply_backward_transform_complex(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         flip_window=False,
                     )
                     if scale_idx == highest_scale_idx:
@@ -366,7 +345,6 @@ def _apply_backward_transform_complex(
                         ],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         flip_window=True,
                     )
                     if scale_idx == highest_scale_idx:
@@ -395,7 +373,6 @@ def _apply_backward_transform_complex(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         flip_window=False,
                     )
                     image_frequency += contribution
@@ -418,7 +395,6 @@ def _apply_backward_transform_complex(
                         ],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         flip_window=True,
                     )
                     image_frequency += contribution
@@ -432,11 +408,7 @@ def _apply_backward_transform_complex(
     curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
         curvelet_band
     )
-    idx, val = windows[0][0][0]
-    idx_flat = idx.flatten()
-    image_frequency_low.flatten()[idx_flat] += curvelet_band.flatten()[
-        idx_flat
-    ] * val.flatten().to(complex_dtype)
+    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band)
 
     # Combine
     if is_wavelet_mode_highest_scale:
@@ -486,7 +458,7 @@ def _apply_backward_transform(
     windows : UDCTWindows
         Curvelet windows in sparse format, must match those used in
         forward transform. Structure:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[torch.Tensor]
         Decimation ratios for each scale and direction, must match those
         used in forward transform. Structure:

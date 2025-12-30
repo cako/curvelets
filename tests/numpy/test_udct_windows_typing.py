@@ -67,14 +67,6 @@ def test_flip_with_fft_shift_type_hints() -> None:
     assert "return" in hints
 
 
-def test_to_sparse_type_hints() -> None:
-    """Test that _to_sparse has correct type hints."""
-    hints = typing.get_type_hints(UDCTWindow._to_sparse)
-    assert "arr" in hints
-    assert "threshold" in hints
-    assert "return" in hints
-
-
 def test_nchoosek_type_hints() -> None:
     """Test that _nchoosek has correct type hints."""
     hints = typing.get_type_hints(UDCTWindow._nchoosek)
