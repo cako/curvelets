@@ -8,7 +8,6 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-from curvelets.numpy._sparse_window import SparseWindow
 from curvelets.numpy._typing import UDCTCoefficients
 
 # Common test parameters

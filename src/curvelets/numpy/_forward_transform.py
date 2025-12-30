@@ -11,7 +11,6 @@ from ._typing import (
     C,
     F,
     IntegerNDArray,
-    IntpNDArray,
     MUDCTCoefficients,
     UDCTCoefficients,
     UDCTWindows,
@@ -20,7 +19,7 @@ from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 
 
 def _process_wedge_real(
-    window: "SparseWindow",
+    window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     freq_band: npt.NDArray[np.complexfloating],
@@ -59,7 +58,9 @@ def _process_wedge_real(
     """
     # Apply the window to the frequency domain: multiply image frequencies
     # by the window values at the specified indices
-    freq_band = window.multiply_extract(image_frequency, out=freq_band, dtype=complex_dtype)
+    freq_band = window.multiply_extract(
+        image_frequency, out=freq_band, dtype=complex_dtype
+    )
 
     # Transform back to spatial domain using inverse FFT
     curvelet_band = np.fft.ifftn(freq_band)
@@ -75,7 +76,7 @@ def _process_wedge_real(
 
 
 def _process_wedge_complex(
-    window: "SparseWindow",
+    window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     parameters: ParamUDCT,
@@ -201,7 +202,9 @@ def _apply_forward_transform_real(
     frequency_band = np.zeros_like(image_frequency)
 
     # Low frequency band processing
-    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band, dtype=complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band, dtype=complex_dtype
+    )
 
     # Real transform: take real part
     curvelet_band = np.fft.ifftn(frequency_band)
@@ -301,7 +304,9 @@ def _apply_forward_transform_complex(
 
     # Low frequency band processing
     frequency_band = np.zeros_like(image_frequency)
-    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band, dtype=complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band, dtype=complex_dtype
+    )
 
     # Complex transform: keep complex low frequency
     curvelet_band = np.fft.ifftn(frequency_band)
@@ -382,7 +387,7 @@ def _apply_forward_transform_complex(
 
 
 def _process_wedge_monogenic(
-    window: "SparseWindow",
+    window: SparseWindow,
     decimation_ratio: IntegerNDArray,
     image_frequency: npt.NDArray[np.complexfloating],
     riesz_filters_list: list[npt.NDArray[np.complexfloating]],
@@ -431,7 +436,9 @@ def _process_wedge_monogenic(
     as the standard UDCT transform.
     """
     # Scalar component (same as _process_wedge_real)
-    freq_band = window.multiply_extract(image_frequency, out=freq_band, dtype=complex_dtype)
+    freq_band = window.multiply_extract(
+        image_frequency, out=freq_band, dtype=complex_dtype
+    )
     curvelet_band_scalar = np.fft.ifftn(freq_band)
     coeff_scalar = downsample(curvelet_band_scalar, decimation_ratio)
     coeff_scalar *= np.sqrt(2 * np.prod(decimation_ratio))
@@ -567,7 +574,9 @@ def _apply_forward_transform_monogenic(
     frequency_band = np.zeros_like(image_frequency)
 
     # Low frequency band processing (ndim+1 components: scalar + all Riesz)
-    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band, dtype=complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band, dtype=complex_dtype
+    )
 
     # Scalar component
     curvelet_band_scalar = np.fft.ifftn(frequency_band)
@@ -588,7 +597,9 @@ def _apply_forward_transform_monogenic(
     for riesz_filter in riesz_filters_list:
         # Apply window, then multiply by Riesz filter at window indices
         windowed = window.multiply_extract(image_frequency, dtype=complex_dtype)
-        frequency_band = window.multiply_at_indices(windowed, riesz_filter, out=frequency_band, dtype=complex_dtype)
+        frequency_band = window.multiply_at_indices(
+            windowed, riesz_filter, out=frequency_band, dtype=complex_dtype
+        )
         curvelet_band_riesz = np.fft.ifftn(frequency_band)
         low_freq_coeff_riesz = downsample(curvelet_band_riesz, decimation_ratios[0][0])
         low_freq_coeff_riesz *= norm

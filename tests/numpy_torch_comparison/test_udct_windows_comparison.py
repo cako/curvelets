@@ -87,7 +87,9 @@ def test_udct_window_compute_matches_numpy(ndim):
                 # Values should match (within tolerance)
                 # Use atol=1e-5 due to floating point precision differences
                 np.testing.assert_allclose(
-                    np_window.values.flatten(), torch_window.values.numpy().flatten(), atol=1e-5
+                    np_window.values.flatten(),
+                    torch_window.values.numpy().flatten(),
+                    atol=1e-5,
                 )
                 # Indices should match exactly
                 np.testing.assert_array_equal(

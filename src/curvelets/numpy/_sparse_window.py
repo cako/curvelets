@@ -69,7 +69,7 @@ class SparseWindow:
         cls,
         arr: npt.NDArray[F],
         threshold: float,
-    ) -> "SparseWindow":
+    ) -> SparseWindow:
         """
         Create SparseWindow from dense array using threshold.
 
@@ -223,9 +223,9 @@ class SparseWindow:
         else:
             out.fill(0)
         idx_flat = self.indices.ravel()
-        out.flat[idx_flat] = (
-            source.flat[idx_flat] * filter_arr.flat[idx_flat]
-        ).astype(out.dtype)
+        out.flat[idx_flat] = (source.flat[idx_flat] * filter_arr.flat[idx_flat]).astype(
+            out.dtype
+        )
         return out
 
     def to_dense(self, dtype: npt.DTypeLike | None = None) -> npt.NDArray:

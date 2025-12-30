@@ -175,7 +175,9 @@ def _apply_forward_transform_real(
     frequency_band = torch.zeros_like(image_frequency)
 
     # Low frequency band processing
-    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band
+    )
 
     curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
 
@@ -281,7 +283,9 @@ def _apply_forward_transform_complex(
 
     # Low frequency band processing
     frequency_band = torch.zeros_like(image_frequency)
-    frequency_band = windows[0][0][0].multiply_extract(image_frequency, out=frequency_band)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band
+    )
 
     curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
 

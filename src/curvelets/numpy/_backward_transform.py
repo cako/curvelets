@@ -14,7 +14,7 @@ from ._utils import ParamUDCT, flip_fft_all_axes, upsample
 
 def _process_wedge_backward_real(
     coefficient: npt.NDArray[np.complexfloating],
-    window: "SparseWindow",
+    window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     complex_dtype: npt.DTypeLike,
 ) -> npt.NDArray[np.complexfloating]:
@@ -64,7 +64,7 @@ def _process_wedge_backward_real(
 
 def _process_wedge_backward_complex(
     coefficient: npt.NDArray[np.complexfloating],
-    window: "SparseWindow",
+    window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     parameters: ParamUDCT,
     complex_dtype: npt.DTypeLike,
@@ -231,7 +231,9 @@ def _apply_backward_transform_real(
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
-    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band, dtype=complex_dtype)
+    windows[0][0][0].scatter_add(
+        image_frequency_low, curvelet_band, dtype=complex_dtype
+    )
 
     # Combine: low frequency + high frequency contributions
     # For real transform mode, multiply high-frequency by 2 to account for combined +/- frequencies
@@ -418,7 +420,9 @@ def _apply_backward_transform_complex(
     decimation_ratio = decimation_ratios[0][0]
     curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
     curvelet_band = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(curvelet_band)
-    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band, dtype=complex_dtype)
+    windows[0][0][0].scatter_add(
+        image_frequency_low, curvelet_band, dtype=complex_dtype
+    )
 
     # Combine: low frequency + high frequency contributions
     # For complex transform mode, multiply high-frequency by 2 to account for separate +/- frequencies

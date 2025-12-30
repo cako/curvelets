@@ -87,7 +87,7 @@ class SparseWindow:
         cls,
         arr: torch.Tensor,
         threshold: float,
-    ) -> "SparseWindow":
+    ) -> SparseWindow:
         """
         Create SparseWindow from dense tensor using threshold.
 
@@ -187,9 +187,9 @@ class SparseWindow:
         tensor(1.)
         """
         idx_flat = self.indices.flatten()
-        target.flatten()[idx_flat] += (
-            source.flatten()[idx_flat] * self.values.flatten().to(target.dtype)
-        )
+        target.flatten()[idx_flat] += source.flatten()[
+            idx_flat
+        ] * self.values.flatten().to(target.dtype)
 
     def multiply_at_indices(
         self,
@@ -269,7 +269,7 @@ class SparseWindow:
         arr.flatten()[self.indices.flatten()] = self.values.flatten().to(dtype)
         return arr
 
-    def to(self, device: torch.device) -> "SparseWindow":
+    def to(self, device: torch.device) -> SparseWindow:
         """
         Move window to specified device.
 

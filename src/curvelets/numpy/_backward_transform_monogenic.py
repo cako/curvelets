@@ -6,13 +6,13 @@ import numpy as np
 import numpy.typing as npt
 
 from ._sparse_window import SparseWindow
-from ._typing import F, IntegerNDArray, IntpNDArray, MUDCTCoefficients, UDCTWindows
+from ._typing import F, IntegerNDArray, MUDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, upsample
 
 
 def _process_wedge_backward_monogenic(
     coefficients: list[npt.NDArray[np.complexfloating] | npt.NDArray[F]],
-    window: "SparseWindow",
+    window: SparseWindow,
     decimation_ratio: IntegerNDArray,
     complex_dtype: npt.DTypeLike,
 ) -> list[npt.NDArray[np.complexfloating]]:
@@ -240,7 +240,9 @@ def _apply_backward_transform_monogenic(
         curvelet_freq_riesz = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(
             curvelet_band_riesz
         )
-        window.scatter_add(image_frequencies[comp_idx], curvelet_freq_riesz, dtype=complex_dtype)
+        window.scatter_add(
+            image_frequencies[comp_idx], curvelet_freq_riesz, dtype=complex_dtype
+        )
 
     # Transform back to spatial domain and take real part
     results = []

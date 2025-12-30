@@ -270,17 +270,17 @@ class UDCTWindow:
             np.ones((kronecker_dimension_sizes[1], 1), dtype=int), angle_function_1d
         )
         kron_step1_flat = kron_step1.ravel(order="F")
-        
+
         # Step 2: Expand along dimension 2 (kronecker_dimension_sizes[2])
         kron_step2 = np.kron(
             np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_flat
         ).ravel()
-        
+
         # Step 3: Expand along dimension 0 (kronecker_dimension_sizes[0])
         kron_step3 = np.kron(
             kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int)
         ).ravel(order="F")
-        
+
         # Reshape to final shape and ensure C-contiguous output
         result = kron_step3.reshape(shape, order="F").astype(angle_function_1d.dtype)
         return np.ascontiguousarray(result)

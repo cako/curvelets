@@ -226,7 +226,7 @@ class UDCTWindow:
         # then permute to reverse dimensions (equivalent to NumPy's reshape with order='F')
         result = kron_step3.reshape(*shape[::-1])
         result = result.permute(*reversed(range(result.ndim)))
-        
+
         # Ensure output is contiguous (C-order memory layout)
         return result.contiguous()
 
@@ -435,7 +435,9 @@ class UDCTWindow:
                     val_flat = window.values
                     sum_squared_windows.flatten()[idx_flat] += val_flat**2
                     if len(windows[scale_idx]) == dimension:
-                        temp_window = torch.zeros(size, dtype=torch.float64, device=device)
+                        temp_window = torch.zeros(
+                            size, dtype=torch.float64, device=device
+                        )
                         temp_window.flatten()[idx_flat] = val_flat**2
                         temp_window = UDCTWindow._flip_with_fft_shift(
                             temp_window, direction_idx

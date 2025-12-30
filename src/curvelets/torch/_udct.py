@@ -809,6 +809,7 @@ class UDCT:
                     new_indices = fn(window.indices)
                     new_values = fn(window.values)
                     from ._sparse_window import SparseWindow
+
                     self._windows[scale_idx][dir_idx][wedge_idx] = SparseWindow(
                         new_indices, new_values, window.shape
                     )
