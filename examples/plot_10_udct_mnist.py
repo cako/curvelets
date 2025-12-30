@@ -301,17 +301,3 @@ ax.set_ylabel("t-SNE 2", fontsize=12)
 ax.set_title("UDCT Features: 2D t-SNE Projection", fontsize=14)
 plt.tight_layout()
 plt.show()
-
-# %%
-# Results
-# #######
-#
-# The UDCT-based classifier provides a simple baseline for MNIST classification.
-# By using all curvelet coefficients as features, we preserve all transform
-# information and let the linear layer learn the optimal weighting.
-#
-# Key takeaways:
-#
-# - ``UDCTModule`` integrates seamlessly with PyTorch's autograd system
-# - ``torch.vmap`` enables efficient batched processing
-# - Using all coefficients as features provides a rich representation
