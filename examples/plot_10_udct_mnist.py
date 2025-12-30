@@ -15,7 +15,7 @@ The key insight is that curvelet coefficients capture directional information
 at multiple scales, providing a meaningful representation for classification.
 
 Architecture Overview
----------------------
+#####################
 
 - **Input**: MNIST images (28x28 grayscale)
 - **Feature extraction**: UDCTModule transforms each image into curvelet coefficients
@@ -23,8 +23,7 @@ Architecture Overview
 - **Classification**: Two-layer MLP (Linear -> ReLU -> Linear) maps features to 10 classes
 - **Batch processing**: ``torch.vmap`` enables efficient batched inference
 
-Credits
--------
+**Credits**
 
 This example is adapted from the `PyTorch MNIST example <https://github.com/pytorch/examples/blob/main/mnist/main.py>`_.
 """
@@ -45,6 +44,7 @@ from curvelets.torch import UDCTModule
 
 # %%
 # UDCTNet: Curvelet-Based Classifier
+# ###################################
 #
 # This network replaces convolutional layers with the curvelet transform.
 # The key components are:
@@ -102,6 +102,7 @@ class UDCTNet(nn.Module):  # type: ignore[misc]
 
 # %%
 # Training and Testing Functions
+# ##############################
 #
 # Standard PyTorch training loop with negative log-likelihood loss.
 
@@ -157,10 +158,11 @@ def test(
 
 # %%
 # Main Training Script
+# ####################
 #
 # We use a simplified configuration suitable for a gallery example:
 #
-# - 2 epochs (for quick demonstration)
+# - 10 epochs
 # - Batch size of 64
 # - Adadelta optimizer with learning rate scheduling
 
@@ -183,6 +185,7 @@ test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000)
 
 # %%
 # Model Initialization
+# ####################
 #
 # Create the UDCTNet model with 2 scales and 3 wedges per direction.
 # With all curvelet coefficients as features, we get a high-dimensional
@@ -192,13 +195,14 @@ model = UDCTNet(shape=(28, 28), num_scales=2, wedges_per_direction=3).to(device)
 
 # %%
 # Training Loop
+# #############
 #
-# Train for 2 epochs with Adadelta optimizer and step learning rate decay.
+# Train for 10 epochs with Adadelta optimizer and step learning rate decay.
 
 optimizer = optim.Adadelta(model.parameters(), lr=1.0)
 scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
-num_epochs = 3
+num_epochs = 10
 train_losses: list[float] = []
 test_losses: list[float] = []
 train_accuracies: list[float] = []
@@ -215,6 +219,7 @@ for _ in range(1, num_epochs + 1):
 
 # %%
 # Loss and Accuracy Plot
+# ######################
 #
 # Visualize the training and test loss and accuracy over epochs.
 
@@ -247,12 +252,12 @@ ax2.legend(fontsize=11)
 ax2.grid(True, alpha=0.3)
 ax2.set_xticks(epochs)
 
-plt.suptitle("UDCT MNIST Classification: Training Progress", fontsize=16, y=1.02)
 plt.tight_layout()
 plt.show()
 
 # %%
 # t-SNE Feature Visualization
+# ###########################
 #
 # Visualize the curvelet features in 2D using t-SNE. Each digit class is shown
 # in a different color, revealing how well the features separate the classes.
@@ -299,6 +304,7 @@ plt.show()
 
 # %%
 # Results
+# #######
 #
 # The UDCT-based classifier provides a simple baseline for MNIST classification.
 # By using all curvelet coefficients as features, we preserve all transform
