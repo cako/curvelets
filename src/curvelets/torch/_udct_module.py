@@ -4,10 +4,12 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 # Duplicate code with numpy implementation is expected
+from collections.abc import Callable
 from typing import Literal
 
 import torch
 from torch import nn
+from typing_extensions import Self
 
 from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
@@ -206,6 +208,33 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
             high_frequency_mode=high_frequency_mode,
             transform_kind=transform_kind,
         )
+
+    def _apply(
+        self, fn: Callable[[torch.Tensor], torch.Tensor], recurse: bool = True
+    ) -> Self:
+        """
+        Apply a function to all tensors, including internal UDCT tensors.
+
+        This method is called by PyTorch's ``.to()``, ``.cuda()``, ``.cpu()``,
+        and ``.half()`` methods. It ensures that the internal UDCT tensors
+        (windows, decimation ratios) are moved along with the module's
+        parameters and buffers.
+
+        Parameters
+        ----------
+        fn : Callable[[torch.Tensor], torch.Tensor]
+            Function to apply to each tensor.
+        recurse : bool, optional
+            Whether to recursively apply to submodules. Default is True.
+
+        Returns
+        -------
+        Self
+            The module instance.
+        """
+        super()._apply(fn, recurse)
+        self._udct.apply_to_tensors(fn)
+        return self
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         """

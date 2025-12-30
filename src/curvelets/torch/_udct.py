@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from math import prod, sqrt
 from typing import Any, Literal
 
@@ -811,3 +812,37 @@ class UDCT:
         # For now, raise NotImplementedError
         msg = "Monogenic transform not yet implemented for PyTorch"
         raise NotImplementedError(msg)
+
+    def apply_to_tensors(self, fn: Callable[[torch.Tensor], torch.Tensor]) -> None:
+        """
+        Apply a function to all internal tensors.
+
+        This method is used for device and dtype transfers (e.g., when calling
+        `model.to(device)` on a module containing this UDCT instance). It applies
+        the given function to all internal tensor attributes including windows
+        and decimation ratios.
+
+        Parameters
+        ----------
+        fn : Callable[[torch.Tensor], torch.Tensor]
+            Function to apply to each tensor. Typically this is a function like
+            `lambda t: t.cuda()` or `lambda t: t.to(device)`.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
+        >>> # Move all internal tensors to GPU (if available)
+        >>> if torch.cuda.is_available():
+        ...     transform.apply_to_tensors(lambda t: t.cuda())  # doctest: +SKIP
+        """
+        # Apply to windows (nested structure of (idx, val) tuples)
+        for scale_idx, scale_windows in enumerate(self._windows):
+            for dir_idx, dir_windows in enumerate(scale_windows):
+                for wedge_idx, (idx, val) in enumerate(dir_windows):
+                    self._windows[scale_idx][dir_idx][wedge_idx] = (fn(idx), fn(val))
+
+        # Apply to decimation_ratios (list of tensors)
+        for i, ratio in enumerate(self._decimation_ratios):
+            self._decimation_ratios[i] = fn(ratio)
