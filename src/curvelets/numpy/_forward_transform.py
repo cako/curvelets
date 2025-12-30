@@ -79,7 +79,6 @@ def _process_wedge_complex(
     window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
-    parameters: ParamUDCT,
     complex_dtype: npt.DTypeLike,
     flip_window: bool = False,
 ) -> npt.NDArray[np.complexfloating]:
@@ -99,8 +98,6 @@ def _process_wedge_complex(
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : npt.NDArray[np.complexfloating]
         Input image in frequency domain (from FFT).
-    parameters : ParamUDCT
-        UDCT parameters containing size information.
     complex_dtype : npt.DTypeLike
         Complex dtype matching image_frequency.
     flip_window : bool, optional
@@ -340,7 +337,6 @@ def _apply_forward_transform_complex(
                         min(direction_idx, len(windows[scale_idx]) - 1), :
                     ],
                     image_frequency,
-                    parameters,
                     complex_dtype,
                     flip_window=False,
                 )
@@ -368,7 +364,6 @@ def _apply_forward_transform_complex(
                         min(direction_idx, len(windows[scale_idx]) - 1), :
                     ],
                     image_frequency,
-                    parameters,
                     complex_dtype,
                     flip_window=True,
                 )

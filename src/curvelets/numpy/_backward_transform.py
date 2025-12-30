@@ -66,7 +66,6 @@ def _process_wedge_backward_complex(
     coefficient: npt.NDArray[np.complexfloating],
     window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
-    parameters: ParamUDCT,
     complex_dtype: npt.DTypeLike,
     flip_window: bool = False,
 ) -> npt.NDArray[np.complexfloating]:
@@ -85,8 +84,6 @@ def _process_wedge_backward_complex(
         Sparse window representation.
     decimation_ratio : npt.NDArray[np.int_]
         Decimation ratio for this wedge (1D array with length equal to dimensions).
-    parameters : ParamUDCT
-        UDCT parameters containing size information.
     complex_dtype : npt.DTypeLike
         Complex dtype for output.
     flip_window : bool, optional
@@ -327,7 +324,6 @@ def _apply_backward_transform_complex(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         complex_dtype,
                         flip_window=False,
                     )
@@ -356,7 +352,6 @@ def _apply_backward_transform_complex(
                         ],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         complex_dtype,
                         flip_window=True,
                     )
@@ -385,7 +380,6 @@ def _apply_backward_transform_complex(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         complex_dtype,
                         flip_window=False,
                     )
@@ -409,7 +403,6 @@ def _apply_backward_transform_complex(
                         ],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
-                        parameters,
                         complex_dtype,
                         flip_window=True,
                     )

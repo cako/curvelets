@@ -169,7 +169,6 @@ def _apply_forward_transform_real(
     provides a more compact representation.
     """
     image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
-    complex_dtype = image_frequency.dtype
 
     # Allocate frequency_band once for reuse
     frequency_band = torch.zeros_like(image_frequency)
@@ -279,7 +278,6 @@ def _apply_forward_transform_complex(
     information.
     """
     image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
-    complex_dtype = image_frequency.dtype
 
     # Low frequency band processing
     frequency_band = torch.zeros_like(image_frequency)
