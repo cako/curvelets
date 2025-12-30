@@ -16,12 +16,13 @@ if not TORCH_ENABLED:
     raise ImportError(_error_msg)
 
 from ._meyerwavelet import MeyerWavelet
-from ._typing import UDCTCoefficients, UDCTWindows
+from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
 from ._udct_module import UDCTModule
 
 __all__ = [
     "UDCT",
+    "MUDCTCoefficients",
     "MeyerWavelet",
     "UDCTCoefficients",
     "UDCTModule",

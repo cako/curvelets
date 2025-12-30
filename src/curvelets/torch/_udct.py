@@ -4,8 +4,9 @@
 # Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
-from math import prod
-from typing import Literal
+import logging
+from math import prod, sqrt
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -15,9 +16,9 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._typing import UDCTCoefficients, UDCTWindows
+from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
-from ._utils import ParamUDCT
+from ._utils import ParamUDCT, from_sparse_new
 
 
 class UDCT:
@@ -31,19 +32,28 @@ class UDCT:
     ----------
     shape : tuple[int, ...]
         Shape of the input data.
-    angular_wedges_config : torch.Tensor
-        Configuration array specifying the number of angular wedges per scale
+    angular_wedges_config : torch.Tensor, optional
+        Configuration tensor specifying the number of angular wedges per scale
         and dimension. Shape is (num_scales - 1, dimension), where num_scales
-        includes the lowpass scale.
+        includes the lowpass scale. If provided, cannot be used together with
+        num_scales/wedges_per_direction. Default is None.
+    num_scales : int, optional
+        Total number of scales (including lowpass scale 0). Must be >= 2.
+        Used when angular_wedges_config is not provided. Default is 3.
+    wedges_per_direction : int, optional
+        Number of angular wedges per direction at the coarsest scale.
+        The number of wedges doubles at each finer scale. Must be >= 3.
+        Used when angular_wedges_config is not provided. Default is 3.
     window_overlap : float, optional
         Window overlap parameter controlling the smoothness of window transitions.
-        Default is 0.15.
+        If None and using num_scales/wedges_per_direction, automatically chosen
+        based on wedges_per_direction. Default is None (auto) or 0.15.
     radial_frequency_params : tuple[float, float, float, float], optional
         Radial frequency parameters defining the frequency bands.
         Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
     window_threshold : float, optional
         Threshold for sparse window storage (values below this are stored as sparse).
-        Default is 1e-6.
+        Default is 1e-5.
     high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. "curvelet" uses curvelets at all scales,
         "wavelet" creates a single ring-shaped window (bandpass filter only,
@@ -60,68 +70,87 @@ class UDCT:
         - "monogenic": Monogenic transform that extends the curvelet transform
           by applying Riesz transforms, producing ndim+1 components per band
           (scalar plus all Riesz components).
-    use_complex_transform : bool, optional
-        Deprecated. Use transform_kind instead. Default is None.
 
     Attributes
     ----------
+    shape : tuple[int, ...]
+        Shape of the input data.
     high_frequency_mode : str
         High frequency mode.
     transform_kind : str
         Type of transform being used ("real", "complex", or "monogenic").
+    parameters : ParamUDCT
+        Internal UDCT parameters.
+    windows : UDCTWindows
+        Curvelet windows in sparse format.
+    decimation_ratios : list
+        Decimation ratios for each scale/direction.
 
     Examples
     --------
     >>> import torch
     >>> from curvelets.torch import UDCT
-    >>> # Create a 2D transform
-    >>> transform = UDCT(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3], [6, 6]]))
+    >>> # Create a 2D transform using num_scales (simplified interface)
+    >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
     >>> data = torch.randn(64, 64)
     >>> coeffs = transform.forward(data)
     >>> recon = transform.backward(coeffs)
     >>> torch.allclose(data, recon, atol=1e-4)
+    True
+    >>> # Create using angular_wedges_config (advanced interface)
+    >>> cfg = torch.tensor([[3, 3], [6, 6]], dtype=torch.int64)
+    >>> transform2 = UDCT(shape=(64, 64), angular_wedges_config=cfg)
+    >>> coeffs2 = transform2.forward(data)
+    >>> recon2 = transform2.backward(coeffs2)
+    >>> torch.allclose(data, recon2, atol=1e-4)
     True
     """
 
     def __init__(
         self,
         shape: tuple[int, ...],
-        angular_wedges_config: torch.Tensor,
-        window_overlap: float = 0.15,
+        angular_wedges_config: torch.Tensor | None = None,
+        num_scales: int | None = None,
+        wedges_per_direction: int | None = None,
+        window_overlap: float | None = None,
         radial_frequency_params: tuple[float, float, float, float] | None = None,
-        window_threshold: float = 1e-6,
+        window_threshold: float = 1e-5,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
     ) -> None:
-        if radial_frequency_params is None:
-            radial_frequency_params = (
-                np.pi / 3,
-                2 * np.pi / 3,
-                2 * np.pi / 3,
-                4 * np.pi / 3,
-            )
-
         # Validate transform_kind
         if transform_kind not in ("real", "complex", "monogenic"):
             msg = f"transform_kind must be 'real', 'complex', or 'monogenic', got {transform_kind!r}"
             raise ValueError(msg)
 
-        self._parameters = ParamUDCT(
+        # Store basic attributes
+        self._high_frequency_mode = high_frequency_mode
+        self._transform_kind = transform_kind
+        self._coefficient_dtype: torch.dtype | None = None
+
+        # Calculate necessary parameters
+        params_dict = self._initialize_parameters(
             shape=shape,
             angular_wedges_config=angular_wedges_config,
+            num_scales=num_scales,
+            wedges_per_direction=wedges_per_direction,
             window_overlap=window_overlap,
             radial_frequency_params=radial_frequency_params,
             window_threshold=window_threshold,
         )
 
-        self._high_frequency_mode = high_frequency_mode
-        self._transform_kind = transform_kind
-        self._coefficient_dtype: torch.dtype | None = None
+        # Create ParamUDCT object
+        self._parameters = ParamUDCT(
+            shape=params_dict["internal_shape"],
+            angular_wedges_config=params_dict["angular_wedges_config"],
+            window_overlap=params_dict["window_overlap"],
+            radial_frequency_params=params_dict["radial_frequency_params"],
+            window_threshold=params_dict["window_threshold"],
+        )
 
-        # Compute windows
-        window_computer = UDCTWindow(self._parameters, high_frequency_mode)
+        # Calculate windows
         self._windows, self._decimation_ratios, self._indices = (
-            window_computer.compute()
+            self._initialize_windows()
         )
 
     @property
@@ -151,51 +180,298 @@ class UDCT:
 
     @staticmethod
     def _compute_optimal_window_overlap(
-        shape: tuple[int, ...], angular_wedges_config: torch.Tensor
+        wedges_per_scale: torch.Tensor,
     ) -> float:
-        """Compute optimal window overlap for given configuration."""
-        # Simple heuristic based on shape and config
-        min_dim = min(shape)
-        max_wedges = float(angular_wedges_config.max().item())
-        return min(0.25, 0.1 + 0.01 * max_wedges / min_dim)
+        """
+        Compute optimal window_overlap from Nguyen & Chauris (2010) constraint.
+
+        The constraint :math:`(2^{s/N})(1+2a)(1+a) < N` must hold for all scales.
+        This method solves for the theoretical maximum at each scale,
+        takes the minimum across all scales, and returns 10% of this value.
+
+        The 10% factor was empirically determined to give better reconstruction
+        quality than both the theoretical maximum and previous hardcoded defaults.
+
+        Parameters
+        ----------
+        wedges_per_scale : torch.Tensor
+            Tensor of wedge counts per scale.
+
+        Returns
+        -------
+        float
+            Optimal window_overlap value (10% of theoretical maximum).
+
+        References
+        ----------
+        .. [1] Nguyen, T. T., and H. Chauris, 2010, "Uniform Discrete Curvelet
+           Transform": IEEE Transactions on Signal Processing, 58, 3618-3634.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> # For wedges_per_direction=3, num_scales=3
+        >>> wedges_per_scale = torch.tensor([3, 6], dtype=torch.int64)
+        >>> alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
+        >>> 0.1 < alpha < 0.2  # Expected around 0.11
+        True
+        """
+        min_overlap = float("inf")
+
+        for scale_idx, num_wedges in enumerate(wedges_per_scale, start=1):
+            num_wedges_float = float(num_wedges.item())
+            k = 2 ** (scale_idx / num_wedges_float)
+            # Solve: 2k*a^2 + 3k*a + (k - N) = 0
+            # a = (-3 + sqrt(1 + 8*N/k)) / 4
+            discriminant = 1 + 8 * num_wedges_float / k
+            a_max = (-3 + sqrt(discriminant)) / 4
+            min_overlap = min(min_overlap, a_max)
+
+        # Use 10% of theoretical max for optimal reconstruction quality
+        return 0.1 * min_overlap
 
     @staticmethod
     def _compute_from_angular_wedges_config(
-        shape: tuple[int, ...],
         angular_wedges_config: torch.Tensor,
-        high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
-        transform_kind: Literal["real", "complex", "monogenic"] = "real",
-    ) -> UDCT:
-        """Create UDCT from angular wedges configuration."""
-        return UDCT(
-            shape=shape,
-            angular_wedges_config=angular_wedges_config,
-            high_frequency_mode=high_frequency_mode,
-            transform_kind=transform_kind,
-        )
+        window_overlap: float | None,
+    ) -> tuple[torch.Tensor, float]:
+        """
+        Compute angular wedges configuration and window overlap from provided config.
+
+        Parameters
+        ----------
+        angular_wedges_config : torch.Tensor
+            Configuration tensor specifying the number of angular wedges per scale
+            and dimension. Shape is (num_scales - 1, dimension), where num_scales
+            includes the lowpass scale.
+        window_overlap : float | None
+            Window overlap parameter. If None, automatically computed using
+            the Nguyen & Chauris (2010) constraint formula.
+
+        Returns
+        -------
+        tuple[torch.Tensor, float]
+            Tuple of (computed_angular_wedges_config, computed_window_overlap).
+        """
+        # Use provided angular_wedges_config directly
+        computed_angular_wedges_config = angular_wedges_config
+
+        # Validate that all wedge counts are divisible by 3
+        # According to Nguyen & Chauris (2010), the decimation ratio formula
+        # uses integer division by 3, so wedges must be divisible by 3
+        invalid_mask = computed_angular_wedges_config % 3 != 0
+        if invalid_mask.any():
+            invalid_values = torch.unique(
+                computed_angular_wedges_config[invalid_mask]
+            ).tolist()
+            msg = (
+                f"All values in angular_wedges_config must be divisible by 3. "
+                f"Found invalid values: {invalid_values}. "
+                "According to the Nguyen & Chauris (2010) paper specification, "
+                "the decimation ratio formula requires integer division by 3. "
+                "Recommended values are: 3, 6, 12"
+            )
+            raise ValueError(msg)
+
+        # Use provided window_overlap or compute optimal from first dimension
+        if window_overlap is not None:
+            computed_window_overlap = window_overlap
+        else:
+            # Compute from first dimension's wedges (all dimensions should be consistent)
+            wedges_per_scale = angular_wedges_config[:, 0]
+            computed_window_overlap = UDCT._compute_optimal_window_overlap(
+                wedges_per_scale
+            )
+
+        return computed_angular_wedges_config, computed_window_overlap
 
     @staticmethod
     def _compute_from_num_scales(
-        shape: tuple[int, ...],
-        num_scales: int,
-        base_wedges: int = 3,
-        high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
-        transform_kind: Literal["real", "complex", "monogenic"] = "real",
-    ) -> UDCT:
-        """Create UDCT from number of scales."""
-        ndim = len(shape)
-        # Create config with exponentially increasing wedges per scale
-        config_list = []
-        for scale_idx in range(num_scales - 1):
-            wedges = base_wedges * (2**scale_idx)
-            config_list.append([wedges] * ndim)
-        angular_wedges_config = torch.tensor(config_list, dtype=torch.int64)
-        return UDCT(
-            shape=shape,
-            angular_wedges_config=angular_wedges_config,
-            high_frequency_mode=high_frequency_mode,
-            transform_kind=transform_kind,
+        num_scales: int | None,
+        wedges_per_direction: int | None,
+        window_overlap: float | None,
+        dimension: int,
+    ) -> tuple[torch.Tensor, float]:
+        """
+        Compute angular wedges configuration and window overlap from num_scales.
+
+        Parameters
+        ----------
+        num_scales : int | None
+            Total number of scales (including lowpass scale 0). Must be >= 2.
+            If None, defaults to 3.
+        wedges_per_direction : int | None
+            Number of angular wedges per direction at the coarsest scale.
+            Must be >= 3. If None, defaults to 3.
+        window_overlap : float | None
+            Window overlap parameter. If None, auto-selected based on
+            wedges_per_direction.
+        dimension : int
+            Number of dimensions.
+
+        Returns
+        -------
+        tuple[torch.Tensor, float]
+            Tuple of (computed_angular_wedges_config, computed_window_overlap).
+
+        Raises
+        ------
+        ValueError
+            If num_scales < 2 or wedges_per_direction < 3.
+        """
+        # Use num_scales/wedges_per_direction
+        if num_scales is None:
+            num_scales = 3
+        if wedges_per_direction is None:
+            wedges_per_direction = 3
+
+        if num_scales < 2:
+            msg = "num_scales must be >= 2"
+            raise ValueError(msg)
+        if wedges_per_direction < 3:
+            msg = "wedges_per_direction must be >= 3"
+            raise ValueError(msg)
+        if wedges_per_direction % 3 != 0:
+            msg = (
+                f"wedges_per_direction={wedges_per_direction} must be divisible by 3. "
+                "According to the Nguyen & Chauris (2010) paper specification, "
+                "the decimation ratio formula requires integer division by 3. "
+                "Recommended values are: 3, 6, 12"
+            )
+            raise ValueError(msg)
+
+        # Convert to angular_wedges_config
+        wedges_per_scale = wedges_per_direction * 2 ** torch.arange(
+            num_scales - 1, dtype=torch.int64
         )
+        computed_angular_wedges_config = wedges_per_scale.unsqueeze(1).repeat(
+            1, dimension
+        )
+
+        # Auto-select window_overlap if not provided
+        if window_overlap is None:
+            computed_window_overlap = UDCT._compute_optimal_window_overlap(
+                wedges_per_scale
+            )
+        else:
+            computed_window_overlap = window_overlap
+
+        # Validate window_overlap
+        for scale_idx, num_wedges in enumerate(wedges_per_scale, start=1):
+            num_wedges_float = float(num_wedges.item())
+            const = (
+                2 ** (scale_idx / num_wedges_float)
+                * (1 + 2 * computed_window_overlap)
+                * (1 + computed_window_overlap)
+            )
+            if const >= num_wedges_float:
+                msg = (
+                    f"window_overlap={computed_window_overlap:.3f} does not respect the relationship "
+                    f"(2^{scale_idx}/{num_wedges_float})(1+2a)(1+a) = {const:.3f} < {num_wedges_float} for scale {scale_idx + 1}"
+                )
+                logging.warning(msg)
+
+        return computed_angular_wedges_config, computed_window_overlap
+
+    def _initialize_parameters(
+        self,
+        shape: tuple[int, ...],
+        angular_wedges_config: torch.Tensor | None,
+        num_scales: int | None,
+        wedges_per_direction: int | None,
+        window_overlap: float | None,
+        radial_frequency_params: tuple[float, float, float, float] | None,
+        window_threshold: float,
+    ) -> dict[str, Any]:
+        """
+        Calculate all necessary parameters for UDCT initialization.
+
+        Parameters
+        ----------
+        shape : tuple[int, ...]
+            Shape of the input data.
+        angular_wedges_config : torch.Tensor | None
+            Configuration tensor, or None to use num_scales/wedges_per_direction.
+        num_scales : int | None
+            Number of scales (used when angular_wedges_config is None).
+        wedges_per_direction : int | None
+            Wedges per direction (used when angular_wedges_config is None).
+        window_overlap : float | None
+            Window overlap parameter.
+        radial_frequency_params : tuple[float, float, float, float] | None
+            Radial frequency parameters.
+        window_threshold : float
+            Window threshold.
+
+        Returns
+        -------
+        dict
+            Dictionary containing all calculated parameters.
+        """
+        dimension = len(shape)
+
+        # Determine which initialization style to use
+        if angular_wedges_config is not None:
+            if num_scales is not None or wedges_per_direction is not None:
+                msg = "Cannot specify both angular_wedges_config and num_scales/wedges_per_direction"
+                raise ValueError(msg)
+            computed_angular_wedges_config, computed_window_overlap = (
+                self._compute_from_angular_wedges_config(
+                    angular_wedges_config, window_overlap
+                )
+            )
+        else:
+            computed_angular_wedges_config, computed_window_overlap = (
+                self._compute_from_num_scales(
+                    num_scales, wedges_per_direction, window_overlap, dimension
+                )
+            )
+
+        # Compute num_scales from computed_angular_wedges_config for validation
+        computed_num_scales = 1 + len(computed_angular_wedges_config)
+
+        # Validate scale requirements
+        if computed_num_scales < 2:
+            msg = "requires at least 2 scales total (num_scales >= 2)"
+            raise ValueError(msg)
+
+        # Calculate internal shape
+        internal_shape = shape
+
+        # Set default radial_frequency_params if not provided
+        if radial_frequency_params is None:
+            computed_radial_frequency_params: tuple[float, float, float, float] = (
+                np.pi / 3,
+                2 * np.pi / 3,
+                2 * np.pi / 3,
+                4 * np.pi / 3,
+            )
+        else:
+            computed_radial_frequency_params = radial_frequency_params
+
+        return {
+            "dimension": dimension,
+            "internal_shape": internal_shape,
+            "angular_wedges_config": computed_angular_wedges_config,
+            "window_overlap": computed_window_overlap,
+            "radial_frequency_params": computed_radial_frequency_params,
+            "window_threshold": window_threshold,
+        }
+
+    def _initialize_windows(
+        self,
+    ) -> tuple[UDCTWindows, list[torch.Tensor], dict[int, dict[int, torch.Tensor]]]:
+        """
+        Calculate curvelet windows, decimation ratios, and indices.
+
+        Returns
+        -------
+        tuple
+            (windows, decimation_ratios, indices)
+        """
+        window_computer = UDCTWindow(self._parameters, self._high_frequency_mode)
+        return window_computer.compute()
 
     def vect(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
@@ -332,10 +608,10 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
-    def _struct_monogenic(self, vector: torch.Tensor) -> UDCTCoefficients:
+    def _struct_monogenic(self, vector: torch.Tensor) -> MUDCTCoefficients:
         """Private method for monogenic coefficient restructuring (no input validation)."""
         begin_idx = 0
-        coefficients: UDCTCoefficients = []
+        coefficients: MUDCTCoefficients = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
         num_components = self._parameters.ndim + 1  # scalar + all Riesz components
 
@@ -369,38 +645,41 @@ class UDCT:
         return coefficients
 
     def _from_sparse(
-        self, windows: UDCTWindows | None = None
-    ) -> list[list[list[torch.Tensor]]]:
+        self, arr_sparse: tuple[torch.Tensor, torch.Tensor]
+    ) -> torch.Tensor:
         """
-        Convert sparse windows to dense format.
+        Convert sparse window format to dense array.
 
         Parameters
         ----------
-        windows : UDCTWindows, optional
-            Sparse windows to convert. Uses self.windows if not provided.
+        arr_sparse : tuple[torch.Tensor, torch.Tensor]
+            Sparse window format as a tuple of (indices, values).
 
         Returns
         -------
-        list[list[list[torch.Tensor]]]
-            Dense window arrays.
+        torch.Tensor
+            Dense tensor with the same shape as the transform input.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3)
+        >>> # Get a sparse window
+        >>> sparse_window = transform.windows[0][0][0]
+        >>> # Convert to dense
+        >>> dense_window = transform._from_sparse(sparse_window)
+        >>> dense_window.shape
+        torch.Size([64, 64])
         """
-        if windows is None:
-            windows = self._windows
+        idx, val = from_sparse_new(arr_sparse)
+        arr_full = torch.zeros(
+            self._parameters.shape, dtype=val.dtype, device=val.device
+        )
+        arr_full.flatten()[idx.flatten()] = val.flatten()
+        return arr_full
 
-        dense_windows: list[list[list[torch.Tensor]]] = []
-        for scale in windows:
-            scale_dense: list[list[torch.Tensor]] = []
-            for direction in scale:
-                direction_dense: list[torch.Tensor] = []
-                for idx, val in direction:
-                    dense = torch.zeros(self.shape, dtype=val.dtype, device=val.device)
-                    dense.flatten()[idx.flatten()] = val.flatten()
-                    direction_dense.append(dense)
-                scale_dense.append(direction_dense)
-            dense_windows.append(scale_dense)
-        return dense_windows
-
-    def forward(self, image: torch.Tensor) -> UDCTCoefficients:
+    def forward(self, image: torch.Tensor) -> UDCTCoefficients | MUDCTCoefficients:
         """
         Apply forward curvelet transform.
 
@@ -413,8 +692,10 @@ class UDCT:
 
         Returns
         -------
-        UDCTCoefficients
+        UDCTCoefficients | MUDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge.
+            For monogenic transforms, returns MUDCTCoefficients where each
+            coefficient is a list of ndim+1 arrays.
         """
         # Validate input based on transform_kind
         if self._transform_kind in ("real", "monogenic") and image.is_complex():
@@ -474,7 +755,7 @@ class UDCT:
                     break
         return coeffs
 
-    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
+    def _forward_monogenic(self, image: torch.Tensor) -> MUDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
         # TODO: Implement monogenic forward transform for PyTorch
         # For now, raise NotImplementedError
@@ -524,7 +805,7 @@ class UDCT:
             use_complex_transform=True,
         )
 
-    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
+    def _backward_monogenic(self, coefficients: MUDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
         # TODO: Implement monogenic backward transform for PyTorch
         # For now, raise NotImplementedError

@@ -216,7 +216,8 @@ class UDCT:
         ----------
         angular_wedges_config : :obj:`np.ndarray <numpy.ndarray>`
             Configuration array specifying the number of angular wedges per scale
-            and dimension. Shape is (num_scales, dimension).
+            and dimension. Shape is (num_scales - 1, dimension), where num_scales
+            includes the lowpass scale.
         window_overlap : float | None
             Window overlap parameter. If None, automatically computed using
             the Nguyen & Chauris (2010) constraint formula.
@@ -242,7 +243,7 @@ class UDCT:
                 f"Found invalid values: {invalid_values}. "
                 "According to the Nguyen & Chauris (2010) paper specification, "
                 "the decimation ratio formula requires integer division by 3. "
-                "Valid values are 3, 6, 9, 12, etc."
+                "Recommended values are: 3, 6, 12"
             )
             raise ValueError(msg)
 
@@ -309,7 +310,7 @@ class UDCT:
                 f"wedges_per_direction={wedges_per_direction} must be divisible by 3. "
                 "According to the Nguyen & Chauris (2010) paper specification, "
                 "the decimation ratio formula requires integer division by 3. "
-                "Valid values are 3, 6, 9, 12, etc."
+                "Recommended values are: 3, 6, 12"
             )
             raise ValueError(msg)
 

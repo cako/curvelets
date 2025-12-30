@@ -13,6 +13,11 @@ import torch
 # Structure: coefficients[scale][direction][wedge] = Tensor
 UDCTCoefficients = list[list[list[torch.Tensor]]]
 
+# MUDCTCoefficients: Monogenic UDCT coefficients
+# Structure: coefficients[scale][direction][wedge] = list[Tensor]
+# Each wedge contains ndim+1 components: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
+MUDCTCoefficients = list[list[list[list[torch.Tensor]]]]
+
 # Structure: windows[scale][direction][wedge] = (indices, values) tuple
 UDCTWindows = list[list[list[tuple[torch.Tensor, torch.Tensor]]]]
 

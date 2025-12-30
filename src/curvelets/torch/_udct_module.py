@@ -97,11 +97,22 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
     ----------
     shape : tuple[int, ...]
         Shape of the input data.
-    angular_wedges_config : torch.Tensor
-        Configuration specifying number of angular wedges per scale and dimension.
-        Shape is (num_scales-1, ndim).
+    angular_wedges_config : torch.Tensor, optional
+        Configuration tensor specifying the number of angular wedges per scale
+        and dimension. Shape is (num_scales - 1, dimension), where num_scales
+        includes the lowpass scale. If provided, cannot be used together with
+        num_scales/wedges_per_direction. Default is None.
+    num_scales : int, optional
+        Total number of scales (including lowpass scale 0). Must be >= 2.
+        Used when angular_wedges_config is not provided. Default is 3.
+    wedges_per_direction : int, optional
+        Number of angular wedges per direction at the coarsest scale.
+        The number of wedges doubles at each finer scale. Must be >= 3.
+        Used when angular_wedges_config is not provided. Default is 3.
     window_overlap : float, optional
-        Window overlap parameter. Default is 0.15.
+        Window overlap parameter controlling the smoothness of window transitions.
+        If None and using num_scales/wedges_per_direction, automatically chosen
+        based on wedges_per_direction. Default is None (auto) or 0.15.
     radial_frequency_params : tuple[float, float, float, float], optional
         Radial frequency band parameters.
         Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
@@ -124,15 +135,21 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
     >>> import torch
     >>> from curvelets.torch import UDCTModule
     >>>
-    >>> # Create module with real transform (default)
-    >>> udct = UDCTModule(shape=(64, 64), angular_wedges_config=torch.tensor([[3, 3]]))
+    >>> # Create module using num_scales (simplified interface)
+    >>> udct = UDCTModule(shape=(64, 64), num_scales=3, wedges_per_direction=3)
     >>> input_tensor = torch.randn(64, 64, dtype=torch.float64, requires_grad=True)
     >>> output = udct(input_tensor)  # Returns flattened coefficients tensor
+    >>>
+    >>> # Create module using angular_wedges_config (advanced interface)
+    >>> cfg = torch.tensor([[3, 3], [6, 6]], dtype=torch.int64)
+    >>> udct2 = UDCTModule(shape=(64, 64), angular_wedges_config=cfg)
+    >>> output2 = udct2(input_tensor)
     >>>
     >>> # Create module with complex transform
     >>> udct_complex = UDCTModule(
     ...     shape=(64, 64),
-    ...     angular_wedges_config=torch.tensor([[3, 3]]),
+    ...     num_scales=3,
+    ...     wedges_per_direction=3,
     ...     transform_type="complex"
     ... )
     >>> output_complex = udct_complex(input_tensor)
@@ -148,8 +165,10 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
     def __init__(
         self,
         shape: tuple[int, ...],
-        angular_wedges_config: torch.Tensor,
-        window_overlap: float = 0.15,
+        angular_wedges_config: torch.Tensor | None = None,
+        num_scales: int | None = None,
+        wedges_per_direction: int | None = None,
+        window_overlap: float | None = None,
         radial_frequency_params: tuple[float, float, float, float] | None = None,
         window_threshold: float = 1e-6,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
@@ -162,6 +181,8 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         self._udct = UDCT(
             shape=shape,
             angular_wedges_config=angular_wedges_config,
+            num_scales=num_scales,
+            wedges_per_direction=wedges_per_direction,
             window_overlap=window_overlap,
             radial_frequency_params=radial_frequency_params,
             window_threshold=window_threshold,
