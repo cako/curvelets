@@ -11,7 +11,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._sparse_window import SparseWindow
-from ._typing import F, IntegerNDArray, IntpNDArray, UDCTWindows
+from ._typing import F, IntegerNDArray, UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
 
 
@@ -753,7 +753,7 @@ class UDCTWindow:
         shape: tuple[int, ...],
         dimension: int,
         window_threshold: float,
-    ) -> tuple[list[tuple[IntpNDArray, npt.NDArray[F]]], IntegerNDArray]:
+    ) -> tuple[list[SparseWindow], IntegerNDArray]:
         r"""
         Process a single window_index value, constructing curvelet windows with symmetry.
 
@@ -1218,7 +1218,7 @@ class UDCTWindow:
                     # Process each window_index independently using list comprehension
                     # Each call returns (list of window tuples, angle_indices_2d array)
                     # Windows include original and flipped versions for symmetry
-                    window_results = [
+                    window_results: list[tuple[list[SparseWindow], IntegerNDArray]] = [
                         UDCTWindow._process_single_window(
                             scale_idx=scale_idx,
                             dimension_idx=dimension_idx,
@@ -1239,7 +1239,7 @@ class UDCTWindow:
                     # Combine results from all window_index values:
                     # - Flatten nested window lists into a single list
                     # - Concatenate all angle_indices_2d arrays into one array
-                    all_windows = [
+                    all_windows: list[SparseWindow] = [
                         window
                         for window_list, _ in window_results
                         for window in window_list

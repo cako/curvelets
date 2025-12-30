@@ -591,7 +591,7 @@ class UDCTWindow:
         shape: tuple[int, ...],
         dimension: int,
         window_threshold: float,
-    ) -> tuple[list[tuple[torch.Tensor, torch.Tensor]], torch.Tensor]:
+    ) -> tuple[list[SparseWindow], torch.Tensor]:
         """Process a single window_index value, constructing curvelet windows."""
         # Get device from bandpass_windows
         device = bandpass_windows[scale_idx].device
@@ -796,7 +796,7 @@ class UDCTWindow:
                         direction_mappings[scale_idx - 1][dimension_idx, :],
                     ]
 
-                    window_results = [
+                    window_results: list[tuple[list[SparseWindow], torch.Tensor]] = [
                         UDCTWindow._process_single_window(
                             scale_idx=scale_idx,
                             dimension_idx=dimension_idx,
@@ -814,7 +814,7 @@ class UDCTWindow:
                         for window_index in range(num_windows)
                     ]
 
-                    all_windows = [
+                    all_windows: list[SparseWindow] = [
                         window
                         for window_list, _ in window_results
                         for window in window_list

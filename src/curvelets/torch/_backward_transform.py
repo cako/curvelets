@@ -194,8 +194,7 @@ def _apply_backward_transform_real(
                         window,
                         decimation_ratio,
                     )
-                    idx, _ = window
-                    idx_flat = idx.flatten()
+                    idx_flat = window.indices.flatten()
                     if scale_idx == highest_scale_idx:
                         image_frequency_wavelet_scale.flatten()[idx_flat] += (
                             contribution.flatten()[idx_flat]
