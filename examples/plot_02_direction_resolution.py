@@ -78,14 +78,14 @@ def color_windows(
 
     # Full colored mask
     rgb_a_bg: tuple[float, float, float, float] = (
-        to_rgba(color_bg) if isinstance(color_bg, str) else tuple(color_bg)  # type: ignore[assignment]
+        to_rgba(color_bg) if isinstance(color_bg, str) else tuple(color_bg)
     )
     mask_rgba = np.zeros((*mask.shape, 4), dtype=float)
     assign_rgba_to_mask(None, mask_rgba, rgb_a_bg)
 
     # Set scale 0 wedges in full mask
     rgb_a_low: tuple[float, float, float, float] = (
-        to_rgba(color_low) if isinstance(color_low, str) else tuple(color_low)  # type: ignore[assignment]
+        to_rgba(color_low) if isinstance(color_low, str) else tuple(color_low)
     )
     assign_rgba_to_mask(mask, mask_rgba, rgb_a_low)
 
@@ -105,7 +105,7 @@ def color_windows(
                 mask = mask | np.flip(mask, axis=(0, 1))
                 rgb_a_wedge: tuple[float, float, float, float] = scalarMap.to_rgba(
                     np.array([iwedge])
-                )[0]  # type: ignore[assignment]
+                )[0]
                 assign_rgba_to_mask(mask, mask_rgba, rgb_a_wedge)
     return mask_rgba
 
@@ -145,7 +145,7 @@ def plot_disk(
             for iwedge in range(nwedges):
                 color: tuple[float, float, float, float] = scalarMap.to_rgba(
                     np.array([iwedge])
-                )[0]  # type: ignore[assignment]
+                )[0]
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
                     wedge_x = offset + pm * angles_per_wedge * (0.5 + iwedge)
                     wedge_width = angles_per_wedge
