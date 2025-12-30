@@ -5,3 +5,4 @@ curvelets.torch package
    :members:
    :show-inheritance:
    :undoc-members:
+   :no-index:

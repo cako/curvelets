@@ -45,7 +45,6 @@ from curvelets.torch import UDCTModule
 
 # %%
 # UDCTNet: Curvelet-Based Classifier
-# ###################################
 #
 # This network replaces convolutional layers with the curvelet transform.
 # The key components are:
@@ -103,7 +102,6 @@ class UDCTNet(nn.Module):  # type: ignore[misc]
 
 # %%
 # Training and Testing Functions
-# ##############################
 #
 # Standard PyTorch training loop with negative log-likelihood loss.
 
@@ -113,10 +111,11 @@ def train(
     device: torch.device,
     train_loader: torch.utils.data.DataLoader,
     optimizer: optim.Optimizer,
-) -> float:
-    """Train the model for one epoch and return average loss."""
+) -> tuple[float, float]:
+    """Train the model for one epoch and return average loss and accuracy."""
     model.train()
     total_loss = 0.0
+    correct = 0
     for _, (data, target) in enumerate(train_loader):
         data_device = data.to(device)
         target_device = target.to(device)
@@ -126,31 +125,38 @@ def train(
         loss.backward()
         optimizer.step()
         total_loss += loss.item()
-    return total_loss / len(train_loader)
+        pred = output.argmax(dim=1, keepdim=True)
+        correct += pred.eq(target_device.view_as(pred)).sum().item()
+    avg_loss = total_loss / len(train_loader)
+    accuracy = 100.0 * correct / len(train_loader.dataset)
+    return avg_loss, accuracy
 
 
 def test(
     model: nn.Module,
     device: torch.device,
     test_loader: torch.utils.data.DataLoader,
-) -> float:
-    """Evaluate the model on the test set and return average loss."""
+) -> tuple[float, float]:
+    """Evaluate the model on the test set and return average loss and accuracy."""
     model.eval()
     test_loss = 0.0
+    correct = 0
     with torch.inference_mode():
         for data, target in test_loader:
             data_device = data.to(device)
             target_device = target.to(device)
             output = model(data_device)
             test_loss += F.nll_loss(output, target_device, reduction="sum").item()
+            pred = output.argmax(dim=1, keepdim=True)
+            correct += pred.eq(target_device.view_as(pred)).sum().item()
 
     test_loss /= len(test_loader.dataset)
-    return test_loss
+    accuracy = 100.0 * correct / len(test_loader.dataset)
+    return test_loss, accuracy
 
 
 # %%
 # Main Training Script
-# ####################
 #
 # We use a simplified configuration suitable for a gallery example:
 #
@@ -177,7 +183,6 @@ test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000)
 
 # %%
 # Model Initialization
-# ####################
 #
 # Create the UDCTNet model with 2 scales and 3 wedges per direction.
 # With all curvelet coefficients as features, we get a high-dimensional
@@ -187,7 +192,6 @@ model = UDCTNet(shape=(28, 28), num_scales=2, wedges_per_direction=3).to(device)
 
 # %%
 # Training Loop
-# #############
 #
 # Train for 2 epochs with Adadelta optimizer and step learning rate decay.
 
@@ -197,38 +201,54 @@ scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 num_epochs = 3
 train_losses: list[float] = []
 test_losses: list[float] = []
+train_accuracies: list[float] = []
+test_accuracies: list[float] = []
 
 for _ in range(1, num_epochs + 1):
-    train_loss = train(model, device, train_loader, optimizer)
-    test_loss = test(model, device, test_loader)
+    train_loss, train_acc = train(model, device, train_loader, optimizer)
+    test_loss, test_acc = test(model, device, test_loader)
     train_losses.append(train_loss)
     test_losses.append(test_loss)
+    train_accuracies.append(train_acc)
+    test_accuracies.append(test_acc)
     scheduler.step()
 
 # %%
-# Loss Plot
-# #########
+# Loss and Accuracy Plot
 #
-# Visualize the training and test loss over epochs.
+# Visualize the training and test loss and accuracy over epochs.
 
 epochs = range(1, num_epochs + 1)
 
 # %%
-fig, ax = plt.subplots(figsize=(8, 5))
-ax.plot(epochs, train_losses, "o-", label="Train Loss", linewidth=2, markersize=8)
-ax.plot(epochs, test_losses, "s-", label="Test Loss", linewidth=2, markersize=8)
-ax.set_xlabel("Epoch", fontsize=12)
-ax.set_ylabel("Loss", fontsize=12)
-ax.set_title("UDCT MNIST Classification: Training Progress", fontsize=14)
-ax.legend(fontsize=11)
-ax.grid(True, alpha=0.3)
-ax.set_xticks(epochs)
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Loss subplot
+ax1.plot(epochs, train_losses, "o-", label="Train Loss", linewidth=2, markersize=8)
+ax1.plot(epochs, test_losses, "s-", label="Test Loss", linewidth=2, markersize=8)
+ax1.set_xlabel("Epoch", fontsize=12)
+ax1.set_ylabel("Loss", fontsize=12)
+ax1.set_title("Training and Test Loss", fontsize=14)
+ax1.legend(fontsize=11)
+ax1.grid(True, alpha=0.3)
+ax1.set_xticks(epochs)
+
+# Accuracy subplot
+ax2.plot(epochs, train_accuracies, "o-", label="Train Accuracy", linewidth=2, markersize=8)
+ax2.plot(epochs, test_accuracies, "s-", label="Test Accuracy", linewidth=2, markersize=8)
+ax2.set_xlabel("Epoch", fontsize=12)
+ax2.set_ylabel("Accuracy (%)", fontsize=12)
+ax2.set_title("Training and Test Accuracy", fontsize=14)
+ax2.legend(fontsize=11)
+ax2.grid(True, alpha=0.3)
+ax2.set_xticks(epochs)
+
+plt.suptitle("UDCT MNIST Classification: Training Progress", fontsize=16, y=1.02)
 plt.tight_layout()
 plt.show()
 
 # %%
 # t-SNE Feature Visualization
-# ###########################
 #
 # Visualize the curvelet features in 2D using t-SNE. Each digit class is shown
 # in a different color, revealing how well the features separate the classes.
@@ -275,7 +295,6 @@ plt.show()
 
 # %%
 # Results
-# #######
 #
 # The UDCT-based classifier provides a simple baseline for MNIST classification.
 # By using all curvelet coefficients as features, we preserve all transform
