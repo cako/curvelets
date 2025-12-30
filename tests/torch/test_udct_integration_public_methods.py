@@ -132,6 +132,7 @@ class TestComplexTransformIntegration:
 
                     assert isinstance(recon_wedge, torch.Tensor)
                     assert isinstance(orig_wedge, torch.Tensor)
+                    # Type narrowing: we know these are UDCTCoefficients (Tensor), not MUDCTCoefficients (list)
                     assert recon_wedge.shape == orig_wedge.shape
                     torch.testing.assert_close(
                         recon_wedge, orig_wedge, atol=1e-6, rtol=1e-6

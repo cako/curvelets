@@ -20,6 +20,8 @@ from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
 from ._udct_module import UDCTModule
 
+# pylint: disable=duplicate-code
+# Similar __all__ to numpy.__init__ is intentional - both modules export the same API
 __all__ = [
     "UDCT",
     "MUDCTCoefficients",

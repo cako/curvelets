@@ -40,10 +40,8 @@ def test_udct_forward_matches_numpy(ndim):
     np_coeffs = np_udct.forward(image_np)
     torch_coeffs = torch_udct.forward(image_torch)
 
-    # Type narrowing: real transform returns UDCTCoefficients, not MUDCTCoefficients
-    assert isinstance(torch_coeffs, list)  # Helps mypy understand it's a list structure
-
     # Check same structure
+    # Note: real transform returns UDCTCoefficients (not MUDCTCoefficients)
     assert len(np_coeffs) == len(torch_coeffs)
 
     for scale_idx in range(len(np_coeffs)):
@@ -55,9 +53,12 @@ def test_udct_forward_matches_numpy(ndim):
             for wedge_idx in range(len(np_coeffs[scale_idx][dir_idx])):
                 np_coeff = np_coeffs[scale_idx][dir_idx][wedge_idx]
                 torch_coeff = torch_coeffs[scale_idx][dir_idx][wedge_idx]
-                assert isinstance(torch_coeff, torch.Tensor)  # Type narrowing
+                # Type narrowing: we know this is UDCTCoefficients (Tensor), not MUDCTCoefficients (list)
                 np.testing.assert_allclose(
-                    np_coeff, torch_coeff.numpy(), atol=1e-5, rtol=1e-4
+                    np_coeff,
+                    torch_coeff.numpy(),  # type: ignore[union-attr]
+                    atol=1e-5,
+                    rtol=1e-4,
                 )
 
 
@@ -134,4 +135,5 @@ def test_udct_vect_struct_roundtrip(ndim):
                 recon = coeffs_reconstructed[scale_idx][dir_idx][wedge_idx]
                 assert isinstance(orig, torch.Tensor)  # Type narrowing
                 assert isinstance(recon, torch.Tensor)  # Type narrowing
+                # Type narrowing: we know these are UDCTCoefficients (Tensor), not MUDCTCoefficients (list)
                 np.testing.assert_allclose(orig.numpy(), recon.numpy(), atol=1e-10)
