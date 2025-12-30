@@ -17,6 +17,7 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
+from ._sparse_window import SparseWindow
 from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
@@ -495,7 +496,7 @@ class UDCT:
                     parts.append(wedge_coeff.flatten())
         return torch.cat(parts)
 
-    def struct(self, vector: torch.Tensor) -> UDCTCoefficients:
+    def struct(self, vector: torch.Tensor) -> UDCTCoefficients | MUDCTCoefficients:
         """
         Restructure vectorized coefficients to nested list format.
 
@@ -808,8 +809,6 @@ class UDCT:
                 for wedge_idx, window in enumerate(dir_windows):
                     new_indices = fn(window.indices)
                     new_values = fn(window.values)
-                    from ._sparse_window import SparseWindow
-
                     self._windows[scale_idx][dir_idx][wedge_idx] = SparseWindow(
                         new_indices, new_values, window.shape
                     )
