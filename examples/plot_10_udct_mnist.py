@@ -234,8 +234,12 @@ ax1.grid(True, alpha=0.3)
 ax1.set_xticks(epochs)
 
 # Accuracy subplot
-ax2.plot(epochs, train_accuracies, "o-", label="Train Accuracy", linewidth=2, markersize=8)
-ax2.plot(epochs, test_accuracies, "s-", label="Test Accuracy", linewidth=2, markersize=8)
+ax2.plot(
+    epochs, train_accuracies, "o-", label="Train Accuracy", linewidth=2, markersize=8
+)
+ax2.plot(
+    epochs, test_accuracies, "s-", label="Test Accuracy", linewidth=2, markersize=8
+)
 ax2.set_xlabel("Epoch", fontsize=12)
 ax2.set_ylabel("Accuracy (%)", fontsize=12)
 ax2.set_title("Training and Test Accuracy", fontsize=14)

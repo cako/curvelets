@@ -27,7 +27,6 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
     def forward(  # pylint: disable=arguments-differ
         image: torch.Tensor,
         udct: UDCT,
-        transform_type: Literal["real", "complex"],  # noqa: ARG004
     ) -> torch.Tensor:
         """
         Forward pass: compute forward transform and flatten coefficients.
@@ -38,8 +37,6 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
             Input image tensor.
         udct : UDCT
             UDCT instance to use for transform.
-        transform_type : ``"real"`` or ``"complex"``
-            Type of transform to apply (unused, kept for API compatibility).
 
         Returns
         -------
@@ -54,7 +51,7 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
     @staticmethod
     def setup_context(
         ctx: torch.autograd.function.FunctionCtx,
-        inputs: tuple[torch.Tensor, UDCT, Literal["real", "complex"]],
+        inputs: tuple[torch.Tensor, UDCT],
         output: torch.Tensor,  # noqa: ARG004
     ) -> None:
         """
@@ -67,19 +64,18 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
         ctx : torch.autograd.function.FunctionCtx
             Context for saving information for backward pass.
         inputs : tuple
-            Tuple of (image, udct, transform_type) from forward.
+            Tuple of (image, udct) from forward.
         output : torch.Tensor
             Output from forward (unused).
         """
-        _, udct, transform_type = inputs
+        _, udct = inputs
         ctx.udct = udct
-        ctx.transform_type = transform_type
 
     @staticmethod
     def backward(  # pylint: disable=arguments-differ
         ctx: torch.autograd.function.FunctionCtx,
         grad_output: torch.Tensor,
-    ) -> tuple[torch.Tensor | None, None, None]:
+    ) -> tuple[torch.Tensor | None, None]:
         """
         Backward pass: use backward transform to compute gradient.
 
@@ -92,9 +88,8 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
 
         Returns
         -------
-        tuple[torch.Tensor | None, None, None]
-            Gradient w.r.t. input image, and None for UDCT and transform_type
-            (not differentiable).
+        tuple[torch.Tensor | None, None]
+            Gradient w.r.t. input image, and None for UDCT (not differentiable).
         """
         udct = ctx.udct
 
@@ -103,7 +98,7 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
         grad_coefficients = udct.struct(grad_output)
         grad_input = udct.backward(grad_coefficients)
 
-        return grad_input, None, None
+        return grad_input, None
 
 
 class UDCTModule(nn.Module):  # type: ignore[misc]
@@ -226,7 +221,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         torch.Tensor
             Flattened curvelet coefficients as a single tensor.
         """
-        return _UDCTFunction.apply(image, self._udct, self._transform_type)
+        return _UDCTFunction.apply(image, self._udct)
 
     def vect(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
