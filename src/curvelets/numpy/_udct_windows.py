@@ -232,14 +232,18 @@ class UDCTWindow:
         """
         Compute Kronecker product for angle functions.
 
+        Expands a 1D angle function to an N-D array by replicating values along
+        dimensions not in the permutation, using Kronecker products.
+
         Parameters
         ----------
         angle_function_1d : npt.NDArray[F]
-            Angle function array.
+            Angle function array representing a 2D grid of values.
         dimension_permutation : IntegerNDArray
-            Dimension permutation indices.
+            Dimension permutation indices (1-indexed) specifying which two
+            dimensions the angle function spans.
         shape : tuple[int, ...]
-            Shape of the input data.
+            Shape of the output array.
         dimension : int
             Dimensionality of the transform.
 
@@ -247,9 +251,9 @@ class UDCTWindow:
         -------
         npt.NDArray[F]
             Kronecker product result with shape matching input shape.
-            The dtype matches the input angle_function_1d dtype (preserves TypeVar F).
+            The output is C-contiguous with dtype matching the input.
         """
-        # Pre-compute dimension sizes for Kronecker product
+        # Pre-compute dimension sizes for Kronecker product replication
         kronecker_dimension_sizes: npt.NDArray[np.int_] = np.array(
             [
                 np.prod(shape[: dimension_permutation[0] - 1]),
@@ -259,23 +263,26 @@ class UDCTWindow:
             dtype=int,
         )
 
-        # Expand 1D angle function to N-D using multi-step Kronecker products:
-        # This matches the original angle_kron implementation which uses travel() = T.ravel()
+        # Expand 1D angle function to N-D using multi-step Kronecker products
         # Step 1: Expand along dimension 1 (kronecker_dimension_sizes[1])
         kron_step1 = np.kron(
             np.ones((kronecker_dimension_sizes[1], 1), dtype=int), angle_function_1d
         )
-        # Use travel() = T.ravel() instead of ravel() to match original implementation
-        kron_step1_travel = kron_step1.T.ravel()
+        kron_step1_flat = kron_step1.ravel(order="F")
+        
+        # Step 2: Expand along dimension 2 (kronecker_dimension_sizes[2])
         kron_step2 = np.kron(
-            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_travel
+            np.ones((kronecker_dimension_sizes[2], 1), dtype=int), kron_step1_flat
         ).ravel()
-        # Use travel() = T.ravel() for the final step as well
-        kron_step3 = (
-            np.kron(kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int))
-        ).T.ravel()
-        # Match original: reshape with reversed size and transpose
-        return kron_step3.reshape(*shape[::-1]).T.astype(angle_function_1d.dtype)
+        
+        # Step 3: Expand along dimension 0 (kronecker_dimension_sizes[0])
+        kron_step3 = np.kron(
+            kron_step2, np.ones((kronecker_dimension_sizes[0], 1), dtype=int)
+        ).ravel(order="F")
+        
+        # Reshape to final shape and ensure C-contiguous output
+        result = kron_step3.reshape(shape, order="F").astype(angle_function_1d.dtype)
+        return np.ascontiguousarray(result)
 
     @staticmethod
     def _flip_with_fft_shift(input_array: npt.NDArray[F], axis: int) -> npt.NDArray[F]:
