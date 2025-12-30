@@ -7,6 +7,8 @@ between directional curvelet windows and a ring-shaped highpass window,
 showing both frequency-domain windows and spatial coefficients.
 """
 
+# sphinx_gallery_thumbnail_number = 2
+
 from __future__ import annotations
 
 # %%
@@ -112,7 +114,6 @@ window_opts = {
 }
 
 # Plot curvelet and wavelet windows
-# sphinx_gallery_thumbnail_number = 2
 n_curvelet_windows = len(curvelet_windows_scale1)
 n_wavelet_windows = len(wavelet_windows_scale1)
 n_cols = max(n_curvelet_windows, n_wavelet_windows)

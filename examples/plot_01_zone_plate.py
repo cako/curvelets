@@ -3,6 +3,8 @@ Zone Plate
 ==========
 """
 
+# sphinx_gallery_thumbnail_number = 2
+
 from __future__ import annotations
 
 # %%
@@ -43,7 +45,6 @@ despine(ax)
 ax.set(title="Input")
 
 # %%
-# sphinx_gallery_thumbnail_number = 2
 fig, ax = plt.subplots(figsize=(4, 3))
 im = ax.imshow(zone_plate_inv.T, **opts)
 _, cb = create_colorbar(im=im, ax=ax)

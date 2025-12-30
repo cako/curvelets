@@ -28,10 +28,11 @@ Architecture Overview
 This example is adapted from the `PyTorch MNIST example <https://github.com/pytorch/examples/blob/main/mnist/main.py>`_.
 """
 
+# sphinx_gallery_thumbnail_number = 2
+
 from __future__ import annotations
 
 # %%
-# sphinx_gallery_thumbnail_number = 2
 import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
@@ -154,6 +155,81 @@ def test(
     test_loss /= len(test_loader.dataset)
     accuracy = 100.0 * correct / len(test_loader.dataset)
     return test_loss, accuracy
+
+
+def collect_worst_loss_misclassifications(
+    model: nn.Module,
+    device: torch.device,
+    test_loader: torch.utils.data.DataLoader,
+) -> dict[int, tuple[torch.Tensor, int, int, float]]:
+    """Collect worst loss misclassified examples grouped by ground truth digit.
+
+    For each digit class (0-9), finds the misclassified example with the
+    highest loss value.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Trained model to evaluate.
+    device : torch.device
+        Device to run inference on.
+    test_loader : torch.utils.data.DataLoader
+        DataLoader for test dataset.
+
+    Returns
+    -------
+    dict[int, tuple[torch.Tensor, int, int, float]]
+        Dictionary mapping ground truth digit (0-9) to a tuple of
+        (image tensor, ground truth label, predicted label, loss value).
+        Only contains digits that have misclassifications.
+    """
+    model.eval()
+    worst_misclassifications: dict[int, tuple[torch.Tensor, int, int, float]] = {}
+
+    with torch.inference_mode():
+        for data, target in test_loader:
+            data_device = data.to(device)
+            target_device = target.to(device)
+            output = model(data_device)
+            pred = output.argmax(dim=1)
+
+            # Compute loss for each sample
+            # F.nll_loss with reduction='none' gives per-sample losses
+            per_sample_loss = F.nll_loss(output, target_device, reduction="none")
+
+            # Find misclassifications
+            incorrect_mask = pred != target_device
+            incorrect_indices = incorrect_mask.nonzero(as_tuple=True)[0]
+
+            for idx in incorrect_indices:
+                true_label = int(target_device[idx].item())
+                pred_label = int(pred[idx].item())
+                loss_value = float(per_sample_loss[idx].item())
+
+                # Store worst loss example for each digit class
+                if true_label not in worst_misclassifications:
+                    worst_misclassifications[true_label] = (
+                        data[idx].cpu(),
+                        true_label,
+                        pred_label,
+                        loss_value,
+                    )
+                else:
+                    # Update if this example has higher loss
+                    _, _, _, current_loss = worst_misclassifications[true_label]
+                    if loss_value > current_loss:
+                        worst_misclassifications[true_label] = (
+                            data[idx].cpu(),
+                            true_label,
+                            pred_label,
+                            loss_value,
+                        )
+
+            # Stop if we have examples for all 10 digits
+            if len(worst_misclassifications) == 10:
+                break
+
+    return worst_misclassifications
 
 
 # %%
@@ -299,5 +375,56 @@ cbar.set_label("Digit Class", fontsize=12)
 ax.set_xlabel("t-SNE 1", fontsize=12)
 ax.set_ylabel("t-SNE 2", fontsize=12)
 ax.set_title("UDCT Features: 2D t-SNE Projection", fontsize=14)
+plt.tight_layout()
+plt.show()
+
+# %%
+# Misclassification Visualization
+# ###############################
+#
+# Display the worst loss misclassified example for each digit class (0-9) in a 2x5 grid.
+# Each subplot shows the image with a title indicating the ground truth digit
+# and the predicted digit. For each digit, the example with the highest loss is shown.
+
+# Collect worst loss misclassifications from test set
+worst_misclassifications = collect_worst_loss_misclassifications(
+    model, device, test_loader
+)
+
+# %%
+fig, axes = plt.subplots(2, 5, figsize=(12, 5))
+axes = axes.flatten()
+
+# Denormalization parameters (reverse of Normalize((0.1307,), (0.3081,)))
+mean = 0.1307
+std = 0.3081
+
+for digit in range(10):
+    ax = axes[digit]
+    if digit in worst_misclassifications:
+        img, true_label, pred_label, loss_value = worst_misclassifications[digit]
+        # Denormalize image for display
+        img_denorm = img.squeeze(0) * std + mean
+        # Clamp to [0, 1] range
+        img_denorm = torch.clamp(img_denorm, 0, 1)
+        ax.imshow(img_denorm.numpy(), cmap="gray")
+        ax.set_title(
+            f"Ground truth: {true_label}, Predicted: {pred_label}", fontsize=11
+        )
+    else:
+        # Handle case where digit has no misclassifications
+        ax.text(
+            0.5,
+            0.5,
+            f"No misclassifications\nfor digit {digit}",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=10,
+        )
+        ax.set_title(f"Digit {digit}", fontsize=11)
+    ax.axis("off")
+
+plt.suptitle("Worst Loss Misclassified Examples by Digit Class", fontsize=14, y=1.02)
 plt.tight_layout()
 plt.show()
