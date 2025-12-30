@@ -14,28 +14,32 @@ from ._udct import UDCT
 
 
 class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: disable=abstract-method
-    """Private autograd Function that uses backward transform as gradient."""
+    """Private autograd Function that uses backward transform as gradient.
+
+    This implementation uses the modern setup_context pattern to support
+    functorch transforms like vmap, grad, and jacrev.
+    """
+
+    # Enable automatic vmap rule generation for functorch compatibility
+    generate_vmap_rule = True
 
     @staticmethod
     def forward(  # pylint: disable=arguments-differ
-        ctx: torch.autograd.function.FunctionCtx,
         image: torch.Tensor,
         udct: UDCT,
-        transform_type: Literal["real", "complex"],
+        transform_type: Literal["real", "complex"],  # noqa: ARG004
     ) -> torch.Tensor:
         """
         Forward pass: compute forward transform and flatten coefficients.
 
         Parameters
         ----------
-        ctx : torch.autograd.function.FunctionCtx
-            Context for saving information for backward pass.
         image : torch.Tensor
             Input image tensor.
         udct : UDCT
             UDCT instance to use for transform.
         transform_type : ``"real"`` or ``"complex"``
-            Type of transform to apply.
+            Type of transform to apply (unused, kept for API compatibility).
 
         Returns
         -------
@@ -45,13 +49,31 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
         # Compute forward transform and vectorize
         # UDCT handles dispatch based on transform_kind
         coefficients = udct.forward(image)
-        flattened = udct.vect(coefficients)
+        return udct.vect(coefficients)
 
-        # Save UDCT instance and transform type for backward
+    @staticmethod
+    def setup_context(
+        ctx: torch.autograd.function.FunctionCtx,
+        inputs: tuple[torch.Tensor, UDCT, Literal["real", "complex"]],
+        output: torch.Tensor,  # noqa: ARG004
+    ) -> None:
+        """
+        Save context for backward pass.
+
+        This method is required for functorch compatibility (vmap, grad, etc.).
+
+        Parameters
+        ----------
+        ctx : torch.autograd.function.FunctionCtx
+            Context for saving information for backward pass.
+        inputs : tuple
+            Tuple of (image, udct, transform_type) from forward.
+        output : torch.Tensor
+            Output from forward (unused).
+        """
+        _, udct, transform_type = inputs
         ctx.udct = udct
         ctx.transform_type = transform_type
-
-        return flattened
 
     @staticmethod
     def backward(  # pylint: disable=arguments-differ
