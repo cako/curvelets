@@ -136,7 +136,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         Radial frequency band parameters.
         Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
     window_threshold : float, optional
-        Threshold for sparse window storage. Default is 1e-6.
+        Threshold for sparse window storage. Default is 1e-5.
     high_frequency_mode : {"curvelet", "wavelet"}, optional
         High frequency mode. Default is "curvelet".
     transform_type : ``"real"`` or ``"complex"``, optional
@@ -189,7 +189,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         wedges_per_direction: int | None = None,
         window_overlap: float | None = None,
         radial_frequency_params: tuple[float, float, float, float] | None = None,
-        window_threshold: float = 1e-6,
+        window_threshold: float = 1e-5,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_type: Literal["real", "complex"] = "real",
     ) -> None:
