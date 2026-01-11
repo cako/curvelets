@@ -42,6 +42,7 @@ def tests(session: nox.Session) -> None:
     """
     Run the unit and regular tests.
     """
+    session.install("-e", ".")
     session.install("-r", "docs/requirements.txt")
     session.run("uv", "pip", "install", "--group", "test")
     session.run("pytest", *session.posargs)
