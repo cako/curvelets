@@ -65,6 +65,7 @@ def docs(session: nox.Session) -> None:
 
     extra_installs = ["sphinx-autobuild"] if args.serve else []
 
+    session.install("-e", ".")
     # Install CPU-only PyTorch for documentation builds
     session.install("-r", "docs/requirements.txt")
     session.run("uv", "pip", "install", "--group", "docs")
