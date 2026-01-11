@@ -30,6 +30,7 @@ def pylint(session: nox.Session) -> None:
     """
     # This needs to be installed into the package environment, and is slower
     # than a pre-commit check
+    session.install("-e", ".")
     session.install("-r", "docs/requirements.txt")
     session.run("uv", "pip", "install", "--group", "docs")
     session.install("pylint")
