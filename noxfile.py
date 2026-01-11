@@ -8,7 +8,7 @@ import nox
 
 DIR = Path(__file__).parent.resolve()
 
-nox.options.default_venv_backend = "uv|virtualenv"
+nox.options.default_venv_backend = "uv"
 nox.options.sessions = ["lint", "pylint", "tests"]
 
 
