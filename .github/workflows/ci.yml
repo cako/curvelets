@@ -28,6 +28,10 @@ jobs:
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: --hook-stage manual --all-files
+      - name: Install uv
+        run: |
+          pip install uv
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Run PyLint
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
@@ -65,12 +69,16 @@ jobs:
       - name: Install package (PyPy)
         if: startsWith(matrix.python-version, 'pypy')
         run: |
-          python -m pip install .[test] --no-deps
+          python -m pip install . --no-deps
           python -m pip install pytest pytest-cov coverage matplotlib
 
       - name: Install package (CPython)
         if: "!startsWith(matrix.python-version, 'pypy')"
-        run: python -m pip install .[test]
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+          python -m pip install -r docs/requirements.txt
+          python -m pip install --group test
 
       - name: Test package (PyPy)
         if: startsWith(matrix.python-version, 'pypy')
