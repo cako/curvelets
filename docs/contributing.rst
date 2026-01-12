@@ -53,7 +53,7 @@ Ready to contribute?
 
 1. **Development installation**
 
-   This project uses `uv` as the package manager. Install the package in
+   This project uses ``uv`` as the package manager. Install the package in
    development mode:
 
    .. code-block:: bash
@@ -95,7 +95,7 @@ Ready to contribute?
       make lint
 
    This runs pre-commit hooks which include ruff, mypy, and other code quality
-   checks. **Your code should ideally pass `make lint` before submitting a PR.**
+   checks. **Your code should ideally pass ``make lint`` before submitting a PR.**
 
 5. **Update the docs**
 
@@ -150,4 +150,4 @@ This project uses several tools for development:
 * **pytest**: Testing framework
 
 All tools are configured in the project and will be automatically used when you
-run `make lint` or `make test`.
+run ``make lint`` or ``make test``.
