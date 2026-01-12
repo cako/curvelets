@@ -51,10 +51,11 @@ pylint:
 
 doc:
 	make uvcheck
-	cd docs && rm -rf source && cd .. && unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s build_api_docs && $(UV) tool run nox -s docs
+	make cleandoc
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s build_api_docs && $(UV) tool run nox -s docs
 
 cleandoc:
-	rm -rf docs/_build docs/source docs/auto_examples
+	rm -rf docs/_build docs/api docs/auto_examples
 
 servedocs:
 	make uvcheck
