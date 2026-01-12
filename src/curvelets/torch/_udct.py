@@ -500,11 +500,28 @@ class UDCT:
         torch.Tensor
             1D tensor containing all coefficients.
         """
+        # Dispatch based on transform_kind
+        if self._transform_kind == "monogenic":
+            return self._vect_monogenic(coefficients)
+        # real/complex: simple flatten
         parts: list[torch.Tensor] = []
         for scale in coefficients:
             for direction in scale:
                 for wedge_coeff in direction:
                     parts.append(wedge_coeff.flatten())
+        return torch.cat(parts)
+
+    def _vect_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+        """Private method for monogenic coefficient vectorization (no input validation)."""
+        parts: list[torch.Tensor] = []
+        for scale_coeffs in coefficients:
+            for direction_coeffs in scale_coeffs:
+                for wedge_coeffs in direction_coeffs:
+                    # wedge_coeffs has shape (*wedge_shape, ndim+2)
+                    # Flatten each channel separately to maintain order
+                    num_channels = wedge_coeffs.shape[-1]
+                    for ch_idx in range(num_channels):
+                        parts.append(wedge_coeffs[..., ch_idx].flatten())
         return torch.cat(parts)
 
     def struct(self, vector: torch.Tensor) -> UDCTCoefficients:
@@ -626,7 +643,9 @@ class UDCT:
         begin_idx = 0
         coefficients: UDCTCoefficients = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        num_components = self._parameters.ndim + 1  # scalar + all Riesz components
+        # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
+        # Matches numpy's structure
+        num_channels = self._parameters.ndim + 2
 
         for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
             coefficients.append([])
@@ -643,18 +662,21 @@ class UDCT:
 
                 for _ in self._windows[scale_idx][window_direction_idx]:
                     shape_decimated = (internal_shape // decimation_ratio_dir).tolist()
-                    # For monogenic, each wedge has ndim+1 components
-                    wedge_components: list[torch.Tensor] = []
-                    for _ in range(num_components):
+                    # For monogenic, each wedge has shape (*wedge_shape, ndim+2)
+                    # Stack channels along last axis to match numpy structure
+                    wedge_channels: list[torch.Tensor] = []
+                    for _ in range(num_channels):
                         size = prod(shape_decimated)
                         end_idx = begin_idx + size
-                        component = vector[begin_idx:end_idx].reshape(shape_decimated)
-                        # Preserve dtype from forward transform (Option B)
+                        channel = vector[begin_idx:end_idx].reshape(shape_decimated)
+                        # Preserve dtype from forward transform
                         if self._coefficient_dtype is not None:
-                            component = component.to(self._coefficient_dtype)
-                        wedge_components.append(component)
+                            channel = channel.to(self._coefficient_dtype)
+                        wedge_channels.append(channel)
                         begin_idx = end_idx
-                    coefficients[scale_idx][direction_idx].append(wedge_components)
+                    # Stack channels along last axis: shape (*wedge_shape, num_channels)
+                    wedge_array = torch.stack(wedge_channels, dim=-1)
+                    coefficients[scale_idx][direction_idx].append(wedge_array)
         return coefficients
 
     def _from_sparse(

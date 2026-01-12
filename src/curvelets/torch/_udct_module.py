@@ -71,12 +71,12 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
             Output from forward (unused).
         """
         _, udct = inputs
-        ctx.udct = udct
+        ctx.udct = udct  # ty: ignore[unresolved-attribute]
 
     @staticmethod
-    def backward(  # pylint: disable=arguments-differ
+    def backward(
         ctx: torch.autograd.function.FunctionCtx,
-        grad_output: torch.Tensor,
+        *grad_outputs: torch.Tensor,
     ) -> tuple[torch.Tensor | None, None]:
         """
         Backward pass: use backward transform to compute gradient.
@@ -85,15 +85,16 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
         ----------
         ctx : torch.autograd.function.FunctionCtx
             Context containing saved information from forward pass.
-        grad_output : torch.Tensor
-            Gradient w.r.t. flattened coefficients.
+        *grad_outputs : torch.Tensor
+            Gradient w.r.t. flattened coefficients (single tensor expected).
 
         Returns
         -------
         tuple[torch.Tensor | None, None]
             Gradient w.r.t. input image, and None for UDCT (not differentiable).
         """
-        udct = ctx.udct
+        udct = ctx.udct  # ty: ignore[unresolved-attribute]
+        grad_output = grad_outputs[0]
 
         # Restructure gradient and compute backward
         # UDCT handles dispatch based on transform_kind

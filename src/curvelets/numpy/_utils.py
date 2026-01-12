@@ -13,7 +13,7 @@ else:
 import numpy as np
 import numpy.typing as npt
 
-from .typing import _C, _F, _IntegerNDArray
+from .typing import _C, _F, _T, _IntegerNDArray
 
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
@@ -122,9 +122,7 @@ def circular_shift(  # type: ignore[overload-cannot-match]
 ) -> npt.NDArray[_C]: ...
 
 
-def circular_shift(
-    array: npt.NDArray[np.generic], shift: tuple[int, ...]
-) -> npt.NDArray[np.generic]:
+def circular_shift(array: npt.NDArray[_T], shift: tuple[int, ...]) -> npt.NDArray[_T]:
     """
     Circularly shift array along all axes.
 
@@ -135,7 +133,7 @@ def circular_shift(
 
     Parameters
     ----------
-    array : npt.NDArray[_F] | npt.NDArray[_C]
+    array : npt.NDArray[_T]
         Input array to shift. Can be real-valued (npt.NDArray[_F]) or
         complex-valued (npt.NDArray[_C]). The array is shifted along
         all axes simultaneously.
@@ -147,7 +145,7 @@ def circular_shift(
 
     Returns
     -------
-    npt.NDArray[_F] | npt.NDArray[_C]
+    npt.NDArray[_T]
         Circularly shifted array with the same shape and dtype as input.
         Returns npt.NDArray[_F] if input is real, npt.NDArray[_C] if
         input is complex.
@@ -335,8 +333,8 @@ def flip_fft_all_axes(
 # This is a 7th-degree polynomial (with trailing zeros) used to create
 # smooth transitions in the Meyer wavelet window function. The polynomial
 # provides C^infinity smoothness at the transition boundaries.
-MEYER_TRANSITION_POLYNOMIAL: npt.NDArray[np.floating[object]] = np.array(
-    [-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0], dtype=float
+MEYER_TRANSITION_POLYNOMIAL = np.array(
+    [-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64
 )
 
 
