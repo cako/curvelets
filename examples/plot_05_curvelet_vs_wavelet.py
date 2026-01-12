@@ -50,11 +50,11 @@ C_wavelet = UDCT(
 coeffs_curvelet = C_curvelet.forward(zone_plate)
 coeffs_wavelet = C_wavelet.forward(zone_plate)
 
-print(f"Input shape: {zone_plate.shape}")  # noqa: T201
-print(f"Curvelet scales: {len(coeffs_curvelet)}")  # noqa: T201
-print(f"Wavelet scales: {len(coeffs_wavelet)}")  # noqa: T201
-print(f"Curvelet scale 1 directions: {len(coeffs_curvelet[1])}")  # noqa: T201
-print(f"Wavelet scale 1 directions: {len(coeffs_wavelet[1])}")  # noqa: T201
+print(f"Input shape: {zone_plate.shape}")
+print(f"Curvelet scales: {len(coeffs_curvelet)}")
+print(f"Wavelet scales: {len(coeffs_wavelet)}")
+print(f"Curvelet scale 1 directions: {len(coeffs_curvelet[1])}")
+print(f"Wavelet scale 1 directions: {len(coeffs_wavelet[1])}")
 
 # %%
 # Input Image
@@ -249,16 +249,14 @@ fig.tight_layout()
 # Summary Statistics
 # ##################
 
-print("\nCurvelet Scale 1 Statistics:")  # noqa: T201
+print("\nCurvelet Scale 1 Statistics:")
 for (idir, iwedge), coeff in zip(curvelet_coeff_info, curvelet_coeffs_scale1):
     energy = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()
-    print(  # noqa: T201
-        f"  Dir {idir} Wedge {iwedge}: Energy={energy:.2e}, Max={max_val:.2e}"
-    )
+    print(f"  Dir {idir} Wedge {iwedge}: Energy={energy:.2e}, Max={max_val:.2e}")
 
-print("\nWavelet Scale 1 Statistics:")  # noqa: T201
+print("\nWavelet Scale 1 Statistics:")
 for i, coeff in enumerate(wavelet_coeffs_scale1):
     energy = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()
-    print(f"  Ring Window {i}: Energy={energy:.2e}, Max={max_val:.2e}")  # noqa: T201
+    print(f"  Ring Window {i}: Energy={energy:.2e}, Max={max_val:.2e}")

@@ -62,7 +62,7 @@ cb.ax.yaxis.set_major_formatter(fmt)
 despine(ax)
 ax.set(title=f"Error (max = {opts['vmax']:.2g})")
 
-print(f"Max Error: {opts['vmax']:.2g}")  # noqa: T201
+print(f"Max Error: {opts['vmax']:.2g}")
 
 # %%
 # Curvelet Coefficients: Amplitude and Phase
