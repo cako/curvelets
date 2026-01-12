@@ -4,6 +4,7 @@
 
     self
     curvelet_faqs.rst
+    contributing.rst
     auto_examples/index.rst
     API <api/index.rst>
 
