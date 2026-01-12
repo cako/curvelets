@@ -3,7 +3,7 @@ Curvelet-based Denoising
 ========================
 
 This example shows how the UDCT curvelets transform can be used to denoise images. More
-precisily, an the curvelet transform of a natual image tends to have strong, localized
+precisely, an the curvelet transform of a natual image tends to have strong, localized
 coefficients; on the other hand, the UDCT transform of a (white Gaussian) noise
 realization does not map into anything really consistent in the curvelets domain. As
 such if we take the UDCT transform of a noisy image and apply a suitable thresholding
