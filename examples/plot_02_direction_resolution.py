@@ -69,7 +69,7 @@ def color_windows(
     # Full colored mask
     rgb_a = to_rgba(color_bg) if isinstance(color_bg, str) else color_bg
     mask_rgba = np.zeros((*mask.shape, 4), dtype=float)
-    assign_rgba_to_mask(Ellipsis, mask_rgba, rgb_a)
+    assign_rgba_to_mask(Ellipsis, mask_rgba, rgb_a)  # type: ignore[arg-type]
 
     # Set scale 0 wedges in full mask
     rgb_a = to_rgba(color_low) if isinstance(color_low, str) else color_low

@@ -246,7 +246,7 @@ def test_compute_angle_component_invalid_direction() -> None:
 
     # Test invalid direction values
     for invalid_direction in [0, 3, -1, 10]:
-        with pytest.raises(ValueError, match="Unrecognized direction.*Must be 1 or 2"):
+        with pytest.raises(ValueError, match=r"Unrecognized direction.*Must be 1 or 2"):
             UDCTWindow._create_angle_functions(
                 angle_grid,
                 direction=invalid_direction,
