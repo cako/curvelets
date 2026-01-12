@@ -17,7 +17,7 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
+from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
 
@@ -621,10 +621,10 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
-    def _struct_monogenic(self, vector: torch.Tensor) -> MUDCTCoefficients:
+    def _struct_monogenic(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for monogenic coefficient restructuring (no input validation)."""
         begin_idx = 0
-        coefficients: MUDCTCoefficients = []
+        coefficients: UDCTCoefficients = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
         num_components = self._parameters.ndim + 1  # scalar + all Riesz components
 
@@ -692,7 +692,7 @@ class UDCT:
         arr_full.flatten()[idx.flatten()] = val.flatten()
         return arr_full
 
-    def forward(self, image: torch.Tensor) -> UDCTCoefficients | MUDCTCoefficients:
+    def forward(self, image: torch.Tensor) -> UDCTCoefficients:
         """
         Apply forward curvelet transform.
 
@@ -705,10 +705,10 @@ class UDCT:
 
         Returns
         -------
-        UDCTCoefficients | MUDCTCoefficients
+        UDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge.
-            For monogenic transforms, returns MUDCTCoefficients where each
-            coefficient is a list of ndim+1 arrays.
+            For monogenic transforms, each coefficient tensor has shape
+            (*wedge_shape, ndim+1) with channels stacked along the last axis.
         """
         # Validate input based on transform_kind
         if self._transform_kind in ("real", "monogenic") and image.is_complex():
@@ -768,7 +768,7 @@ class UDCT:
                     break
         return coeffs
 
-    def _forward_monogenic(self, image: torch.Tensor) -> MUDCTCoefficients:  # pylint: disable=unused-argument
+    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
         # TODO: Implement monogenic forward transform for PyTorch
         # For now, raise NotImplementedError
@@ -818,7 +818,7 @@ class UDCT:
             use_complex_transform=True,
         )
 
-    def _backward_monogenic(self, coefficients: MUDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
+    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
         # TODO: Implement monogenic backward transform for PyTorch
         # For now, raise NotImplementedError

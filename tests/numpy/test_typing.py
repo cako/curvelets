@@ -83,20 +83,18 @@ def test_typing_python310_compatibility():
 
     Examples
     --------
-    >>> from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows, MUDCTCoefficients
+    >>> from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
     >>> # Type aliases should be importable
     >>> assert UDCTCoefficients is not None
     >>> assert UDCTWindows is not None
-    >>> assert MUDCTCoefficients is not None
     """
     import sys
 
-    from curvelets.numpy._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
+    from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
 
     # Verify type aliases are importable
     assert UDCTCoefficients is not None
     assert UDCTWindows is not None
-    assert MUDCTCoefficients is not None
 
     # On Python 3.10+, type aliases should use built-in list/tuple syntax
     if sys.version_info >= (3, 10):
@@ -105,7 +103,6 @@ def test_typing_python310_compatibility():
         # they're not None and are callable/usable
         assert UDCTCoefficients is not None
         assert UDCTWindows is not None
-        assert MUDCTCoefficients is not None
 
 
 def test_typing_python39_compatibility():
@@ -118,20 +115,18 @@ def test_typing_python39_compatibility():
     Examples
     --------
     >>> import sys
-    >>> from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows, MUDCTCoefficients
+    >>> from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
     >>> # Type aliases should be importable on all Python versions
     >>> assert UDCTCoefficients is not None
     >>> assert UDCTWindows is not None
-    >>> assert MUDCTCoefficients is not None
     """
     import sys
 
-    from curvelets.numpy._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
+    from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
 
     # Verify type aliases are importable
     assert UDCTCoefficients is not None
     assert UDCTWindows is not None
-    assert MUDCTCoefficients is not None
 
     # On Python 3.9, type aliases use typing.List/Tuple syntax
     # We can't easily test the internal structure without importing typing,
@@ -141,4 +136,3 @@ def test_typing_python39_compatibility():
         # The type aliases should still be usable
         assert UDCTCoefficients is not None
         assert UDCTWindows is not None
-        assert MUDCTCoefficients is not None

@@ -6,15 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._riesz import riesz_filters
-from ._typing import (
-    C,
-    F,
-    IntegerNDArray,
-    IntpNDArray,
-    MUDCTCoefficients,
-    UDCTCoefficients,
-    UDCTWindows,
-)
+from ._typing import C, F, IntegerNDArray, IntpNDArray, UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 
 
@@ -226,7 +218,7 @@ def _apply_forward_transform_real(
 
     # Real transform: combined +/- frequencies using nested list comprehensions
     # Build entire structure with list comprehensions
-    coefficients: UDCTCoefficients = [
+    coefficients: UDCTCoefficients[np.complexfloating] = [
         [[low_freq_coeff]]  # Scale 0: 1 direction, 1 wedge
     ] + [
         [
@@ -317,7 +309,7 @@ def _apply_forward_transform_complex(
     # Complex transform: keep complex low frequency
     curvelet_band = np.fft.ifftn(frequency_band)
 
-    coefficients: UDCTCoefficients = [
+    coefficients: list[list[list[npt.NDArray[np.complexfloating]]]] = [
         [[downsample(curvelet_band, decimation_ratios[0][0])]]
     ]
     norm = np.sqrt(
@@ -399,13 +391,14 @@ def _process_wedge_monogenic(
     riesz_filters_list: list[npt.NDArray[np.complexfloating]],
     freq_band: npt.NDArray[np.complexfloating],
     complex_dtype: npt.DTypeLike,
-) -> list[npt.NDArray[np.complexfloating] | npt.NDArray[F]]:
+) -> npt.NDArray[np.floating]:
     """
     Process a single wedge for monogenic transform.
 
     This function applies frequency-domain windows and Riesz filters to extract
     components: scalar (same as UDCT) plus all Riesz components (one per dimension).
     Each component is transformed to spatial domain, downsampled, and normalized.
+    Components are stacked along the last axis as real values.
 
     Parameters
     ----------
@@ -427,16 +420,18 @@ def _process_wedge_monogenic(
 
     Returns
     -------
-    list[npt.NDArray[np.complexfloating] | npt.NDArray[F]]
-        List with ndim+1 arrays: [scalar, riesz_1, riesz_2, ..., riesz_ndim].
-        Scalar is complex (matches UDCT behavior), all Riesz components are real.
-        Uses F TypeVar from _typing.py for real floating point types.
-        Each array is downsampled and normalized.
+    npt.NDArray[np.floating]
+        Array with shape (*wedge_shape, ndim+2) containing stacked components.
+        All values are real dtype:
+        - Channel 0: scalar.real
+        - Channel 1: scalar.imag
+        - Channels 2..ndim+1: Riesz components (already real)
+        Complex scalar can be reconstructed via .view(complex_dtype) on channels 0:2.
 
     Notes
     -----
     The components are:
-    - Scalar: IFFT(FFT(image) * window) - same as standard UDCT
+    - Scalar: IFFT(FFT(image) * window) - same as standard UDCT (stored as 2 real channels)
     - Riesz_k: IFFT(FFT(image) * window * R_k_filter) for k = 1, 2, ..., ndim
 
     All components use the same decimation ratios and normalization factors
@@ -454,7 +449,7 @@ def _process_wedge_monogenic(
     real_dtype = np.real(np.empty(0, dtype=complex_dtype)).dtype
 
     # Process all Riesz components
-    riesz_coeffs: list[npt.NDArray[F]] = []
+    riesz_coeffs: list[npt.NDArray[np.floating]] = []
     for riesz_filter in riesz_filters_list:
         freq_band.fill(0)
         # Apply window and Riesz filter
@@ -469,9 +464,17 @@ def _process_wedge_monogenic(
         # Riesz components: take real part (Riesz transform of real function is real)
         riesz_coeffs.append(coeff_riesz.real.astype(real_dtype))
 
-    # Return list: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-    # Scalar is kept as complex (matches UDCT behavior)
-    return [coeff_scalar, *riesz_coeffs]
+    # Stack components along last axis: shape (*wedge_shape, ndim+2)
+    # All components stored as real: [scalar.real, scalar.imag, riesz_1, riesz_2, ...]
+    # Complex scalar can be reconstructed via .view(complex_dtype) on first 2 channels
+    return np.stack(
+        [
+            coeff_scalar.real.astype(real_dtype),
+            coeff_scalar.imag.astype(real_dtype),
+            *riesz_coeffs,
+        ],
+        axis=-1,
+    )
 
 
 def _apply_forward_transform_monogenic(
@@ -479,14 +482,14 @@ def _apply_forward_transform_monogenic(
     parameters: ParamUDCT,
     windows: UDCTWindows,
     decimation_ratios: list[IntegerNDArray],
-) -> MUDCTCoefficients:  # type: ignore[type-arg]
+) -> list[list[list[npt.NDArray[np.floating]]]]:
     """
     Apply forward monogenic curvelet transform.
 
     This function decomposes a real-valued input image or volume into monogenic
     curvelet coefficients by applying frequency-domain windows and Riesz transforms.
-    Each coefficient band produces ndim+1 components: scalar (same as UDCT) plus
-    all Riesz components (one per dimension).
+    Each coefficient band produces ndim+2 components stacked along the last axis:
+    scalar (stored as 2 real channels) plus all Riesz components (one per dimension).
 
     The monogenic curvelet transform was originally defined for 2D signals by
     Storath 2010 using quaternions, but this implementation extends it to arbitrary
@@ -521,26 +524,28 @@ def _apply_forward_transform_monogenic(
 
     Returns
     -------
-    MUDCTCoefficients
-        Monogenic coefficients as nested list structure with lists of ndim+1 arrays.
-        Type alias defined in _typing.py: list[list[list[list[npt.NDArray[np.complexfloating | F]]]]]
-        Structure mirrors _apply_forward_transform_real() but returns lists.
-        - scale 0: Low-frequency band (1 direction, 1 wedge) with ndim+1 components
+    list[list[list[npt.NDArray[np.floating]]]]
+        Monogenic coefficients as nested list structure with arrays of shape
+        (*wedge_shape, ndim+2). Same structure as standard UDCT but with extra
+        channel dimension. All values are real dtype:
+        - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands (ndim directions per scale)
-          Each band has list of ndim+1 arrays: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-          where scalar is complex, all riesz components are real
+        Each coefficient array has shape (*decimated_shape, ndim+2) where:
+        - channel 0: scalar.real
+        - channel 1: scalar.imag
+        - channels 2..ndim+1: Riesz components (already real)
+        Complex scalar can be reconstructed via .view(complex_dtype) on channels 0:2.
 
     Notes
     -----
     The monogenic transform is mathematically defined only for real-valued functions.
     This function computes:
-    - Scalar component: same as standard UDCT
+    - Scalar component: same as standard UDCT (stored as 2 real channels)
     - Riesz_k component: applies :math:`R_k` filter :math:`(i \\xi_k / |\\xi|)` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
 
     Structure mirrors _apply_forward_transform_real() but:
     - Computes Riesz filters once at the start
-    - Processes each wedge to produce ndim+1 components (scalar + all Riesz)
-    - Returns lists instead of complex arrays
+    - Processes each wedge to produce ndim+2 components stacked along last axis
     - Uses type aliases from _typing.py for consistency with rest of codebase
 
     Examples
@@ -566,10 +571,8 @@ def _apply_forward_transform_monogenic(
     >>> coeffs = _apply_forward_transform_monogenic(image, params, windows, decimation_ratios)
     >>> len(coeffs)  # Number of scales
     3
-    >>> isinstance(coeffs[0][0][0], list)  # Each coefficient is a list
-    True
-    >>> len(coeffs[0][0][0])  # List has ndim+1 components (3 for 2D)
-    3
+    >>> coeffs[0][0][0].shape[-1]  # Last dimension has ndim+2 channels (4 for 2D)
+    4
     """
     image_frequency = np.fft.fftn(image)
     complex_dtype = image_frequency.dtype
@@ -580,7 +583,7 @@ def _apply_forward_transform_monogenic(
     # Allocate frequency_band once for reuse
     frequency_band = np.zeros_like(image_frequency)
 
-    # Low frequency band processing (ndim+1 components: scalar + all Riesz)
+    # Low frequency band processing (ndim+2 components: scalar.real, scalar.imag + all Riesz)
     idx, val = windows[0][0][0]
     frequency_band.fill(0)
     frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
@@ -599,7 +602,7 @@ def _apply_forward_transform_monogenic(
     real_dtype = np.real(np.empty(0, dtype=complex_dtype)).dtype
 
     # Process all Riesz components for low frequency
-    low_freq_riesz_coeffs: list[npt.NDArray[F]] = []
+    low_freq_riesz_coeffs: list[npt.NDArray[np.floating]] = []
     for riesz_filter in riesz_filters_list:
         frequency_band.fill(0)
         frequency_band.flat[idx] = (
@@ -613,13 +616,20 @@ def _apply_forward_transform_monogenic(
         # Riesz components: take real part (Riesz transform of real function is real)
         low_freq_riesz_coeffs.append(low_freq_coeff_riesz.real.astype(real_dtype))
 
-    # Build list: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-    # Scalar is kept as complex (matches UDCT behavior)
-    low_freq_coeff = [low_freq_coeff_scalar, *low_freq_riesz_coeffs]
+    # Stack components along last axis: shape (*wedge_shape, ndim+2)
+    # All components stored as real: [scalar.real, scalar.imag, riesz_1, riesz_2, ...]
+    low_freq_coeff = np.stack(
+        [
+            low_freq_coeff_scalar.real.astype(real_dtype),
+            low_freq_coeff_scalar.imag.astype(real_dtype),
+            *low_freq_riesz_coeffs,
+        ],
+        axis=-1,
+    )
 
     # High-frequency bands using nested list comprehensions
     # Build entire structure with list comprehensions
-    coefficients: MUDCTCoefficients = [  # type: ignore[type-arg]
+    coefficients: list[list[list[npt.NDArray[np.floating]]]] = [
         [[low_freq_coeff]]  # Scale 0: 1 direction, 1 wedge
     ] + [
         [

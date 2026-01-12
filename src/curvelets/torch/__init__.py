@@ -16,7 +16,7 @@ if not TORCH_ENABLED:
     raise ImportError(_error_msg)
 
 from ._meyerwavelet import MeyerWavelet
-from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
+from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
 from ._udct_module import UDCTModule
 
@@ -24,7 +24,6 @@ from ._udct_module import UDCTModule
 # Similar __all__ to numpy.__init__ is intentional - both modules export the same API
 __all__ = [
     "UDCT",
-    "MUDCTCoefficients",
     "MeyerWavelet",
     "UDCTCoefficients",
     "UDCTModule",
