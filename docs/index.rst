@@ -5,7 +5,7 @@
     self
     curvelet_faqs.rst
     auto_examples/index.rst
-    API <source/modules.rst>
+    API <api/index.rst>
 
 .. image:: montage_all_border.png
   :alt: Four scales of curvelets
@@ -26,6 +26,12 @@ Installation
 .. code-block:: sh
 
     pip install curvelets
+
+or, if you want to use the PyTorch backend, you can install the ``torch`` optional dependency:
+
+.. code-block:: sh
+
+    pip install curvelets[torch]
 
 **Curvelets** supports Python 3.9 and above, NumPy 1.20 and above.
 

@@ -51,7 +51,7 @@ pylint:
 
 doc:
 	make uvcheck
-	cd docs && rm -rf source && sphinx-apidoc -f -M -o source/ ../src && cd .. && unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s docs
+	cd docs && rm -rf source && cd .. && unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s build_api_docs && $(UV) tool run nox -s docs
 
 cleandoc:
 	rm -rf docs/_build docs/source docs/auto_examples
