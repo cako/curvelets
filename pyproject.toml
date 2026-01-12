@@ -60,6 +60,9 @@ docs = [
   "sphinx_gallery",
   "matplotlib",
   "scikit-learn",
+  "pooch>=1.8.2",
+  "scipy>=1.16.3",
+  "scipy-stubs",
 ]
 
 [project.urls]
@@ -114,7 +117,6 @@ enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 warn_unreachable = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
-# plugins = ["numpy.typing.mypy_plugin"]
 
 
 [[tool.mypy.overrides]]
@@ -176,6 +178,7 @@ isort.required-imports = ["from __future__ import annotations"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
+"examples/**" = ["T20"]
 
 
 [tool.pylint]

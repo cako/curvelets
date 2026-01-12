@@ -38,12 +38,12 @@ coefficients = wavelet.forward(zone_plate)
 lowpass = coefficients[0][0]
 highpass_bands = coefficients[1]
 
-print(f"Input shape: {zone_plate.shape}")  # noqa: T201
-print(f"Number of subband groups: {len(coefficients)}")  # noqa: T201
-print(f"Lowpass shape: {lowpass.shape}")  # noqa: T201
-print(f"Number of highpass bands: {len(highpass_bands)}")  # noqa: T201
+print(f"Input shape: {zone_plate.shape}")
+print(f"Number of subband groups: {len(coefficients)}")
+print(f"Lowpass shape: {lowpass.shape}")
+print(f"Number of highpass bands: {len(highpass_bands)}")
 for i, band in enumerate(highpass_bands):
-    print(f"Highpass band {i} shape: {band.shape}")  # noqa: T201
+    print(f"Highpass band {i} shape: {band.shape}")
 
 # %%
 # Input Image
@@ -189,11 +189,11 @@ lowpass_energy = np.sum(np.abs(lowpass) ** 2)
 highpass_energies = [np.sum(np.abs(band) ** 2) for band in highpass_bands]
 total_energy = lowpass_energy + sum(highpass_energies)
 
-print("\nEnergy Distribution:")  # noqa: T201
-print(f"Lowpass: {lowpass_energy:.2e} ({100 * lowpass_energy / total_energy:.1f}%)")  # noqa: T201
+print("\nEnergy Distribution:")
+print(f"Lowpass: {lowpass_energy:.2e} ({100 * lowpass_energy / total_energy:.1f}%)")
 for i, energy in enumerate(highpass_energies):
-    print(f"Highpass {i}: {energy:.2e} ({100 * energy / total_energy:.1f}%)")  # noqa: T201
-print(f"Total: {total_energy:.2e}")  # noqa: T201
+    print(f"Highpass {i}: {energy:.2e} ({100 * energy / total_energy:.1f}%)")
+print(f"Total: {total_energy:.2e}")
 
 # %%
 # Reconstruction
@@ -234,7 +234,7 @@ cb.ax.yaxis.set_major_formatter(fmt)
 despine(ax)
 ax.set(title=f"Reconstruction Error (max = {error_max:.2e})")
 
-print("\nReconstruction Quality:")  # noqa: T201
-print(f"Max absolute error: {error_max:.2e}")  # noqa: T201
-print(f"Relative error: {error_max / np.abs(zone_plate).max():.2e}")  # noqa: T201
-print(f"RMSE: {np.sqrt(np.mean(error**2)):.2e}")  # noqa: T201
+print("\nReconstruction Quality:")
+print(f"Max absolute error: {error_max:.2e}")
+print(f"Relative error: {error_max / np.abs(zone_plate).max():.2e}")
+print(f"RMSE: {np.sqrt(np.mean(error**2)):.2e}")
