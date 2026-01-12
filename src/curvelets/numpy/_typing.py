@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from typing import TYPE_CHECKING
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias, TypeVar
@@ -11,17 +12,18 @@ else:
 import numpy as np
 import numpy.typing as npt
 
+if TYPE_CHECKING:
+    from ._sparse_window import SparseWindow
+
 # TypeVars for numpy array dtypes
 # F: Real floating point types
 F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
 
 if sys.version_info < (3, 10):
-    from typing import List, Tuple, Union  # noqa: UP035
+    from typing import List, Union  # noqa: UP035
 
     UDCTCoefficients: TypeAlias = List[List[List[npt.NDArray[np.complexfloating]]]]  # noqa: UP006
-    UDCTWindows: TypeAlias = List[  # noqa: UP006
-        List[List[Tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]  # noqa: UP006
-    ]
+    UDCTWindows: TypeAlias = List[List[List["SparseWindow"]]]  # noqa: UP006
     # MUDCTCoefficients: variable-length list structure
     # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
     # where scalar is complex, all riesz components are real
@@ -32,9 +34,7 @@ else:
     from typing import Union
 
     UDCTCoefficients: TypeAlias = list[list[list[npt.NDArray[np.complexfloating]]]]
-    UDCTWindows: TypeAlias = list[
-        list[list[tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]]]
-    ]
+    UDCTWindows: TypeAlias = list[list[list["SparseWindow"]]]
     # MUDCTCoefficients: variable-length list structure
     # Each coefficient is: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
     # where scalar is complex, all riesz components are real
@@ -56,6 +56,7 @@ FloatingNDArray: TypeAlias = npt.NDArray[np.floating]
 IntegerNDArray: TypeAlias = npt.NDArray[np.int_]
 IntpNDArray: TypeAlias = npt.NDArray[np.intp]
 BoolNDArray: TypeAlias = npt.NDArray[np.bool_]
+
 
 # Note: UDCTCoefficients is always complex dtype (even in "real" transform mode)
 # For generic usage, use list[list[list[npt.NDArray[C]]]] directly in function signatures

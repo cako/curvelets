@@ -140,7 +140,8 @@ plt.tight_layout()
 
 # Get the low-frequency window to understand the frequency support
 window = transform.windows[0][0][0]
-idx, val = window
+idx = window.indices
+val = window.values
 
 # Create frequency-domain representation
 frequency_band: np.ndarray = np.zeros(shape, dtype=np.complex128)
