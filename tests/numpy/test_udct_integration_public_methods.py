@@ -45,18 +45,17 @@ class TestMonogenicVectStruct:
         # Verify vector is 1D
         assert vec.ndim == 1
 
-        # Verify vector dtype is complex
-        assert np.iscomplexobj(vec)
+        # Verify vector dtype is real (monogenic coefficients are real arrays)
+        assert not np.iscomplexobj(vec)
 
         # Verify vector length matches sum of all coefficient sizes
-        # For monogenic, each wedge has ndim+1 components
+        # For monogenic, each wedge is an array with shape (*wedge_shape, ndim+2)
         total_size = 0
         for scale_coeffs in coeffs:
             for direction_coeffs in scale_coeffs:
                 for wedge_coeffs in direction_coeffs:
-                    # wedge_coeffs is a list of ndim+1 arrays
-                    for component in wedge_coeffs:
-                        total_size += component.size
+                    # wedge_coeffs is an array with shape (*wedge_shape, ndim+2)
+                    total_size += wedge_coeffs.size
 
         assert vec.size == total_size
 
@@ -105,19 +104,16 @@ class TestMonogenicVectStruct:
                     orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
                     recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
 
-                    # For monogenic, each wedge is a list of ndim+1 components
-                    assert isinstance(orig_wedge, list)
-                    assert isinstance(recon_wedge, list)
-                    assert len(recon_wedge) == len(orig_wedge)
-                    assert len(recon_wedge) == 3  # ndim+1 = 2+1 = 3
+                    # For monogenic, each wedge is an array with shape (*wedge_shape, ndim+2)
+                    assert isinstance(orig_wedge, np.ndarray)
+                    assert isinstance(recon_wedge, np.ndarray)
+                    assert recon_wedge.shape == orig_wedge.shape
+                    # Verify number of channels: ndim+2 (scalar.real, scalar.imag, riesz_1, ..., riesz_ndim)
+                    assert recon_wedge.shape[-1] == transform.parameters.ndim + 2
+                    assert recon_wedge.shape[-1] == 4  # ndim+2 = 2+2 = 4 for 2D
 
-                    # Verify each component matches
-                    for comp_idx in range(len(orig_wedge)):
-                        orig_comp = orig_wedge[comp_idx]
-                        recon_comp = recon_wedge[comp_idx]
-                        assert isinstance(recon_comp, np.ndarray)
-                        assert recon_comp.shape == orig_comp.shape
-                        np.testing.assert_array_equal(recon_comp, orig_comp)
+                    # Verify all values match
+                    np.testing.assert_array_equal(recon_wedge, orig_wedge)
 
     def test_vect_struct_round_trip_monogenic(self, rng):
         """
@@ -153,10 +149,12 @@ class TestMonogenicVectStruct:
                     orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
                     recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
 
-                    for comp_idx in range(len(orig_wedge)):
-                        orig_comp = orig_wedge[comp_idx]
-                        recon_comp = recon_wedge[comp_idx]
-                        np.testing.assert_array_equal(recon_comp, orig_comp)
+                    # For monogenic, each wedge is an array with shape (*wedge_shape, ndim+2)
+                    assert isinstance(orig_wedge, np.ndarray)
+                    assert isinstance(recon_wedge, np.ndarray)
+                    assert recon_wedge.shape == orig_wedge.shape
+                    # Verify all values match
+                    np.testing.assert_array_equal(recon_wedge, orig_wedge)
 
     @pytest.mark.parametrize("dim", [2, 3, 4])
     def test_vect_struct_monogenic_multidim(self, rng, dim):
@@ -197,14 +195,15 @@ class TestMonogenicVectStruct:
                     orig_wedge = coeffs_orig[scale_idx][direction_idx][wedge_idx]
                     recon_wedge = coeffs_recon[scale_idx][direction_idx][wedge_idx]
 
-                    # For monogenic, each wedge has ndim+1 components
-                    assert len(recon_wedge) == len(orig_wedge)
-                    assert len(recon_wedge) == dim + 1
+                    # For monogenic, each wedge is an array with shape (*wedge_shape, ndim+2)
+                    assert isinstance(orig_wedge, np.ndarray)
+                    assert isinstance(recon_wedge, np.ndarray)
+                    assert recon_wedge.shape == orig_wedge.shape
+                    # Verify number of channels: ndim+2 (scalar.real, scalar.imag, riesz_1, ..., riesz_ndim)
+                    assert recon_wedge.shape[-1] == dim + 2
 
-                    for comp_idx in range(len(orig_wedge)):
-                        orig_comp = orig_wedge[comp_idx]
-                        recon_comp = recon_wedge[comp_idx]
-                        np.testing.assert_array_equal(recon_comp, orig_comp)
+                    # Verify all values match
+                    np.testing.assert_array_equal(recon_wedge, orig_wedge)
 
 
 class TestComplexEdgeCases:
