@@ -274,6 +274,7 @@ plt.tight_layout()
 # Standard UDCT round-trip
 coeffs_standard = transform.forward(test_image)
 recon_standard = transform.backward(coeffs_standard)
+assert isinstance(recon_standard, np.ndarray)  # Type narrowing
 
 # Also try: what if we just use the scalar coefficients from monogenic
 # and apply standard backward transform logic?
@@ -288,6 +289,7 @@ scalar_coeffs_only = [
 
 # Apply standard backward to scalar-only coefficients
 recon_from_scalar = transform.backward(scalar_coeffs_only)
+assert isinstance(recon_from_scalar, np.ndarray)  # Type narrowing for mypy
 
 fig, axs = plt.subplots(1, 4, figsize=(16, 4))
 

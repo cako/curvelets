@@ -143,7 +143,7 @@ window = transform.windows[0][0][0]
 idx, val = window
 
 # Create frequency-domain representation
-frequency_band = np.zeros(shape, dtype=np.complex128)
+frequency_band: np.ndarray = np.zeros(shape, dtype=np.complex128)
 frequency_band.flat[idx] = val
 
 # Apply Riesz filters in frequency domain

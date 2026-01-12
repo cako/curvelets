@@ -119,7 +119,7 @@ def extract_numpy_window_dense(
     (4,)
     """
     idx, val = from_sparse_new(window_sparse)
-    win_dense = np.zeros(size, dtype=val.dtype)
+    win_dense: np.ndarray = np.zeros(size, dtype=val.dtype)
     win_dense.flat[idx] = val
     return win_dense
 

@@ -47,10 +47,12 @@ def color_windows(
 ):
     wins = C.windows
 
-    def create_mask(wedge: np.ndarray) -> np.ndarray:
-        wedge = C._from_sparse(wedge)
-        wedge = fftshift(wedge)
-        return wedge >= thresh
+    def create_mask(
+        wedge: tuple[np.ndarray, np.ndarray],
+    ) -> np.ndarray:
+        wedge_dense = C._from_sparse(wedge)
+        wedge_dense = fftshift(wedge_dense)
+        return wedge_dense >= thresh  # type: ignore[no-any-return]
 
     def assign_rgba_to_mask(
         mask_index: np.ndarray, mask_target: np.ndarray, rgb_a: tuple[int, ...]

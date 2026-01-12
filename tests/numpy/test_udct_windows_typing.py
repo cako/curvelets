@@ -210,13 +210,13 @@ def test_complex_dtype_promotion_numpy2_compatible() -> None:
 
     # Verify the pattern works with actual arrays
     arr32 = np.array([1.0], dtype=np.float32)
-    result32 = np.zeros(
+    result32: np.ndarray = np.zeros(
         (10,), dtype=np.complex64 if arr32.dtype == np.float32 else np.complex128
     )
     assert result32.dtype == np.complex64
 
     arr64 = np.array([1.0], dtype=np.float64)
-    result64 = np.zeros(
+    result64: np.ndarray = np.zeros(
         (10,), dtype=np.complex64 if arr64.dtype == np.float32 else np.complex128
     )
     assert result64.dtype == np.complex128
