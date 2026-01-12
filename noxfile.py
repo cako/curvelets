@@ -104,13 +104,7 @@ def build_api_docs(session: nox.Session) -> None:
     session.install("sphinx")
     session.chdir("docs")
     session.run(
-        "sphinx-apidoc",
-        "-o",
-        "api/",
-        "--module-first",
-        "--no-toc",
-        "--force",
-        "../src/curvelets",
+        "sphinx-apidoc", "-o", "api/", "--module-first", "--force", "../src/curvelets"
     )
 
 
