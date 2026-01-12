@@ -16,12 +16,13 @@ import sys
 
 if sys.version_info >= (3, 10):
     from typing import TypeAlias, TypeVar
+
+    from typing_extensions import TypeAliasType
 else:
-    from typing_extensions import TypeAlias, TypeVar
+    from typing_extensions import TypeAlias, TypeAliasType, TypeVar
 
 import numpy as np
 import numpy.typing as npt
-from typing_extensions import TypeAliasType
 
 __all__ = [
     "UDCTCoefficients",
