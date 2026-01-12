@@ -141,9 +141,9 @@ axs[3].set(title=f"Difference\nmax={vmax_diff:.4f}")
 plt.tight_layout()
 
 # Print statistics
-print("Scalar component comparison:")  # noqa: T201
-print(f"  Max diff (f vs scalar_round): {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(  # noqa: T201
+print("Scalar component comparison:")
+print(f"  Max diff (f vs scalar_round): {np.abs(test_image - scalar_round).max():.6e}")
+print(
     f"  Ratio (scalar_round / f) at center: {scalar_round[128, 128] / test_image[128, 128]:.4f}"
 )
 
@@ -182,8 +182,8 @@ axs[2].set(title=f"Difference\nmax={vmax_diff:.4f}")
 plt.tight_layout()
 
 # Print statistics
-print("\nRiesz_1 component comparison:")  # noqa: T201
-print(f"  Max diff: {np.abs(riesz1_direct - riesz1_round).max():.6e}")  # noqa: T201
+print("\nRiesz_1 component comparison:")
+print(f"  Max diff: {np.abs(riesz1_direct - riesz1_round).max():.6e}")
 
 # %%
 # -R₂f vs riesz2
@@ -220,8 +220,8 @@ axs[2].set(title=f"Difference\nmax={vmax_diff:.4f}")
 plt.tight_layout()
 
 # Print statistics
-print("\nRiesz_2 component comparison:")  # noqa: T201
-print(f"  Max diff: {np.abs(riesz2_direct - riesz2_round).max():.6e}")  # noqa: T201
+print("\nRiesz_2 component comparison:")
+print(f"  Max diff: {np.abs(riesz2_direct - riesz2_round).max():.6e}")
 
 # %%
 # Frequency Domain Analysis
@@ -323,10 +323,10 @@ axs[3].set(title=f"backward()[0] (monogenic)\nmax diff={diff_mono:.2e}")
 
 plt.tight_layout()
 
-print("\nScalar reconstruction comparison:")  # noqa: T201
-print(f"  Standard backward:          max diff = {diff_std:.6e}")  # noqa: T201
-print(f"  backward(c₀ only):          max diff = {diff_scalar_only:.6e}")  # noqa: T201
-print(f"  backward()[0] (monogenic):  max diff = {diff_mono:.6e}")  # noqa: T201
+print("\nScalar reconstruction comparison:")
+print(f"  Standard backward:          max diff = {diff_std:.6e}")
+print(f"  backward(c₀ only):          max diff = {diff_scalar_only:.6e}")
+print(f"  backward()[0] (monogenic):  max diff = {diff_mono:.6e}")
 
 # %%
 # Cross-term Analysis
@@ -346,12 +346,12 @@ c0 = coeffs[scale_idx][dir_idx][wedge_idx][0]
 c1 = coeffs[scale_idx][dir_idx][wedge_idx][1]
 c2 = coeffs[scale_idx][dir_idx][wedge_idx][2]
 
-print(  # noqa: T201
+print(
     f"\nCoefficient magnitudes for scale={scale_idx}, dir={dir_idx}, wedge={wedge_idx}:"
 )
-print(f"  |c₀| (scalar):  max={np.abs(c0).max():.6e}, mean={np.abs(c0).mean():.6e}")  # noqa: T201
-print(f"  |c₁| (riesz1):  max={np.abs(c1).max():.6e}, mean={np.abs(c1).mean():.6e}")  # noqa: T201
-print(f"  |c₂| (riesz2):  max={np.abs(c2).max():.6e}, mean={np.abs(c2).mean():.6e}")  # noqa: T201
+print(f"  |c₀| (scalar):  max={np.abs(c0).max():.6e}, mean={np.abs(c0).mean():.6e}")
+print(f"  |c₁| (riesz1):  max={np.abs(c1).max():.6e}, mean={np.abs(c1).mean():.6e}")
+print(f"  |c₂| (riesz2):  max={np.abs(c2).max():.6e}, mean={np.abs(c2).mean():.6e}")
 
 # The cross-terms c₁·(W·R₁) and c₂·(W·R₂) contribute to the scalar reconstruction
 # through quaternion multiplication. When the Riesz coefficients c₁ and c₂ are
@@ -363,14 +363,14 @@ print(f"  |c₂| (riesz2):  max={np.abs(c2).max():.6e}, mean={np.abs(c2).mean():
 # Summary Statistics
 # ##########################
 
-print("\n" + "=" * 60)  # noqa: T201
-print("SUMMARY: Component-by-Component Comparison")  # noqa: T201
-print("=" * 60)  # noqa: T201
-print(f"Scalar:  max|f - scalar_round| = {np.abs(test_image - scalar_round).max():.6e}")  # noqa: T201
-print(  # noqa: T201
+print("\n" + "=" * 60)
+print("SUMMARY: Component-by-Component Comparison")
+print("=" * 60)
+print(f"Scalar:  max|f - scalar_round| = {np.abs(test_image - scalar_round).max():.6e}")
+print(
     f"Riesz1:  max|-R₁f - riesz1_round| = {np.abs(riesz1_direct - riesz1_round).max():.6e}"
 )
-print(  # noqa: T201
+print(
     f"Riesz2:  max|-R₂f - riesz2_round| = {np.abs(riesz2_direct - riesz2_round).max():.6e}"
 )
-print("=" * 60)  # noqa: T201
+print("=" * 60)
