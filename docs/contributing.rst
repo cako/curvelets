@@ -3,15 +3,22 @@
 Contributing
 ############
 
+.. _gh-discussions: https://github.com/cako/curvelets/discussions
+.. _gh-discussions-feature-requests: https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas
+.. _gh-discussions-bug-reports: https://github.com/cako/curvelets/discussions/new?category=report-issues
+.. _gh-issues: https://github.com/cako/curvelets/issues
+.. _numfocus-coc: https://numfocus.org/code-of-conduct
+.. _conventional-commits: https://www.conventionalcommits.org/en/v1.0.0/#summary
+
 We love contributions! Please see the following sections for more information on how to contribute.
 
 The best way to get in touch with the core developers and maintainers is to
 open a new
-`GitHub Discussion <https://github.com/cako/curvelets/discussions>`_.
+`GitHub Discussion <gh-discussions_>`_.
 
-Please do not open new *Issues* directly, open a `GitHub Discussion for feature requests <https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas>`_ instead.
+Please do not open new Issues directly, open a `GitHub Discussion for feature requests <gh-discussions-feature-requests_>`_ or `for bug reports <gh-discussions-bug-reports_>`_.
 
-Before you read on, please read the `NUMFOCUS Code of Conduct <https://numfocus.org/code-of-conduct>`_.
+Before you read on, please read the `NUMFOCUS Code of Conduct <numfocus-coc_>`_.
 We expect all contributors to adhere to this code of conduct.
 
 Welcomed contributions
@@ -31,7 +38,7 @@ If you find a bug, please report it including:
 New features
 ============
 
-Have a new idea? Would like to propose a new feature? Open a new `GitHub Discussion for new features <https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas>`_.
+Have a new idea? Would like to propose a new feature? Open a new `GitHub Discussion for new features <gh-discussions-feature-requests_>`_.
 
 If you are proposing a new feature, please explain in detail how it should work.
 Keep the scope as narrow as possible, to make it easier to implement.
@@ -115,7 +122,7 @@ Ready to contribute?
       git commit -m "Your detailed description of your changes."
       git push -u origin name-of-your-branch
 
-   We recommend using `Conventional Commits <https://www.conventionalcommits.org/en/v1.0.0/#summary>`_
+   We recommend using `Conventional Commits <conventional-commits_>`_
    to format your commit messages, but this is not enforced.
 
 7. **Submit a pull request**
