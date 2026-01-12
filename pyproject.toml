@@ -137,6 +137,26 @@ module = ["sklearn.*"]
 ignore_missing_imports = true
 
 
+[tool.ty.environment]
+python-version = "3.9"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.rules]
+# Start with warnings to not break CI during migration
+unused-ignore-comment = "warn"
+
+[[tool.ty.overrides]]
+include = ["examples/**"]
+
+[tool.ty.overrides.rules]
+# Relax matplotlib/sklearn type issues in examples
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+unresolved-attribute = "ignore"
+
+
 [tool.ruff]
 src = ["src"]
 target-version = "py39"
