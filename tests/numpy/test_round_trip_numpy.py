@@ -286,6 +286,7 @@ def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
     )
 
     # Verify reconstruction accuracy
+    assert isinstance(recon, np.ndarray)  # Type narrowing
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon.real, atol=atol)
 
@@ -478,6 +479,7 @@ def test_backward_complex_decimation_ratio_single(dim, rng):
     recon = transform.backward(coeffs)
 
     # Verify reconstruction accuracy
+    assert isinstance(recon, np.ndarray)  # Type narrowing for mypy
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon.real, atol=atol)
 
@@ -542,5 +544,6 @@ def test_backward_complex_decimation_ratio_multi(dim, rng):
     recon = transform.backward(coeffs)
 
     # Verify reconstruction accuracy
+    assert isinstance(recon, np.ndarray)  # Type narrowing for mypy
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon.real, atol=atol)

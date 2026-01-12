@@ -45,7 +45,7 @@ class TestFromSparseMethod:
         np.testing.assert_array_equal(dense_window.flat[idx], val)
 
         # Verify that zero positions are actually zero
-        mask = np.ones(transform.parameters.shape, dtype=bool)
+        mask: np.ndarray = np.ones(transform.parameters.shape, dtype=bool)
         mask.flat[idx] = False
         assert np.all(dense_window[mask] == 0)
 

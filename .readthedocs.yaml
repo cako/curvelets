@@ -13,9 +13,9 @@ build:
     create_environment:
       - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
-      - uv pip install -e .
-      - uv pip install -r docs/requirements.txt
-      - uv pip install --group docs
+      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" -e .
+      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" -r docs/requirements.txt
+      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" --group docs
 
 sphinx:
   configuration: docs/conf.py

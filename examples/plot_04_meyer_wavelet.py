@@ -185,8 +185,8 @@ fig.tight_layout()
 # Energy Distribution
 # ###################
 
-lowpass_energy = np.sum(np.abs(lowpass) ** 2)
-highpass_energies = [np.sum(np.abs(band) ** 2) for band in highpass_bands]
+lowpass_energy: float = np.sum(np.abs(lowpass) ** 2)
+highpass_energies: list[float] = [np.sum(np.abs(band) ** 2) for band in highpass_bands]
 total_energy = lowpass_energy + sum(highpass_energies)
 
 print("\nEnergy Distribution:")

@@ -251,7 +251,7 @@ fig.tight_layout()
 
 print("\nCurvelet Scale 1 Statistics:")
 for (idir, iwedge), coeff in zip(curvelet_coeff_info, curvelet_coeffs_scale1):
-    energy = np.sum(np.abs(coeff) ** 2)
+    energy: float = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()
     print(f"  Dir {idir} Wedge {iwedge}: Energy={energy:.2e}, Max={max_val:.2e}")
 

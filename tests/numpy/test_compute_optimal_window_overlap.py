@@ -139,7 +139,7 @@ class TestAutoWindowOverlapIntegration:
         data = rng.standard_normal((64, 64))
         coeffs = transform.forward(data)
         recon = transform.backward(coeffs)
-        error = np.max(np.abs(data - recon))
+        error: float = np.max(np.abs(data - recon))
         assert error < 1e-3, f"Reconstruction error too high: {error}"
 
     def test_auto_overlap_with_angular_config(self, rng):
@@ -162,7 +162,7 @@ class TestAutoWindowOverlapIntegration:
         data = rng.standard_normal((64, 64))
         coeffs = transform.forward(data)
         recon = transform.backward(coeffs)
-        error = np.max(np.abs(data - recon))
+        error: float = np.max(np.abs(data - recon))
         assert error < 1e-3, f"Reconstruction error too high: {error}"
 
     def test_explicit_overlap_overrides_auto(self):
@@ -194,7 +194,7 @@ class TestAutoWindowOverlapIntegration:
             data = rng.standard_normal((64, 64))
             coeffs = transform.forward(data)
             recon = transform.backward(coeffs)
-            error = np.max(np.abs(data - recon))
+            error: float = np.max(np.abs(data - recon))
 
             # Error threshold depends on wpd
             threshold = 0.1 if wpd <= 6 else 0.15
