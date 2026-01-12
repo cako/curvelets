@@ -12,8 +12,8 @@ from typing import Union
 import numpy as np
 import torch
 
-from ._typing import UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
+from .typing import UDCTWindows
 
 
 class UDCTWindow:

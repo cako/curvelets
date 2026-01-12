@@ -8,8 +8,8 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-from curvelets.numpy._typing import UDCTCoefficients
 from curvelets.numpy._utils import from_sparse_new
+from curvelets.numpy.typing import UDCTCoefficients
 
 # Common test parameters
 COMMON_ALPHA = 0.15

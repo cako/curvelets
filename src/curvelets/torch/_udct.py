@@ -17,9 +17,9 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
+from .typing import UDCTCoefficients, UDCTWindows
 
 
 class UDCT:

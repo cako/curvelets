@@ -5,21 +5,21 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import (
-    F,
-    IntegerNDArray,
-    IntpNDArray,
+from ._utils import ParamUDCT, upsample
+from .typing import (
+    _F,
     UDCTCoefficients,
     UDCTWindows,
+    _IntegerNDArray,
+    _IntpNDArray,
     _to_complex_dtype,
 )
-from ._utils import ParamUDCT, upsample
 
 
 def _process_wedge_backward_monogenic(
     coefficients: npt.NDArray[np.floating],
-    window: tuple[IntpNDArray, npt.NDArray[np.floating]],
-    decimation_ratio: IntegerNDArray,
+    window: tuple[_IntpNDArray, npt.NDArray[np.floating]],
+    decimation_ratio: _IntegerNDArray,
     complex_dtype: npt.DTypeLike,
 ) -> list[npt.NDArray[np.complexfloating]]:
     """
@@ -41,9 +41,9 @@ def _process_wedge_backward_monogenic(
         - Channel 1: scalar.imag
         - Channels 2..ndim+1: Riesz components
         Complex scalar is reconstructed via .view(complex_dtype) on channels 0:2.
-    window : tuple[IntpNDArray, npt.NDArray[np.floating]]
+    window : tuple[_IntpNDArray, npt.NDArray[np.floating]]
         Sparse window representation as (indices, values) tuple.
-    decimation_ratio : IntegerNDArray
+    decimation_ratio : _IntegerNDArray
         Decimation ratio for this wedge.
     complex_dtype : npt.DTypeLike
         Complex dtype for output.
@@ -105,11 +105,11 @@ def _process_wedge_backward_monogenic(
 
 
 def _apply_backward_transform_monogenic(
-    coefficients: UDCTCoefficients[F],
+    coefficients: UDCTCoefficients[_F],
     parameters: ParamUDCT,
-    windows: UDCTWindows[F],
-    decimation_ratios: list[IntegerNDArray],
-) -> tuple[npt.NDArray[F], ...]:
+    windows: UDCTWindows[_F],
+    decimation_ratios: list[_IntegerNDArray],
+) -> tuple[npt.NDArray[_F], ...]:
     """
     Apply backward monogenic curvelet transform.
 
@@ -140,12 +140,12 @@ def _apply_backward_transform_monogenic(
         UDCT parameters.
     windows : UDCTWindows[np.floating]
         Curvelet windows in sparse format.
-    decimation_ratios : list[IntegerNDArray]
+    decimation_ratios : list[_IntegerNDArray]
         Decimation ratios for each scale and direction.
 
     Returns
     -------
-    tuple[npt.NDArray[F], ...]
+    tuple[npt.NDArray[_F], ...]
         Reconstructed components: (scalar, riesz1, riesz2, ..., riesz_ndim)
         - scalar: Original input :math:`f`
         - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
@@ -284,12 +284,12 @@ def _apply_backward_transform_monogenic(
 
     # Transform back to spatial domain and take real part
     results = []
-    scalar: npt.NDArray[F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
+    scalar: npt.NDArray[_F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
     results.append(scalar)
 
     # Negate Riesz components: forward computes Rₖf, we want -Rₖf
     for comp_idx in range(1, num_components):
-        riesz_k: npt.NDArray[F] = -np.fft.ifftn(
+        riesz_k: npt.NDArray[_F] = -np.fft.ifftn(
             image_frequencies[comp_idx]
         ).real.astype(real_dtype)
         results.append(riesz_k)

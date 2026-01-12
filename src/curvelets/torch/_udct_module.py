@@ -11,8 +11,8 @@ import torch
 from torch import nn
 from typing_extensions import Self
 
-from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
+from .typing import UDCTCoefficients, UDCTWindows
 
 
 class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: disable=abstract-method

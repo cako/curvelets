@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import C, F
 from ._utils import circular_shift, meyer_window
+from .typing import _C, _F
 
 
 class MeyerWavelet:
@@ -376,8 +376,8 @@ class MeyerWavelet:
         return np.swapaxes(reconstructed_signal, axis_index, last_axis_index)
 
     def forward(
-        self, signal: npt.NDArray[F] | npt.NDArray[C]
-    ) -> list[list[npt.NDArray[F] | npt.NDArray[C]]]:
+        self, signal: npt.NDArray[_F] | npt.NDArray[_C]
+    ) -> list[list[npt.NDArray[_F] | npt.NDArray[_C]]]:
         """
         Apply multi-dimensional Meyer wavelet forward transform.
 
@@ -387,13 +387,13 @@ class MeyerWavelet:
 
         Parameters
         ----------
-        signal : ``npt.NDArray[F]`` | ``npt.NDArray[C]``
+        signal : ``npt.NDArray[_F]`` | ``npt.NDArray[_C]``
             Input array (real or complex). Must match the shape specified
             during initialization.
 
         Returns
         -------
-        list[list[``npt.NDArray[F]`` | ``npt.NDArray[C]``]]
+        list[list[``npt.NDArray[_F]`` | ``npt.NDArray[_C]``]]
             All subbands organized into 2 subband groups:
 
             - coefficients[0]: [lowpass] - single lowpass subband (1 subband)
@@ -446,8 +446,8 @@ class MeyerWavelet:
         return [[current_bands[0]], current_bands[1:]]
 
     def backward(
-        self, coefficients: list[list[npt.NDArray[F] | npt.NDArray[C]]]
-    ) -> npt.NDArray[F] | npt.NDArray[C]:
+        self, coefficients: list[list[npt.NDArray[_F] | npt.NDArray[_C]]]
+    ) -> npt.NDArray[_F] | npt.NDArray[_C]:
         """
         Apply multi-dimensional Meyer wavelet inverse transform.
 
@@ -456,7 +456,7 @@ class MeyerWavelet:
 
         Parameters
         ----------
-        coefficients : list[list[``npt.NDArray[F]`` | ``npt.NDArray[C]``]]
+        coefficients : list[list[``npt.NDArray[_F]`` | ``npt.NDArray[_C]``]]
             Full coefficient structure from forward() with 2 subband groups:
 
             - coefficients[0]: [lowpass] - single lowpass subband
@@ -465,7 +465,7 @@ class MeyerWavelet:
 
         Returns
         -------
-        ``npt.NDArray[F]`` | ``npt.NDArray[C]``
+        ``npt.NDArray[_F]`` | ``npt.NDArray[_C]``
             Reconstructed signal with shape matching the original input.
 
         Raises
@@ -493,7 +493,7 @@ class MeyerWavelet:
 
         # Extract lowpass and highpass bands
         lowpass_subband = coefficients[0][0]
-        highpass_bands: list[npt.NDArray[F] | npt.NDArray[C]] = coefficients[1]
+        highpass_bands: list[npt.NDArray[_F] | npt.NDArray[_C]] = coefficients[1]
 
         # Combine lowpass with highpass bands
         all_bands = [lowpass_subband, *highpass_bands]

@@ -6,8 +6,15 @@ import numpy as np
 import numpy.typing as npt
 
 from ._riesz import riesz_filters
-from ._typing import C, F, IntegerNDArray, IntpNDArray, UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, downsample, flip_fft_all_axes
+from .typing import (
+    _C,
+    _F,
+    UDCTCoefficients,
+    UDCTWindows,
+    _IntegerNDArray,
+    _IntpNDArray,
+)
 
 
 def _process_wedge_real(
@@ -143,7 +150,7 @@ def _process_wedge_complex(
 
 
 def _apply_forward_transform_real(
-    image: npt.NDArray[F],
+    image: npt.NDArray[_F],
     parameters: ParamUDCT,
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -157,7 +164,7 @@ def _apply_forward_transform_real(
 
     Parameters
     ----------
-    image : npt.NDArray[F]
+    image : npt.NDArray[_F]
         Input image or volume to decompose. Must have shape matching
         `parameters.shape`. Must be real-valued (floating point dtype).
     parameters : ParamUDCT
@@ -179,7 +186,7 @@ def _apply_forward_transform_real(
 
     Returns
     -------
-    UDCTCoefficients[C]
+    UDCTCoefficients[_C]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -242,7 +249,7 @@ def _apply_forward_transform_real(
 
 
 def _apply_forward_transform_complex(
-    image: npt.NDArray[C],
+    image: npt.NDArray[_C],
     parameters: ParamUDCT,
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -256,7 +263,7 @@ def _apply_forward_transform_complex(
 
     Parameters
     ----------
-    image : npt.NDArray[C]
+    image : npt.NDArray[_C]
         Input image or volume to decompose. Must have shape matching
         `parameters.shape`. Must be complex-valued (complex floating point dtype).
     parameters : ParamUDCT
@@ -278,7 +285,7 @@ def _apply_forward_transform_complex(
 
     Returns
     -------
-    UDCTCoefficients[C]
+    UDCTCoefficients[_C]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -385,8 +392,8 @@ def _apply_forward_transform_complex(
 
 
 def _process_wedge_monogenic(
-    window: tuple[IntpNDArray, npt.NDArray[np.floating]],
-    decimation_ratio: IntegerNDArray,
+    window: tuple[_IntpNDArray, npt.NDArray[np.floating]],
+    decimation_ratio: _IntegerNDArray,
     image_frequency: npt.NDArray[np.complexfloating],
     riesz_filters_list: list[npt.NDArray[np.complexfloating]],
     freq_band: npt.NDArray[np.complexfloating],
@@ -402,12 +409,12 @@ def _process_wedge_monogenic(
 
     Parameters
     ----------
-    window : tuple[IntpNDArray, npt.NDArray[np.floating]]
+    window : tuple[_IntpNDArray, npt.NDArray[np.floating]]
         Sparse window representation as (indices, values) tuple.
-        Uses IntpNDArray type alias from _typing.py.
-    decimation_ratio : IntegerNDArray
+        Uses _IntpNDArray type alias from typing.py.
+    decimation_ratio : _IntegerNDArray
         Decimation ratio for this wedge (1D array with length equal to dimensions).
-        Uses IntegerNDArray type alias from _typing.py.
+        Uses _IntegerNDArray type alias from typing.py.
     image_frequency : npt.NDArray[np.complexfloating]
         Input image in frequency domain (from FFT).
     riesz_filters_list : list[npt.NDArray[np.complexfloating]]
@@ -478,10 +485,10 @@ def _process_wedge_monogenic(
 
 
 def _apply_forward_transform_monogenic(
-    image: npt.NDArray[F],
+    image: npt.NDArray[_F],
     parameters: ParamUDCT,
     windows: UDCTWindows[np.floating],
-    decimation_ratios: list[IntegerNDArray],
+    decimation_ratios: list[_IntegerNDArray],
 ) -> UDCTCoefficients[np.floating]:
     """
     Apply forward monogenic curvelet transform.
@@ -499,10 +506,10 @@ def _apply_forward_transform_monogenic(
 
     Parameters
     ----------
-    image : npt.NDArray[F]
+    image : npt.NDArray[_F]
         Input image or volume to decompose. Must have shape matching
         `parameters.shape`. Must be real-valued (floating point dtype).
-        Uses the F TypeVar from _typing.py (np.float16, np.float32, np.float64, np.longdouble).
+        Uses the F TypeVar from typing.py (np.float16, np.float32, np.float64, np.longdouble).
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int
@@ -515,12 +522,12 @@ def _apply_forward_transform_monogenic(
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
         windows[scale][direction][wedge] = (indices, values) tuple
-        Type alias from _typing.py.
-    decimation_ratios : list[IntegerNDArray]
+        Type alias from typing.py.
+    decimation_ratios : list[_IntegerNDArray]
         Decimation ratios for each scale and direction. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band
         - decimation_ratios[scale]: shape (dim, dim) for scale > 0
-        Uses IntegerNDArray type alias from _typing.py.
+        Uses _IntegerNDArray type alias from typing.py.
 
     Returns
     -------
@@ -546,7 +553,7 @@ def _apply_forward_transform_monogenic(
     Structure mirrors _apply_forward_transform_real() but:
     - Computes Riesz filters once at the start
     - Processes each wedge to produce ndim+2 components stacked along last axis
-    - Uses type aliases from _typing.py for consistency with rest of codebase
+    - Uses type aliases from typing.py for consistency with rest of codebase
 
     Examples
     --------
@@ -674,7 +681,7 @@ def _apply_forward_transform(
 
 
 def _apply_forward_transform(
-    image: npt.NDArray[F] | npt.NDArray[C],
+    image: npt.NDArray[_F] | npt.NDArray[_C],
     parameters: ParamUDCT,
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
@@ -689,10 +696,10 @@ def _apply_forward_transform(
 
     Parameters
     ----------
-    image : npt.NDArray[F] | npt.NDArray[C]
+    image : npt.NDArray[_F] | npt.NDArray[_C]
         Input image or volume to decompose. Must have shape matching
-        `parameters.shape`. Must be either real-valued (npt.NDArray[F]) or
-        complex-valued (npt.NDArray[C]).
+        `parameters.shape`. Must be either real-valued (npt.NDArray[_F]) or
+        complex-valued (npt.NDArray[_C]).
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int
@@ -722,7 +729,7 @@ def _apply_forward_transform(
 
     Returns
     -------
-    UDCTCoefficients[C]
+    UDCTCoefficients[_C]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)

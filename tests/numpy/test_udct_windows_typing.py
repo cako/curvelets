@@ -7,20 +7,20 @@ import typing
 import numpy as np
 import pytest
 
-from curvelets.numpy._typing import (
-    FloatingNDArray,
-    IntegerNDArray,
-    IntpNDArray,
-)
 from curvelets.numpy._udct_windows import UDCTWindow
 from curvelets.numpy._utils import ParamUDCT
+from curvelets.numpy.typing import (
+    _FloatingNDArray,
+    _IntegerNDArray,
+    _IntpNDArray,
+)
 
 
 def test_type_aliases_exist() -> None:
     """Test that all type aliases are properly defined."""
-    assert FloatingNDArray is not None
-    assert IntegerNDArray is not None
-    assert IntpNDArray is not None
+    assert _FloatingNDArray is not None
+    assert _IntegerNDArray is not None
+    assert _IntpNDArray is not None
 
 
 def test_compute_angle_component_type_hints() -> None:
@@ -184,15 +184,15 @@ def test_compute_returns_correct_types() -> None:
 
 def test_type_aliases_work_with_arrays() -> None:
     """Test that type aliases work correctly with actual arrays."""
-    # FloatingNDArray should accept float32 and float64
-    arr32: FloatingNDArray = np.array([1.0, 2.0], dtype=np.float32)
-    arr64: FloatingNDArray = np.array([1.0, 2.0], dtype=np.float64)
+    # _FloatingNDArray should accept float32 and float64
+    arr32: _FloatingNDArray = np.array([1.0, 2.0], dtype=np.float32)
+    arr64: _FloatingNDArray = np.array([1.0, 2.0], dtype=np.float64)
 
     assert arr32.dtype == np.float32
     assert arr64.dtype == np.float64
 
-    # IntegerNDArray should accept int arrays
-    int_arr: IntegerNDArray = np.array([1, 2, 3], dtype=np.int_)
+    # _IntegerNDArray should accept int arrays
+    int_arr: _IntegerNDArray = np.array([1, 2, 3], dtype=np.int_)
     assert int_arr.dtype == np.int_
 
 

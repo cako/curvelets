@@ -10,5 +10,5 @@ __all__ = [
 ]
 
 from ._meyerwavelet import MeyerWavelet
-from ._typing import UDCTCoefficients, UDCTWindows
 from ._udct import UDCT
+from .typing import UDCTCoefficients, UDCTWindows

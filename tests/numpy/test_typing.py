@@ -1,10 +1,10 @@
-"""Simple tests for dtype conversion functions in _typing module."""
+"""Simple tests for dtype conversion functions in typing module."""
 
 from __future__ import annotations
 
 import numpy as np
 
-from curvelets.numpy._typing import _to_complex_dtype, _to_real_dtype
+from curvelets.numpy.typing import _to_complex_dtype, _to_real_dtype
 
 
 def test_to_real_dtype_float32():
@@ -83,14 +83,14 @@ def test_typing_python310_compatibility():
 
     Examples
     --------
-    >>> from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
+    >>> from curvelets.numpy.typing import UDCTCoefficients, UDCTWindows
     >>> # Type aliases should be importable
     >>> assert UDCTCoefficients is not None
     >>> assert UDCTWindows is not None
     """
     import sys
 
-    from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
+    from curvelets.numpy.typing import UDCTCoefficients, UDCTWindows
 
     # Verify type aliases are importable
     assert UDCTCoefficients is not None
@@ -115,14 +115,14 @@ def test_typing_python39_compatibility():
     Examples
     --------
     >>> import sys
-    >>> from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
+    >>> from curvelets.numpy.typing import UDCTCoefficients, UDCTWindows
     >>> # Type aliases should be importable on all Python versions
     >>> assert UDCTCoefficients is not None
     >>> assert UDCTWindows is not None
     """
     import sys
 
-    from curvelets.numpy._typing import UDCTCoefficients, UDCTWindows
+    from curvelets.numpy.typing import UDCTCoefficients, UDCTWindows
 
     # Verify type aliases are importable
     assert UDCTCoefficients is not None
