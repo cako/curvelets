@@ -6,7 +6,7 @@
     curvelet_faqs.rst
     contributing.rst
     auto_examples/index.rst
-    API <api/modules.rst>
+    API <api/modules>
 
 .. image:: montage_all_border.png
   :alt: Four scales of curvelets

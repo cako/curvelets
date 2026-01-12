@@ -9,7 +9,7 @@ The best way to get in touch with the core developers and maintainers is to
 open a new
 `GitHub Discussion <https://github.com/cako/curvelets/discussions>`_.
 
-Please do not open new *Issues* directly, open a `GitHub Discussion <https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas>`_ instead.
+Please do not open new *Issues* directly, open a `GitHub Discussion for feature requests <https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas>`_ instead.
 
 Before you read on, please read the `NUMFOCUS Code of Conduct <https://numfocus.org/code-of-conduct>`_.
 We expect all contributors to adhere to this code of conduct.
@@ -20,7 +20,7 @@ Welcomed contributions
 Bug reports
 ===========
 
-Found a bug? Report it `the appropriate GitHub Discussion <https://github.com/cako/curvelets/discussions/new?category=report-issues>`_.
+Found a bug? Report it `GitHub Discussion for bug reports <https://github.com/cako/curvelets/discussions/new?category=report-issues>`_.
 
 If you find a bug, please report it including:
 
@@ -31,7 +31,7 @@ If you find a bug, please report it including:
 New features
 ============
 
-Have a new idea? Would like to propose a new feature? Open a new `the appropriate GitHub Discussion <https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas>`_.
+Have a new idea? Would like to propose a new feature? Open a new `GitHub Discussion for new features <https://github.com/cako/curvelets/discussions/new?category=feature-requests-and-ideas>`_.
 
 If you are proposing a new feature, please explain in detail how it should work.
 Keep the scope as narrow as possible, to make it easier to implement.
