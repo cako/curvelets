@@ -63,7 +63,7 @@ dorig = sp.datasets.face()
 dorig = dorig / dorig.max()
 
 # Add noise to image
-rng = np.random.default_rng()
+rng = np.random.default_rng(seed=0)
 d = np.clip(dorig + rng.normal(0, 3e-1, dorig.shape), 0, 1)
 
 # %%
