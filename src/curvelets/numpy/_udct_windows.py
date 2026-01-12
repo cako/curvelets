@@ -553,7 +553,7 @@ class UDCTWindow:
 
     @staticmethod
     def _inplace_normalize_windows(
-        windows: UDCTWindows,
+        windows: UDCTWindows[np.floating],
         size: tuple[int, ...],
         dimension: int,
         num_scales: int,
@@ -674,7 +674,7 @@ class UDCTWindow:
 
     @staticmethod
     def _inplace_sort_windows(
-        windows: UDCTWindows,
+        windows: UDCTWindows[np.floating],
         indices: dict[int, dict[int, IntegerNDArray]],
         num_scales: int,
     ) -> None:
@@ -1047,7 +1047,11 @@ class UDCTWindow:
 
     def compute(
         self,
-    ) -> tuple[UDCTWindows, list[IntegerNDArray], dict[int, dict[int, IntegerNDArray]]]:
+    ) -> tuple[
+        UDCTWindows[np.floating],
+        list[IntegerNDArray],
+        dict[int, dict[int, IntegerNDArray]],
+    ]:
         r"""
         Compute curvelet windows in frequency domain for UDCT transform.
 
@@ -1148,7 +1152,7 @@ class UDCTWindow:
         )
 
         # convert to sparse format
-        windows: UDCTWindows = []
+        windows: UDCTWindows[np.floating] = []
         windows.append([])
         windows[0].append([])
         windows[0][0] = [

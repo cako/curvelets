@@ -55,10 +55,7 @@ def test_udct_forward_matches_numpy(ndim):
                 torch_coeff = torch_coeffs[scale_idx][dir_idx][wedge_idx]
                 # Type narrowing: we know this is UDCTCoefficients (Tensor)
                 np.testing.assert_allclose(
-                    np_coeff,
-                    torch_coeff.numpy(),  # type: ignore[union-attr]
-                    atol=1e-5,
-                    rtol=1e-4,
+                    np_coeff, torch_coeff.numpy(), atol=1e-5, rtol=1e-4
                 )
 
 

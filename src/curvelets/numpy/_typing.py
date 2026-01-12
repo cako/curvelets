@@ -11,30 +11,21 @@ import numpy as np
 import numpy.typing as npt
 from typing_extensions import TypeAliasType
 
-# TypeVars for numpy array dtypes
-# F: Real floating point types
-F = TypeVar("F", np.float16, np.float32, np.float64, np.longdouble)
+# TypeVars for numpy array dtypes (using bound per NumPy recommendation)
+# F: Real floating point types (np.floating and all subtypes)
+F = TypeVar("F", bound=np.floating)
 
-# C: Complex floating point types
-# Note: complex256 is available on some platforms but not others (e.g., not on macOS/Apple Silicon)
-# We define C with the common types; complex256 can be used directly when available
-C = TypeVar("C", np.complex64, np.complex128)
+# C: Complex floating point types (np.complexfloating and all subtypes)
+C = TypeVar("C", bound=np.complexfloating)
 
 # T: Any scalar type (real or complex) for generic coefficient type
-T = TypeVar(
-    "T",
-    np.float16,
-    np.float32,
-    np.float64,
-    np.longdouble,
-    np.complex64,
-    np.complex128,
-)
+# np.inexact is the common base class for np.floating and np.complexfloating
+T = TypeVar("T", bound=np.inexact)
 
 # Generic UDCT coefficients parameterized by scalar dtype
 # Usage:
-#   - UDCTCoefficients[np.float64] for monogenic transform (real dtype, ndim+2 channels)
-#   - UDCTCoefficients[np.complex128] for real/complex transforms (complex dtype)
+#   - UDCTCoefficients[np.floating] or UDCTCoefficients[F] for monogenic transform
+#   - UDCTCoefficients[np.complexfloating] or UDCTCoefficients[C] for real/complex transforms
 UDCTCoefficients = TypeAliasType(
     "UDCTCoefficients",
     list[list[list[npt.NDArray[T]]]],
@@ -42,7 +33,7 @@ UDCTCoefficients = TypeAliasType(
 )
 
 # Generic UDCT windows parameterized by real floating dtype (no complex allowed)
-# Usage: UDCTWindows[np.float32], UDCTWindows[np.float64]
+# Usage: UDCTWindows[np.floating], UDCTWindows[np.float32], UDCTWindows[np.float64]
 # Structure: list[list[list[tuple[indices, values]]]] where values are real floats
 UDCTWindows = TypeAliasType(
     "UDCTWindows",
@@ -59,18 +50,6 @@ FloatingNDArray: TypeAlias = npt.NDArray[np.floating]
 IntegerNDArray: TypeAlias = npt.NDArray[np.int_]
 IntpNDArray: TypeAlias = npt.NDArray[np.intp]
 BoolNDArray: TypeAlias = npt.NDArray[np.bool_]
-
-# Coefficient type usage with UDCTCoefficients[T]:
-# - Real/Complex transforms: UDCTCoefficients[C] (complex dtype)
-#   - NDArray[np.float32] input -> UDCTCoefficients[np.complex64]
-#   - NDArray[np.float64] input -> UDCTCoefficients[np.complex128]
-#   - NDArray[np.complex64] input -> UDCTCoefficients[np.complex64]
-#   - NDArray[np.complex128] input -> UDCTCoefficients[np.complex128]
-# - Monogenic transform: UDCTCoefficients[F] (real dtype) with ndim+2 channels
-#   - NDArray[np.float32] input -> UDCTCoefficients[np.float32]
-#   - NDArray[np.float64] input -> UDCTCoefficients[np.float64]
-#   - Channels: [scalar.real, scalar.imag, riesz_1, riesz_2, ..., riesz_ndim]
-#   - Complex scalar reconstructed via .view(complex_dtype) on first 2 channels
 
 
 def _to_real_dtype(dtype: npt.DTypeLike) -> npt.DTypeLike:

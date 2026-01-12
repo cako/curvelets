@@ -145,9 +145,9 @@ def _process_wedge_complex(
 def _apply_forward_transform_real(
     image: npt.NDArray[F],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
+    windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
+) -> UDCTCoefficients[np.complexfloating]:
     """
     Apply forward Uniform Discrete Curvelet Transform in real mode.
 
@@ -179,7 +179,7 @@ def _apply_forward_transform_real(
 
     Returns
     -------
-    list[list[list[npt.NDArray[C]]]]
+    UDCTCoefficients[C]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -244,9 +244,9 @@ def _apply_forward_transform_real(
 def _apply_forward_transform_complex(
     image: npt.NDArray[C],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
+    windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
-) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
+) -> UDCTCoefficients[np.complexfloating]:
     """
     Apply forward Uniform Discrete Curvelet Transform in complex mode.
 
@@ -278,7 +278,7 @@ def _apply_forward_transform_complex(
 
     Returns
     -------
-    list[list[list[npt.NDArray[C]]]]
+    UDCTCoefficients[C]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
@@ -309,7 +309,7 @@ def _apply_forward_transform_complex(
     # Complex transform: keep complex low frequency
     curvelet_band = np.fft.ifftn(frequency_band)
 
-    coefficients: list[list[list[npt.NDArray[np.complexfloating]]]] = [
+    coefficients: UDCTCoefficients[np.complexfloating] = [
         [[downsample(curvelet_band, decimation_ratios[0][0])]]
     ]
     norm = np.sqrt(
@@ -480,9 +480,9 @@ def _process_wedge_monogenic(
 def _apply_forward_transform_monogenic(
     image: npt.NDArray[F],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
+    windows: UDCTWindows[np.floating],
     decimation_ratios: list[IntegerNDArray],
-) -> list[list[list[npt.NDArray[np.floating]]]]:
+) -> UDCTCoefficients[np.floating]:
     """
     Apply forward monogenic curvelet transform.
 
@@ -524,7 +524,7 @@ def _apply_forward_transform_monogenic(
 
     Returns
     -------
-    list[list[list[npt.NDArray[np.floating]]]]
+    UDCTCoefficients[np.floating]
         Monogenic coefficients as nested list structure with arrays of shape
         (*wedge_shape, ndim+2). Same structure as standard UDCT but with extra
         channel dimension. All values are real dtype:
@@ -629,7 +629,7 @@ def _apply_forward_transform_monogenic(
 
     # High-frequency bands using nested list comprehensions
     # Build entire structure with list comprehensions
-    coefficients: list[list[list[npt.NDArray[np.floating]]]] = [
+    coefficients: UDCTCoefficients[np.floating] = [
         [[low_freq_coeff]]  # Scale 0: 1 direction, 1 wedge
     ] + [
         [
@@ -657,29 +657,29 @@ def _apply_forward_transform_monogenic(
 def _apply_forward_transform(
     image: npt.NDArray[np.float32],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
+    windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[False] = False,
-) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+) -> UDCTCoefficients[np.complex64]: ...
 
 
 @overload
 def _apply_forward_transform(
     image: npt.NDArray[np.complex64],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
+    windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[True],
-) -> list[list[list[npt.NDArray[np.complex64]]]]: ...
+) -> UDCTCoefficients[np.complex64]: ...
 
 
 def _apply_forward_transform(
     image: npt.NDArray[F] | npt.NDArray[C],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
+    windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: bool = False,
-) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
+) -> UDCTCoefficients[np.complexfloating]:
     """
     Apply forward Uniform Discrete Curvelet Transform (decomposition).
 
@@ -722,7 +722,7 @@ def _apply_forward_transform(
 
     Returns
     -------
-    list[list[list[npt.NDArray[C]]]]
+    UDCTCoefficients[C]
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)

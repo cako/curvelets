@@ -129,7 +129,7 @@ def _apply_backward_transform_monogenic(
 
     Parameters
     ----------
-    coefficients : list[list[list[npt.NDArray[np.floating]]]]
+    coefficients : UDCTCoefficients[np.floating]
         Monogenic curvelet coefficients from forward_monogenic().
         Each coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
         - Channel 0: scalar.real
@@ -138,7 +138,7 @@ def _apply_backward_transform_monogenic(
         Complex scalar is reconstructed via .view(complex_dtype) on channels 0:2.
     parameters : ParamUDCT
         UDCT parameters.
-    windows : UDCTWindows
+    windows : UDCTWindows[np.floating]
         Curvelet windows in sparse format.
     decimation_ratios : list[IntegerNDArray]
         Decimation ratios for each scale and direction.

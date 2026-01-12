@@ -20,6 +20,7 @@ from ._riesz import riesz_filters
 from ._typing import (
     C,
     F,
+    UDCTCoefficients,
     UDCTWindows,
     _to_complex_dtype,
 )
@@ -434,7 +435,9 @@ class UDCT:
     def _initialize_windows(
         self,
     ) -> tuple[
-        UDCTWindows, list[npt.NDArray[np.int_]], dict[int, dict[int, np.ndarray]]
+        UDCTWindows[np.floating],
+        list[npt.NDArray[np.int_]],
+        dict[int, dict[int, np.ndarray]],
     ]:
         """
         Calculate curvelet windows, decimation ratios, and indices.
@@ -450,8 +453,7 @@ class UDCT:
     def vect(
         self,
         coefficients: (
-            list[list[list[npt.NDArray[np.complexfloating]]]]
-            | list[list[list[npt.NDArray[np.floating]]]]
+            UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]
         ),
     ) -> npt.NDArray[np.complexfloating] | npt.NDArray[np.floating]:
         """
@@ -482,14 +484,14 @@ class UDCT:
         """
         # Dispatch based on transform_kind
         if self.transform_kind == "monogenic":
-            return self._vect_monogenic(coefficients)  # type: ignore[arg-type]
+            return self._vect_monogenic(coefficients)
         if self.transform_kind == "complex":
-            return self._vect_complex(coefficients)  # type: ignore[arg-type]
+            return self._vect_complex(coefficients)
         # real
-        return self._vect_real(coefficients)  # type: ignore[arg-type]
+        return self._vect_real(coefficients)
 
     def _vect_real(
-        self, coefficients: list[list[list[npt.NDArray[C]]]]
+        self, coefficients: UDCTCoefficients[C]
     ) -> npt.NDArray[np.complexfloating]:
         """Private method for real/complex coefficient vectorization (no input validation)."""
         coefficients_vec = []
@@ -500,7 +502,7 @@ class UDCT:
         return np.concatenate(coefficients_vec)
 
     def _vect_complex(
-        self, coefficients: list[list[list[npt.NDArray[C]]]]
+        self, coefficients: UDCTCoefficients[C]
     ) -> npt.NDArray[np.complexfloating]:
         """Private method for complex coefficient vectorization (no input validation)."""
         # Complex transform uses same structure as real
@@ -508,7 +510,7 @@ class UDCT:
 
     def _vect_monogenic(
         self,
-        coefficients: list[list[list[npt.NDArray[np.floating]]]],
+        coefficients: UDCTCoefficients[np.floating],
     ) -> npt.NDArray[np.floating]:
         """Private method for monogenic coefficient vectorization (no input validation)."""
         coefficients_vec = []
@@ -525,10 +527,7 @@ class UDCT:
     def struct(
         self,
         coefficients_vec: npt.NDArray[np.complexfloating] | npt.NDArray[np.floating],
-    ) -> (
-        list[list[list[npt.NDArray[np.complexfloating]]]]
-        | list[list[list[npt.NDArray[np.floating]]]]
-    ):
+    ) -> UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]:
         """
         Convert vector representation to structured coefficients.
 
@@ -558,18 +557,18 @@ class UDCT:
         """
         # Dispatch based on transform_kind
         if self.transform_kind == "monogenic":
-            return self._struct_monogenic(coefficients_vec)  # type: ignore[arg-type]
+            return self._struct_monogenic(coefficients_vec)
         if self.transform_kind == "complex":
-            return self._struct_complex(coefficients_vec)  # type: ignore[arg-type]
+            return self._struct_complex(coefficients_vec)
         # real
-        return self._struct_real(coefficients_vec)  # type: ignore[arg-type]
+        return self._struct_real(coefficients_vec)
 
     def _struct_real(
         self, coefficients_vec: npt.NDArray[np.complexfloating]
-    ) -> list[list[list[npt.NDArray[C]]]]:
+    ) -> UDCTCoefficients[C]:
         """Private method for real coefficient restructuring (no input validation)."""
         begin_idx = 0
-        coefficients: list[list[list[npt.NDArray[C]]]] = []
+        coefficients: UDCTCoefficients[C] = []
         internal_shape = np.array(self.parameters.shape)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             coefficients.append([])
@@ -594,10 +593,10 @@ class UDCT:
 
     def _struct_complex(
         self, coefficients_vec: npt.NDArray[np.complexfloating]
-    ) -> list[list[list[npt.NDArray[C]]]]:
+    ) -> UDCTCoefficients[C]:
         """Private method for complex coefficient restructuring (no input validation)."""
         begin_idx = 0
-        coefficients: list[list[list[npt.NDArray[C]]]] = []
+        coefficients: UDCTCoefficients[C] = []
         internal_shape = np.array(self.parameters.shape)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             coefficients.append([])
@@ -641,10 +640,10 @@ class UDCT:
 
     def _struct_monogenic(
         self, coefficients_vec: npt.NDArray[np.floating]
-    ) -> list[list[list[npt.NDArray[np.floating]]]]:
+    ) -> UDCTCoefficients[np.floating]:
         """Private method for monogenic coefficient restructuring (no input validation)."""
         begin_idx = 0
-        coefficients: list[list[list[npt.NDArray[np.floating]]]] = []
+        coefficients: UDCTCoefficients[np.floating] = []
         internal_shape = np.array(self.parameters.shape)
         # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
         num_channels = self.parameters.ndim + 2
@@ -713,10 +712,7 @@ class UDCT:
 
     def forward(
         self, image: npt.NDArray[F] | npt.NDArray[C]
-    ) -> (
-        list[list[list[npt.NDArray[np.complexfloating]]]]
-        | list[list[list[npt.NDArray[np.floating]]]]
-    ):
+    ) -> UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]:
         """
         Apply forward curvelet transform.
 
@@ -770,16 +766,14 @@ class UDCT:
         # Dispatch to appropriate transform based on transform_kind
         if self.transform_kind == "real":
             return self._forward_real(image)
-        if self.transform_kind == "complex":
-            return self._forward_complex(image)
         if self.transform_kind == "monogenic":
             return self._forward_monogenic(image)
-        msg = f"Invalid transform_kind: {self.transform_kind!r}"
-        raise ValueError(msg)
+        # complex
+        return self._forward_complex(image)
 
     def _forward_real(
         self, image: npt.NDArray[F]
-    ) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
+    ) -> UDCTCoefficients[np.complexfloating]:
         """Private method for real forward transform (no input validation)."""
         return _apply_forward_transform_real(
             image,
@@ -790,7 +784,7 @@ class UDCT:
 
     def _forward_complex(
         self, image: npt.NDArray[F] | npt.NDArray[C]
-    ) -> list[list[list[npt.NDArray[np.complexfloating]]]]:
+    ) -> UDCTCoefficients[np.complexfloating]:
         """Private method for complex forward transform (no input validation)."""
         # Convert real to complex if needed (preserve input dtype: float32 -> complex64, float64 -> complex128)
         if not np.iscomplexobj(image):
@@ -805,7 +799,7 @@ class UDCT:
 
     def _forward_monogenic(
         self, image: npt.NDArray[F]
-    ) -> list[list[list[npt.NDArray[np.floating]]]]:
+    ) -> UDCTCoefficients[np.floating]:
         """Private method for monogenic forward transform (no input validation)."""
         return _apply_forward_transform_monogenic(
             image,
@@ -817,8 +811,7 @@ class UDCT:
     def backward(
         self,
         coefficients: (
-            list[list[list[npt.NDArray[np.complexfloating]]]]
-            | list[list[list[npt.NDArray[np.floating]]]]
+            UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]
         ),
     ) -> Union[np.ndarray, tuple[npt.NDArray[F], ...]]:
         """
@@ -865,17 +858,13 @@ class UDCT:
         """
         # Dispatch to appropriate transform based on transform_kind
         if self.transform_kind == "real":
-            return self._backward_real(coefficients)  # type: ignore[arg-type]
-        if self.transform_kind == "complex":
-            return self._backward_complex(coefficients)  # type: ignore[arg-type]
+            return self._backward_real(coefficients)
         if self.transform_kind == "monogenic":
-            return self._backward_monogenic(coefficients)  # type: ignore[arg-type]
-        msg = f"Invalid transform_kind: {self.transform_kind!r}"
-        raise ValueError(msg)
+            return self._backward_monogenic(coefficients)
+        # complex
+        return self._backward_complex(coefficients)
 
-    def _backward_real(
-        self, coefficients: list[list[list[npt.NDArray[C]]]]
-    ) -> np.ndarray:
+    def _backward_real(self, coefficients: UDCTCoefficients[C]) -> np.ndarray:
         """Private method for real backward transform (no input validation)."""
         return _apply_backward_transform(
             coefficients,
@@ -885,9 +874,7 @@ class UDCT:
             use_complex_transform=False,
         )
 
-    def _backward_complex(
-        self, coefficients: list[list[list[npt.NDArray[C]]]]
-    ) -> np.ndarray:
+    def _backward_complex(self, coefficients: UDCTCoefficients[C]) -> np.ndarray:
         """Private method for complex backward transform (no input validation)."""
         return _apply_backward_transform(
             coefficients,
@@ -899,14 +886,11 @@ class UDCT:
 
     def _backward_monogenic(
         self,
-        coefficients: list[list[list[npt.NDArray[np.floating]]]],
+        coefficients: UDCTCoefficients[np.floating],
     ) -> tuple[npt.NDArray[F], ...]:
         """Private method for monogenic backward transform (no input validation)."""
         return _apply_backward_transform_monogenic(
-            coefficients,
-            self.parameters,
-            self.windows,
-            self.decimation_ratios,
+            coefficients, self.parameters, self.windows, self.decimation_ratios
         )
 
     def monogenic(self, image: npt.NDArray[F]) -> tuple[npt.NDArray[F], ...]:
