@@ -243,7 +243,7 @@ def _apply_backward_transform_real(
         )
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
-    return np.fft.ifftn(image_frequency).real
+    return np.fft.ifftn(image_frequency).real  # type: ignore[no-any-return]
 
 
 def _apply_backward_transform_complex(
@@ -428,7 +428,7 @@ def _apply_backward_transform_complex(
         )
     else:
         image_frequency = 2 * image_frequency + image_frequency_low
-    return np.fft.ifftn(image_frequency)
+    return np.fft.ifftn(image_frequency)  # type: ignore[no-any-return]
 
 
 @overload

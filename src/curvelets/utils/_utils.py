@@ -128,7 +128,7 @@ def array_split_nd(ary: NDArray[D], *args: int) -> list[Any]:
     axis = ary.ndim - len(args)
     split = np.array_split(ary, args[0], axis=axis)
     if len(args) == 1:
-        return split  # type: ignore[no-any-return]
+        return split
     return [array_split_nd(s, *args[1:]) for s in split]
 
 
@@ -188,7 +188,7 @@ def ndargmax(ary: NDArray[D]) -> tuple[np.intp, ...]:
     (1, 1, 1)
 
     """
-    return np.unravel_index(ary.argmax(), ary.shape)  # type: ignore[no-any-return]
+    return np.unravel_index(ary.argmax(), ary.shape)
 
 
 def normal_vector_field(

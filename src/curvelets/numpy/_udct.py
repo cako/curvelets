@@ -4,7 +4,7 @@ from __future__ import annotations
 # Duplicate code with torch implementation is expected
 import logging
 from math import prod
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -749,7 +749,9 @@ class UDCT:
             self.decimation_ratios,
         )
 
-    def backward(self, coefficients: list[list[list[npt.NDArray[C]]]]) -> np.ndarray:
+    def backward(
+        self, coefficients: list[list[list[npt.NDArray[C]]]]
+    ) -> Union[np.ndarray, tuple[npt.NDArray[F], ...]]:
         """
         Apply backward curvelet transform (reconstruction).
 

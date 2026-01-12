@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import sys
 from pathlib import Path
 
@@ -82,12 +83,30 @@ intersphinx_mapping = {
 # sphinx_copybutton
 copybutton_prompt_text = ">>> "
 
+
+def reset_curvelets_modules(gallery_conf, fname):  # noqa: ARG001
+    """Reset all curvelets modules and submodules to disable caching."""
+    # Create a list of keys first to avoid "dictionary changed during iteration" error
+    for name in list(sys.modules):
+        if name.startswith("curvelets"):
+            importlib.reload(sys.modules[name])
+
+
 # sphinx_gallery.gen_gallery
 sphinx_gallery_conf = {
     "examples_dirs": "../examples",  # path to your example scripts
     "gallery_dirs": "auto_examples",  # path to where to save gallery generated output
     "within_subsection_order": "FileNameSortKey",
+    # Note: reset_modules is set in setup() to avoid pickling issues
 }
+
+
+def setup(app):
+    """Configure Sphinx extensions."""
+    # Set reset_modules here to avoid pickling warnings
+    # This function is called after config is loaded but before building
+    app.config.sphinx_gallery_conf["reset_modules"] = (reset_curvelets_modules,)
+
 
 # sphinxcontrib.bibtex
 bibtex_bibfiles = ["references.bib"]

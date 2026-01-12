@@ -1,5 +1,5 @@
-src
-===
+curvelets
+=========
 
 .. toctree::
    :maxdepth: 4

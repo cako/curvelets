@@ -5,8 +5,3 @@ curvelets.torch package
    :members:
    :show-inheritance:
    :undoc-members:
-   :no-index:
-
-.. autoclass:: curvelets.torch.UDCTModule
-   :members:
-   :show-inheritance:

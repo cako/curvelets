@@ -31,6 +31,7 @@ C = UDCT(shape=shape, angular_wedges_config=cfg)
 
 coeffs = C.forward(zone_plate)
 zone_plate_inv = C.backward(coeffs)
+assert isinstance(zone_plate_inv, np.ndarray)  # Type narrowing
 
 # %%
 vmax = np.abs(zone_plate).max()

@@ -157,7 +157,11 @@ class UDCT:
 
     @property
     def shape(self) -> tuple[int, ...]:
-        """Shape of the transform."""
+        """
+        Shape of the transform.
+
+        :no-index:
+        """
         return self._parameters.shape
 
     @property
@@ -172,12 +176,20 @@ class UDCT:
 
     @property
     def windows(self) -> UDCTWindows:
-        """Curvelet windows in sparse format."""
+        """
+        Curvelet windows in sparse format.
+
+        :no-index:
+        """
         return self._windows
 
     @property
     def decimation_ratios(self) -> list[torch.Tensor]:
-        """Decimation ratios for each scale."""
+        """
+        Decimation ratios for each scale.
+
+        :no-index:
+        """
         return self._decimation_ratios
 
     @staticmethod
