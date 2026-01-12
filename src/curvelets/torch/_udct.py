@@ -17,9 +17,9 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._typing import MUDCTCoefficients, UDCTCoefficients, UDCTWindows
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT, from_sparse_new
+from .typing import UDCTCoefficients, UDCTWindows
 
 
 class UDCT:
@@ -500,11 +500,28 @@ class UDCT:
         torch.Tensor
             1D tensor containing all coefficients.
         """
+        # Dispatch based on transform_kind
+        if self._transform_kind == "monogenic":
+            return self._vect_monogenic(coefficients)
+        # real/complex: simple flatten
         parts: list[torch.Tensor] = []
         for scale in coefficients:
             for direction in scale:
                 for wedge_coeff in direction:
                     parts.append(wedge_coeff.flatten())
+        return torch.cat(parts)
+
+    def _vect_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+        """Private method for monogenic coefficient vectorization (no input validation)."""
+        parts: list[torch.Tensor] = []
+        for scale_coeffs in coefficients:
+            for direction_coeffs in scale_coeffs:
+                for wedge_coeffs in direction_coeffs:
+                    # wedge_coeffs has shape (*wedge_shape, ndim+2)
+                    # Flatten each channel separately to maintain order
+                    num_channels = wedge_coeffs.shape[-1]
+                    for ch_idx in range(num_channels):
+                        parts.append(wedge_coeffs[..., ch_idx].flatten())
         return torch.cat(parts)
 
     def struct(self, vector: torch.Tensor) -> UDCTCoefficients:
@@ -621,12 +638,14 @@ class UDCT:
                     begin_idx = end_idx
         return coefficients
 
-    def _struct_monogenic(self, vector: torch.Tensor) -> MUDCTCoefficients:
+    def _struct_monogenic(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for monogenic coefficient restructuring (no input validation)."""
         begin_idx = 0
-        coefficients: MUDCTCoefficients = []
+        coefficients: UDCTCoefficients = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        num_components = self._parameters.ndim + 1  # scalar + all Riesz components
+        # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
+        # Matches numpy's structure
+        num_channels = self._parameters.ndim + 2
 
         for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
             coefficients.append([])
@@ -643,18 +662,21 @@ class UDCT:
 
                 for _ in self._windows[scale_idx][window_direction_idx]:
                     shape_decimated = (internal_shape // decimation_ratio_dir).tolist()
-                    # For monogenic, each wedge has ndim+1 components
-                    wedge_components: list[torch.Tensor] = []
-                    for _ in range(num_components):
+                    # For monogenic, each wedge has shape (*wedge_shape, ndim+2)
+                    # Stack channels along last axis to match numpy structure
+                    wedge_channels: list[torch.Tensor] = []
+                    for _ in range(num_channels):
                         size = prod(shape_decimated)
                         end_idx = begin_idx + size
-                        component = vector[begin_idx:end_idx].reshape(shape_decimated)
-                        # Preserve dtype from forward transform (Option B)
+                        channel = vector[begin_idx:end_idx].reshape(shape_decimated)
+                        # Preserve dtype from forward transform
                         if self._coefficient_dtype is not None:
-                            component = component.to(self._coefficient_dtype)
-                        wedge_components.append(component)
+                            channel = channel.to(self._coefficient_dtype)
+                        wedge_channels.append(channel)
                         begin_idx = end_idx
-                    coefficients[scale_idx][direction_idx].append(wedge_components)
+                    # Stack channels along last axis: shape (*wedge_shape, num_channels)
+                    wedge_array = torch.stack(wedge_channels, dim=-1)
+                    coefficients[scale_idx][direction_idx].append(wedge_array)
         return coefficients
 
     def _from_sparse(
@@ -692,7 +714,7 @@ class UDCT:
         arr_full.flatten()[idx.flatten()] = val.flatten()
         return arr_full
 
-    def forward(self, image: torch.Tensor) -> UDCTCoefficients | MUDCTCoefficients:
+    def forward(self, image: torch.Tensor) -> UDCTCoefficients:
         """
         Apply forward curvelet transform.
 
@@ -705,10 +727,10 @@ class UDCT:
 
         Returns
         -------
-        UDCTCoefficients | MUDCTCoefficients
+        UDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge.
-            For monogenic transforms, returns MUDCTCoefficients where each
-            coefficient is a list of ndim+1 arrays.
+            For monogenic transforms, each coefficient tensor has shape
+            (*wedge_shape, ndim+1) with channels stacked along the last axis.
         """
         # Validate input based on transform_kind
         if self._transform_kind in ("real", "monogenic") and image.is_complex():
@@ -768,7 +790,7 @@ class UDCT:
                     break
         return coeffs
 
-    def _forward_monogenic(self, image: torch.Tensor) -> MUDCTCoefficients:  # pylint: disable=unused-argument
+    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
         # TODO: Implement monogenic forward transform for PyTorch
         # For now, raise NotImplementedError
@@ -818,7 +840,7 @@ class UDCT:
             use_complex_transform=True,
         )
 
-    def _backward_monogenic(self, coefficients: MUDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
+    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
         # TODO: Implement monogenic backward transform for PyTorch
         # For now, raise NotImplementedError

@@ -5,14 +5,21 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import F, IntegerNDArray, IntpNDArray, MUDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, upsample
+from .typing import (
+    _F,
+    UDCTCoefficients,
+    UDCTWindows,
+    _IntegerNDArray,
+    _IntpNDArray,
+    _to_complex_dtype,
+)
 
 
 def _process_wedge_backward_monogenic(
-    coefficients: list[npt.NDArray[np.complexfloating] | npt.NDArray[F]],
-    window: tuple[IntpNDArray, npt.NDArray[np.floating]],
-    decimation_ratio: IntegerNDArray,
+    coefficients: npt.NDArray[np.floating],
+    window: tuple[_IntpNDArray, npt.NDArray[np.floating]],
+    decimation_ratio: _IntegerNDArray,
     complex_dtype: npt.DTypeLike,
 ) -> list[npt.NDArray[np.complexfloating]]:
     """
@@ -28,13 +35,15 @@ def _process_wedge_backward_monogenic(
 
     Parameters
     ----------
-    coefficients : list
-        List of coefficient arrays: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-        - scalar: Complex array (from forward with transform_kind="monogenic")
-        - riesz_k: Real arrays for k = 1, 2, ..., ndim
-    window : tuple[IntpNDArray, npt.NDArray[np.floating]]
+    coefficients : npt.NDArray[np.floating]
+        Coefficient array with shape (*wedge_shape, ndim+2). All real dtype:
+        - Channel 0: scalar.real
+        - Channel 1: scalar.imag
+        - Channels 2..ndim+1: Riesz components
+        Complex scalar is reconstructed via .view(complex_dtype) on channels 0:2.
+    window : tuple[_IntpNDArray, npt.NDArray[np.floating]]
         Sparse window representation as (indices, values) tuple.
-    decimation_ratio : IntegerNDArray
+    decimation_ratio : _IntegerNDArray
         Decimation ratio for this wedge.
     complex_dtype : npt.DTypeLike
         Complex dtype for output.
@@ -45,8 +54,14 @@ def _process_wedge_backward_monogenic(
         List of frequency-domain contributions: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
         Each is sparse (only non-zero at window indices).
     """
-    coeff_scalar = coefficients[0]
-    coeff_riesz_list = coefficients[1:]  # All Riesz components
+    # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
+    # Number of Riesz components = ndim = coefficients.shape[-1] - 2
+    num_channels = coefficients.shape[-1]
+    num_riesz = num_channels - 2  # ndim
+
+    # Reconstruct complex scalar from first 2 channels via .view()
+    scalar_2ch = np.ascontiguousarray(coefficients[..., :2])
+    coeff_scalar = scalar_2ch.view(complex_dtype).squeeze(-1)
 
     # Upsample scalar coefficient to full size
     curvelet_band_scalar = upsample(coeff_scalar, decimation_ratio)
@@ -67,9 +82,10 @@ def _process_wedge_backward_monogenic(
     contribution_scalar = np.zeros(curvelet_freq_scalar.shape, dtype=complex_dtype)
     contribution_scalar.flat[idx] = curvelet_freq_scalar.flat[idx] * window_values
 
-    # Process all Riesz components
+    # Process all Riesz components (channels 2 onwards)
     contributions = [contribution_scalar]
-    for coeff_riesz_k in coeff_riesz_list:
+    for riesz_idx in range(num_riesz):
+        coeff_riesz_k = coefficients[..., 2 + riesz_idx]
         # Upsample Riesz coefficient to full size
         curvelet_band_riesz = upsample(
             coeff_riesz_k.astype(complex_dtype), decimation_ratio
@@ -89,11 +105,11 @@ def _process_wedge_backward_monogenic(
 
 
 def _apply_backward_transform_monogenic(
-    coefficients: MUDCTCoefficients,  # type: ignore[type-arg]
+    coefficients: UDCTCoefficients[_F],
     parameters: ParamUDCT,
-    windows: UDCTWindows,
-    decimation_ratios: list[IntegerNDArray],
-) -> tuple[npt.NDArray[F], ...]:
+    windows: UDCTWindows[_F],
+    decimation_ratios: list[_IntegerNDArray],
+) -> tuple[npt.NDArray[_F], ...]:
     """
     Apply backward monogenic curvelet transform.
 
@@ -113,29 +129,36 @@ def _apply_backward_transform_monogenic(
 
     Parameters
     ----------
-    coefficients : MUDCTCoefficients
+    coefficients : UDCTCoefficients[np.floating]
         Monogenic curvelet coefficients from forward_monogenic().
+        Each coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
+        - Channel 0: scalar.real
+        - Channel 1: scalar.imag
+        - Channels 2..ndim+1: Riesz components
+        Complex scalar is reconstructed via .view(complex_dtype) on channels 0:2.
     parameters : ParamUDCT
         UDCT parameters.
-    windows : UDCTWindows
+    windows : UDCTWindows[np.floating]
         Curvelet windows in sparse format.
-    decimation_ratios : list[IntegerNDArray]
+    decimation_ratios : list[_IntegerNDArray]
         Decimation ratios for each scale and direction.
 
     Returns
     -------
-    tuple[npt.NDArray[F], ...]
+    tuple[npt.NDArray[_F], ...]
         Reconstructed components: (scalar, riesz1, riesz2, ..., riesz_ndim)
         - scalar: Original input :math:`f`
         - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
     """
-    # Determine dtype from coefficients
-    scalar_coeff = coefficients[0][0][0][0]  # First scalar component
-    real_dtype = np.real(np.empty(0, dtype=scalar_coeff.dtype)).dtype
-    complex_dtype = np.result_type(real_dtype, 1j)
+    # Determine dtype from coefficients - access first wedge array
+    first_coeff = coefficients[0][0][0]  # Shape: (*wedge_shape, ndim+2)
+    real_dtype = first_coeff.dtype
+    complex_dtype = _to_complex_dtype(real_dtype)
 
-    # Determine number of components (ndim+1)
-    num_components = len(coefficients[0][0][0])
+    # Determine number of output components (ndim+1): scalar + riesz_1..riesz_ndim
+    # Input has ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
+    num_channels = first_coeff.shape[-1]
+    num_components = num_channels - 1  # ndim+1 (scalar + ndim Riesz)
 
     # Initialize frequency domain arrays for all components dynamically
     image_frequencies = [
@@ -230,9 +253,12 @@ def _apply_backward_transform_monogenic(
     idx, val = windows[0][0][0]
     window_values = val.astype(complex_dtype)
 
-    # Get low-frequency coefficients
+    # Get low-frequency coefficients - shape (*wedge_shape, ndim+2)
     low_coeffs = coefficients[0][0][0]
-    low_coeff_scalar = low_coeffs[0]
+
+    # Reconstruct complex scalar from first 2 channels via .view()
+    low_scalar_2ch = np.ascontiguousarray(low_coeffs[..., :2])
+    low_coeff_scalar = low_scalar_2ch.view(complex_dtype).squeeze(-1)
 
     # Process scalar component
     curvelet_band_scalar = upsample(low_coeff_scalar, decimation_ratio)
@@ -241,27 +267,29 @@ def _apply_backward_transform_monogenic(
     )
     image_frequencies[0].flat[idx] += curvelet_freq_scalar.flat[idx] * window_values
 
-    # Process all Riesz components for low frequency
-    for comp_idx in range(1, num_components):
-        low_coeff_riesz = low_coeffs[comp_idx]
+    # Process all Riesz components for low frequency (channels 2 onwards)
+    num_riesz = num_channels - 2  # ndim
+    for riesz_idx in range(num_riesz):
+        low_coeff_riesz = low_coeffs[..., 2 + riesz_idx]  # Access via last dimension
         curvelet_band_riesz = upsample(
             low_coeff_riesz.astype(complex_dtype), decimation_ratio
         )
         curvelet_freq_riesz = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(
             curvelet_band_riesz
         )
-        image_frequencies[comp_idx].flat[idx] += (
+        # Output component index: scalar=0, riesz_1=1, riesz_2=2, etc.
+        image_frequencies[1 + riesz_idx].flat[idx] += (
             curvelet_freq_riesz.flat[idx] * window_values
         )
 
     # Transform back to spatial domain and take real part
     results = []
-    scalar: npt.NDArray[F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
+    scalar: npt.NDArray[_F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
     results.append(scalar)
 
     # Negate Riesz components: forward computes Rₖf, we want -Rₖf
     for comp_idx in range(1, num_components):
-        riesz_k: npt.NDArray[F] = -np.fft.ifftn(
+        riesz_k: npt.NDArray[_F] = -np.fft.ifftn(
             image_frequencies[comp_idx]
         ).real.astype(real_dtype)
         results.append(riesz_k)

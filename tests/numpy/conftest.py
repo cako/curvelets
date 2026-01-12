@@ -8,8 +8,8 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-from curvelets.numpy._typing import UDCTCoefficients
 from curvelets.numpy._utils import from_sparse_new
+from curvelets.numpy.typing import UDCTCoefficients
 
 # Common test parameters
 COMMON_ALPHA = 0.15
@@ -134,18 +134,43 @@ class TransformWrapper:
     def __init__(
         self,
         transform_obj: Any,
-        forward_fn: Callable[[np.ndarray], np.ndarray | UDCTCoefficients],
-        backward_fn: Callable[[np.ndarray | UDCTCoefficients], np.ndarray],
+        forward_fn: Callable[
+            [np.ndarray],
+            np.ndarray
+            | UDCTCoefficients[np.complexfloating]
+            | UDCTCoefficients[np.floating],
+        ],
+        backward_fn: Callable[
+            [
+                np.ndarray
+                | UDCTCoefficients[np.complexfloating]
+                | UDCTCoefficients[np.floating]
+            ],
+            np.ndarray,
+        ],
     ) -> None:
         self._obj = transform_obj
         self._forward = forward_fn
         self._backward = backward_fn
 
-    def forward(self, data: np.ndarray) -> np.ndarray | UDCTCoefficients:
+    def forward(
+        self, data: np.ndarray
+    ) -> (
+        np.ndarray
+        | UDCTCoefficients[np.complexfloating]
+        | UDCTCoefficients[np.floating]
+    ):
         """Forward transform."""
         return self._forward(data)
 
-    def backward(self, coeffs: np.ndarray | UDCTCoefficients) -> np.ndarray:
+    def backward(
+        self,
+        coeffs: (
+            np.ndarray
+            | UDCTCoefficients[np.complexfloating]
+            | UDCTCoefficients[np.floating]
+        ),
+    ) -> np.ndarray:
         """Backward transform."""
         return self._backward(coeffs)
 

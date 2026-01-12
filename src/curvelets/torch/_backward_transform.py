@@ -6,8 +6,8 @@ from __future__ import annotations
 
 import torch
 
-from ._typing import UDCTCoefficients, UDCTWindows
 from ._utils import ParamUDCT, flip_fft_all_axes, upsample
+from .typing import UDCTCoefficients, UDCTWindows
 
 
 def _process_wedge_backward_real(
