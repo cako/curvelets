@@ -1,8 +1,6 @@
 ci:
   autoupdate_commit_msg: "chore: update pre-commit hooks"
   autofix_commit_msg: "style: pre-commit fixes"
-  skip: [mypy]
-  stages: [commit, push, manual]
 
 repos:
   - repo: https://github.com/adamchainz/blacken-docs
