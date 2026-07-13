@@ -106,11 +106,11 @@ markers = [
 
 [tool.coverage]
 run.source = ["curvelets"]
-report.exclude_also = ['\.\.\.', 'if typing.TYPE_CHECKING:']
+report.exclude_also = ['\\.\\.\\.', 'if typing.TYPE_CHECKING:']
 
 [tool.mypy]
 files = ["src", "tests"]
-python_version = "3.9"
+python_version = "3.14"
 warn_unused_configs = true
 strict = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
