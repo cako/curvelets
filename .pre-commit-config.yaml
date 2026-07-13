@@ -45,7 +45,7 @@ repos:
     rev: "v1.15.0"
     hooks:
       - id: mypy
-        args: ["--follow-imports=skip", "--cache-dir=/dev/null"]
+        args: ["--follow-imports=skip"]
         exclude: src/curvelets/reference|noxfile.py
         additional_dependencies:
           - pytest
