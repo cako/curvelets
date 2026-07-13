@@ -47,6 +47,7 @@ repos:
       - id: mypy
         args: ["--follow-imports=skip"]
         exclude: src/curvelets/reference|noxfile.py
+        language_version: "3.13"
         additional_dependencies:
           - pytest
           - numpy
