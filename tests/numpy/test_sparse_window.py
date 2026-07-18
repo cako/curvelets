@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
-from curvelets.numpy._sparse_window import SparseWindow
+from curvelets.numpy import SparseWindow
 
 
 def test_sparse_window_missing_decimation_exceptions():
@@ -82,9 +83,9 @@ def test_sparse_window_fold_product_out():
     dense = np.ones((4, 4))
     window = SparseWindow.from_dense(dense, threshold=0.5)
     window.attach_periodized([2, 2])
-    image_freq = np.ones((4, 4), dtype=np.complex128)
+    image_freq: npt.NDArray[np.complex128] = np.ones((4, 4), dtype=np.complex128)
 
-    out_buf = np.ones((2, 2), dtype=np.complex128)
+    out_buf: npt.NDArray[np.complex128] = np.ones((2, 2), dtype=np.complex128)
     res = window.fold_product(image_freq, out=out_buf)
 
     assert res is out_buf

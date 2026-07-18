@@ -51,7 +51,7 @@ def test_torch_sparse_window_multiply_at_indices():
 def test_torch_sparse_window_to_device():
     dense = torch.tensor([0.1, 0.9])
     window = SparseWindow.from_dense(dense, threshold=0.5)
-    
+
     # Test moving to CPU explicitly (since CUDA might not be available)
     window_cpu = window.to(torch.device("cpu"))
     assert window_cpu.device.type == "cpu"

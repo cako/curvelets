@@ -115,7 +115,9 @@ def test_torch_windows_are_sparse(dim):
 @pytest.mark.parametrize("high", ["curvelet", "wavelet"])
 def test_torch_round_trip_complex(rng, dim, high):
     """Test round-trip in complex mode."""
-    transform = setup_torch_transform(dim, shape_idx=0, cfg_idx=0, transform_kind="complex", high=high)
+    transform = setup_torch_transform(
+        dim, shape_idx=0, cfg_idx=0, transform_kind="complex", high=high
+    )
     data = torch.from_numpy(rng.random(transform._obj.shape)).to(torch.complex128)
 
     coeffs = transform.forward(data)
