@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from curvelets.numpy._udct_windows import UDCTWindow
@@ -233,7 +234,7 @@ def test_compute_angle_component_invalid_direction() -> None:
         ...     print(f"Error caught: {e}")
         Error caught: Unrecognized direction: 0. Must be 1 or 2.
     """
-    angle_grid = np.linspace(-1, 1, 64, dtype=np.float64)
+    angle_grid: npt.NDArray[np.float64] = np.linspace(-1, 1, 64, dtype=np.float64)
     num_angular_wedges = 3
     window_overlap = 0.15
 

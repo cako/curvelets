@@ -166,6 +166,8 @@ class UDCTWindow:
         tuple[npt.NDArray[_F], npt.NDArray[_F]]
             Adapted grid arrays angle_grid_2 and angle_grid_1.
         """
+        meshgrid_dim1: npt.NDArray[np.float64]
+        meshgrid_dim2: npt.NDArray[np.float64]
         meshgrid_dim1, meshgrid_dim2 = np.meshgrid(frequency_grid_2, frequency_grid_1)
 
         # Compute angle_grid_1 using meshgrid_dim1 as primary, meshgrid_dim2 as secondary
