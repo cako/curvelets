@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import F, FloatingNDArray, IntpNDArray
+from .typing import _F, _FloatingNDArray, _IntpNDArray
 
 
 @dataclass
@@ -40,8 +40,8 @@ class SparseWindow:
     (2, 2)
     """
 
-    indices: IntpNDArray  # Flat indices into array
-    values: FloatingNDArray  # Window values at those indices
+    indices: _IntpNDArray  # Flat indices into array
+    values: _FloatingNDArray  # Window values at those indices
     shape: tuple[int, ...]  # Original array shape (for to_dense)
 
     @property
@@ -67,7 +67,7 @@ class SparseWindow:
     @classmethod
     def from_dense(
         cls,
-        arr: npt.NDArray[F],
+        arr: npt.NDArray[_F],
         threshold: float,
     ) -> SparseWindow:
         """
