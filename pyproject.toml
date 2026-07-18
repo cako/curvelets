@@ -61,8 +61,9 @@ docs = [
   "matplotlib",
   "scikit-learn",
   "pooch>=1.8.2",
-  "scipy>=1.16.3",
-  "scipy-stubs",
+  "scipy>=1.16.3; python_version>='3.11'",
+  "scipy<1.16.3; python_version<'3.11'",
+  "scipy-stubs; python_version>='3.11'",
 ]
 
 [project.urls]
@@ -106,11 +107,11 @@ markers = [
 
 [tool.coverage]
 run.source = ["curvelets"]
-report.exclude_also = ['\.\.\.', 'if typing.TYPE_CHECKING:']
+report.exclude_also = ['\\.\\.\\.', 'if typing.TYPE_CHECKING:']
 
 [tool.mypy]
 files = ["src", "tests"]
-python_version = "3.9"
+python_version = "3.13"
 warn_unused_configs = true
 strict = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
@@ -135,6 +136,26 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["sklearn.*"]
 ignore_missing_imports = true
+
+
+[tool.ty.environment]
+python-version = "3.9"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.rules]
+# Start with warnings to not break CI during migration
+unused-ignore-comment = "warn"
+
+[[tool.ty.overrides]]
+include = ["examples/**"]
+
+[tool.ty.overrides.rules]
+# Relax matplotlib/sklearn type issues in examples
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+unresolved-attribute = "ignore"
 
 
 [tool.ruff]

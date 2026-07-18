@@ -101,7 +101,7 @@ Ready to contribute?
 
       make lint
 
-   This runs pre-commit hooks which include ruff, mypy, and other code quality
+   This runs pre-commit hooks which include ruff, ty, mypy, and other code quality
    checks. **Your code should ideally pass ``make lint`` before submitting a PR.**
 
 5. **Update the docs**
@@ -153,7 +153,8 @@ This project uses several tools for development:
 * **nox**: Task runner for running tests, linting, and building docs
 * **pre-commit**: Git hooks for code quality checks
 * **ruff**: Fast Python linter and formatter
-* **mypy**: Static type checker
+* **ty**: Fast static type checker (Rust-based)
+* **mypy**: Static type checker (Python-based)
 * **pytest**: Testing framework
 
 All tools are configured in the project and will be automatically used when you

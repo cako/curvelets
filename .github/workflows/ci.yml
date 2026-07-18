@@ -19,12 +19,12 @@ jobs:
     name: Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: "3.13"
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: --hook-stage manual --all-files
@@ -51,7 +51,7 @@ jobs:
             runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -89,6 +89,6 @@ jobs:
         run: python -m pytest -ra --cov --cov-report=xml --cov-report=term --durations=20
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v5.5.2
+        uses: codecov/codecov-action@v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

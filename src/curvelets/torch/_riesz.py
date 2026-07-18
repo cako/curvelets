@@ -58,7 +58,10 @@ def riesz_filters(
     meshgrids = torch.meshgrid(*grids, indexing="ij")
 
     # Compute |xi| = sqrt(sum of squares of all frequency components)
-    xi_norm_squared = sum(g**2 for g in meshgrids)
+    # Use first grid as base to ensure result is always a Tensor (not Literal[0])
+    xi_norm_squared = meshgrids[0] ** 2
+    for g in meshgrids[1:]:
+        xi_norm_squared = xi_norm_squared + g**2
     xi_norm = torch.sqrt(xi_norm_squared)
 
     # Avoid division by zero at DC component

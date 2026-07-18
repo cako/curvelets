@@ -13,7 +13,7 @@ else:
 import numpy as np
 import numpy.typing as npt
 
-from ._typing import C, F, IntegerNDArray
+from .typing import _C, _F, _T, _IntegerNDArray
 
 
 @dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
@@ -29,7 +29,7 @@ class ParamUDCT:
     ----------
     shape : tuple[int, ...]
         Shape of the input data (e.g., (64, 64) for 2D, (32, 32, 32) for 3D).
-    angular_wedges_config : IntegerNDArray
+    angular_wedges_config : _IntegerNDArray
         Configuration array specifying the number of angular wedges per scale
         and dimension. Shape is (num_scales - 1, ndim), where num_scales includes
         the lowpass scale. The last dimension must equal `len(shape)`. Each row
@@ -91,7 +91,7 @@ class ParamUDCT:
     """
 
     shape: tuple[int, ...]
-    angular_wedges_config: IntegerNDArray  # last dimension  == len(shape)
+    angular_wedges_config: _IntegerNDArray  # last dimension  == len(shape)
     window_overlap: float
     radial_frequency_params: tuple[float, float, float, float]
     window_threshold: float
@@ -111,16 +111,18 @@ class ParamUDCT:
 
 
 @overload
-def circular_shift(array: npt.NDArray[F], shift: tuple[int, ...]) -> npt.NDArray[F]: ...
+def circular_shift(
+    array: npt.NDArray[_F], shift: tuple[int, ...]
+) -> npt.NDArray[_F]: ...
 
 
 @overload
-def circular_shift(array: npt.NDArray[C], shift: tuple[int, ...]) -> npt.NDArray[C]: ...  # type: ignore[overload-cannot-match]
+def circular_shift(  # type: ignore[overload-cannot-match]
+    array: npt.NDArray[_C], shift: tuple[int, ...]
+) -> npt.NDArray[_C]: ...
 
 
-def circular_shift(
-    array: npt.NDArray[np.generic], shift: tuple[int, ...]
-) -> npt.NDArray[np.generic]:
+def circular_shift(array: npt.NDArray[_T], shift: tuple[int, ...]) -> npt.NDArray[_T]:
     """
     Circularly shift array along all axes.
 
@@ -131,9 +133,9 @@ def circular_shift(
 
     Parameters
     ----------
-    array : npt.NDArray[F] | npt.NDArray[C]
-        Input array to shift. Can be real-valued (npt.NDArray[F]) or
-        complex-valued (npt.NDArray[C]). The array is shifted along
+    array : npt.NDArray[_T]
+        Input array to shift. Can be real-valued (npt.NDArray[_F]) or
+        complex-valued (npt.NDArray[_C]). The array is shifted along
         all axes simultaneously.
     shift : tuple[int, ...]
         Shift amounts for each dimension. Must have length equal to `array.ndim`.
@@ -143,9 +145,9 @@ def circular_shift(
 
     Returns
     -------
-    npt.NDArray[F] | npt.NDArray[C]
+    npt.NDArray[_T]
         Circularly shifted array with the same shape and dtype as input.
-        Returns npt.NDArray[F] if input is real, npt.NDArray[C] if
+        Returns npt.NDArray[_F] if input is real, npt.NDArray[_C] if
         input is complex.
 
     Notes
@@ -184,7 +186,7 @@ def circular_shift(
 
 
 def downsample(
-    array: npt.NDArray[np.generic], decimation_ratios: IntegerNDArray
+    array: npt.NDArray[np.generic], decimation_ratios: _IntegerNDArray
 ) -> npt.NDArray[np.generic]:
     """
     Downsample array by selecting every Nth element along each dimension.
@@ -198,7 +200,7 @@ def downsample(
     array : npt.NDArray[npt.DTypeLike]
         Input array to downsample. Can be any dtype. The array is downsampled
         along all dimensions simultaneously.
-    decimation_ratios : IntegerNDArray
+    decimation_ratios : _IntegerNDArray
         Decimation ratios for each dimension. Must have length equal to `array.ndim`.
         Each element specifies the step size for selecting elements along the
         corresponding axis. For example, a value of 2 means every 2nd element
@@ -249,11 +251,13 @@ def downsample(
 
 
 @overload
-def flip_fft_all_axes(array: npt.NDArray[F]) -> npt.NDArray[F]: ...
+def flip_fft_all_axes(array: npt.NDArray[_F]) -> npt.NDArray[_F]: ...
 
 
 @overload
-def flip_fft_all_axes(array: npt.NDArray[C]) -> npt.NDArray[C]: ...  # type: ignore[overload-cannot-match]
+def flip_fft_all_axes(  # type: ignore[overload-cannot-match]
+    array: npt.NDArray[_C],
+) -> npt.NDArray[_C]: ...
 
 
 def flip_fft_all_axes(
@@ -274,16 +278,16 @@ def flip_fft_all_axes(
 
     Parameters
     ----------
-    array : npt.NDArray[F] | npt.NDArray[C]
-        Input array in FFT representation. Can be real-valued (npt.NDArray[F])
-        or complex-valued (npt.NDArray[C]). The array is flipped and
+    array : npt.NDArray[_F] | npt.NDArray[_C]
+        Input array in FFT representation. Can be real-valued (npt.NDArray[_F])
+        or complex-valued (npt.NDArray[_C]). The array is flipped and
         shifted along all dimensions simultaneously.
 
     Returns
     -------
-    npt.NDArray[F] | npt.NDArray[C]
-        Flipped array representing negative frequencies. Returns npt.NDArray[F]
-        if input is real, npt.NDArray[C] if input is complex. The output
+    npt.NDArray[_F] | npt.NDArray[_C]
+        Flipped array representing negative frequencies. Returns npt.NDArray[_F]
+        if input is real, npt.NDArray[_C] if input is complex. The output
         has the same shape and dtype as the input.
 
     Notes
@@ -329,18 +333,18 @@ def flip_fft_all_axes(
 # This is a 7th-degree polynomial (with trailing zeros) used to create
 # smooth transitions in the Meyer wavelet window function. The polynomial
 # provides C^infinity smoothness at the transition boundaries.
-MEYER_TRANSITION_POLYNOMIAL: npt.NDArray[np.floating[object]] = np.array(
-    [-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0], dtype=float
+MEYER_TRANSITION_POLYNOMIAL = np.array(
+    [-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64
 )
 
 
 def meyer_window(
-    frequency: npt.NDArray[F],
+    frequency: npt.NDArray[_F],
     transition_start: float,
     plateau_start: float,
     plateau_end: float,
     transition_end: float,
-) -> npt.NDArray[F]:
+) -> npt.NDArray[_F]:
     """
     Compute Meyer wavelet window function with polynomial transitions.
 
@@ -445,7 +449,7 @@ def meyer_window(
 
 
 def upsample(
-    array: npt.NDArray[np.generic], decimation_ratios: IntegerNDArray
+    array: npt.NDArray[np.generic], decimation_ratios: _IntegerNDArray
 ) -> npt.NDArray[np.generic]:
     """
     Upsample array by inserting zeros at regular intervals.
@@ -460,7 +464,7 @@ def upsample(
     array : npt.NDArray[npt.DTypeLike]
         Input array to upsample. Can be any dtype. The array is upsampled
         along all dimensions simultaneously.
-    decimation_ratios : IntegerNDArray
+    decimation_ratios : _IntegerNDArray
         Upsampling ratios for each dimension. Must have length equal to `array.ndim`.
         Each element specifies the spacing between original elements in the
         upsampled array. For example, a value of 2 means original elements

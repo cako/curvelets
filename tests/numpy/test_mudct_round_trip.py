@@ -28,9 +28,9 @@ def test_mudct_round_trip_absolute(dim, rng):
     coeffs = transform.forward(data)
     components = transform.backward(coeffs)
 
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
 
@@ -61,9 +61,9 @@ def test_mudct_round_trip_relative(dim, rng):
     coeffs = transform.forward(data)
     components = transform.backward(coeffs)
 
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
 
@@ -89,9 +89,9 @@ def test_mudct_round_trip_parametrized(dim, shape_idx, rng):
     coeffs = transform.forward(data)
     components = transform.backward(coeffs)
 
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
 
@@ -128,9 +128,9 @@ def test_mudct_round_trip_wavelet_mode(dim, rng):
     coeffs = transform_mono.forward(data)
     components = transform_mono.backward(coeffs)
 
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
 
@@ -146,15 +146,20 @@ def test_mudct_round_trip_wavelet_mode(dim, rng):
         f"Expected 1 wedge at highest scale, got {len(coeffs[highest_scale_idx][0])}"
     )
 
-    # Verify each coefficient is a list with ndim+1 components
+    # Verify each coefficient array has shape (*wedge_shape, ndim+2) with real dtype
     for scale_coeffs in coeffs:
         for direction_coeffs in scale_coeffs:
             for wedge_coeffs in direction_coeffs:
-                assert isinstance(wedge_coeffs, list), (
-                    f"Expected list, got {type(wedge_coeffs)}"
+                assert isinstance(wedge_coeffs, np.ndarray), (
+                    f"Expected ndarray, got {type(wedge_coeffs)}"
                 )
-                assert len(wedge_coeffs) == dim + 1, (
-                    f"Expected {dim + 1} components, got {len(wedge_coeffs)}"
+                # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
+                assert wedge_coeffs.shape[-1] == dim + 2, (
+                    f"Expected {dim + 2} channels, got {wedge_coeffs.shape[-1]}"
+                )
+                # Verify real dtype
+                assert np.issubdtype(wedge_coeffs.dtype, np.floating), (
+                    f"Expected floating dtype, got {wedge_coeffs.dtype}"
                 )
 
     # Verify reconstruction accuracy (only scalar component)
@@ -192,11 +197,16 @@ def test_mudct_scalar_component_equivalence(dim, rng):
     coeffs_mono = transform_mono.forward(data)
 
     # Compare scalar component with standard UDCT
-    # Note: Both UDCT and monogenic scalar components are complex
+    # Monogenic scalar is stored as 2 real channels, reconstruct complex via .view()
     for scale_idx in range(len(coeffs_udct)):
         for direction_idx in range(len(coeffs_udct[scale_idx])):
             for wedge_idx in range(len(coeffs_udct[scale_idx][direction_idx])):
-                scalar_mono = coeffs_mono[scale_idx][direction_idx][wedge_idx][0]
+                wedge_mono = coeffs_mono[scale_idx][direction_idx][wedge_idx]
+                # Reconstruct complex scalar from first 2 channels
+                scalar_2ch = np.ascontiguousarray(wedge_mono[..., :2])
+                complex_dtype = np.result_type(scalar_2ch.dtype, 1j)
+                scalar_mono = scalar_2ch.view(complex_dtype).squeeze(-1)
+
                 coeff_udct = coeffs_udct[scale_idx][direction_idx][wedge_idx]
 
                 # Compare scalar component with UDCT coefficient
@@ -233,12 +243,21 @@ def test_mudct_amplitude_computation(dim, rng):
     for scale_coeffs in coeffs:
         for direction_coeffs in scale_coeffs:
             for wedge_coeffs in direction_coeffs:
-                # Verify correct number of components (ndim+1)
-                assert len(wedge_coeffs) == dim + 1, (
-                    f"Expected {dim + 1} components, got {len(wedge_coeffs)}"
+                # Verify correct number of channels (ndim+2) in last dimension
+                # [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
+                assert wedge_coeffs.shape[-1] == dim + 2, (
+                    f"Expected {dim + 2} channels, got {wedge_coeffs.shape[-1]}"
                 )
-                scalar = wedge_coeffs[0]
-                riesz_components = wedge_coeffs[1:]
+                # Verify real dtype
+                assert np.issubdtype(wedge_coeffs.dtype, np.floating), (
+                    f"Expected floating dtype, got {wedge_coeffs.dtype}"
+                )
+                # Reconstruct complex scalar from first 2 channels
+                scalar_2ch = np.ascontiguousarray(wedge_coeffs[..., :2])
+                complex_dtype = np.result_type(scalar_2ch.dtype, 1j)
+                scalar = scalar_2ch.view(complex_dtype).squeeze(-1)
+                # Riesz components are channels 2..ndim+1
+                riesz_components = [wedge_coeffs[..., k] for k in range(2, dim + 2)]
                 # Scalar is complex, Riesz components are real
                 # Amplitude: sqrt(|scalar|^2 + sum(riesz_k^2))
                 amplitude = np.sqrt(
@@ -313,9 +332,9 @@ def test_mudct_reconstruction_vs_udct(dim, rng):
     )
     coeffs_mono = transform_mono.forward(data)
     components = transform_mono.backward(coeffs_mono)
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
 
@@ -357,9 +376,9 @@ def test_mudct_riesz_components_correctness(dim, rng):
     # Get monogenic coefficients and reconstruct
     coeffs = transform.forward(data)
     components = transform.backward(coeffs)
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
     riesz1 = components[1] if len(components) > 1 else None
@@ -461,9 +480,9 @@ def test_monogenic_riesz_components_correctness(dim, rng):
 
     # Get monogenic signal directly
     components = transform.monogenic(data)
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
 
@@ -565,9 +584,9 @@ def test_monogenic_dtype_preservation(dim, dtype, rng):
     transform = UDCT(shape=size, num_scales=3, wedges_per_direction=3)
 
     components = transform.monogenic(data)
-    # Verify correct number of components (ndim+1)
+    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
     assert len(components) == dim + 1, (
-        f"Expected {dim + 1} components, got {len(components)}"
+        f"Expected {dim + 1} output components, got {len(components)}"
     )
     scalar = components[0]
     riesz1 = components[1] if len(components) > 1 else None

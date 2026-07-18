@@ -69,7 +69,8 @@ def overlay_disk(
     linewidth *= 0.01 / (nscales - 1)
     wedge_height = 1 / (nscales - 1)
     magic_shift = 0  # 0 or -np.pi/8 or -np.pi/16? something else?
-    color = cmapper.to_rgba(c_struct[0][0][0])
+    # matplotlib's to_rgba accepts scalars despite type stub saying ndarray
+    color = cmapper.to_rgba(c_struct[0][0][0])  # ty: ignore[invalid-argument-type]
     ax.bar(x=0, height=wedge_height, width=deg_360, bottom=0, color=color)
     for iscale, s in enumerate(c_struct[1:], start=1):
         assert len(s) == ndir, ValueError(
@@ -80,7 +81,8 @@ def overlay_disk(
             angles_per_wedge = deg_90 / nwedges
             pm = (-1) ** idir  # CCW for idir == 0, CC otherwise
             for iwedge, w in enumerate(d):
-                color = cmapper.to_rgba(w)
+                # matplotlib's to_rgba accepts scalars despite type stub saying ndarray
+                color = cmapper.to_rgba(w)  # ty: ignore[invalid-argument-type]
                 for offset in [deg_135, deg_n45]:  # top-left, bottom-right
                     # Center the wedge at its midpoint
                     # Note: iwedge indexing should match the actual frequency space wedge ordering

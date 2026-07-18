@@ -38,6 +38,7 @@ import numpy as np
 import numpy.typing as npt
 
 from curvelets.numpy import UDCT
+from curvelets.numpy.typing import _to_complex_dtype
 from curvelets.plot import create_colorbar, despine
 
 # %%
@@ -279,9 +280,19 @@ assert isinstance(recon_standard, np.ndarray)  # Type narrowing
 # Also try: what if we just use the scalar coefficients from monogenic
 # and apply standard backward transform logic?
 # Extract just the scalar coefficients (c0) from monogenic coefficients
+# The scalar component is complex, stored as channels 0 (real) and 1 (imag)
+# We need to combine them into a complex array
+real_dtype = coeffs[0][0][0].dtype
+complex_dtype = _to_complex_dtype(real_dtype)
+
 scalar_coeffs_only = [
     [
-        [coeffs[scale][dir][wedge][0] for wedge in range(len(coeffs[scale][dir]))]
+        [
+            np.ascontiguousarray(coeffs[scale][dir][wedge][..., :2])
+            .view(complex_dtype)
+            .squeeze(-1)
+            for wedge in range(len(coeffs[scale][dir]))
+        ]
         for dir in range(len(coeffs[scale]))
     ]
     for scale in range(len(coeffs))

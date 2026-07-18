@@ -13,8 +13,8 @@ import numpy as np
 import torch
 
 from ._sparse_window import SparseWindow
-from ._typing import UDCTWindows
 from ._utils import ParamUDCT, circular_shift, meyer_window
+from .typing import UDCTWindows
 
 
 class UDCTWindow:
