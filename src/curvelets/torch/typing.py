@@ -26,7 +26,6 @@ __all__ = [
 # =============================================================================
 
 
-
 # Simple type aliases - every array is just a Tensor
 # Structure: coefficients[scale][direction][wedge] = Tensor
 # For monogenic transforms, each wedge tensor has shape (*wedge_shape, ndim+1)

@@ -20,6 +20,7 @@ if sys.version_info >= (3, 10):
     from typing_extensions import TypeAliasType
 else:
     from typing import TYPE_CHECKING, Any
+
     from typing_extensions import TypeAlias, TypeAliasType, TypeVar
 
 if TYPE_CHECKING:
