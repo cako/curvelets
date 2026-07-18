@@ -5,10 +5,12 @@ from __future__ import annotations
 __all__ = [
     "UDCT",
     "MeyerWavelet",
+    "SparseWindow",
     "UDCTCoefficients",
     "UDCTWindows",
 ]
 
 from ._meyerwavelet import MeyerWavelet
+from ._sparse_window import SparseWindow
 from ._udct import UDCT
 from .typing import UDCTCoefficients, UDCTWindows

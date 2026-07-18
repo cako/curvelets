@@ -261,12 +261,10 @@ class UDCTWindow:
                 -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx]
             )[:-1]
             # Append last value to match NumPy's behavior
-            frequency_grid[dimension_idx] = torch.cat(
-                [
-                    frequency_grid[dimension_idx],
-                    torch.tensor([0.5 * np.pi - (2 * np.pi / shape[dimension_idx])]),
-                ]
-            )
+            frequency_grid[dimension_idx] = torch.cat([
+                frequency_grid[dimension_idx],
+                torch.tensor([0.5 * np.pi - (2 * np.pi / shape[dimension_idx])]),
+            ])
             # Actually recreate properly
             frequency_grid[dimension_idx] = torch.linspace(
                 -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx] + 1

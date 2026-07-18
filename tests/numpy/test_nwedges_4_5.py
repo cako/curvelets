@@ -125,12 +125,10 @@ def test_nwedges_4_5_raises_error_angular_config(
 
     # Create angular_wedges_config with nwedges=4 or 5
     # For 3 scales: [wedges_per_direction, wedges_per_direction*2]
-    angular_wedges_config = np.array(
-        [
-            [wedges_per_direction, wedges_per_direction],
-            [wedges_per_direction * 2, wedges_per_direction * 2],
-        ]
-    )
+    angular_wedges_config = np.array([
+        [wedges_per_direction, wedges_per_direction],
+        [wedges_per_direction * 2, wedges_per_direction * 2],
+    ])
 
     # Verify that ValueError is raised
     with pytest.raises(ValueError, match="divisible by 3"):

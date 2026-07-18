@@ -155,8 +155,13 @@ class UDCT:
             window_threshold=params_dict["window_threshold"],
         )
 
-        # Calculate windows
+        # Calculate windows and attach periodized FFT index maps
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
+
+        # Cache Riesz filters for monogenic transforms (and .monogenic())
+        self._riesz_filters: list[npt.NDArray[np.complexfloating]] | None = None
+        if self.transform_kind == "monogenic":
+            self._riesz_filters = riesz_filters(self.shape)
 
     @staticmethod
     def _compute_optimal_window_overlap(
@@ -442,13 +447,34 @@ class UDCT:
         """
         Calculate curvelet windows, decimation ratios, and indices.
 
+        Also attaches precomputed folded (and for complex mode, flipped)
+        index maps used by periodized sparse FFTs.
+
         Returns
         -------
         tuple
             (windows, decimation_ratios, indices)
         """
         window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
-        return window_computer.compute()
+        windows, decimation_ratios, indices = window_computer.compute()
+        need_flip = self.transform_kind == "complex"
+        for scale_idx, scale_windows in enumerate(windows):
+            for direction_idx, direction_windows in enumerate(scale_windows):
+                if decimation_ratios[scale_idx].shape[0] == 1:
+                    dec = decimation_ratios[scale_idx][0]
+                else:
+                    dec = decimation_ratios[scale_idx][
+                        min(direction_idx, decimation_ratios[scale_idx].shape[0] - 1)
+                    ]
+                for window in direction_windows:
+                    window.attach_periodized(dec, with_flip=need_flip)
+        return windows, decimation_ratios, indices
+
+    def _get_riesz_filters(self) -> list[npt.NDArray[np.complexfloating]]:
+        """Return cached Riesz filters, computing them on first use if needed."""
+        if self._riesz_filters is None:
+            self._riesz_filters = riesz_filters(self.shape)
+        return self._riesz_filters
 
     def vect(
         self,
@@ -773,6 +799,7 @@ class UDCT:
             self.parameters,
             self.windows,
             self.decimation_ratios,
+            riesz_filters_list=self._get_riesz_filters(),
         )
 
     def backward(
@@ -941,8 +968,8 @@ class UDCT:
             )
             raise ValueError(msg)
 
-        # Compute Riesz filters
-        riesz_filters_list = riesz_filters(self.shape)
+        # Compute Riesz filters (cached)
+        riesz_filters_list = self._get_riesz_filters()
 
         # Compute FFT of input
         image_frequency = np.fft.fftn(image)

@@ -6,7 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._sparse_window import SparseWindow
-from ._utils import ParamUDCT, upsample
+from ._utils import ParamUDCT
 from .typing import (
     _F,
     UDCTCoefficients,
@@ -20,18 +20,14 @@ def _process_wedge_backward_monogenic(
     coefficients: npt.NDArray[np.floating],
     window: SparseWindow,
     decimation_ratio: _IntegerNDArray,
-    complex_dtype: npt.DTypeLike,
-) -> list[npt.NDArray[np.complexfloating]]:
+    image_frequencies: list[npt.NDArray[np.complexfloating]],
+) -> None:
     """
-    Process a single wedge for monogenic backward transform.
+    Accumulate one monogenic wedge into component frequency buffers.
 
-    Uses the discrete tight frame property of UDCT:
+    Uses the discrete tight frame property of UDCT with periodized sparse FFTs:
     - scalar: c₀ · W → reconstructs f
     - riesz_k: cₖ · W → reconstructs Rₖf (will be negated in caller for -Rₖf)
-
-    This is simpler than the continuous quaternion formula because the UDCT
-    windows satisfy partition of unity ∑|W|² = 1, making each component
-    independently reconstructable.
 
     Parameters
     ----------
@@ -45,59 +41,63 @@ def _process_wedge_backward_monogenic(
         Sparse window representation.
     decimation_ratio : _IntegerNDArray
         Decimation ratio for this wedge.
-    complex_dtype : npt.DTypeLike
-        Complex dtype for output.
-
-    Returns
-    -------
-    list[npt.NDArray[np.complexfloating]]
-        List of frequency-domain contributions: [scalar, riesz_1, riesz_2, ..., riesz_ndim]
-        Each is sparse (only non-zero at window indices).
+    image_frequencies : list of ndarray
+        Frequency accumulators for [scalar, riesz_1, ..., riesz_ndim]
+        (modified in-place).
     """
-    # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
-    # Number of Riesz components = ndim = coefficients.shape[-1] - 2
     num_channels = coefficients.shape[-1]
-    num_riesz = num_channels - 2  # ndim
+    num_riesz = num_channels - 2
+    complex_dtype = image_frequencies[0].dtype
 
-    # Reconstruct complex scalar from first 2 channels via .view()
     scalar_2ch = np.ascontiguousarray(coefficients[..., :2])
     coeff_scalar = scalar_2ch.view(complex_dtype).squeeze(-1)
+    scale = float(np.sqrt(np.prod(decimation_ratio) / 2.0))
 
-    # Upsample scalar coefficient to full size
-    curvelet_band_scalar = upsample(coeff_scalar, decimation_ratio)
+    window.synthesize(
+        coeff_scalar,
+        image_frequencies[0],
+        scale,
+        decimation=decimation_ratio,
+    )
 
-    # Undo normalization: divide by sqrt(2 * prod(decimation_ratio))
-    # This matches the standard backward transform normalization
-    norm_factor = np.sqrt(2 * np.prod(decimation_ratio))
-    curvelet_band_scalar /= norm_factor
-
-    # Transform to frequency domain
-    curvelet_freq_scalar = np.prod(decimation_ratio) * np.fft.fftn(curvelet_band_scalar)
-
-    # Initialize contribution array for scalar
-    contribution_scalar = np.zeros(curvelet_freq_scalar.shape, dtype=complex_dtype)
-    window.scatter_add(contribution_scalar, curvelet_freq_scalar, dtype=complex_dtype)
-
-    # Process all Riesz components (channels 2 onwards)
-    contributions = [contribution_scalar]
     for riesz_idx in range(num_riesz):
-        coeff_riesz_k = coefficients[..., 2 + riesz_idx]
-        # Upsample Riesz coefficient to full size
-        curvelet_band_riesz = upsample(
-            coeff_riesz_k.astype(complex_dtype), decimation_ratio
+        coeff_riesz_k = coefficients[..., 2 + riesz_idx].astype(complex_dtype)
+        window.synthesize(
+            coeff_riesz_k,
+            image_frequencies[1 + riesz_idx],
+            scale,
+            decimation=decimation_ratio,
         )
-        # Undo normalization
-        curvelet_band_riesz /= norm_factor
-        # Transform to frequency domain
-        curvelet_freq_riesz = np.prod(decimation_ratio) * np.fft.fftn(
-            curvelet_band_riesz
-        )
-        # Initialize contribution array and apply window
-        contribution_riesz = np.zeros(curvelet_freq_riesz.shape, dtype=complex_dtype)
-        window.scatter_add(contribution_riesz, curvelet_freq_riesz, dtype=complex_dtype)
-        contributions.append(contribution_riesz)
 
-    return contributions
+
+def _backward_lowpass_monogenic_periodized(
+    low_coeffs: npt.NDArray[np.floating],
+    window: SparseWindow,
+    decimation_ratio: _IntegerNDArray,
+    image_frequencies: list[npt.NDArray[np.complexfloating]],
+) -> None:
+    """Accumulate monogenic lowpass (scalar + Riesz) via tiled sparse FFT."""
+    complex_dtype = image_frequencies[0].dtype
+    num_riesz = low_coeffs.shape[-1] - 2
+    scale = float(np.sqrt(np.prod(decimation_ratio)))
+
+    low_scalar_2ch = np.ascontiguousarray(low_coeffs[..., :2])
+    low_coeff_scalar = low_scalar_2ch.view(complex_dtype).squeeze(-1)
+    window.synthesize(
+        low_coeff_scalar,
+        image_frequencies[0],
+        scale,
+        decimation=decimation_ratio,
+    )
+
+    for riesz_idx in range(num_riesz):
+        low_coeff_riesz = low_coeffs[..., 2 + riesz_idx].astype(complex_dtype)
+        window.synthesize(
+            low_coeff_riesz,
+            image_frequencies[1 + riesz_idx],
+            scale,
+            decimation=decimation_ratio,
+        )
 
 
 def _apply_backward_transform_monogenic(
@@ -146,27 +146,21 @@ def _apply_backward_transform_monogenic(
         - scalar: Original input :math:`f`
         - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
     """
-    # Determine dtype from coefficients - access first wedge array
-    first_coeff = coefficients[0][0][0]  # Shape: (*wedge_shape, ndim+2)
+    first_coeff = coefficients[0][0][0]
     real_dtype = first_coeff.dtype
     complex_dtype = _to_complex_dtype(real_dtype)
 
-    # Determine number of output components (ndim+1): scalar + riesz_1..riesz_ndim
-    # Input has ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
     num_channels = first_coeff.shape[-1]
-    num_components = num_channels - 1  # ndim+1 (scalar + ndim Riesz)
+    num_components = num_channels - 1
 
-    # Initialize frequency domain arrays for all components dynamically
     image_frequencies = [
         np.zeros(parameters.shape, dtype=complex_dtype) for _ in range(num_components)
     ]
 
-    # Process high-frequency bands
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
     if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
-        # Separate handling for wavelet mode at highest scale
         image_frequencies_wavelet = [
             np.zeros(parameters.shape, dtype=complex_dtype)
             for _ in range(num_components)
@@ -188,29 +182,24 @@ def _apply_backward_transform_monogenic(
                         ]
 
                     coeffs = coefficients[scale_idx][direction_idx][wedge_idx]
-                    contributions = _process_wedge_backward_monogenic(
+                    targets = (
+                        image_frequencies_wavelet
+                        if scale_idx == highest_scale_idx
+                        else image_frequencies_other
+                    )
+                    _process_wedge_backward_monogenic(
                         coeffs,
                         window,
                         decimation_ratio,
-                        complex_dtype,
+                        targets,
                     )
 
-                    if scale_idx == highest_scale_idx:
-                        for comp_idx, contrib in enumerate(contributions):
-                            image_frequencies_wavelet[comp_idx] += contrib
-                    else:
-                        for comp_idx, contrib in enumerate(contributions):
-                            image_frequencies_other[comp_idx] += contrib
-
-        # Combine with factor of 2 for real transform mode
         for comp_idx in range(num_components):
             image_frequencies[comp_idx] = (
                 2 * image_frequencies_other[comp_idx]
                 + image_frequencies_wavelet[comp_idx]
             )
     else:
-        # Normal curvelet mode
-        # pylint: disable=duplicate-code
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
@@ -223,60 +212,27 @@ def _apply_backward_transform_monogenic(
                         ]
 
                     coeffs = coefficients[scale_idx][direction_idx][wedge_idx]
-                    contributions = _process_wedge_backward_monogenic(
+                    _process_wedge_backward_monogenic(
                         coeffs,
                         window,
                         decimation_ratio,
-                        complex_dtype,
+                        image_frequencies,
                     )
 
-                    for comp_idx, contrib in enumerate(contributions):
-                        image_frequencies[comp_idx] += contrib
-
-        # Multiply by 2 for real transform mode
         for comp_idx in range(num_components):
             image_frequencies[comp_idx] *= 2
 
-    # Process low-frequency band
-    # Use same structure as standard backward transform for consistency
-    decimation_ratio = decimation_ratios[0][0]
-    window = windows[0][0][0]
-
-    # Get low-frequency coefficients - shape (*wedge_shape, ndim+2)
-    low_coeffs = coefficients[0][0][0]
-
-    # Reconstruct complex scalar from first 2 channels via .view()
-    low_scalar_2ch = np.ascontiguousarray(low_coeffs[..., :2])
-    low_coeff_scalar = low_scalar_2ch.view(complex_dtype).squeeze(-1)
-
-    # Process scalar component
-    curvelet_band_scalar = upsample(low_coeff_scalar, decimation_ratio)
-    curvelet_freq_scalar = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(
-        curvelet_band_scalar
+    _backward_lowpass_monogenic_periodized(
+        coefficients[0][0][0],
+        windows[0][0][0],
+        decimation_ratios[0][0],
+        image_frequencies,
     )
-    window.scatter_add(image_frequencies[0], curvelet_freq_scalar, dtype=complex_dtype)
 
-    # Process all Riesz components for low frequency (channels 2 onwards)
-    num_riesz = num_channels - 2  # ndim
-    for riesz_idx in range(num_riesz):
-        low_coeff_riesz = low_coeffs[..., 2 + riesz_idx]  # Access via last dimension
-        curvelet_band_riesz = upsample(
-            low_coeff_riesz.astype(complex_dtype), decimation_ratio
-        )
-        curvelet_freq_riesz = np.sqrt(np.prod(decimation_ratio)) * np.fft.fftn(
-            curvelet_band_riesz
-        )
-        # Output component index: scalar=0, riesz_1=1, riesz_2=2, etc.
-        window.scatter_add(
-            image_frequencies[1 + riesz_idx], curvelet_freq_riesz, dtype=complex_dtype
-        )
-
-    # Transform back to spatial domain and take real part
     results = []
     scalar: npt.NDArray[_F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
     results.append(scalar)
 
-    # Negate Riesz components: forward computes Rₖf, we want -Rₖf
     for comp_idx in range(1, num_components):
         riesz_k: npt.NDArray[_F] = -np.fft.ifftn(
             image_frequencies[comp_idx]

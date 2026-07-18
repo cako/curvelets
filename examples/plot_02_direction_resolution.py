@@ -25,8 +25,7 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.typing import ColorType
 from numpy.fft import fftfreq, fftshift
 
-from curvelets.numpy import UDCT
-from curvelets.numpy._sparse_window import SparseWindow
+from curvelets.numpy import UDCT, SparseWindow
 
 # %%
 # Symmetric and Asymmetric UDCTs

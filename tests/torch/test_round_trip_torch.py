@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from curvelets.torch._sparse_window import SparseWindow
+from curvelets.torch import SparseWindow
 
 from .conftest import setup_torch_transform
 
