@@ -91,14 +91,14 @@ curvelet_window_info = []  # Store (direction, wedge) pairs for labeling
 for idir in range(len(C_curvelet.windows[1])):
     for iwedge in range(len(C_curvelet.windows[1][idir])):
         window_sparse = C_curvelet.windows[1][idir][iwedge]
-        window_dense = C_curvelet._from_sparse(window_sparse)
+        window_dense = window_sparse.to_dense()
         window_shifted = fftshift(window_dense)
         curvelet_windows_scale1.append(window_shifted)
         curvelet_window_info.append((idir, iwedge))
 
 # Extract wavelet window for scale 1 (single ring-shaped window, complement of lowpass)
 wavelet_window_sparse = C_wavelet.windows[1][0][0]
-wavelet_window_dense = C_wavelet._from_sparse(wavelet_window_sparse)
+wavelet_window_dense = wavelet_window_sparse.to_dense()
 wavelet_window_shifted = fftshift(wavelet_window_dense)
 wavelet_windows_scale1 = [wavelet_window_shifted]
 

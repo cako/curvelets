@@ -81,13 +81,20 @@ def test_udct_window_compute_matches_numpy(ndim):
                 torch_windows[scale_idx][dir_idx]
             )
             for wedge_idx in range(len(np_windows[scale_idx][dir_idx])):
-                np_idx, np_val = np_windows[scale_idx][dir_idx][wedge_idx]
-                torch_idx, torch_val = torch_windows[scale_idx][dir_idx][wedge_idx]
+                np_sparse_window = np_windows[scale_idx][dir_idx][wedge_idx]
+                torch_sparse_window = torch_windows[scale_idx][dir_idx][wedge_idx]
 
                 # Values should match (within tolerance)
                 # Use atol=1e-5 due to floating point precision differences
                 np.testing.assert_allclose(
-                    np_val.flatten(), torch_val.numpy().flatten(), atol=1e-5
+                    np_sparse_window.values.flatten(),
+                    torch_sparse_window.values.numpy().flatten(),
+                    atol=1e-5,
+                )
+                # Indices should match exactly
+                np.testing.assert_array_equal(
+                    np_sparse_window.indices.flatten(),
+                    torch_sparse_window.indices.numpy().flatten(),
                 )
 
 

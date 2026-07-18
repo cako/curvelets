@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 
 from curvelets.numpy import UDCT
 
@@ -17,7 +18,9 @@ class TestComputeOptimalWindowOverlap:
         The computed value should be approximately 0.037 (10% of theoretical max).
         """
         num_scales = 3
-        wedges_per_scale = (3 * 2 ** np.arange(num_scales - 1)).astype(int)
+        wedges_per_scale: npt.NDArray[np.int_] = (
+            3 * 2 ** np.arange(num_scales - 1)
+        ).astype(int)
         alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
 
         # Expected value around 0.037 based on formula
@@ -30,7 +33,9 @@ class TestComputeOptimalWindowOverlap:
         The computed value should be approximately 0.09 (10% of theoretical max).
         """
         num_scales = 3
-        wedges_per_scale = (6 * 2 ** np.arange(num_scales - 1)).astype(int)
+        wedges_per_scale: npt.NDArray[np.int_] = (
+            6 * 2 ** np.arange(num_scales - 1)
+        ).astype(int)
         alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
 
         # Expected value around 0.09 based on formula
@@ -43,7 +48,9 @@ class TestComputeOptimalWindowOverlap:
         The computed value should be approximately 0.16 (10% of theoretical max).
         """
         num_scales = 3
-        wedges_per_scale = (12 * 2 ** np.arange(num_scales - 1)).astype(int)
+        wedges_per_scale: npt.NDArray[np.int_] = (
+            12 * 2 ** np.arange(num_scales - 1)
+        ).astype(int)
         alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
 
         # Expected value around 0.16 based on formula
@@ -57,7 +64,9 @@ class TestComputeOptimalWindowOverlap:
         """
         for wpd in [3, 6, 9, 12]:
             num_scales = 3
-            wedges_per_scale = (wpd * 2 ** np.arange(num_scales - 1)).astype(int)
+            wedges_per_scale: npt.NDArray[np.int_] = (
+                wpd * 2 ** np.arange(num_scales - 1)
+            ).astype(int)
             alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
 
             # Verify constraint is satisfied for all scales
@@ -78,7 +87,9 @@ class TestComputeOptimalWindowOverlap:
         num_scales = 3
         alphas = []
         for wpd in [3, 6, 9, 12]:
-            wedges_per_scale = (wpd * 2 ** np.arange(num_scales - 1)).astype(int)
+            wedges_per_scale: npt.NDArray[np.int_] = (
+                wpd * 2 ** np.arange(num_scales - 1)
+            ).astype(int)
             alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
             alphas.append(alpha)
 
@@ -92,7 +103,9 @@ class TestComputeOptimalWindowOverlap:
         """Test that computed alpha is always positive."""
         for wpd in [3, 6, 9, 12, 15, 18]:
             for num_scales in [2, 3, 4, 5]:
-                wedges_per_scale = (wpd * 2 ** np.arange(num_scales - 1)).astype(int)
+                wedges_per_scale: npt.NDArray[np.int_] = (
+                    wpd * 2 ** np.arange(num_scales - 1)
+                ).astype(int)
                 alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
                 assert alpha > 0, f"Alpha should be positive: {alpha}"
 
@@ -105,7 +118,9 @@ class TestComputeOptimalWindowOverlap:
         wpd = 6
         alphas = []
         for num_scales in [2, 3, 4, 5]:
-            wedges_per_scale = (wpd * 2 ** np.arange(num_scales - 1)).astype(int)
+            wedges_per_scale: npt.NDArray[np.int_] = (
+                wpd * 2 ** np.arange(num_scales - 1)
+            ).astype(int)
             alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
             alphas.append(alpha)
 

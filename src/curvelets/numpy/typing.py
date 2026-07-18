@@ -15,11 +15,18 @@ from __future__ import annotations
 import sys
 
 if sys.version_info >= (3, 10):
-    from typing import TypeAlias, TypeVar
+    from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
     from typing_extensions import TypeAliasType
 else:
+    from typing import TYPE_CHECKING, Any
+
     from typing_extensions import TypeAlias, TypeAliasType, TypeVar
+
+if TYPE_CHECKING:
+    from ._sparse_window import SparseWindow
+else:
+    SparseWindow = Any
 
 import numpy as np
 import numpy.typing as npt
@@ -62,10 +69,10 @@ UDCTCoefficients = TypeAliasType(
 
 # Generic UDCT windows parameterized by real floating dtype (no complex allowed)
 # Usage: UDCTWindows[np.floating], UDCTWindows[np.float32], UDCTWindows[np.float64]
-# Structure: list[list[list[tuple[indices, values]]]] where values are real floats
+# Structure: list[list[list[SparseWindow]]] where values are real floats
 UDCTWindows = TypeAliasType(
     "UDCTWindows",
-    list[list[list[tuple[npt.NDArray[np.intp], npt.NDArray[_F]]]]],
+    list[list[list[SparseWindow]]],
     type_params=(_F,),
 )
 

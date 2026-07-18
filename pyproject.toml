@@ -61,8 +61,9 @@ docs = [
   "matplotlib",
   "scikit-learn",
   "pooch>=1.8.2",
-  "scipy>=1.16.3",
-  "scipy-stubs",
+  "scipy>=1.16.3; python_version>='3.11'",
+  "scipy<1.16.3; python_version<'3.11'",
+  "scipy-stubs; python_version>='3.11'",
 ]
 
 [project.urls]

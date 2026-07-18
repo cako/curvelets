@@ -58,7 +58,7 @@ def test_non_multiple_of_3_raises_error(
         UDCT(
             shape=shape,
             num_scales=num_scales,
-            wedges_per_direction=wedges_per_direction,
+            wedges_per_direction=int(wedges_per_direction),
         )
 
 

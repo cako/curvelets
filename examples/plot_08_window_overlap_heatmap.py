@@ -31,6 +31,7 @@ from __future__ import annotations
 # %%
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 
 from curvelets.numpy import UDCT
 from curvelets.plot import despine
@@ -59,9 +60,9 @@ def compute_theoretical_max(num_scales: int, wedges_per_direction: int) -> float
     float
         Theoretical maximum window_overlap value.
     """
-    wedges_per_scale = (wedges_per_direction * 2 ** np.arange(num_scales - 1)).astype(
-        int
-    )
+    wedges_per_scale: npt.NDArray[np.int_] = (
+        wedges_per_direction * 2 ** np.arange(num_scales - 1)
+    ).astype(int)
 
     min_overlap = float("inf")
     for scale_idx, num_wedges in enumerate(wedges_per_scale, start=1):

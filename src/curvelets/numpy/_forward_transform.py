@@ -6,6 +6,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._riesz import riesz_filters
+from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT, downsample, flip_fft_all_axes
 from .typing import (
     _C,
@@ -13,12 +14,11 @@ from .typing import (
     UDCTCoefficients,
     UDCTWindows,
     _IntegerNDArray,
-    _IntpNDArray,
 )
 
 
 def _process_wedge_real(
-    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+    window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     freq_band: npt.NDArray[np.complexfloating],
@@ -33,8 +33,8 @@ def _process_wedge_real(
 
     Parameters
     ----------
-    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : npt.NDArray[np.int_]
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : npt.NDArray[np.complexfloating]
@@ -55,15 +55,11 @@ def _process_wedge_real(
     :math:`\\sqrt{0.5}` scaling is applied. The normalization factor ensures proper
     energy preservation.
     """
-    # Clear the frequency band buffer for reuse
-    freq_band.fill(0)
-
-    # Get the sparse window representation (indices and values)
-    idx, val = window
-
     # Apply the window to the frequency domain: multiply image frequencies
     # by the window values at the specified indices
-    freq_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
+    freq_band = window.multiply_extract(
+        image_frequency, out=freq_band, dtype=complex_dtype
+    )
 
     # Transform back to spatial domain using inverse FFT
     curvelet_band = np.fft.ifftn(freq_band)
@@ -79,10 +75,9 @@ def _process_wedge_real(
 
 
 def _process_wedge_complex(
-    window: tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]],
+    window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
-    parameters: ParamUDCT,
     complex_dtype: npt.DTypeLike,
     flip_window: bool = False,
 ) -> npt.NDArray[np.complexfloating]:
@@ -96,14 +91,12 @@ def _process_wedge_complex(
 
     Parameters
     ----------
-    window : tuple[npt.NDArray[np.intp], npt.NDArray[np.floating]]
-        Sparse window representation as (indices, values) tuple.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : npt.NDArray[np.int_]
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : npt.NDArray[np.complexfloating]
         Input image in frequency domain (from FFT).
-    parameters : ParamUDCT
-        UDCT parameters containing size information.
     complex_dtype : npt.DTypeLike
         Complex dtype matching image_frequency.
     flip_window : bool, optional
@@ -122,12 +115,8 @@ def _process_wedge_complex(
     proper energy preservation.
     """
     # pylint: disable=duplicate-code
-    # Get the sparse window representation (indices and values)
-    idx, val = window
-
     # Convert sparse window to dense for manipulation
-    subwindow = np.zeros(parameters.shape, dtype=val.dtype)
-    subwindow.flat[idx] = val
+    subwindow = window.to_dense()
 
     # Optionally flip the window for negative frequency processing
     if flip_window:
@@ -178,7 +167,7 @@ def _apply_forward_transform_real(
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[npt.NDArray[np.int_]]
         Decimation ratios for each scale and direction. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band
@@ -209,8 +198,9 @@ def _apply_forward_transform_real(
     frequency_band = np.zeros_like(image_frequency)
 
     # Low frequency band processing
-    idx, val = windows[0][0][0]
-    frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band, dtype=complex_dtype
+    )
 
     # Real transform: take real part
     curvelet_band = np.fft.ifftn(frequency_band)
@@ -277,7 +267,7 @@ def _apply_forward_transform_complex(
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[npt.NDArray[np.int_]]
         Decimation ratios for each scale and direction. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band
@@ -310,8 +300,9 @@ def _apply_forward_transform_complex(
 
     # Low frequency band processing
     frequency_band = np.zeros_like(image_frequency)
-    idx, val = windows[0][0][0]
-    frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band, dtype=complex_dtype
+    )
 
     # Complex transform: keep complex low frequency
     curvelet_band = np.fft.ifftn(frequency_band)
@@ -345,7 +336,6 @@ def _apply_forward_transform_complex(
                         min(direction_idx, len(windows[scale_idx]) - 1), :
                     ],
                     image_frequency,
-                    parameters,
                     complex_dtype,
                     flip_window=False,
                 )
@@ -373,7 +363,6 @@ def _apply_forward_transform_complex(
                         min(direction_idx, len(windows[scale_idx]) - 1), :
                     ],
                     image_frequency,
-                    parameters,
                     complex_dtype,
                     flip_window=True,
                 )
@@ -392,7 +381,7 @@ def _apply_forward_transform_complex(
 
 
 def _process_wedge_monogenic(
-    window: tuple[_IntpNDArray, npt.NDArray[np.floating]],
+    window: SparseWindow,
     decimation_ratio: _IntegerNDArray,
     image_frequency: npt.NDArray[np.complexfloating],
     riesz_filters_list: list[npt.NDArray[np.complexfloating]],
@@ -409,9 +398,8 @@ def _process_wedge_monogenic(
 
     Parameters
     ----------
-    window : tuple[_IntpNDArray, npt.NDArray[np.floating]]
-        Sparse window representation as (indices, values) tuple.
-        Uses _IntpNDArray type alias from typing.py.
+    window : SparseWindow
+        Sparse window representation.
     decimation_ratio : _IntegerNDArray
         Decimation ratio for this wedge (1D array with length equal to dimensions).
         Uses _IntegerNDArray type alias from typing.py.
@@ -445,9 +433,9 @@ def _process_wedge_monogenic(
     as the standard UDCT transform.
     """
     # Scalar component (same as _process_wedge_real)
-    freq_band.fill(0)
-    idx, val = window
-    freq_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
+    freq_band = window.multiply_extract(
+        image_frequency, out=freq_band, dtype=complex_dtype
+    )
     curvelet_band_scalar = np.fft.ifftn(freq_band)
     coeff_scalar = downsample(curvelet_band_scalar, decimation_ratio)
     coeff_scalar *= np.sqrt(2 * np.prod(decimation_ratio))
@@ -460,10 +448,10 @@ def _process_wedge_monogenic(
     for riesz_filter in riesz_filters_list:
         freq_band.fill(0)
         # Apply window and Riesz filter
-        freq_band.flat[idx] = (
-            image_frequency.flat[idx]
-            * val.astype(complex_dtype)
-            * riesz_filter.flat[idx]
+        # First apply window, then multiply by Riesz filter at window indices
+        windowed = window.multiply_extract(image_frequency, dtype=complex_dtype)
+        freq_band.flat[window.indices] = (
+            windowed.flat[window.indices] * riesz_filter.flat[window.indices]
         )
         curvelet_band_riesz = np.fft.ifftn(freq_band)
         coeff_riesz = downsample(curvelet_band_riesz, decimation_ratio)
@@ -521,7 +509,7 @@ def _apply_forward_transform_monogenic(
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
         Type alias from typing.py.
     decimation_ratios : list[_IntegerNDArray]
         Decimation ratios for each scale and direction. Structure:
@@ -591,9 +579,9 @@ def _apply_forward_transform_monogenic(
     frequency_band = np.zeros_like(image_frequency)
 
     # Low frequency band processing (ndim+2 components: scalar.real, scalar.imag + all Riesz)
-    idx, val = windows[0][0][0]
-    frequency_band.fill(0)
-    frequency_band.flat[idx] = image_frequency.flat[idx] * val.astype(complex_dtype)
+    frequency_band = windows[0][0][0].multiply_extract(
+        image_frequency, out=frequency_band, dtype=complex_dtype
+    )
 
     # Scalar component
     curvelet_band_scalar = np.fft.ifftn(frequency_band)
@@ -610,12 +598,12 @@ def _apply_forward_transform_monogenic(
 
     # Process all Riesz components for low frequency
     low_freq_riesz_coeffs: list[npt.NDArray[np.floating]] = []
+    window = windows[0][0][0]
     for riesz_filter in riesz_filters_list:
-        frequency_band.fill(0)
-        frequency_band.flat[idx] = (
-            image_frequency.flat[idx]
-            * val.astype(complex_dtype)
-            * riesz_filter.flat[idx]
+        # Apply window, then multiply by Riesz filter at window indices
+        windowed = window.multiply_extract(image_frequency, dtype=complex_dtype)
+        frequency_band = window.multiply_at_indices(
+            windowed, riesz_filter, out=frequency_band, dtype=complex_dtype
         )
         curvelet_band_riesz = np.fft.ifftn(frequency_band)
         low_freq_coeff_riesz = downsample(curvelet_band_riesz, decimation_ratios[0][0])
@@ -711,7 +699,7 @@ def _apply_forward_transform(
     windows : UDCTWindows
         Curvelet windows in sparse format, typically computed by
         `_udct_windows`. Structure is:
-        windows[scale][direction][wedge] = (indices, values) tuple
+        windows[scale][direction][wedge] = SparseWindow
     decimation_ratios : list[npt.NDArray[np.int_]]
         Decimation ratios for each scale and direction. Structure:
         - decimation_ratios[0]: shape (1, dim) for low-frequency band

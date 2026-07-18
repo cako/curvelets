@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from curvelets.numpy._udct_windows import UDCTWindow
@@ -64,14 +65,6 @@ def test_flip_with_fft_shift_type_hints() -> None:
     hints = typing.get_type_hints(UDCTWindow._flip_with_fft_shift)
     assert "input_array" in hints
     assert "axis" in hints
-    assert "return" in hints
-
-
-def test_to_sparse_type_hints() -> None:
-    """Test that _to_sparse has correct type hints."""
-    hints = typing.get_type_hints(UDCTWindow._to_sparse)
-    assert "arr" in hints
-    assert "threshold" in hints
     assert "return" in hints
 
 
@@ -224,23 +217,24 @@ def test_complex_dtype_promotion_numpy2_compatible() -> None:
 
 def test_compute_angle_component_invalid_direction() -> None:
     """
-    Test that invalid direction values raise ValueError in _create_angle_functions.
+        Test that invalid direction values raise ValueError in _create_angle_functions.
 
-    The _create_angle_functions method should only accept direction values of 1 or 2.
-    Any other value should raise a ValueError.
+        The _create_angle_functions method should only accept direction values of 1 or 2.
+        Any other value should raise a ValueError.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._udct_windows import UDCTWindow
-    >>> angle_grid = np.linspace(-1, 1, 64)
-    >>> try:
-    ...     UDCTWindow._create_angle_functions(angle_grid, direction=0, num_angular_wedges=3, window_overlap=0.15)
-    ... except ValueError as e:
-    ...     print(f"Error caught: {e}")
-    Error caught: Unrecognized direction: 0. Must be 1 or 2.
+        Examples
+        --------
+        >>> import numpy as np
+    import numpy.typing as npt
+        >>> from curvelets.numpy._udct_windows import UDCTWindow
+        >>> angle_grid = np.linspace(-1, 1, 64)
+        >>> try:
+        ...     UDCTWindow._create_angle_functions(angle_grid, direction=0, num_angular_wedges=3, window_overlap=0.15)
+        ... except ValueError as e:
+        ...     print(f"Error caught: {e}")
+        Error caught: Unrecognized direction: 0. Must be 1 or 2.
     """
-    angle_grid = np.linspace(-1, 1, 64, dtype=np.float64)
+    angle_grid: npt.NDArray[np.float64] = np.linspace(-1, 1, 64, dtype=np.float64)
     num_angular_wedges = 3
     window_overlap = 0.15
 

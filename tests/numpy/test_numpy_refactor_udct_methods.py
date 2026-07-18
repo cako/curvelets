@@ -1,4 +1,4 @@
-"""Tests for UDCT vect(), struct(), and _from_sparse() methods."""
+"""Tests for UDCT vect() and struct() methods."""
 
 from __future__ import annotations
 
