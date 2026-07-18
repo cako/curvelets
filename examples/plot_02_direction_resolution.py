@@ -22,6 +22,7 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colorbar import ColorbarBase
 from matplotlib.colors import Normalize, to_rgba
 from matplotlib.gridspec import GridSpec
+from matplotlib.typing import ColorType
 from numpy.fft import fftfreq, fftshift
 
 from curvelets.numpy import UDCT
@@ -47,8 +48,8 @@ def color_windows(
     C: UDCT,
     thresh: float = 0.8,
     cmaps_dir: tuple[str, str] = ("Wistia", "winter_r"),
-    color_low: str | tuple[int, ...] = "w",
-    color_bg: str | tuple[int, ...] = (0, 0, 0, 1),
+    color_low: ColorType = "w",
+    color_bg: ColorType = (0, 0, 0, 1),
 ) -> npt.NDArray[np.floating]:
     wins = C.windows
 
@@ -77,16 +78,12 @@ def color_windows(
     mask = create_mask(wins[0][0][0])
 
     # Full colored mask
-    rgb_a_bg: tuple[float, float, float, float] = (
-        to_rgba(color_bg) if isinstance(color_bg, str) else tuple(color_bg)
-    )
+    rgb_a_bg: tuple[float, float, float, float] = to_rgba(color_bg)
     mask_rgba = np.zeros((*mask.shape, 4), dtype=float)
     assign_rgba_to_mask(None, mask_rgba, rgb_a_bg)
 
     # Set scale 0 wedges in full mask
-    rgb_a_low: tuple[float, float, float, float] = (
-        to_rgba(color_low) if isinstance(color_low, str) else tuple(color_low)
-    )
+    rgb_a_low: tuple[float, float, float, float] = to_rgba(color_low)
     assign_rgba_to_mask(mask, mask_rgba, rgb_a_low)
 
     # Rest of scales
@@ -117,8 +114,8 @@ def plot_disk(
     C: UDCT,
     ax: Axes,
     cmaps_dir: tuple[str, str] = ("Wistia", "winter_r"),
-    color_low: str | tuple[int, ...] = "w",
-    color_bg: str | tuple[int, ...] = (0, 0, 0, 1),
+    color_low: ColorType = "w",
+    color_bg: ColorType = (0, 0, 0, 1),
 ) -> None:
     deg_360 = 2 * np.pi
     deg_135 = np.pi * 3 / 4
@@ -127,7 +124,7 @@ def plot_disk(
 
     ax.yaxis.set_visible(False)
     ax.grid(False)
-    ax.set_facecolor(str(color_bg) if isinstance(color_bg, tuple) else color_bg)
+    ax.set_facecolor(color_bg)
 
     nscales = len(C.windows)
     wedge_height = 1 / (nscales - 1)
