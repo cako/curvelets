@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from curvelets.numpy import UDCT
+from curvelets.numpy._forward_transform import _apply_forward_transform_monogenic
 from tests.numpy.conftest import (
     get_test_configs,
     get_test_shapes,
@@ -84,7 +86,6 @@ def test_numpy_round_trip_wavelet_mode(dim, rng):
     Wavelet mode sums all windows at the highest scale into a single window
     with decimation=1 (no decimation).
     """
-    from curvelets.numpy import UDCT
 
     shapes = get_test_shapes(dim)
     if not shapes:
@@ -248,7 +249,6 @@ def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
     >>> np.allclose(data, recon.real, atol=1e-4)
     True
     """
-    from curvelets.numpy import UDCT
 
     shapes = get_test_shapes(dim)
     if not shapes:
@@ -385,7 +385,6 @@ def test_backward_decimation_ratio_single_direction(dim, rng):
     >>> np.allclose(data, recon, atol=1e-4)
     True
     """
-    from curvelets.numpy import UDCT
 
     shapes = get_test_shapes(dim)
     if not shapes:
@@ -450,7 +449,6 @@ def test_backward_complex_decimation_ratio_single(dim, rng):
     >>> np.allclose(data, recon.real, atol=1e-4)
     True
     """
-    from curvelets.numpy import UDCT
 
     shapes = get_test_shapes(dim)
     if not shapes:
@@ -516,7 +514,6 @@ def test_backward_complex_decimation_ratio_multi(dim, rng):
     >>> np.allclose(data, recon.real, atol=1e-4)
     True
     """
-    from curvelets.numpy import UDCT
 
     shapes = get_test_shapes(dim)
     if not shapes:
@@ -547,3 +544,24 @@ def test_backward_complex_decimation_ratio_multi(dim, rng):
     assert isinstance(recon, np.ndarray)  # Type narrowing for mypy
     atol = 1e-4 if dim == 2 else 2e-4
     np.testing.assert_allclose(data, recon.real, atol=atol)
+
+
+def test_apply_forward_transform_monogenic_none_riesz_filters(rng):
+    """Test _apply_forward_transform_monogenic handles riesz_filters_list=None."""
+
+    shape = (32, 32)
+    udct = UDCT(shape=shape, transform_kind="monogenic")
+    data = rng.normal(size=shape).astype(np.float64)
+
+    # Call directly with None
+    coeffs = _apply_forward_transform_monogenic(
+        data,
+        udct.parameters,
+        udct.windows,
+        udct.decimation_ratios,
+        riesz_filters_list=None,
+    )
+
+    assert len(coeffs) == 3
+    # Check that it generated ndim+2 channels
+    assert coeffs[0][0][0].shape[-1] == 2 + len(shape)
