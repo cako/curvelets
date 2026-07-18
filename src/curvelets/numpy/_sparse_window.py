@@ -46,7 +46,7 @@ class SparseWindow:
     Examples
     --------
     >>> import numpy as np
-    >>> from curvelets.numpy._sparse_window import SparseWindow
+    >>> from curvelets.numpy import SparseWindow
     >>> arr = np.array([[0.1, 0.9], [0.2, 0.8]])
     >>> window = SparseWindow.from_dense(arr, threshold=0.5)
     >>> window.size
@@ -78,7 +78,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.array([0.1, 0.9, 0.2]), threshold=0.5)
         >>> window.size
         1
@@ -109,7 +109,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> arr = np.array([[0.1, 0.9], [0.2, 0.8]])
         >>> window = SparseWindow.from_dense(arr, threshold=0.5)
         >>> window.size
@@ -140,7 +140,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.ones((8, 8)), threshold=0.5)
         >>> window.attach_periodized([2, 2], with_flip=True)
         >>> window.folded_indices is not None
@@ -187,7 +187,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.ones((8, 8)), threshold=0.5)
         >>> window.attach_periodized([2, 2])
         >>> idx, folded = window.resolve_indices()
@@ -262,7 +262,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.ones((4, 4)), threshold=0.5)
         >>> window.attach_periodized([2, 2])
         >>> image_freq = np.ones((4, 4), dtype=np.complex128)
@@ -311,7 +311,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.ones((4, 4)), threshold=0.5)
         >>> window.attach_periodized([2, 2])
         >>> target = np.zeros((4, 4), dtype=np.complex128)
@@ -358,7 +358,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.ones((8, 8)), threshold=0.5)
         >>> window.attach_periodized([2, 2])
         >>> image_freq = np.fft.fftn(np.random.randn(8, 8))
@@ -402,7 +402,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.ones((8, 8)), threshold=0.5)
         >>> window.attach_periodized([2, 2])
         >>> target = np.zeros((8, 8), dtype=np.complex128)
@@ -448,7 +448,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.array([0.0, 0.5, 1.0]), threshold=0.3)
         >>> arr = np.array([1.0, 2.0, 3.0])
         >>> result = window.multiply_extract(arr)
@@ -487,7 +487,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.array([0.0, 0.5, 1.0]), threshold=0.3)
         >>> target = np.zeros(3)
         >>> source = np.array([1.0, 2.0, 3.0])
@@ -530,7 +530,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.array([0.0, 0.5, 1.0]), threshold=0.3)
         >>> source = np.array([1.0, 2.0, 3.0])
         >>> filter_arr = np.array([0.5, 1.5, 2.5])
@@ -568,7 +568,7 @@ class SparseWindow:
         Examples
         --------
         >>> import numpy as np
-        >>> from curvelets.numpy._sparse_window import SparseWindow
+        >>> from curvelets.numpy import SparseWindow
         >>> window = SparseWindow.from_dense(np.array([0.1, 0.9, 0.2]), threshold=0.5)
         >>> dense = window.to_dense()
         >>> dense[1]  # Only index 1 is above threshold
