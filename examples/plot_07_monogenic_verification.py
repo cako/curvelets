@@ -57,6 +57,8 @@ transform_mono = UDCT(
 # with a window that decays to zero at the edges
 x = np.linspace(-1, 1, shape[0])
 y = np.linspace(-1, 1, shape[1])
+X: npt.NDArray[np.float64]
+Y: npt.NDArray[np.float64]
 X, Y = np.meshgrid(x, y, indexing="ij")
 # Zone plate pattern
 zone_plate = np.sin(20 * (X**2 + Y**2))

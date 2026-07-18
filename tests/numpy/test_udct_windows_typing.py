@@ -216,21 +216,22 @@ def test_complex_dtype_promotion_numpy2_compatible() -> None:
 
 def test_compute_angle_component_invalid_direction() -> None:
     """
-    Test that invalid direction values raise ValueError in _create_angle_functions.
+        Test that invalid direction values raise ValueError in _create_angle_functions.
 
-    The _create_angle_functions method should only accept direction values of 1 or 2.
-    Any other value should raise a ValueError.
+        The _create_angle_functions method should only accept direction values of 1 or 2.
+        Any other value should raise a ValueError.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from curvelets.numpy._udct_windows import UDCTWindow
-    >>> angle_grid = np.linspace(-1, 1, 64)
-    >>> try:
-    ...     UDCTWindow._create_angle_functions(angle_grid, direction=0, num_angular_wedges=3, window_overlap=0.15)
-    ... except ValueError as e:
-    ...     print(f"Error caught: {e}")
-    Error caught: Unrecognized direction: 0. Must be 1 or 2.
+        Examples
+        --------
+        >>> import numpy as np
+    import numpy.typing as npt
+        >>> from curvelets.numpy._udct_windows import UDCTWindow
+        >>> angle_grid = np.linspace(-1, 1, 64)
+        >>> try:
+        ...     UDCTWindow._create_angle_functions(angle_grid, direction=0, num_angular_wedges=3, window_overlap=0.15)
+        ... except ValueError as e:
+        ...     print(f"Error caught: {e}")
+        Error caught: Unrecognized direction: 0. Must be 1 or 2.
     """
     angle_grid = np.linspace(-1, 1, 64, dtype=np.float64)
     num_angular_wedges = 3
