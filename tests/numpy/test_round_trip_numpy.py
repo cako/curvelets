@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 
 from curvelets.numpy import UDCT
-from curvelets.numpy._forward_transform import _apply_forward_transform_monogenic
+from curvelets.numpy._forward_transform import (
+    _apply_forward_transform,
+    _apply_forward_transform_monogenic,
+)
 from tests.numpy.conftest import (
     get_test_configs,
     get_test_shapes,
@@ -565,3 +568,33 @@ def test_apply_forward_transform_monogenic_none_riesz_filters(rng):
     assert len(coeffs) == 3
     # Check that it generated ndim+2 channels
     assert coeffs[0][0][0].shape[-1] == 2 + len(shape)
+
+
+def test_apply_forward_transform_complex_branches(rng):
+    """Test the two branches of _apply_forward_transform with use_complex_transform=True."""
+    shape = (16, 16)
+    udct = UDCT(shape=shape, transform_kind="complex")
+
+    # Branch 1: Real image
+    data_real = rng.normal(size=shape).astype(np.float64)
+    coeffs_real = _apply_forward_transform(
+        data_real,
+        udct.parameters,
+        udct.windows,
+        udct.decimation_ratios,
+        use_complex_transform=True,
+    )
+    assert len(coeffs_real) > 0
+
+    # Branch 2: Complex image
+    data_complex = (rng.normal(size=shape) + 1j * rng.normal(size=shape)).astype(
+        np.complex128
+    )
+    coeffs_complex = _apply_forward_transform(
+        data_complex,
+        udct.parameters,
+        udct.windows,
+        udct.decimation_ratios,
+        use_complex_transform=True,
+    )
+    assert len(coeffs_complex) > 0
