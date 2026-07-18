@@ -64,6 +64,7 @@ docs = [
   "scipy>=1.16.3; python_version>='3.11'",
   "scipy<1.16.3; python_version<'3.11'",
   "scipy-stubs; python_version>='3.11'",
+  "types-docutils",
 ]
 
 [project.urls]

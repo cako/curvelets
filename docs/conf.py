@@ -114,11 +114,14 @@ MISSING_REF_MAPPING = {
 }
 
 
-def on_missing_reference(app, env, node, contnode):
+def on_missing_reference(app, env, node, contnode):  # noqa: ARG001
     target = node.get("reftarget")
     if target in MISSING_REF_MAPPING:
         from docutils import nodes
-        new_ref = nodes.reference("", "", internal=False, refuri=MISSING_REF_MAPPING[target])
+
+        new_ref = nodes.reference(
+            "", "", internal=False, refuri=MISSING_REF_MAPPING[target]
+        )
         new_ref += contnode
         return new_ref
     return None
