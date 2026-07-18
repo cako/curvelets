@@ -12,7 +12,7 @@ import numpy.typing as npt
 
 from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT, circular_shift, meyer_window
-from .typing import _F, UDCTWindows, _IntegerNDArray, _IntpNDArray
+from .typing import _F, UDCTWindows, _IntegerNDArray
 
 
 class UDCTWindow:
@@ -1224,7 +1224,7 @@ class UDCTWindow:
                     # Process each window_index independently using list comprehension
                     # Each call returns (list of window tuples, angle_indices_2d array)
                     # Windows include original and flipped versions for symmetry
-                    window_results: list[tuple[list[SparseWindow], IntegerNDArray]] = [
+                    window_results: list[tuple[list[SparseWindow], _IntegerNDArray]] = [
                         UDCTWindow._process_single_window(
                             scale_idx=scale_idx,
                             dimension_idx=dimension_idx,

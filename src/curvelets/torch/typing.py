@@ -12,6 +12,8 @@ UDCTWindows
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import torch
 
 __all__ = [
@@ -23,12 +25,12 @@ __all__ = [
 # Public Type Aliases
 # =============================================================================
 
+
+
 # Simple type aliases - every array is just a Tensor
 # Structure: coefficients[scale][direction][wedge] = Tensor
 # For monogenic transforms, each wedge tensor has shape (*wedge_shape, ndim+1)
 UDCTCoefficients = list[list[list[torch.Tensor]]]
-
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ._sparse_window import SparseWindow

@@ -12,7 +12,6 @@ from .typing import (
     UDCTCoefficients,
     UDCTWindows,
     _IntegerNDArray,
-    _IntpNDArray,
     _to_complex_dtype,
 )
 
