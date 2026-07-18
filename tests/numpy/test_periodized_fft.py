@@ -7,7 +7,11 @@ import numpy.typing as npt
 import pytest
 
 from curvelets.numpy import UDCT, SparseWindow
-from curvelets.numpy._periodized_fft import compute_folded_indices, flip_fft_indices
+from curvelets.numpy._periodized_fft import (
+    compute_folded_indices,
+    decimated_shape,
+    flip_fft_indices,
+)
 from curvelets.numpy._utils import downsample, flip_fft_all_axes, upsample
 
 
@@ -137,3 +141,8 @@ def test_monogenic_round_trip_periodized():
     components = udct.backward(udct.forward(data))
     np.testing.assert_allclose(data, components[0], atol=1e-4)
     assert udct._riesz_filters is not None
+
+
+def test_decimated_shape_exception():
+    with pytest.raises(ValueError, match="shape and decimation must have equal length"):
+        decimated_shape((64, 64), [2])
