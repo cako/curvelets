@@ -61,18 +61,20 @@ def color_windows(
     def assign_rgba_to_mask(
         mask_index: npt.NDArray[np.bool_] | None,
         mask_target: npt.NDArray[np.floating],
-        rgb_a: tuple[float, float, float, float],
+        rgb_a: tuple[float, ...],
     ) -> None:
         if mask_index is None:
             mask_target[..., 0] = rgb_a[0]
             mask_target[..., 1] = rgb_a[1]
             mask_target[..., 2] = rgb_a[2]
-            mask_target[..., 3] = rgb_a[3]
+            if len(rgb_a) > 3:
+                mask_target[..., 3] = rgb_a[3]
         else:
             mask_target[..., 0][mask_index] = rgb_a[0]
             mask_target[..., 1][mask_index] = rgb_a[1]
             mask_target[..., 2][mask_index] = rgb_a[2]
-            mask_target[..., 3][mask_index] = rgb_a[3]
+            if len(rgb_a) > 3:
+                mask_target[..., 3][mask_index] = rgb_a[3]
 
     # Scale 0 wedge
     mask = create_mask(wins[0][0][0])
