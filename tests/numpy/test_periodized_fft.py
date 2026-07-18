@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import numpy.typing as npt
 import pytest
 
 from curvelets.numpy import UDCT, SparseWindow
@@ -64,10 +65,10 @@ def test_window_synthesize_matches_upsample_fft():
     up = upsample(coeff, dec)
     up /= np.sqrt(2 * np.prod(dec))
     bf = np.prod(dec) * np.fft.fftn(up)
-    target_ref = np.zeros(shape, dtype=np.complex128)
+    target_ref: npt.NDArray[np.complex128] = np.zeros(shape, dtype=np.complex128)
     window.scatter_add(target_ref, bf, dtype=np.complex128)
 
-    target_opt = np.zeros(shape, dtype=np.complex128)
+    target_opt: npt.NDArray[np.complex128] = np.zeros(shape, dtype=np.complex128)
     scale = float(np.sqrt(np.prod(dec) / 2.0))
     window.synthesize(coeff, target_opt, scale)
 
@@ -88,7 +89,7 @@ def test_attach_periodized_sets_maps():
 
 
 @pytest.mark.parametrize(
-    "shape,num_scales",
+    ("shape", "num_scales"),
     [
         ((64, 64), 3),
         ((128, 128), 3),
