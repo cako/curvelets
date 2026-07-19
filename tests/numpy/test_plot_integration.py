@@ -60,9 +60,14 @@ def test_overlay_disk(rng):
     lowpass_value = float(np.abs(coeffs[0][0][0]).max())
     c_struct[0] = [[lowpass_value]]
 
-    # Run overlay_disk with default parameters
-    fig, ax = plt.subplots()
+    # Run overlay_disk with default parameters (origin="upper")
+    fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
     overlay_disk(c_struct, ax=ax)
+    plt.close(fig)
+
+    # Run overlay_disk with origin="lower"
+    fig, ax = plt.subplots(subplot_kw={"projection": "polar"})
+    overlay_disk(c_struct, ax=ax, origin="lower")
     plt.close(fig)
 
 

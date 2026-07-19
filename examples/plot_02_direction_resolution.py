@@ -119,8 +119,8 @@ def plot_disk(
     color_bg: ColorType = (0, 0, 0, 1),
 ) -> None:
     deg_360 = 2 * np.pi
-    deg_135 = np.pi * 3 / 4
-    deg_n45 = -np.pi / 4
+    deg_45 = np.pi / 4
+    deg_225 = np.pi * 5 / 4
     deg_90 = np.pi / 2
 
     ax.yaxis.set_visible(False)
@@ -136,7 +136,7 @@ def plot_disk(
         for idir, d in enumerate(s):
             nwedges = len(d)
             angles_per_wedge = deg_90 / nwedges
-            pm = (-1) ** idir  # CCW for idir == 0, CC otherwise
+            pm = -((-1) ** idir)  # Clockwise (-1) for idir == 0, CCW (+1) for idir == 1
             cmap = plt.get_cmap(cmaps_dir[idir])
             norm = Normalize(vmin=0, vmax=nwedges - 1)
             scalarMap = ScalarMappable(norm=norm, cmap=cmap)
@@ -144,7 +144,7 @@ def plot_disk(
                 color: tuple[float, float, float, float] = scalarMap.to_rgba(
                     np.array([iwedge])
                 )[0]
-                for offset in [deg_135, deg_n45]:  # top-left, bottom-right
+                for offset in [deg_45, deg_225]:  # top-right, bottom-left
                     wedge_x = offset + pm * angles_per_wedge * (0.5 + iwedge)
                     wedge_width = angles_per_wedge
                     wedge_bottom = iscale * wedge_height
@@ -174,9 +174,9 @@ def plot_disk(
         for idir, d in enumerate(s):
             nwedges = len(d)
             angles_per_wedge = deg_90 / nwedges
-            pm = (-1) ** idir
+            pm = -((-1) ** idir)
             for iwedge in range(nwedges):
-                for offset in [deg_135, deg_n45]:  # top-left, bottom-right
+                for offset in [deg_45, deg_225]:  # top-right, bottom-left
                     wedge_x = offset + pm * angles_per_wedge * (0.5 + iwedge)
                     wedge_width = angles_per_wedge
                     wedge_bottom = iscale * wedge_height
