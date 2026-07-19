@@ -345,3 +345,62 @@ class TestComplexEdgeCases:
                     assert isinstance(recon_wedge, np.ndarray)
                     assert recon_wedge.shape == orig_wedge.shape
                     np.testing.assert_array_equal(recon_wedge, orig_wedge)
+
+
+class TestCoefficientShapes:
+    """Test suite for coefficient_shapes() method across transform modes and dimensions."""
+
+    @pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])
+    @pytest.mark.parametrize("high_freq_mode", ["curvelet", "wavelet"])
+    def test_coefficient_shapes_2d(self, transform_kind, high_freq_mode):
+        """
+        Test that coefficient_shapes() exactly matches actual forward transform shapes in 2D.
+
+        Parameters
+        ----------
+        transform_kind : str
+            Transform kind ("real", "complex", "monogenic").
+        high_freq_mode : str
+            High frequency mode ("curvelet" or "wavelet").
+        """
+        shape = (64, 64)
+        transform = UDCT(
+            shape=shape,
+            num_scales=3,
+            wedges_per_direction=3,
+            high_frequency_mode=high_freq_mode,
+            transform_kind=transform_kind,
+        )
+        predicted_shapes = transform.coefficient_shapes()
+        actual_coeffs = transform.forward(np.zeros(shape, dtype=np.float64))
+        actual_shapes = [
+            [[wedge.shape for wedge in direction] for direction in scale]
+            for scale in actual_coeffs
+        ]
+        assert predicted_shapes == actual_shapes
+
+    @pytest.mark.parametrize("dim", [2, 3, 4])
+    def test_coefficient_shapes_multidim(self, dim):
+        """
+        Test that coefficient_shapes() matches actual forward transform shapes for 2D/3D/4D.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension (2, 3, or 4).
+        """
+        shapes_map = {
+            2: (64, 64),
+            3: (32, 32, 32),
+            4: (16, 16, 16, 16),
+        }
+        shape = shapes_map[dim]
+        transform = UDCT(shape=shape, num_scales=2, wedges_per_direction=3)
+        predicted_shapes = transform.coefficient_shapes()
+        actual_coeffs = transform.forward(np.zeros(shape, dtype=np.float64))
+        actual_shapes = [
+            [[wedge.shape for wedge in direction] for direction in scale]
+            for scale in actual_coeffs
+        ]
+        assert predicted_shapes == actual_shapes
+

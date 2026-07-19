@@ -201,3 +201,97 @@ class TestComplexTransformIntegration:
         # Verify reconstruction accuracy
         assert recon.shape == data.shape
         torch.testing.assert_close(recon, data, atol=1e-4, rtol=1e-4)
+
+
+class TestCoefficientShapes:
+    """Test suite for PyTorch UDCT coefficient_shapes() method across modes and dimensions."""
+
+    @pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])
+    @pytest.mark.parametrize("high_freq_mode", ["curvelet", "wavelet"])
+    def test_coefficient_shapes_2d(self, transform_kind, high_freq_mode):
+        """
+        Test that coefficient_shapes() exactly matches actual forward transform shapes in 2D.
+
+        Parameters
+        ----------
+        transform_kind : str
+            Transform kind ("real", "complex", "monogenic").
+        high_freq_mode : str
+            High frequency mode ("curvelet" or "wavelet").
+        """
+        shape = (64, 64)
+        transform = UDCT(
+            shape=shape,
+            num_scales=3,
+            wedges_per_direction=3,
+            high_frequency_mode=high_freq_mode,
+            transform_kind=transform_kind,
+        )
+        predicted_shapes = transform.coefficient_shapes()
+        if transform_kind == "monogenic":
+            total_size = sum(
+                int(np.prod(w)) for s in predicted_shapes for d in s for w in d
+            )
+            vec = torch.zeros(total_size, dtype=torch.float64)
+            actual_coeffs = transform.struct(vec)
+        else:
+            actual_coeffs = transform.forward(torch.zeros(shape, dtype=torch.float64))
+        actual_shapes = [
+            [[tuple(wedge.shape) for wedge in direction] for direction in scale]
+            for scale in actual_coeffs
+        ]
+        assert predicted_shapes == actual_shapes
+
+    @pytest.mark.parametrize("dim", [2, 3, 4])
+    def test_coefficient_shapes_multidim(self, dim):
+        """
+        Test that coefficient_shapes() matches actual forward transform shapes for 2D/3D/4D.
+
+        Parameters
+        ----------
+        dim : int
+            Dimension (2, 3, or 4).
+        """
+        shapes_map = {
+            2: (64, 64),
+            3: (32, 32, 32),
+            4: (16, 16, 16, 16),
+        }
+        shape = shapes_map[dim]
+        transform = UDCT(shape=shape, num_scales=2, wedges_per_direction=3)
+        predicted_shapes = transform.coefficient_shapes()
+        actual_coeffs = transform.forward(torch.zeros(shape, dtype=torch.float64))
+        actual_shapes = [
+            [[tuple(wedge.shape) for wedge in direction] for direction in scale]
+            for scale in actual_coeffs
+        ]
+        assert predicted_shapes == actual_shapes
+
+    @pytest.mark.parametrize("transform_type", ["real", "complex"])
+    def test_coefficient_shapes_udct_module(self, transform_type):
+        """
+        Test that UDCTModule.coefficient_shapes() delegates and matches actual forward output.
+
+        Parameters
+        ----------
+        transform_type : str
+            Transform type ("real" or "complex").
+        """
+        from curvelets.torch import UDCTModule
+
+        shape = (64, 64)
+        module = UDCTModule(
+            shape=shape,
+            num_scales=3,
+            wedges_per_direction=3,
+            transform_type=transform_type,
+        )
+        predicted_shapes = module.coefficient_shapes()
+        actual_vec = module.forward(torch.zeros(shape, dtype=torch.float64))
+        actual_coeffs = module.struct(actual_vec)
+        actual_shapes = [
+            [[tuple(wedge.shape) for wedge in direction] for direction in scale]
+            for scale in actual_coeffs
+        ]
+        assert predicted_shapes == actual_shapes
+

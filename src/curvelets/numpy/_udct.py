@@ -476,6 +476,117 @@ class UDCT:
             self._riesz_filters = riesz_filters(self.shape)
         return self._riesz_filters
 
+    def coefficient_shapes(self) -> list[list[list[tuple[int, ...]]]]:
+        """
+        Calculate shapes of all curvelet-domain coefficient arrays.
+
+        Computes the expected shape of every coefficient wedge across all
+        scales, directions, and angular wedges without executing a forward
+        transform.
+
+        Returns
+        -------
+        list[list[list[tuple[int, ...]]]]
+            Nested list containing the shape of each coefficient wedge.
+            Structure is `shapes[scale_idx][direction_idx][wedge_idx]`.
+            For monogenic transforms, each shape includes the channel dimension
+            as the last axis `(*wedge_shape, ndim + 2)`.
+
+        Examples
+        --------
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=3)
+        >>> shapes = transform.coefficient_shapes()
+        >>> len(shapes) == transform.num_scales
+        True
+        >>> shapes[0][0][0]  # Low-frequency band shape
+        (16, 16)
+        """
+        if self.transform_kind == "monogenic":
+            return self._coefficient_shapes_monogenic()
+        if self.transform_kind == "complex":
+            return self._coefficient_shapes_complex()
+        return self._coefficient_shapes_real()
+
+    def _coefficient_shapes_real(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for real transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = np.array(self.parameters.shape)
+        for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
+            shapes.append([])
+            num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self.windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+                for _ in self.windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x) for x in (internal_shape // decimation_ratio_dir)
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
+    def _coefficient_shapes_complex(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for complex transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = np.array(self.parameters.shape)
+        for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
+            shapes.append([])
+            if scale_idx > 0:
+                num_directions = 2 * self.parameters.ndim
+            else:
+                num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                if scale_idx > 0 and direction_idx >= self.parameters.ndim:
+                    window_direction_idx = direction_idx % self.parameters.ndim
+                    window_direction_idx = min(
+                        window_direction_idx, len(self.windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(window_direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                else:
+                    window_direction_idx = min(
+                        direction_idx, len(self.windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                for _ in self.windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x) for x in (internal_shape // decimation_ratio_dir)
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
+    def _coefficient_shapes_monogenic(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for monogenic transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = np.array(self.parameters.shape)
+        num_channels = self.parameters.ndim + 2
+        for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
+            shapes.append([])
+            num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self.windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+                for _ in self.windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x) for x in (internal_shape // decimation_ratio_dir)
+                    ) + (num_channels,)
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
     def vect(
         self,
         coefficients: (

@@ -4,23 +4,36 @@
 # Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
+import math
+
 import torch
 
 from ._sparse_window import SparseWindow
-from ._utils import ParamUDCT, flip_fft_all_axes, upsample
+from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
+
+
+def _wedge_synthesize_scale(
+    decimation_ratio: torch.Tensor,
+    *,
+    complex_mode: bool = False,
+) -> float:
+    """Scale for periodized backward wedge (optional complex √0.5)."""
+    prod_d = float(torch.prod(decimation_ratio.float()).item())
+    scale = float(math.sqrt(prod_d / 2.0))
+    if complex_mode:
+        scale *= float(math.sqrt(0.5))
+    return scale
 
 
 def _process_wedge_backward_real(
     coefficient: torch.Tensor,
     window: SparseWindow,
     decimation_ratio: torch.Tensor,
-) -> torch.Tensor:
+    image_frequency: torch.Tensor,
+) -> None:
     """
-    Process a single wedge for real backward transform mode.
-
-    This function upsamples a coefficient, transforms it to frequency domain,
-    applies the window, and returns the frequency-domain contribution.
+    Accumulate one real-mode wedge into ``image_frequency`` via tiled sparse FFT.
 
     Parameters
     ----------
@@ -30,48 +43,31 @@ def _process_wedge_backward_real(
         Sparse window representation.
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
-
-    Returns
-    -------
-    torch.Tensor
-        Frequency-domain contribution as sparse array (only non-zero at window indices).
-        Same shape as the full image size.
+    image_frequency : torch.Tensor
+        Full-size frequency accumulator (modified in-place).
 
     Notes
     -----
-    The contribution is sparse - only non-zero at the window indices. This allows
-    efficient accumulation using sparse indexing in the real transform mode.
+    Equivalence: ``fftn(upsample(c, d)) == tile(fftn(c), d)``.
+    Scale is ``sqrt(prod(d) / 2)`` matching the former upsample / full-FFT path.
     """
-    # Upsample coefficient to full size
-    curvelet_band = upsample(coefficient, decimation_ratio)
-
-    # Undo normalization
-    curvelet_band = curvelet_band / torch.sqrt(2 * torch.prod(decimation_ratio.float()))
-
-    # Transform to frequency domain
-    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
-
-    # Create sparse contribution array
-    contribution = torch.zeros(
-        curvelet_band.shape, dtype=curvelet_band.dtype, device=curvelet_band.device
+    window.synthesize(
+        coefficient,
+        image_frequency,
+        _wedge_synthesize_scale(decimation_ratio),
+        decimation=decimation_ratio,
     )
-    window.scatter_add(contribution, curvelet_band)
-
-    return contribution
 
 
 def _process_wedge_backward_complex(
     coefficient: torch.Tensor,
     window: SparseWindow,
     decimation_ratio: torch.Tensor,
+    image_frequency: torch.Tensor,
     flip_window: bool = False,
-) -> torch.Tensor:
+) -> None:
     """
-    Process a single wedge for complex backward transform mode.
-
-    This function upsamples a coefficient, transforms it to frequency domain,
-    applies the window (optionally flipped for negative frequencies), and returns
-    the frequency-domain contribution with :math:`\\sqrt{0.5}` scaling.
+    Accumulate one complex-mode wedge into ``image_frequency`` via tiled sparse FFT.
 
     Parameters
     ----------
@@ -81,42 +77,39 @@ def _process_wedge_backward_complex(
         Sparse window representation.
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
+    image_frequency : torch.Tensor
+        Full-size frequency accumulator (modified in-place).
     flip_window : bool, optional
-        If True, flip the window for negative frequency processing.
+        If True, use flipped indices for negative frequency processing.
         Default is False.
-
-    Returns
-    -------
-    torch.Tensor
-        Full frequency-domain contribution array with :math:`\\sqrt{0.5}` scaling applied.
 
     Notes
     -----
-    The contribution is a full array (not sparse) to allow efficient accumulation
-    in complex transform mode. The :math:`\\sqrt{0.5}` scaling accounts for the separation
-    of positive and negative frequencies.
+    Scale includes :math:`\\sqrt{0.5}` for +/- frequency separation:
+    ``sqrt(0.5) * sqrt(prod(d) / 2)``.
     """
-    # Convert sparse window to dense
-    subwindow = window.to_dense()
+    window.synthesize(
+        coefficient,
+        image_frequency,
+        _wedge_synthesize_scale(decimation_ratio, complex_mode=True),
+        flip=flip_window,
+        decimation=decimation_ratio,
+    )
 
-    # Optionally flip the window for negative frequency processing
-    if flip_window:
-        subwindow = flip_fft_all_axes(subwindow)
 
-    # Upsample coefficient to full size
-    curvelet_band = upsample(coefficient, decimation_ratio)
-
-    # Undo normalization
-    curvelet_band = curvelet_band / torch.sqrt(2 * torch.prod(decimation_ratio.float()))
-
-    # Transform to frequency domain
-    curvelet_band = torch.prod(decimation_ratio.float()) * torch.fft.fftn(curvelet_band)  # pylint: disable=not-callable
-
-    # Apply window with sqrt(0.5) scaling for complex transform
-    return (
-        torch.sqrt(torch.tensor(0.5, device=curvelet_band.device))
-        * curvelet_band
-        * subwindow.to(curvelet_band)
+def _backward_lowpass_periodized(
+    coefficient: torch.Tensor,
+    window: SparseWindow,
+    decimation_ratio: torch.Tensor,
+    image_frequency: torch.Tensor,
+) -> None:
+    """Accumulate lowpass band via small FFT + tiled sparse scatter."""
+    prod_d = float(torch.prod(decimation_ratio.float()).item())
+    window.synthesize(
+        coefficient,
+        image_frequency,
+        float(math.sqrt(prod_d)),
+        decimation=decimation_ratio,
     )
 
 
@@ -165,9 +158,6 @@ def _apply_backward_transform_real(
     complex_dtype = coefficients[0][0][0].dtype
     device = coefficients[0][0][0].device
 
-    # Initialize frequency domain
-    image_frequency = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
-
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
@@ -178,7 +168,6 @@ def _apply_backward_transform_real(
         image_frequency_wavelet_scale = torch.zeros(
             parameters.shape, dtype=complex_dtype, device=device
         )
-
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
@@ -189,21 +178,24 @@ def _apply_backward_transform_real(
                         decimation_ratio = decimation_ratios[scale_idx][
                             direction_idx, :
                         ]
-                    contribution = _process_wedge_backward_real(
+                    target = (
+                        image_frequency_wavelet_scale
+                        if scale_idx == highest_scale_idx
+                        else image_frequency_other_scales
+                    )
+                    _process_wedge_backward_real(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         window,
                         decimation_ratio,
+                        target,
                     )
-                    idx_flat = window.indices.flatten()
-                    if scale_idx == highest_scale_idx:
-                        image_frequency_wavelet_scale.flatten()[idx_flat] += (
-                            contribution.flatten()[idx_flat]
-                        )
-                    else:
-                        image_frequency_other_scales.flatten()[idx_flat] += (
-                            contribution.flatten()[idx_flat]
-                        )
+        image_frequency_high = (
+            2 * image_frequency_other_scales + image_frequency_wavelet_scale
+        )
     else:
+        image_frequency_high = torch.zeros(
+            parameters.shape, dtype=complex_dtype, device=device
+        )
         for scale_idx in range(1, parameters.num_scales):
             for direction_idx in range(len(windows[scale_idx])):
                 for wedge_idx in range(len(windows[scale_idx][direction_idx])):
@@ -214,35 +206,27 @@ def _apply_backward_transform_real(
                         decimation_ratio = decimation_ratios[scale_idx][
                             direction_idx, :
                         ]
-                    contribution = _process_wedge_backward_real(
+                    _process_wedge_backward_real(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         window,
                         decimation_ratio,
+                        image_frequency_high,
                     )
-                    image_frequency += contribution
+        image_frequency_high *= 2
 
-    # Process low-frequency band
     image_frequency_low = torch.zeros(
         parameters.shape, dtype=complex_dtype, device=device
     )
-    decimation_ratio = decimation_ratios[0][0]
-    curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
-    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
-        curvelet_band
+    _backward_lowpass_periodized(
+        coefficients[0][0][0],
+        windows[0][0][0],
+        decimation_ratios[0][0],
+        image_frequency_low,
     )
-    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band)
 
-    # Combine
-    if is_wavelet_mode_highest_scale:
-        image_frequency = (
-            2 * image_frequency_other_scales
-            + image_frequency_wavelet_scale
-            + image_frequency_low
-        )
-    else:
-        image_frequency = 2 * image_frequency + image_frequency_low
-
-    return torch.fft.ifftn(image_frequency).real  # pylint: disable=not-callable
+    image_frequency = image_frequency_high + image_frequency_low
+    res: torch.Tensor = torch.fft.ifftn(image_frequency).real  # pylint: disable=not-callable
+    return res
 
 
 def _apply_backward_transform_complex(
@@ -294,7 +278,7 @@ def _apply_backward_transform_complex(
     highest_scale_idx = parameters.num_scales - 1
     is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
 
-    if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
+    if is_wavelet_mode_highest_scale:
         image_frequency_other_scales = torch.zeros(
             parameters.shape, dtype=complex_dtype, device=device
         )
@@ -314,17 +298,20 @@ def _apply_backward_transform_complex(
                         decimation_ratio = decimation_ratios[scale_idx][
                             window_direction_idx, :
                         ]
-                    contribution = _process_wedge_backward_complex(
+                    if scale_idx == highest_scale_idx and direction_idx != 0:
+                        continue
+                    target = (
+                        image_frequency_wavelet_scale
+                        if scale_idx == highest_scale_idx
+                        else image_frequency_other_scales
+                    )
+                    _process_wedge_backward_complex(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
+                        target,
                         flip_window=False,
                     )
-                    if scale_idx == highest_scale_idx:
-                        if direction_idx == 0:
-                            image_frequency_wavelet_scale += contribution
-                    else:
-                        image_frequency_other_scales += contribution
 
         # Process negative frequency bands
         for scale_idx in range(1, parameters.num_scales):
@@ -338,21 +325,28 @@ def _apply_backward_transform_complex(
                         decimation_ratio = decimation_ratios[scale_idx][
                             window_direction_idx, :
                         ]
-                    contribution = _process_wedge_backward_complex(
+                    if scale_idx == highest_scale_idx and direction_idx != 0:
+                        continue
+                    target = (
+                        image_frequency_wavelet_scale
+                        if scale_idx == highest_scale_idx
+                        else image_frequency_other_scales
+                    )
+                    _process_wedge_backward_complex(
                         coefficients[scale_idx][direction_idx + parameters.ndim][
                             wedge_idx
                         ],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
+                        target,
                         flip_window=True,
                     )
-                    if scale_idx == highest_scale_idx:
-                        if direction_idx == 0:
-                            image_frequency_wavelet_scale += contribution
-                    else:
-                        image_frequency_other_scales += contribution
+
+        image_frequency_high = (
+            2 * image_frequency_other_scales + image_frequency_wavelet_scale
+        )
     else:
-        image_frequency = torch.zeros(
+        image_frequency_high = torch.zeros(
             parameters.shape, dtype=complex_dtype, device=device
         )
 
@@ -368,13 +362,13 @@ def _apply_backward_transform_complex(
                         decimation_ratio = decimation_ratios[scale_idx][
                             window_direction_idx, :
                         ]
-                    contribution = _process_wedge_backward_complex(
+                    _process_wedge_backward_complex(
                         coefficients[scale_idx][direction_idx][wedge_idx],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
+                        image_frequency_high,
                         flip_window=False,
                     )
-                    image_frequency += contribution
 
         # Process negative frequency bands
         for scale_idx in range(1, parameters.num_scales):
@@ -388,38 +382,31 @@ def _apply_backward_transform_complex(
                         decimation_ratio = decimation_ratios[scale_idx][
                             window_direction_idx, :
                         ]
-                    contribution = _process_wedge_backward_complex(
+                    _process_wedge_backward_complex(
                         coefficients[scale_idx][direction_idx + parameters.ndim][
                             wedge_idx
                         ],
                         windows[scale_idx][window_direction_idx][wedge_idx],
                         decimation_ratio,
+                        image_frequency_high,
                         flip_window=True,
                     )
-                    image_frequency += contribution
 
-    # Process low-frequency band
+        image_frequency_high = image_frequency_high * 2
+
     image_frequency_low = torch.zeros(
         parameters.shape, dtype=complex_dtype, device=device
     )
-    decimation_ratio = decimation_ratios[0][0]
-    curvelet_band = upsample(coefficients[0][0][0], decimation_ratio)
-    curvelet_band = torch.sqrt(torch.prod(decimation_ratio.float())) * torch.fft.fftn(  # pylint: disable=not-callable
-        curvelet_band
+    _backward_lowpass_periodized(
+        coefficients[0][0][0],
+        windows[0][0][0],
+        decimation_ratios[0][0],
+        image_frequency_low,
     )
-    windows[0][0][0].scatter_add(image_frequency_low, curvelet_band)
 
-    # Combine
-    if is_wavelet_mode_highest_scale:
-        image_frequency = (
-            2 * image_frequency_other_scales
-            + image_frequency_wavelet_scale
-            + image_frequency_low
-        )
-    else:
-        image_frequency = 2 * image_frequency + image_frequency_low
-
-    return torch.fft.ifftn(image_frequency)  # pylint: disable=not-callable
+    image_frequency = image_frequency_high + image_frequency_low
+    res: torch.Tensor = torch.fft.ifftn(image_frequency)  # pylint: disable=not-callable
+    return res
 
 
 def _apply_backward_transform(
