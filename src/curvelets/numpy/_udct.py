@@ -581,9 +581,10 @@ class UDCT:
                     min(direction_idx, len(decimation_ratios_scale) - 1), :
                 ]
                 for _ in self.windows[scale_idx][window_direction_idx]:
-                    shape_dec = tuple(
-                        int(x) for x in (internal_shape // decimation_ratio_dir)
-                    ) + (num_channels,)
+                    shape_dec = (
+                        *(int(x) for x in (internal_shape // decimation_ratio_dir)),
+                        num_channels,
+                    )
                     shapes[scale_idx][direction_idx].append(shape_dec)
         return shapes
 
