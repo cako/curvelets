@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -311,10 +312,8 @@ class SparseWindow:
                         .index_add(0, folded_indices, vals)
                         .view(out_shape)
                     )
-                    try:
+                    with suppress(Exception):
                         folded.copy_(res)
-                    except Exception:
-                        pass
                 else:
                     raise
         return folded
@@ -363,10 +362,8 @@ class SparseWindow:
         except RuntimeError as e:
             if "vmap" in str(e) or "out-of-place" in str(e):
                 res = target.view(-1).index_add(0, indices, vals).view_as(target)
-                try:
+                with suppress(Exception):
                     target.copy_(res)
-                except Exception:
-                    pass
             else:
                 raise
 
