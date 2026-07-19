@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
-from cmap import Colormap
+from cmap import Colormap  # type: ignore
 
 from curvelets.numpy import UDCT
 from curvelets.plot import create_inset_axes_grid, overlay_arrows, overlay_disk
