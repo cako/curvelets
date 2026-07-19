@@ -548,7 +548,8 @@ class UDCT:
                 ]
                 for _ in self._windows[scale_idx][window_direction_idx]:
                     shape_dec = tuple(
-                        int(x) for x in (internal_shape // decimation_ratio_dir).tolist()
+                        int(x)
+                        for x in (internal_shape // decimation_ratio_dir).tolist()
                     )
                     shapes[scale_idx][direction_idx].append(shape_dec)
         return shapes
@@ -582,7 +583,8 @@ class UDCT:
                     ]
                 for _ in self._windows[scale_idx][window_direction_idx]:
                     shape_dec = tuple(
-                        int(x) for x in (internal_shape // decimation_ratio_dir).tolist()
+                        int(x)
+                        for x in (internal_shape // decimation_ratio_dir).tolist()
                     )
                     shapes[scale_idx][direction_idx].append(shape_dec)
         return shapes
@@ -605,7 +607,8 @@ class UDCT:
                 ]
                 for _ in self._windows[scale_idx][window_direction_idx]:
                     shape_dec = tuple(
-                        int(x) for x in (internal_shape // decimation_ratio_dir).tolist()
+                        int(x)
+                        for x in (internal_shape // decimation_ratio_dir).tolist()
                     ) + (num_channels,)
                     shapes[scale_idx][direction_idx].append(shape_dec)
         return shapes

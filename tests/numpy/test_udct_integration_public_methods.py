@@ -403,4 +403,3 @@ class TestCoefficientShapes:
             for scale in actual_coeffs
         ]
         assert predicted_shapes == actual_shapes
-

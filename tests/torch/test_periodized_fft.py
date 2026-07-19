@@ -26,7 +26,9 @@ def test_torch_flip_fft_indices_matches_dense_flip():
     dense_flip = flip_fft_all_axes(window.to_dense())
     flipped_idx = flip_fft_indices(window.indices, shape)
 
-    assert torch.max(torch.abs(dense_flip.view(-1)[flipped_idx] - window.values)) < 1e-14
+    assert (
+        torch.max(torch.abs(dense_flip.view(-1)[flipped_idx] - window.values)) < 1e-14
+    )
     flipped_window = SparseWindow.from_dense(dense_flip, threshold=1e-12)
     assert set(flipped_idx.tolist()) == set(flipped_window.indices.tolist())
 
@@ -78,7 +80,9 @@ def test_torch_window_synthesize_matches_upsample_fft():
     scale = float(math.sqrt(prod_d / 2.0))
     window.synthesize(coeff, target_opt, scale)
 
-    rel = torch.max(torch.abs(target_ref - target_opt)) / torch.max(torch.abs(target_ref))
+    rel = torch.max(torch.abs(target_ref - target_opt)) / torch.max(
+        torch.abs(target_ref)
+    )
     assert rel < 1e-12
 
 
@@ -116,7 +120,9 @@ def test_torch_complex_wedge_flip_equivalence(flip):
     udct = UDCT(
         shape=shape, num_scales=3, wedges_per_direction=3, transform_kind="complex"
     )
-    data = (torch.randn(shape, dtype=torch.float64) + 1j * torch.randn(shape, dtype=torch.float64))
+    data = torch.randn(shape, dtype=torch.float64) + 1j * torch.randn(
+        shape, dtype=torch.float64
+    )
     coeffs = udct.forward(data)
     recon = udct.backward(coeffs)
     torch.testing.assert_close(data, recon, atol=1e-4, rtol=1e-4)

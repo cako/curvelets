@@ -162,9 +162,12 @@ class SparseWindow:
         (4, 4)
         """
         if isinstance(decimation, torch.Tensor):
-            self.decimation = decimation.clone().detach().to(
-                dtype=torch.long, device=self.device
-            ).flatten()
+            self.decimation = (
+                decimation.clone()
+                .detach()
+                .to(dtype=torch.long, device=self.device)
+                .flatten()
+            )
         else:
             self.decimation = torch.tensor(
                 [int(x) for x in decimation], dtype=torch.long, device=self.device
@@ -288,9 +291,7 @@ class SparseWindow:
         """
         indices, folded_indices = self.resolve_indices(flip=flip, decimation=decimation)
         out_shape = self._resolved_out_shape(decimation)
-        vals = image_frequency.view(-1)[indices] * self.values.to(
-            image_frequency.dtype
-        )
+        vals = image_frequency.view(-1)[indices] * self.values.to(image_frequency.dtype)
         if extra_at_indices is not None:
             vals = vals * extra_at_indices.to(image_frequency.dtype)
         if out is None:
@@ -356,11 +357,7 @@ class SparseWindow:
         True
         """
         indices, folded_indices = self.resolve_indices(flip=flip, decimation=decimation)
-        vals = (
-            small_fft.view(-1)[folded_indices]
-            * self.values.to(target.dtype)
-            * scale
-        )
+        vals = small_fft.view(-1)[folded_indices] * self.values.to(target.dtype) * scale
         try:
             target.view(-1).index_add_(0, indices, vals)
         except RuntimeError as e:
@@ -537,9 +534,9 @@ class SparseWindow:
         tensor(1.)
         """
         idx_flat = self.indices.view(-1)
-        target.view(-1)[idx_flat] += source.view(-1)[
-            idx_flat
-        ] * self.values.view(-1).to(target.dtype)
+        target.view(-1)[idx_flat] += source.view(-1)[idx_flat] * self.values.view(
+            -1
+        ).to(target.dtype)
 
     def multiply_at_indices(
         self,

@@ -93,13 +93,15 @@ def docs(session: nox.Session) -> None:
         session.run("sphinx-build", "--keep-going", *shared_args)
 
 
-@nox.session
+@nox.session(reuse_venv=True)
 def build_api_docs(session: nox.Session) -> None:
     """
     Build (regenerate) API docs.
     """
 
-    session.install("sphinx")
+    session.install("-e", ".")
+    session.install("-r", "docs/requirements.txt")
+    session.run("uv", "pip", "install", "--group", "docs")
     session.chdir("docs")
     session.run(
         "sphinx-apidoc", "-o", "api/", "--module-first", "--force", "../src/curvelets"

@@ -261,11 +261,11 @@ full_train_dataset = datasets.MNIST(
 )
 full_test_dataset = datasets.MNIST("./data", train=False, transform=transform)
 
-train_dataset = torch.utils.data.Subset(full_train_dataset, range(10000))
-test_dataset = torch.utils.data.Subset(full_test_dataset, range(5000))
+train_dataset = torch.utils.data.Subset(full_train_dataset, range(1000))
+test_dataset = torch.utils.data.Subset(full_test_dataset, range(500))
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=500)
 
 # %%
 # Model Initialization

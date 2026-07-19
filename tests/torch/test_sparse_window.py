@@ -64,13 +64,20 @@ def test_torch_sparse_window_periodized_exceptions():
     window = SparseWindow.from_dense(dense, threshold=0.3)
 
     # Calling resolve_indices or _resolved_out_shape without attaching periodized or passing decimation
-    with pytest.raises(ValueError, match="decimation required when folded_indices are not attached"):
+    with pytest.raises(
+        ValueError, match="decimation required when folded_indices are not attached"
+    ):
         window.resolve_indices(flip=False)
 
-    with pytest.raises(ValueError, match="decimation required when flipped_folded_indices are not attached"):
+    with pytest.raises(
+        ValueError,
+        match="decimation required when flipped_folded_indices are not attached",
+    ):
         window.resolve_indices(flip=True)
 
-    with pytest.raises(ValueError, match="decimation required when out_shape is not attached"):
+    with pytest.raises(
+        ValueError, match="decimation required when out_shape is not attached"
+    ):
         window._resolved_out_shape()
 
 
@@ -89,4 +96,3 @@ def test_torch_sparse_window_fold_product_and_scatter_tiled_fallback():
     small_fft = torch.ones((2, 2), dtype=torch.complex128)
     window.scatter_tiled(small_fft, target, scale=1.5, decimation=[2, 2])
     assert torch.any(target != 0)
-
