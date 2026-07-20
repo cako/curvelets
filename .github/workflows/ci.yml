@@ -25,13 +25,17 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
-      - uses: pre-commit/action@v3.0.1
+      - name: Cache pre-commit hooks
+        uses: actions/cache@v5
         with:
-          extra_args: --hook-stage manual --all-files
+          path: ~/.cache/pre-commit
+          key: pre-commit|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
       - name: Install uv
         run: |
           pip install uv
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Run pre-commit
+        run: uvx pre-commit run --hook-stage manual --all-files --show-diff-on-failure --color=always
       - name: Run PyLint
         run: |
           echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
