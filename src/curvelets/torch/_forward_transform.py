@@ -4,36 +4,47 @@
 # Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
+import math
+
 import torch
 
 from ._sparse_window import SparseWindow
-from ._utils import ParamUDCT, downsample, flip_fft_all_axes
+from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
+
+
+def _wedge_analyze_scale(
+    decimation_ratio: torch.Tensor,
+    *,
+    complex_mode: bool = False,
+) -> float:
+    """Scale for periodized forward wedge (optional complex √0.5)."""
+    prod_d = float(torch.prod(decimation_ratio.float()).item())
+    scale = float(math.sqrt(2.0 * prod_d) / prod_d)
+    if complex_mode:
+        scale *= float(math.sqrt(0.5))
+    return scale
 
 
 def _process_wedge_real(
     window: SparseWindow,
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
-    freq_band: torch.Tensor,
 ) -> torch.Tensor:
     """
     Process a single wedge for real transform mode.
 
-    This function applies a frequency-domain window to extract a specific
-    curvelet band, transforms it to spatial domain, downsamples it, and applies
-    normalization.
+    Uses a periodized (folded) sparse IFFT instead of a full-size IFFT
+    followed by downsampling.
 
     Parameters
     ----------
     window : SparseWindow
-        Sparse window representation.
+        Sparse window representation (preferably with ``folded_indices``).
     decimation_ratio : torch.Tensor
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : torch.Tensor
         Input image in frequency domain (from FFT).
-    freq_band : torch.Tensor
-        Reusable frequency band buffer (will be cleared and filled).
 
     Returns
     -------
@@ -45,18 +56,14 @@ def _process_wedge_real(
     The real transform combines positive and negative frequencies, so no
     :math:`\\sqrt{0.5}` scaling is applied. The normalization factor ensures proper
     energy preservation.
+
+    Equivalence: ``downsample(ifftn(W·F), d) == ifftn(fold(W·F)) / prod(d)``.
     """
-    # Apply the window to the frequency domain
-    freq_band = window.multiply_extract(image_frequency, out=freq_band)
-
-    # Transform back to spatial domain using inverse FFT
-    curvelet_band = torch.fft.ifftn(freq_band)  # pylint: disable=not-callable
-
-    # Downsample the curvelet band according to the decimation ratio
-    coeff = downsample(curvelet_band, decimation_ratio)
-
-    # Apply normalization factor
-    return coeff * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
+    return window.analyze(
+        image_frequency,
+        _wedge_analyze_scale(decimation_ratio),
+        decimation=decimation_ratio,
+    )
 
 
 def _process_wedge_complex(
@@ -68,10 +75,8 @@ def _process_wedge_complex(
     """
     Process a single wedge for complex transform mode.
 
-    This function applies a frequency-domain window (optionally flipped for
-    negative frequencies) to extract a specific curvelet band, transforms it
-    to spatial domain with :math:`\\sqrt{0.5}` scaling, downsamples it, and applies
-    normalization.
+    Uses a periodized sparse IFFT and optional index-space window flip
+    (no dense ``to_dense`` / ``flip_fft_all_axes``).
 
     Parameters
     ----------
@@ -96,23 +101,27 @@ def _process_wedge_complex(
     :math:`\\sqrt{0.5}` scaling is applied to each band. The normalization factor ensures
     proper energy preservation.
     """
-    # Convert sparse window to dense
-    subwindow = window.to_dense()
+    return window.analyze(
+        image_frequency,
+        _wedge_analyze_scale(decimation_ratio, complex_mode=True),
+        flip=flip_window,
+        decimation=decimation_ratio,
+    )
 
-    # Optionally flip the window for negative frequency processing
-    if flip_window:
-        subwindow = flip_fft_all_axes(subwindow)
 
-    # Apply window to frequency domain and transform to spatial domain
-    band_filtered = torch.sqrt(
-        torch.tensor(0.5, device=image_frequency.device)
-    ) * torch.fft.ifftn(image_frequency * subwindow.to(image_frequency))  # pylint: disable=not-callable
-
-    # Downsample the curvelet band
-    coeff = downsample(band_filtered, decimation_ratio)
-
-    # Apply normalization factor
-    return coeff * torch.sqrt(2 * torch.prod(decimation_ratio.float()))
+def _forward_lowpass_periodized(
+    window: SparseWindow,
+    decimation_ratio: torch.Tensor,
+    image_frequency: torch.Tensor,
+    scale_norm: float,
+) -> torch.Tensor:
+    """Lowpass forward via folded sparse IFFT (no wedge ``sqrt(2)`` factor)."""
+    scale = scale_norm / float(torch.prod(decimation_ratio.float()).item())
+    return window.analyze(
+        image_frequency,
+        scale,
+        decimation=decimation_ratio,
+    )
 
 
 def _apply_forward_transform_real(
@@ -170,30 +179,25 @@ def _apply_forward_transform_real(
     """
     image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
 
-    # Allocate frequency_band once for reuse
-    frequency_band = torch.zeros_like(image_frequency)
-
-    # Low frequency band processing
-    frequency_band = windows[0][0][0].multiply_extract(
-        image_frequency, out=frequency_band
-    )
-
-    curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
-
-    low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
-    norm = torch.sqrt(
-        torch.prod(
-            torch.full(
-                (parameters.ndim,),
-                fill_value=2 ** (parameters.num_scales - 2),
-                dtype=torch.float64,
-                device=image_frequency.device,
+    scale_norm = float(
+        torch.sqrt(
+            torch.prod(
+                torch.full(
+                    (parameters.ndim,),
+                    fill_value=2 ** (parameters.num_scales - 2),
+                    dtype=torch.float64,
+                    device=image_frequency.device,
+                )
             )
-        )
+        ).item()
     )
-    low_freq_coeff = low_freq_coeff * norm
+    low_freq_coeff = _forward_lowpass_periodized(
+        windows[0][0][0],
+        decimation_ratios[0][0],
+        image_frequency,
+        scale_norm,
+    )
 
-    # Build coefficients structure
     coefficients: UDCTCoefficients = [[[low_freq_coeff]]]
 
     for scale_idx in range(1, parameters.num_scales):
@@ -211,7 +215,6 @@ def _apply_forward_transform_real(
                     window,
                     decimation_ratio,
                     image_frequency,
-                    frequency_band,
                 )
                 direction_coeffs.append(coeff)
             scale_coeffs.append(direction_coeffs)
@@ -279,26 +282,24 @@ def _apply_forward_transform_complex(
     """
     image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
 
-    # Low frequency band processing
-    frequency_band = torch.zeros_like(image_frequency)
-    frequency_band = windows[0][0][0].multiply_extract(
-        image_frequency, out=frequency_band
-    )
-
-    curvelet_band = torch.fft.ifftn(frequency_band)  # pylint: disable=not-callable
-
-    low_freq_coeff = downsample(curvelet_band, decimation_ratios[0][0])
-    norm = torch.sqrt(
-        torch.prod(
-            torch.full(
-                (parameters.ndim,),
-                fill_value=2 ** (parameters.num_scales - 2),
-                dtype=torch.float64,
-                device=image_frequency.device,
+    scale_norm = float(
+        torch.sqrt(
+            torch.prod(
+                torch.full(
+                    (parameters.ndim,),
+                    fill_value=2 ** (parameters.num_scales - 2),
+                    dtype=torch.float64,
+                    device=image_frequency.device,
+                )
             )
-        )
+        ).item()
     )
-    low_freq_coeff = low_freq_coeff * norm
+    low_freq_coeff = _forward_lowpass_periodized(
+        windows[0][0][0],
+        decimation_ratios[0][0],
+        image_frequency,
+        scale_norm,
+    )
 
     coefficients: UDCTCoefficients = [[[low_freq_coeff]]]
 

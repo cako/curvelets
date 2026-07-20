@@ -64,6 +64,8 @@ docs = [
   "scipy>=1.16.3; python_version>='3.11'",
   "scipy<1.16.3; python_version<'3.11'",
   "scipy-stubs; python_version>='3.11'",
+  "types-docutils",
+  "cmap",
 ]
 
 [project.urls]
@@ -161,6 +163,9 @@ unresolved-attribute = "ignore"
 [tool.ruff]
 src = ["src"]
 target-version = "py39"
+
+[tool.ruff.format]
+preview = true
 
 [tool.ruff.lint]
 extend-select = [

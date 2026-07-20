@@ -16,6 +16,7 @@ if not TORCH_ENABLED:
     raise ImportError(_error_msg)
 
 from ._meyerwavelet import MeyerWavelet
+from ._sparse_window import SparseWindow
 from ._udct import UDCT
 from ._udct_module import UDCTModule
 from .typing import UDCTCoefficients, UDCTWindows
@@ -25,6 +26,7 @@ from .typing import UDCTCoefficients, UDCTWindows
 __all__ = [
     "UDCT",
     "MeyerWavelet",
+    "SparseWindow",
     "UDCTCoefficients",
     "UDCTModule",
     "UDCTWindows",

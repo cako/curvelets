@@ -10,16 +10,12 @@ Contributing
 .. _numfocus-coc: https://numfocus.org/code-of-conduct
 .. _conventional-commits: https://www.conventionalcommits.org/en/v1.0.0/#summary
 
-We love contributions! Please see the following sections for more information on how to contribute.
+We welcome and appreciate all contributions to the ``curvelets`` library! Please review the following guidelines before beginning your work.
 
-The best way to get in touch with the core developers and maintainers is to
-open a new
-`GitHub Discussion <gh-discussions_>`_.
+To communicate with the core developers and maintainers, we request that you open a topic in our `GitHub Discussions <gh-discussions_>`_. Note that `as explained in Issue #55 <https://github.com/cako/curvelets/issues/55>`_, we ask external users and non-contributors to report bugs and request new features strictly via Discussions rather than opening direct issues on GitHub.
 
-Please do not open new Issues directly, open a `GitHub Discussion for feature requests <gh-discussions-feature-requests_>`_ or `for bug reports <gh-discussions-bug-reports_>`_.
+Furthermore, before participating, please read and abide by the `NUMFOCUS Code of Conduct <numfocus-coc_>`_. We expect all community members to uphold these standards.
 
-Before you read on, please read the `NUMFOCUS Code of Conduct <numfocus-coc_>`_.
-We expect all contributors to adhere to this code of conduct.
 
 Welcomed contributions
 **********************
@@ -27,135 +23,165 @@ Welcomed contributions
 Bug reports
 ===========
 
-Found a bug? Report it `GitHub Discussion for bug reports <https://github.com/cako/curvelets/discussions/new?category=report-issues>`_.
+If you encounter unexpected behavior while computing transforms with ``curvelets``, please report the bug via our `GitHub Discussion for bug reports <gh-discussions-bug-reports_>`_.
 
-If you find a bug, please report it including:
+To help us diagnose and reproduce the problem quickly, please include:
 
-* Your operating system name and version.
-* Detailed steps to reproduce the bug from a fresh environment.
-* Please provide a minimal example to reproduce the bug.
+* The exact name and version of your operating system.
+* Detailed details regarding your Python environment and dependencies.
+* A self-contained, minimal script or step-by-step instructions showing how to reproduce the bug from a clean installation.
 
-New features
-============
 
-Have a new idea? Would like to propose a new feature? Open a new `GitHub Discussion for new features <gh-discussions-feature-requests_>`_.
+New methods and features
+========================
 
-If you are proposing a new feature, please explain in detail how it should work.
-Keep the scope as narrow as possible, to make it easier to implement.
+If you have ideas for new directional transforms, operators, or functional improvements, we invite you to open a `GitHub Discussion for new features <gh-discussions-feature-requests_>`_.
 
-The features most likely to be implemented are those which contain a clear and concise description of the feature, a minimal example to reproduce the feature, and a clear and concise description of the expected behavior.
+When proposing a new method or feature:
+
+* Explain in detail the mathematical rationale and numerical behavior of the proposed method.
+* Keep the initial implementation scope narrow to ensure that we can review and maintain the code effectively.
+* Provide a minimal example that shows the intended usage and expected numerical output.
+
 
 Fix issues
 ==========
 
-A great way to contribute is to fix issues!
-In `GitHub Issues <https://github.com/cako/curvelets/issues>`_ we track issues which have been triaged and reproduced by the maintainers.
-Fixes should be submitted as pull requests to the main branch.
+We maintain a tracked backlog of validated bugs and planned features in `GitHub Issues <gh-issues_>`_. Note that these issues represent tasks that maintainers have triaged from community discussions.
+
+We welcome contributors to inspect open issues and submit pull requests targeting our ``main`` branch to resolve them.
+
+
+Add examples or improve documentation
+=====================================
+
+Writing new code is only one of many ways to strengthen the library. We highly encourage contributors to develop new gallery examples showing practical applications of existing methods, or to improve the clarity and completeness of our API documentation.
 
 
 Step-by-step instructions for contributing
 ******************************************
 
-Ready to contribute?
+When you are ready to contribute code or documentation, follow this workflow:
 
-1. **Development installation**
+1. **Environment setup with uv**
 
-   This project uses ``uv`` as the package manager. Install the package in
-   development mode:
+   We use ``uv`` as our primary package and environment manager. First, clone the repository and install the package in development mode with all optional dependencies:
 
    .. code-block:: bash
 
       uv pip install -e .[torch]
 
-   Install development dependencies:
+   Next, install our development and testing dependencies:
 
    .. code-block:: bash
 
       uv pip install --group dev
 
-2. **Create a branch for local development**
+2. **Branch creation**
 
-   Create a branch for your changes, usually starting from the most up-to-date ``main`` branch:
+   Create a dedicated feature branch starting from our latest ``main`` branch:
 
    .. code-block:: bash
 
       git checkout -b name-of-your-branch main
 
-   Now you can make your changes locally.
+   You can now implement your modifications locally.
 
-3. **Run tests**
+3. **Running tests**
 
-   When you're done making changes, check that your code passes all tests:
+   We use ``pytest`` managed via ``nox`` to test across multiple Python environments. You can run the test suite directly using our convenient ``Makefile`` shortcut:
 
    .. code-block:: bash
 
       make test
 
-   This will run tests across all supported Python versions (3.9-3.14).
+   Note that this command delegates to ``uv run nox -s tests``. You can also invoke specific sessions explicitly if needed.
 
-4. **Run linting**
+4. **Running static analysis and linting**
 
-   Run the linter to check the quality of your code:
+   We maintain strict standards for code formatting, linting, and static type safety (``ruff``, ``ty``, ``mypy``). To verify that your code complies with our standards, run:
 
    .. code-block:: bash
 
       make lint
 
-   This runs pre-commit hooks which include ruff, ty, mypy, and other code quality
-   checks. **Your code should ideally pass ``make lint`` before submitting a PR.**
+   This shortcut executes ``uv run nox -s lint`` across the codebase. Therefore, we strongly recommend running ``make lint`` before submitting your code for review.
 
-5. **Update the docs**
+5. **Updating documentation**
 
-   If you've added new functionality, update the documentation:
+   If your contribution modifies any API signature or introduces new functionality, please update the documentation and gallery scripts accordingly. To build the HTML documentation locally:
 
    .. code-block:: bash
 
       make doc
 
-   This will regenerate the API documentation and build the docs.
+   This command runs ``uv run nox -s docs`` and generates our Sphinx documentation gallery in ``docs/_build/html``.
 
-6. **Commit your changes and push your branch**
+6. **Committing your changes**
+
+   Once you have verified that all tests and linting checks pass, stage and commit your changes:
 
    .. code-block:: bash
 
       git add .
-      git commit -m "Your detailed description of your changes."
+      git commit -m "feat: detailed description of your changes"
       git push -u origin name-of-your-branch
 
-   We recommend using `Conventional Commits <conventional-commits_>`_
-   to format your commit messages, but this is not enforced.
+   We recommend following `Conventional Commits <conventional-commits_>`_ formatting for all commit messages.
 
-7. **Submit a pull request**
+7. **Submitting a pull request**
 
-   Submit a pull request through the GitHub website.
+   Finally, open a pull request on GitHub comparing your feature branch against our ``main`` branch.
 
 
-Pull Request Guidelines
+Pull request guidelines
 ***********************
 
-Before you submit a pull request, check that it meets these guidelines:
+Before submitting a pull request, verify that your contribution meets the following criteria:
 
-1. The pull request should include new tests for all the core routines that have
-   been developed.
-2. If the pull request adds functionality, the docs should be updated accordingly.
-3. Ensure that the updated code passes all tests (`make test`).
-4. Ensure that the code passes linting (`make lint`).
-
-If you have any questions or are unsure about something, please feel free to open a PR and request feedback.
+1. **Comprehensive test coverage**: Include unit tests verifying both forward and backward numerical precision for all newly added routines.
+2. **Documentation synchronization**: Ensure that docstrings and gallery tutorials accurately reflect any changes to function arguments or behavior.
+3. **Clean verification**: Confirm that your branch passes all automated checks by running ``make test`` and ``make lint`` locally without errors or warnings.
 
 
-Tools
-*****
+Project structure
+*****************
 
-This project uses several tools for development:
+We organize the ``curvelets`` repository into the following functional directories:
 
-* **uv**: Package manager and environment management
-* **nox**: Task runner for running tests, linting, and building docs
-* **pre-commit**: Git hooks for code quality checks
-* **ruff**: Fast Python linter and formatter
-* **ty**: Fast static type checker (Rust-based)
-* **mypy**: Static type checker (Python-based)
-* **pytest**: Testing framework
+* ``src/curvelets``: Core Python package containing our Uniform Discrete Curvelet Transform (UDCT) implementations for NumPy and PyTorch.
+* ``tests``: Unit and integration test suites executed via ``pytest``.
+* ``testdata``: Standard reference images and synthetic datasets used across our test assertions and gallery examples.
+* ``docs``: Sphinx configuration, ReStructuredText manuals, and bibliography files (``references.bib``).
+* ``examples``: Python scripts formatted for ``sphinx-gallery`` that generate our visual tutorials and verification charts.
 
-All tools are configured in the project and will be automatically used when you
-run ``make lint`` or ``make test``.
+
+Development tools
+*****************
+
+We rely on modern, high-performance tooling to maintain our developer workflow:
+
+* **uv**: Fast Python package and virtual environment manager.
+* **nox**: Automated task runner managing isolated testing and documentation sessions.
+* **pre-commit**: Git hooks enforcing rapid formatting and checks prior to commits.
+* **ruff**: High-speed Python linter and code formatter.
+* **ty**: Ultra-fast Rust-based static type checker.
+* **mypy**: Standard static type checker ensuring structural typing integrity across modules.
+* **pytest**: Comprehensive testing framework used for numerical precision and gradient verification.
+* **sphinx**: Documentation engine powering our HTML manual and gallery build.
+
+
+Automated workflows (GitHub Actions)
+************************************
+
+We automate quality assurance, multi-platform testing, and package distribution using GitHub Actions configured in ``.github/workflows/``:
+
+* **Continuous Integration (``ci.yml``)**: Whenever you push commits or open a pull request, our CI pipeline automatically verifies your changes across a comprehensive build matrix:
+
+  * **Code formatting and linting**: A dedicated job checks all files against our pre-commit hooks and runs ``pylint`` via ``nox`` to guarantee formatting consistency.
+  * **Multi-platform and multi-version testing**: We run our complete ``pytest`` suite across Linux (Ubuntu), macOS, and Windows for Python versions ``3.9`` through ``3.14`` (including free-threaded ``3.14t`` and ``PyPy 3.10``).
+  * **Coverage tracking**: Test execution generates XML coverage reports that are automatically uploaded and analyzed via Codecov.
+
+* **Continuous Deployment (``cd.yml``)**: When maintainers publish a new release on GitHub, our CD workflow verifies package integrity using ``build-and-inspect-python-package`` and automatically publishes the built artifacts to PyPI using secure OIDC authentication (``pypa/gh-action-pypi-publish``).
+
+Therefore, when you submit a pull request, you can monitor these automated workflow checks directly on the GitHub PR page to verify that your branch works seamlessly across all supported environments.

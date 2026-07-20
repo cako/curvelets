@@ -357,9 +357,11 @@ scale_idx = 1  # First high-frequency scale
 dir_idx = 0
 wedge_idx = 0
 
-c0 = coeffs[scale_idx][dir_idx][wedge_idx][0]
-c1 = coeffs[scale_idx][dir_idx][wedge_idx][1]
-c2 = coeffs[scale_idx][dir_idx][wedge_idx][2]
+wedge_coeffs = coeffs[scale_idx][dir_idx][wedge_idx]
+c0_2ch = np.ascontiguousarray(wedge_coeffs[..., :2])
+c0 = c0_2ch.view(np.result_type(c0_2ch.dtype, 1j)).squeeze(-1)
+c1 = wedge_coeffs[..., 2]
+c2 = wedge_coeffs[..., 3]
 
 print(
     f"\nCoefficient magnitudes for scale={scale_idx}, dir={dir_idx}, wedge={wedge_idx}:"

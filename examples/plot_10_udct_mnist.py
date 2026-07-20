@@ -249,15 +249,23 @@ else:
     device = torch.device("cpu")
 
 # Data loading
-transform = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]
-)
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.1307,), (0.3081,)),
+])
 
-train_dataset = datasets.MNIST("./data", train=True, download=True, transform=transform)
-test_dataset = datasets.MNIST("./data", train=False, transform=transform)
+# We use a subset of MNIST and 5 epochs so the gallery example runs quickly
+# while still demonstrating effective curvelet feature extraction and classification.
+full_train_dataset = datasets.MNIST(
+    "./data", train=True, download=True, transform=transform
+)
+full_test_dataset = datasets.MNIST("./data", train=False, transform=transform)
+
+train_dataset = torch.utils.data.Subset(full_train_dataset, range(1000))
+test_dataset = torch.utils.data.Subset(full_test_dataset, range(500))
 
 train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=1000)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=500)
 
 # %%
 # Model Initialization
@@ -273,12 +281,12 @@ model = UDCTNet(shape=(28, 28), num_scales=2, wedges_per_direction=3).to(device)
 # Training Loop
 # #############
 #
-# Train for 10 epochs with Adadelta optimizer and step learning rate decay.
+# Train for 5 epochs with Adadelta optimizer and step learning rate decay.
 
 optimizer = optim.Adadelta(model.parameters(), lr=1.0)
 scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
 
-num_epochs = 10
+num_epochs = 5
 train_losses: list[float] = []
 test_losses: list[float] = []
 train_accuracies: list[float] = []

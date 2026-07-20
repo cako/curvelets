@@ -5,3 +5,14 @@ curvelets.torch package
    :members:
    :show-inheritance:
    :undoc-members:
+
+Submodules
+----------
+
+curvelets.torch.typing module
+-----------------------------
+
+.. automodule:: curvelets.torch.typing
+   :members:
+   :show-inheritance:
+   :undoc-members:

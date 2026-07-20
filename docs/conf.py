@@ -101,15 +101,42 @@ sphinx_gallery_conf = {
 }
 
 
+MISSING_REF_MAPPING = {
+    # NumPy
+    "npt.NDArray": "https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html",
+    "NDArray": "https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html",
+    "ndarray": "https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html",
+    "array_like": "https://numpy.org/doc/stable/glossary.html#term-array_like",
+    "numpy.int64": "https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.int64",
+    "np.intp": "https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.intp",
+    "npt.DTypeLike": "https://numpy.org/doc/stable/reference/arrays.dtypes.html",
+    "np.floating": "https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.floating",
+}
+
+
+def on_missing_reference(app, env, node, contnode):  # noqa: ARG001
+    target = node.get("reftarget")
+    if target in MISSING_REF_MAPPING:
+        from docutils import nodes
+
+        new_ref = nodes.reference(
+            "", "", internal=False, refuri=MISSING_REF_MAPPING[target]
+        )
+        new_ref += contnode
+        return new_ref
+    return None
+
+
 def setup(app):
     """Configure Sphinx extensions."""
     # Set reset_modules here to avoid pickling warnings
     # This function is called after config is loaded but before building
     app.config.sphinx_gallery_conf["reset_modules"] = (reset_curvelets_modules,)
+    app.connect("missing-reference", on_missing_reference)
 
 
 # sphinxcontrib.bibtex
 bibtex_bibfiles = ["references.bib"]
 bibtex_reference_style = "author_year"
 # bibtex_default_style = "plain"
-suppress_warnings = ["bibtex.duplicate_citation"]
+suppress_warnings = ["bibtex.duplicate_citation", "config.cache"]

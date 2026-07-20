@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from curvelets.torch._sparse_window import SparseWindow
+from curvelets.torch import SparseWindow
 
 from .conftest import setup_torch_transform
 
@@ -109,3 +109,37 @@ def test_torch_windows_are_sparse(dim):
                 assert window.shape == transform._obj.shape, (
                     "Window shape should match transform shape"
                 )
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("high", ["curvelet", "wavelet"])
+def test_torch_round_trip_complex(rng, dim, high):
+    """Test round-trip in complex mode."""
+    transform = setup_torch_transform(
+        dim, shape_idx=0, cfg_idx=0, transform_kind="complex", high=high
+    )
+    data = torch.from_numpy(rng.random(transform._obj.shape)).to(torch.complex128)
+
+    coeffs = transform.forward(data)
+    reconstructed = transform.backward(coeffs)
+
+    # Allow some numerical error
+    assert torch.max(torch.abs(data - reconstructed)) < 1e-4
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+def test_torch_round_trip_wavelet_mode(rng, dim):
+    """Test round-trip in wavelet mode (real)."""
+    transform = setup_torch_transform(dim, shape_idx=0, cfg_idx=0, high="wavelet")
+    data = torch.from_numpy(rng.random(transform._obj.shape))
+
+    coeffs = transform.forward(data)
+    reconstructed = transform.backward(coeffs)
+
+    # Check relative error
+    max_abs = torch.abs(data).max()
+    error = torch.abs(data - reconstructed).max()
+    relative_error = error / max_abs
+
+    # Allow some numerical error
+    assert relative_error < 0.5, f"Relative error too large: {relative_error}"

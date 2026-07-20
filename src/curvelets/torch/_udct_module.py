@@ -253,6 +253,22 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         """
         return _UDCTFunction.apply(image, self._udct)
 
+    def coefficient_shapes(self) -> list[list[list[tuple[int, ...]]]]:
+        """
+        Calculate shapes of all curvelet-domain coefficient arrays.
+
+        Computes the expected shape of every coefficient wedge across all
+        scales, directions, and angular wedges without executing a forward
+        transform.
+
+        Returns
+        -------
+        list[list[list[tuple[int, ...]]]]
+            Nested list containing the shape of each coefficient wedge.
+            Structure is `shapes[scale_idx][direction_idx][wedge_idx]`.
+        """
+        return self._udct.coefficient_shapes()
+
     def vect(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
         Vectorize curvelet coefficients.

@@ -206,9 +206,12 @@ class UDCTWindow:
         """
         # Compute angular window spacing and boundaries
         angular_spacing = 2 / num_angular_wedges
-        angular_boundaries = angular_spacing * np.array(
-            [-window_overlap, window_overlap, 1 - window_overlap, 1 + window_overlap]
-        )
+        angular_boundaries = angular_spacing * np.array([
+            -window_overlap,
+            window_overlap,
+            1 - window_overlap,
+            1 + window_overlap,
+        ])
 
         # Generate angle functions using Meyer windows
         # Note: Both direction 1 and 2 use the same computation because the
@@ -941,9 +944,9 @@ class UDCTWindow:
             symmetric counterpart. This builds the complete set of angle
             indices needed for the partition of unity.
             """
-            needs_flip_mask = np.array(
-                [needs_flipping(idx, flip_dimension_index) for idx in indices_list]
-            )
+            needs_flip_mask = np.array([
+                needs_flipping(idx, flip_dimension_index) for idx in indices_list
+            ])
             flipped_indices = [
                 flip_angle_idx(indices_list[function_index], flip_dimension_index)
                 for function_index in np.where(needs_flip_mask)[0]

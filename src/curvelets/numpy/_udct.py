@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,too-many-lines
 # Duplicate code with torch implementation is expected
 import logging
 from math import prod
@@ -155,8 +155,13 @@ class UDCT:
             window_threshold=params_dict["window_threshold"],
         )
 
-        # Calculate windows
+        # Calculate windows and attach periodized FFT index maps
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
+
+        # Cache Riesz filters for monogenic transforms (and .monogenic())
+        self._riesz_filters: list[npt.NDArray[np.complexfloating]] | None = None
+        if self.transform_kind == "monogenic":
+            self._riesz_filters = riesz_filters(self.shape)
 
     @staticmethod
     def _compute_optimal_window_overlap(
@@ -442,13 +447,146 @@ class UDCT:
         """
         Calculate curvelet windows, decimation ratios, and indices.
 
+        Also attaches precomputed folded (and for complex mode, flipped)
+        index maps used by periodized sparse FFTs.
+
         Returns
         -------
         tuple
             (windows, decimation_ratios, indices)
         """
         window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
-        return window_computer.compute()
+        windows, decimation_ratios, indices = window_computer.compute()
+        need_flip = self.transform_kind == "complex"
+        for scale_idx, scale_windows in enumerate(windows):
+            for direction_idx, direction_windows in enumerate(scale_windows):
+                if decimation_ratios[scale_idx].shape[0] == 1:
+                    dec = decimation_ratios[scale_idx][0]
+                else:
+                    dec = decimation_ratios[scale_idx][
+                        min(direction_idx, decimation_ratios[scale_idx].shape[0] - 1)
+                    ]
+                for window in direction_windows:
+                    window.attach_periodized(dec, with_flip=need_flip)
+        return windows, decimation_ratios, indices
+
+    def _get_riesz_filters(self) -> list[npt.NDArray[np.complexfloating]]:
+        """Return cached Riesz filters, computing them on first use if needed."""
+        if self._riesz_filters is None:
+            self._riesz_filters = riesz_filters(self.shape)
+        return self._riesz_filters
+
+    def coefficient_shapes(self) -> list[list[list[tuple[int, ...]]]]:
+        """
+        Calculate shapes of all curvelet-domain coefficient arrays.
+
+        Computes the expected shape of every coefficient wedge across all
+        scales, directions, and angular wedges without executing a forward
+        transform.
+
+        Returns
+        -------
+        list[list[list[tuple[int, ...]]]]
+            Nested list containing the shape of each coefficient wedge.
+            Structure is `shapes[scale_idx][direction_idx][wedge_idx]`.
+            For monogenic transforms, each shape includes the channel dimension
+            as the last axis ``(*wedge_shape, ndim + 2)``.
+
+        Examples
+        --------
+        >>> from curvelets.numpy import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=3)
+        >>> shapes = transform.coefficient_shapes()
+        >>> len(shapes) == transform.num_scales
+        True
+        >>> shapes[0][0][0]  # Low-frequency band shape
+        (16, 16)
+        """
+        if self.transform_kind == "monogenic":
+            return self._coefficient_shapes_monogenic()
+        if self.transform_kind == "complex":
+            return self._coefficient_shapes_complex()
+        return self._coefficient_shapes_real()
+
+    def _coefficient_shapes_real(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for real transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = np.array(self.parameters.shape)
+        for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
+            shapes.append([])
+            num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self.windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+                for _ in self.windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x) for x in (internal_shape // decimation_ratio_dir)
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
+    def _coefficient_shapes_complex(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for complex transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = np.array(self.parameters.shape)
+        for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
+            shapes.append([])
+            if scale_idx > 0:
+                num_directions = 2 * self.parameters.ndim
+            else:
+                num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                if scale_idx > 0 and direction_idx >= self.parameters.ndim:
+                    window_direction_idx = direction_idx % self.parameters.ndim
+                    window_direction_idx = min(
+                        window_direction_idx, len(self.windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(window_direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                else:
+                    window_direction_idx = min(
+                        direction_idx, len(self.windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                for _ in self.windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x) for x in (internal_shape // decimation_ratio_dir)
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
+    def _coefficient_shapes_monogenic(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for monogenic transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = np.array(self.parameters.shape)
+        num_channels = self.parameters.ndim + 2
+        for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
+            shapes.append([])
+            num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self.windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+                for _ in self.windows[scale_idx][window_direction_idx]:
+                    shape_dec = (
+                        *(int(x) for x in (internal_shape // decimation_ratio_dir)),
+                        num_channels,
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
 
     def vect(
         self,
@@ -463,7 +601,7 @@ class UDCT:
         ----------
         coefficients : list[list[list[NDArray]]]
             Structured curvelet coefficients. For monogenic transforms, each
-            coefficient array has shape (*wedge_shape, ndim+2) with real dtype.
+            coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype.
             For real/complex transforms, arrays are complex dtype.
 
         Returns
@@ -540,7 +678,7 @@ class UDCT:
         -------
         list[list[list[NDArray]]]
             Structured curvelet coefficients. For monogenic transforms, each
-            coefficient array has shape (*wedge_shape, ndim+2) with real dtype.
+            coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype.
             For real/complex transforms, arrays are complex dtype.
 
         Examples
@@ -687,6 +825,7 @@ class UDCT:
         ----------
         image : ``npt.NDArray[_F]`` | ``npt.NDArray[_C]``
             Input data with shape matching self.shape.
+
             - For transform_kind="real" or "monogenic": must be real-valued (``npt.NDArray[_F]``)
             - For transform_kind="complex": can be real-valued or complex-valued
 
@@ -694,17 +833,22 @@ class UDCT:
         -------
         list[list[list[NDArray]]]
             Curvelet coefficients as nested list structure.
+
             - For "real" or "complex" transform: ComplexUDCTCoefficients[_C]
               (complex dtype matching input precision)
             - For "monogenic" transform: RealUDCTCoefficients[_F]
-              Each coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
+              Each coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype:
+
               - Channel 0: scalar.real
               - Channel 1: scalar.imag
               - Channels 2..ndim+1: Riesz components
+
               Complex scalar can be reconstructed via .view(complex_dtype) on channels 0:2.
+
             When transform_kind="complex", directions are doubled (first ndim directions
             for positive frequencies, next ndim for negative).
             Coefficients have dtype matching the input:
+
             - np.float32 input -> np.complex64 coefficients (real/complex) or np.float32 (monogenic)
             - np.float64 input -> np.complex128 coefficients (real/complex) or np.float64 (monogenic)
             - np.complex64 input -> np.complex64 coefficients
@@ -773,6 +917,7 @@ class UDCT:
             self.parameters,
             self.windows,
             self.decimation_ratios,
+            riesz_filters_list=self._get_riesz_filters(),
         )
 
     def backward(
@@ -788,7 +933,8 @@ class UDCT:
         ----------
         coefficients : list[list[list[NDArray]]]
             Curvelet coefficients from forward transform. For "monogenic" transform,
-            each coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
+            each coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype:
+
             - Channel 0: scalar.real
             - Channel 1: scalar.imag
             - Channels 2..ndim+1: Riesz components
@@ -884,6 +1030,7 @@ class UDCT:
         -------
         tuple[:obj:`npt.NDArray[_F] <numpy.typing.NDArray>`, ...]
             Tuple of ndim+1 real-valued arrays with shape matching self.shape:
+
             - scalar: Original input :math:`f` (unchanged)
             - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
 
@@ -941,8 +1088,8 @@ class UDCT:
             )
             raise ValueError(msg)
 
-        # Compute Riesz filters
-        riesz_filters_list = riesz_filters(self.shape)
+        # Compute Riesz filters (cached)
+        riesz_filters_list = self._get_riesz_filters()
 
         # Compute FFT of input
         image_frequency = np.fft.fftn(image)

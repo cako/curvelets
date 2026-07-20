@@ -73,20 +73,12 @@ class UDCT:
           by applying Riesz transforms, producing ndim+1 components per band
           (scalar plus all Riesz components).
 
-    Attributes
-    ----------
-    shape : tuple[int, ...]
-        Shape of the input data.
     high_frequency_mode : str
         High frequency mode.
     transform_kind : str
         Type of transform being used ("real", "complex", or "monogenic").
     parameters : ParamUDCT
         Internal UDCT parameters.
-    windows : UDCTWindows
-        Curvelet windows in sparse format.
-    decimation_ratios : list
-        Decimation ratios for each scale/direction.
 
     Examples
     --------
@@ -157,11 +149,7 @@ class UDCT:
 
     @property
     def shape(self) -> tuple[int, ...]:
-        """
-        Shape of the transform.
-
-        :no-index:
-        """
+        """Shape of the transform."""
         return self._parameters.shape
 
     @property
@@ -176,20 +164,12 @@ class UDCT:
 
     @property
     def windows(self) -> UDCTWindows:
-        """
-        Curvelet windows in sparse format.
-
-        :no-index:
-        """
+        """Curvelet windows in sparse format."""
         return self._windows
 
     @property
     def decimation_ratios(self) -> list[torch.Tensor]:
-        """
-        Decimation ratios for each scale.
-
-        :no-index:
-        """
+        """Decimation ratios for each scale."""
         return self._decimation_ratios
 
     @staticmethod
@@ -485,7 +465,136 @@ class UDCT:
             (windows, decimation_ratios, indices)
         """
         window_computer = UDCTWindow(self._parameters, self._high_frequency_mode)
-        return window_computer.compute()
+        windows, decimation_ratios, indices = window_computer.compute()
+        need_flip = self._transform_kind == "complex"
+        for scale_idx, scale_windows in enumerate(windows):
+            for direction_idx, direction_windows in enumerate(scale_windows):
+                if decimation_ratios[scale_idx].shape[0] == 1:
+                    dec = decimation_ratios[scale_idx][0]
+                else:
+                    dec = decimation_ratios[scale_idx][
+                        min(direction_idx, decimation_ratios[scale_idx].shape[0] - 1)
+                    ]
+                for window in direction_windows:
+                    window.attach_periodized(dec, with_flip=need_flip)
+        return windows, decimation_ratios, indices
+
+    def coefficient_shapes(self) -> list[list[list[tuple[int, ...]]]]:
+        """
+        Calculate shapes of all curvelet-domain coefficient arrays.
+
+        Computes the expected shape of every coefficient wedge across all
+        scales, directions, and angular wedges without executing a forward
+        transform.
+
+        Returns
+        -------
+        list[list[list[tuple[int, ...]]]]
+            Nested list containing the shape of each coefficient wedge.
+            Structure is `shapes[scale_idx][direction_idx][wedge_idx]`.
+            For monogenic transforms, each shape includes the channel dimension
+            as the last axis ``(*wedge_shape, ndim + 2)``.
+
+        Examples
+        --------
+        >>> from curvelets.torch import UDCT
+        >>> transform = UDCT(shape=(64, 64), num_scales=3)
+        >>> shapes = transform.coefficient_shapes()
+        >>> len(shapes) == transform.num_scales
+        True
+        >>> shapes[0][0][0]  # Low-frequency band shape
+        (16, 16)
+        """
+        if self._transform_kind == "monogenic":
+            return self._coefficient_shapes_monogenic()
+        if self._transform_kind == "complex":
+            return self._coefficient_shapes_complex()
+        return self._coefficient_shapes_real()
+
+    def _coefficient_shapes_real(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for real transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+            shapes.append([])
+            num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self._windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+                for _ in self._windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x)
+                        for x in (internal_shape // decimation_ratio_dir).tolist()
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
+    def _coefficient_shapes_complex(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for complex transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+            shapes.append([])
+            if scale_idx > 0:
+                num_directions = 2 * self._parameters.ndim
+            else:
+                num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                if scale_idx > 0 and direction_idx >= self._parameters.ndim:
+                    window_direction_idx = direction_idx % self._parameters.ndim
+                    window_direction_idx = min(
+                        window_direction_idx, len(self._windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(window_direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                else:
+                    window_direction_idx = min(
+                        direction_idx, len(self._windows[scale_idx]) - 1
+                    )
+                    decimation_ratio_dir = decimation_ratios_scale[
+                        min(direction_idx, len(decimation_ratios_scale) - 1), :
+                    ]
+                for _ in self._windows[scale_idx][window_direction_idx]:
+                    shape_dec = tuple(
+                        int(x)
+                        for x in (internal_shape // decimation_ratio_dir).tolist()
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
+
+    def _coefficient_shapes_monogenic(self) -> list[list[list[tuple[int, ...]]]]:
+        """Private method for monogenic transform coefficient shapes calculation."""
+        shapes: list[list[list[tuple[int, ...]]]] = []
+        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        num_channels = self._parameters.ndim + 2
+        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+            shapes.append([])
+            num_directions = len(decimation_ratios_scale)
+            for direction_idx in range(num_directions):
+                shapes[scale_idx].append([])
+                window_direction_idx = min(
+                    direction_idx, len(self._windows[scale_idx]) - 1
+                )
+                decimation_ratio_dir = decimation_ratios_scale[
+                    min(direction_idx, len(decimation_ratios_scale) - 1), :
+                ]
+                for _ in self._windows[scale_idx][window_direction_idx]:
+                    shape_dec = (
+                        *(
+                            int(x)
+                            for x in (internal_shape // decimation_ratio_dir).tolist()
+                        ),
+                        num_channels,
+                    )
+                    shapes[scale_idx][direction_idx].append(shape_dec)
+        return shapes
 
     def vect(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
@@ -688,6 +797,7 @@ class UDCT:
         ----------
         image : torch.Tensor
             Input image with shape matching self.shape.
+
             - For transform_kind="real" or "monogenic": must be real-valued
             - For transform_kind="complex": can be real-valued or complex-valued
 
@@ -696,7 +806,7 @@ class UDCT:
         UDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge.
             For monogenic transforms, each coefficient tensor has shape
-            (*wedge_shape, ndim+1) with channels stacked along the last axis.
+            ``(*wedge_shape, ndim+1)`` with channels stacked along the last axis.
         """
         # Validate input based on transform_kind
         if self._transform_kind in ("real", "monogenic") and image.is_complex():

@@ -85,9 +85,13 @@ image[shape[0] // 2, shape[1] // 2] = 1.0
 coeffs_mono = transform.forward(image)
 
 # Extract the low-frequency band (scale 0, isotropic)
-scalar_low = coeffs_mono[0][0][0][0]  # Scalar component
-riesz1_low = coeffs_mono[0][0][0][1]  # Riesz_1 component
-riesz2_low = coeffs_mono[0][0][0][2]  # Riesz_2 component
+# Each monogenic coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
+# Channels 0..1 store scalar.real and scalar.imag; channels 2..3 store Riesz_1 and Riesz_2.
+low_band = coeffs_mono[0][0][0]
+scalar_2ch = np.ascontiguousarray(low_band[..., :2])
+scalar_low = scalar_2ch.view(np.result_type(scalar_2ch.dtype, 1j)).squeeze(-1)
+riesz1_low = low_band[..., 2]  # Riesz_1 component
+riesz2_low = low_band[..., 3]  # Riesz_2 component
 
 # %%
 # Time Domain Visualization
