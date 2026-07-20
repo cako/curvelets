@@ -31,7 +31,7 @@ C = UDCT(shape=shape, angular_wedges_config=cfg)
 #
 # Before performing a forward transform on an image, we can calculate the exact
 # shapes of all output curvelet coefficients in :math:`O(1)` time using
-# :meth:`UDCT.coefficient_shapes`. This allows checking wedge dimensions or
+# :meth:`~curvelets.numpy.UDCT.coefficient_shapes`. This allows checking wedge dimensions or
 # pre-allocating memory without executing an expensive forward transform dry run.
 
 shapes = C.coefficient_shapes()
