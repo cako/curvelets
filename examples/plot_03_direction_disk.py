@@ -19,7 +19,7 @@ from typing import Any  # added for type annotations
 
 import matplotlib.pyplot as plt
 import numpy as np
-from cmap import Colormap
+from cmap import Colormap  # type: ignore[import-not-found]
 
 from curvelets.numpy import UDCT
 from curvelets.plot import create_inset_axes_grid, overlay_arrows, overlay_disk
@@ -38,7 +38,7 @@ figsize_aspect = nz / nx
 opts_space: dict[str, Any] = {"cmap": "gray", "interpolation": "lanczos"}
 vmax = 0.5 * np.max(np.abs(data))
 fig, ax = plt.subplots(figsize=(8, figsize_aspect * 8))
-ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)  # type: ignore[arg-type]
+ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)
 ax.set(xlabel="Position [samples]", ylabel="Depth [samples]", title="Data")
 
 # %%
@@ -65,10 +65,10 @@ energy_c = apply_along_wedges(d_c, lambda w, *_: np.sqrt((np.abs(w) ** 2).mean()
 
 # %%
 fig, ax = plt.subplots(figsize=(12, figsize_aspect * 8))
-ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)  # type: ignore[arg-type]
+ax.imshow(data.T, vmin=-vmax, vmax=vmax, **opts_space)
 overlay_arrows(kvecs, ax, arrowprops={"edgecolor": "w", "facecolor": "k"})
 ax_o = create_inset_axes_grid(ax, width=0.4, kwargs_inset_axes={"projection": "polar"})
-overlay_disk(  # type: ignore[arg-type]
+overlay_disk(
     energy_c,
     ax=ax_o,
     vmin=0,
