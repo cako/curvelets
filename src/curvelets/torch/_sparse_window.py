@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+# pylint: disable=duplicate-code
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
@@ -414,7 +415,7 @@ class SparseWindow:
             extra_at_indices=extra_at_indices,
             decimation=decimation,
         )
-        res: torch.Tensor = scale * torch.fft.ifftn(folded)
+        res: torch.Tensor = scale * torch.fft.ifftn(folded)  # pylint: disable=not-callable
         return res
 
     def synthesize(
@@ -455,7 +456,7 @@ class SparseWindow:
         True
         """
         self.scatter_tiled(
-            torch.fft.fftn(coefficient),
+            torch.fft.fftn(coefficient),  # pylint: disable=not-callable
             target,
             scale,
             flip=flip,

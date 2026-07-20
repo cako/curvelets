@@ -73,20 +73,12 @@ class UDCT:
           by applying Riesz transforms, producing ndim+1 components per band
           (scalar plus all Riesz components).
 
-    Attributes
-    ----------
-    shape : tuple[int, ...]
-        Shape of the input data.
     high_frequency_mode : str
         High frequency mode.
     transform_kind : str
         Type of transform being used ("real", "complex", or "monogenic").
     parameters : ParamUDCT
         Internal UDCT parameters.
-    windows : UDCTWindows
-        Curvelet windows in sparse format.
-    decimation_ratios : list
-        Decimation ratios for each scale/direction.
 
     Examples
     --------
@@ -157,11 +149,7 @@ class UDCT:
 
     @property
     def shape(self) -> tuple[int, ...]:
-        """
-        Shape of the transform.
-
-        :no-index:
-        """
+        """Shape of the transform."""
         return self._parameters.shape
 
     @property
@@ -176,20 +164,12 @@ class UDCT:
 
     @property
     def windows(self) -> UDCTWindows:
-        """
-        Curvelet windows in sparse format.
-
-        :no-index:
-        """
+        """Curvelet windows in sparse format."""
         return self._windows
 
     @property
     def decimation_ratios(self) -> list[torch.Tensor]:
-        """
-        Decimation ratios for each scale.
-
-        :no-index:
-        """
+        """Decimation ratios for each scale."""
         return self._decimation_ratios
 
     @staticmethod
@@ -513,7 +493,7 @@ class UDCT:
             Nested list containing the shape of each coefficient wedge.
             Structure is `shapes[scale_idx][direction_idx][wedge_idx]`.
             For monogenic transforms, each shape includes the channel dimension
-            as the last axis `(*wedge_shape, ndim + 2)`.
+            as the last axis ``(*wedge_shape, ndim + 2)``.
 
         Examples
         --------
@@ -817,6 +797,7 @@ class UDCT:
         ----------
         image : torch.Tensor
             Input image with shape matching self.shape.
+
             - For transform_kind="real" or "monogenic": must be real-valued
             - For transform_kind="complex": can be real-valued or complex-valued
 
@@ -825,7 +806,7 @@ class UDCT:
         UDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge.
             For monogenic transforms, each coefficient tensor has shape
-            (*wedge_shape, ndim+1) with channels stacked along the last axis.
+            ``(*wedge_shape, ndim+1)`` with channels stacked along the last axis.
         """
         # Validate input based on transform_kind
         if self._transform_kind in ("real", "monogenic") and image.is_complex():

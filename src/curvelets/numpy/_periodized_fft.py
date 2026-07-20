@@ -13,6 +13,7 @@ Higher-level fold / analyze / synthesize operations live on
 
 from __future__ import annotations
 
+# pylint: disable=duplicate-code
 import numpy as np
 import numpy.typing as npt
 

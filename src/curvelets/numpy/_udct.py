@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,too-many-lines
 # Duplicate code with torch implementation is expected
 import logging
 from math import prod
@@ -490,7 +490,7 @@ class UDCT:
             Nested list containing the shape of each coefficient wedge.
             Structure is `shapes[scale_idx][direction_idx][wedge_idx]`.
             For monogenic transforms, each shape includes the channel dimension
-            as the last axis `(*wedge_shape, ndim + 2)`.
+            as the last axis ``(*wedge_shape, ndim + 2)``.
 
         Examples
         --------
@@ -601,7 +601,7 @@ class UDCT:
         ----------
         coefficients : list[list[list[NDArray]]]
             Structured curvelet coefficients. For monogenic transforms, each
-            coefficient array has shape (*wedge_shape, ndim+2) with real dtype.
+            coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype.
             For real/complex transforms, arrays are complex dtype.
 
         Returns
@@ -678,7 +678,7 @@ class UDCT:
         -------
         list[list[list[NDArray]]]
             Structured curvelet coefficients. For monogenic transforms, each
-            coefficient array has shape (*wedge_shape, ndim+2) with real dtype.
+            coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype.
             For real/complex transforms, arrays are complex dtype.
 
         Examples
@@ -825,6 +825,7 @@ class UDCT:
         ----------
         image : ``npt.NDArray[_F]`` | ``npt.NDArray[_C]``
             Input data with shape matching self.shape.
+
             - For transform_kind="real" or "monogenic": must be real-valued (``npt.NDArray[_F]``)
             - For transform_kind="complex": can be real-valued or complex-valued
 
@@ -832,17 +833,22 @@ class UDCT:
         -------
         list[list[list[NDArray]]]
             Curvelet coefficients as nested list structure.
+
             - For "real" or "complex" transform: ComplexUDCTCoefficients[_C]
               (complex dtype matching input precision)
             - For "monogenic" transform: RealUDCTCoefficients[_F]
-              Each coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
+              Each coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype:
+
               - Channel 0: scalar.real
               - Channel 1: scalar.imag
               - Channels 2..ndim+1: Riesz components
+
               Complex scalar can be reconstructed via .view(complex_dtype) on channels 0:2.
+
             When transform_kind="complex", directions are doubled (first ndim directions
             for positive frequencies, next ndim for negative).
             Coefficients have dtype matching the input:
+
             - np.float32 input -> np.complex64 coefficients (real/complex) or np.float32 (monogenic)
             - np.float64 input -> np.complex128 coefficients (real/complex) or np.float64 (monogenic)
             - np.complex64 input -> np.complex64 coefficients
@@ -927,7 +933,8 @@ class UDCT:
         ----------
         coefficients : list[list[list[NDArray]]]
             Curvelet coefficients from forward transform. For "monogenic" transform,
-            each coefficient array has shape (*wedge_shape, ndim+2) with real dtype:
+            each coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype:
+
             - Channel 0: scalar.real
             - Channel 1: scalar.imag
             - Channels 2..ndim+1: Riesz components
@@ -1023,6 +1030,7 @@ class UDCT:
         -------
         tuple[:obj:`npt.NDArray[_F] <numpy.typing.NDArray>`, ...]
             Tuple of ndim+1 real-valued arrays with shape matching self.shape:
+
             - scalar: Original input :math:`f` (unchanged)
             - riesz_k: :math:`-R_k f` for :math:`k = 1, 2, \\ldots, \\text{ndim}`
 
