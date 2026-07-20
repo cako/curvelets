@@ -26,6 +26,24 @@ cfg = np.array([[3, 3], [6, 6], [12, 6]])
 C = UDCT(shape=shape, angular_wedges_config=cfg)
 
 # %%
+# Inspecting Coefficient Shapes Ahead of Time
+# ###########################################
+#
+# Before performing a forward transform on an image, we can calculate the exact
+# shapes of all output curvelet coefficients in :math:`O(1)` time using
+# :meth:`UDCT.coefficient_shapes`. This allows checking wedge dimensions or
+# pre-allocating memory without executing an expensive forward transform dry run.
+
+shapes = C.coefficient_shapes()
+for ires, scale_shapes in enumerate(shapes):
+    total_wedges = sum(len(dir_shapes) for dir_shapes in scale_shapes)
+    first_wedge_shape = scale_shapes[0][0]
+    print(
+        f"Scale {ires}: {len(scale_shapes)} direction(s), "
+        f"{total_wedges} total wedge(s), wedge shape: {first_wedge_shape}"
+    )
+
+# %%
 # Uniform Discrete Curvelet Transform Round Trip
 # ##############################################
 
