@@ -254,6 +254,9 @@ for i in range(nwins[0]):
                 dir_coeffs = []
                 dir_coeffs_full = []
                 for w in range(len(coeffs_grad_patch[s][d])):
+                    # Magnitude-based estimation. Differs from Wang et al. (2017)
+                    # which uses an L2 energy ratio: sqrt(|g|^2 / (|Hg|^2 + eps)).
+                    # Smoothing magnitudes directly is less sensitive to extreme outliers.
                     abs_grad = np.abs(coeffs_grad_patch[s][d][w])
                     smooth_grad = gaussian_filter(abs_grad, sigma=0.5)
 
