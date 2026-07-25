@@ -7,8 +7,9 @@ from pathlib import Path
 # Add the src directory to the path to import the version directly from source
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from curvelets._version import version as _version
 import warnings
+
+from curvelets._version import version as _version
 
 warnings.filterwarnings(
     "ignore",
