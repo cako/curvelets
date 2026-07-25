@@ -391,3 +391,10 @@ print(
     f"Riesz2:  max|-R₂f - riesz2_round| = {np.abs(riesz2_direct - riesz2_round).max():.6e}"
 )
 print("=" * 60)
+
+# %%
+# References
+# ----------
+#
+# .. bibliography::
+#    :filter: docname in docnames

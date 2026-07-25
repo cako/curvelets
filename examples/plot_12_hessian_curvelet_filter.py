@@ -4,7 +4,7 @@ Curvelet-Domain Hessian Action
 
 This example showcases how the curvelet transform can be used to estimate and
 compensate for the action of the Hessian in Least-Squares Migration (LSM), inspired by
-Wang et al. (2016, 2017).
+:cite:t:`Wang2016,Wang2017`.
 
 The Gauss-Newton Hessian :math:`J^\dagger J` acts as a spatially varying, directionally
 dependent blurring operator (a dip filter). By analyzing the Hessian-vector product
@@ -312,3 +312,11 @@ for ax in axs.flat:
 
 fig.tight_layout()
 plt.show()
+
+# %%
+# References
+# ----------
+#
+# .. bibliography::
+#    :filter: docname in docnames
+

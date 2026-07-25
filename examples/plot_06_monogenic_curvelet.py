@@ -225,3 +225,10 @@ despine(ax)
 ax.set(title=r"$|M| = \sqrt{|\beta|^2 + \mathcal{R}_1\beta^2 + \mathcal{R}_2\beta^2}$")
 
 plt.tight_layout()
+
+# %%
+# References
+# ----------
+#
+# .. bibliography::
+#    :filter: docname in docnames
