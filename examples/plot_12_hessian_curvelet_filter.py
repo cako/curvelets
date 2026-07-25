@@ -79,7 +79,7 @@ grad_c = grad[slice_crop, slice_crop]
 h_gn_grad_c = h_gn_grad[slice_crop, slice_crop]
 h_full_grad_c = h_full_grad[slice_crop, slice_crop]
 
-fig1, axs1 = plt.subplots(2, 2, figsize=(10, 10))
+fig1, axs1 = plt.subplots(3, 2, figsize=(10, 15))
 opts = {"cmap": "RdBu_r", "aspect": "equal"}
 pclip = 0.5
 
@@ -112,6 +112,18 @@ im3 = axs1[1, 1].imshow(
 )
 axs1[1, 1].set_title("4) Full Newton Hessian on Gradient ($H^{fn} g$)")
 create_colorbar(im3, ax=axs1[1, 1])
+
+diff_c = h_gn_grad_c - h_full_grad_c
+im4 = axs1[2, 0].imshow(
+    diff_c.T,
+    vmin=-pclip * np.abs(diff_c).max(),
+    vmax=pclip * np.abs(diff_c).max(),
+    **opts,
+)
+axs1[2, 0].set_title("5) Difference ($H^{gn} g - H^{fn} g$)")
+create_colorbar(im4, ax=axs1[2, 0])
+
+axs1[2, 1].axis("off")
 
 for ax in axs1.flat:
     despine(ax)
@@ -189,7 +201,7 @@ h_full_grad_pad = np.pad(
 )
 
 # Initialize the Curvelet Transform for the patch size
-C_patch = UDCT(shape=nwin, num_scales=3, wedges_per_direction=3)
+C_patch = UDCT(shape=nwin, num_scales=4, wedges_per_direction=3)
 
 # Initialize arrays for the reconstructed image and taper weights
 dm_est_pad = np.zeros_like(grad_pad)
@@ -230,8 +242,8 @@ for i in range(nwins[0]):
             for w in range(len(coeffs_h_full_grad_patch[s][d]))
         )
 
-        eps_gn = 1e-2 * max_h_gn
-        eps_full = 1e-2 * max_h_full
+        eps_gn = 1e-8 * max_h_gn
+        eps_full = 1e-8 * max_h_full
 
         coeffs_inv = []
         coeffs_inv_full = []
@@ -243,17 +255,17 @@ for i in range(nwins[0]):
                 dir_coeffs_full = []
                 for w in range(len(coeffs_grad_patch[s][d])):
                     abs_grad = np.abs(coeffs_grad_patch[s][d][w])
-                    smooth_grad = gaussian_filter(abs_grad, sigma=2.0)
+                    smooth_grad = gaussian_filter(abs_grad, sigma=0.5)
 
                     # For GN
                     abs_h = np.abs(coeffs_h_gn_grad_patch[s][d][w])
-                    smooth_h = gaussian_filter(abs_h, sigma=2.0)
+                    smooth_h = gaussian_filter(abs_h, sigma=0.5)
                     filt = smooth_grad / (smooth_h + eps_gn)
                     dir_coeffs.append(coeffs_grad_patch[s][d][w] * filt)
 
                     # For Full Newton
                     abs_h_full = np.abs(coeffs_h_full_grad_patch[s][d][w])
-                    smooth_h_full = gaussian_filter(abs_h_full, sigma=2.0)
+                    smooth_h_full = gaussian_filter(abs_h_full, sigma=0.5)
                     filt_full = smooth_grad / (smooth_h_full + eps_full)
                     dir_coeffs_full.append(coeffs_grad_patch[s][d][w] * filt_full)
 
