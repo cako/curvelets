@@ -7,7 +7,15 @@ from pathlib import Path
 # Add the src directory to the path to import the version directly from source
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+import warnings
+
 from curvelets._version import version as _version
+
+warnings.filterwarnings(
+    "ignore",
+    message=".*set_application.*is deprecated.*",
+    category=DeprecationWarning,
+)
 
 project = "Curvelets"
 copyright = "2026, Carlos Alberto da Costa Filho"
@@ -65,6 +73,10 @@ nitpick_ignore = [
     ("py:obj", "curvelets.numpy.MUDCTCoefficients"),
     ("py:class", "UDCTCoefficients"),
     ("py:obj", "UDCTCoefficients"),
+    ("py:class", "_T"),
+    ("py:class", "_F"),
+    ("py:class", "curvelets.numpy.typing._T"),
+    ("py:class", "curvelets.numpy.typing._F"),
     ("py:class", '{"real"'),
     ("py:class", '"complex"'),
     ("py:class", '"monogenic"}'),
@@ -139,4 +151,4 @@ def setup(app):
 bibtex_bibfiles = ["references.bib"]
 bibtex_reference_style = "author_year"
 # bibtex_default_style = "plain"
-suppress_warnings = ["bibtex.duplicate_citation", "config.cache"]
+suppress_warnings = ["bibtex.duplicate_citation", "config.cache", "ref.python"]
