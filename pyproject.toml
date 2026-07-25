@@ -66,6 +66,7 @@ docs = [
   "scipy-stubs; python_version>='3.11'",
   "types-docutils",
   "cmap",
+  "pylops>=2.3.0",
 ]
 
 [project.urls]
