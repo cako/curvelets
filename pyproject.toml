@@ -66,6 +66,7 @@ docs = [
   "scipy-stubs; python_version>='3.11'",
   "types-docutils",
   "cmap",
+  "pylops>=2.3.0",
 ]
 
 [project.urls]
@@ -136,8 +137,10 @@ module = ["torch.*", "torchvision.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*"]
+module = ["sklearn.*", "pylops.*"]
 ignore_missing_imports = true
+
+
 
 
 [tool.ty.environment]
