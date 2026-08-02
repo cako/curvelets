@@ -53,6 +53,8 @@ repos:
           - scipy
           - scipy-stubs
           - types-docutils
+          - pylops
+          - scikit-learn
 
   - repo: https://github.com/codespell-project/codespell
     rev: "v2.4.1"

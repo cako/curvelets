@@ -58,9 +58,8 @@ workspace_path = Path("testdata/hessian_workspace.npz")
 if not workspace_path.exists():
     workspace_path = Path("../testdata/hessian_workspace.npz")
 if not workspace_path.exists():
-    raise FileNotFoundError(
-        "Could not find hessian_workspace.npz. Please generate it first."
-    )
+    msg = "Could not find hessian_workspace.npz. Please generate it first."
+    raise FileNotFoundError(msg)
 
 data = np.load(workspace_path)
 dm = data["dm"]
@@ -306,17 +305,17 @@ for i in range(nwins[0]):
                     # which uses an L2 energy ratio: sqrt(|g|^2 / (|Hg|^2 + eps)).
                     # Smoothing magnitudes directly is less sensitive to extreme outliers.
                     abs_grad = np.abs(coeffs_grad_patch[s][d][w])
-                    smooth_grad = gaussian_filter(abs_grad, sigma=0.5)
+                    smooth_grad: np.ndarray = gaussian_filter(abs_grad, sigma=0.5)
 
                     # For GN
                     abs_h = np.abs(coeffs_h_gn_patch[s][d][w])
-                    smooth_h = gaussian_filter(abs_h, sigma=0.5)
+                    smooth_h: np.ndarray = gaussian_filter(abs_h, sigma=0.5)
                     filt = smooth_grad / (smooth_h + eps_gn)
                     dir_coeffs.append(coeffs_grad_patch[s][d][w] * filt)
 
                     # For Full Newton
                     abs_h_full = np.abs(coeffs_h_full_patch[s][d][w])
-                    smooth_h_full = gaussian_filter(abs_h_full, sigma=0.5)
+                    smooth_h_full: np.ndarray = gaussian_filter(abs_h_full, sigma=0.5)
                     filt_full = smooth_grad / (smooth_h_full + eps_full)
                     dir_coeffs_full.append(coeffs_grad_patch[s][d][w] * filt_full)
 
