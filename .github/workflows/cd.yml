@@ -27,7 +27,26 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: hynek/build-and-inspect-python-package@v2
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build twine packaging hatchling hatch-vcs
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Validate distributions
+        run: python -m twine check --strict dist/*
+
+      - name: Upload Packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Packages
+          path: dist
 
   publish:
     needs: [dist]
