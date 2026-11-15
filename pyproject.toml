@@ -95,6 +95,8 @@ filterwarnings = [
   "ignore::DeprecationWarning:pyparsing",
   "ignore::DeprecationWarning:pyparsing.util",
   "ignore::DeprecationWarning:pyparsing.core",
+  # torch >= 2.15 warns on macOS CI runners whose paravirtual GPU lacks Metal 2.0
+  "ignore:Skipping device Apple Paravirtual device:UserWarning",
 ]
 log_cli_level = "INFO"
 testpaths = ["tests"]
