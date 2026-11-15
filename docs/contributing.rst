@@ -179,7 +179,7 @@ We automate quality assurance, multi-platform testing, and package distribution 
 * **Continuous Integration (``ci.yml``)**: Whenever you push commits or open a pull request, our CI pipeline automatically verifies your changes across a comprehensive build matrix:
 
   * **Code formatting and linting**: A dedicated job checks all files against our pre-commit hooks and runs ``pylint`` via ``nox`` to guarantee formatting consistency.
-  * **Multi-platform and multi-version testing**: We run our complete ``pytest`` suite across Linux (Ubuntu), macOS, and Windows for Python versions ``3.11`` through ``3.15`` (including free-threaded ``3.14t``/``3.15t`` and ``PyPy 3.12``).
+  * **Multi-platform and multi-version testing**: We run our complete ``pytest`` suite across Linux (Ubuntu), macOS, and Windows for Python versions ``3.11`` through ``3.15`` (including free-threaded ``3.14t``/``3.15t`` and ``PyPy 3.11``).
   * **Coverage tracking**: Test execution generates XML coverage reports that are automatically uploaded and analyzed via Codecov.
 
 * **Continuous Deployment (``cd.yml``)**: When maintainers publish a new release on GitHub, our CD workflow verifies package integrity using ``build-and-inspect-python-package`` and automatically publishes the built artifacts to PyPI using secure OIDC authentication (``pypa/gh-action-pypi-publish``).
