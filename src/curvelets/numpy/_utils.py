@@ -509,7 +509,9 @@ def upsample(
     dtype('complex64')
     """
     assert array.ndim == len(decimation_ratios)
-    upsampled_shape = tuple(s * d for s, d in zip(array.shape, decimation_ratios, strict=False))
+    upsampled_shape = tuple(
+        s * d for s, d in zip(array.shape, decimation_ratios, strict=True)
+    )
     upsampled_array = np.zeros(upsampled_shape, dtype=array.dtype)
     upsampled_array[tuple(slice(None, None, d) for d in decimation_ratios)] = array[...]
     return upsampled_array

@@ -4,7 +4,7 @@ from __future__ import annotations
 # Duplicate code with torch implementation is expected
 import logging
 from math import prod
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 import numpy as np
 import numpy.typing as npt
@@ -925,7 +925,7 @@ class UDCT:
         coefficients: (
             UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]
         ),
-    ) -> Union[np.ndarray, tuple[npt.NDArray[_F], ...]]:
+    ) -> np.ndarray | tuple[npt.NDArray[_F], ...]:
         """
         Apply backward curvelet transform (reconstruction).
 

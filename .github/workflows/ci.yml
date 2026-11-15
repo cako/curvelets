@@ -44,6 +44,8 @@ jobs:
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
     runs-on: ${{ matrix.runs-on }}
+    # PyPy: numpy/scipy ship no PyPy wheels, so this job is best-effort only.
+    continue-on-error: ${{ startsWith(matrix.python-version, 'pypy') }}
     strategy:
       fail-fast: false
       matrix:

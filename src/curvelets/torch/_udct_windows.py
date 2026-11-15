@@ -7,7 +7,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import Union
 
 import numpy as np
 import torch
@@ -239,7 +238,7 @@ class UDCTWindow:
         return circular_shift(flipped_tensor, tuple(shift_vector))
 
     @staticmethod
-    def _nchoosek(n: Union[Iterable[int], torch.Tensor], k: int) -> torch.Tensor:
+    def _nchoosek(n: Iterable[int] | torch.Tensor, k: int) -> torch.Tensor:
         """Generate all combinations of k elements from n."""
         if isinstance(n, torch.Tensor):
             n = n.tolist()

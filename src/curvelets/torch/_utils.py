@@ -164,7 +164,9 @@ def upsample(tensor: torch.Tensor, decimation_ratios: torch.Tensor) -> torch.Ten
     """
     assert tensor.ndim == len(decimation_ratios)
     ratios = decimation_ratios.tolist()
-    upsampled_shape = tuple(int(s * d) for s, d in zip(tensor.shape, ratios, strict=False))
+    upsampled_shape = tuple(
+        int(s * d) for s, d in zip(tensor.shape, ratios, strict=True)
+    )
     upsampled_tensor = torch.zeros(
         upsampled_shape, dtype=tensor.dtype, device=tensor.device
     )
