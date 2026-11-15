@@ -76,7 +76,7 @@ jobs:
         if: startsWith(matrix.python-version, 'pypy')
         run: |
           python -m pip install . --no-deps
-          python -m pip install "numpy<2.5" pytest pytest-cov coverage matplotlib
+          python -m pip install "numpy<2.5" typing_extensions pytest pytest-cov coverage matplotlib
 
       - name: Install package (CPython)
         if: "!startsWith(matrix.python-version, 'pypy')"
