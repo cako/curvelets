@@ -12,16 +12,9 @@ UDCTWindows
 
 from __future__ import annotations
 
-import sys
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
-if sys.version_info >= (3, 10):
-    from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
-
-    from typing_extensions import TypeAliasType
-else:
-    from typing import TYPE_CHECKING, Any
-
-    from typing_extensions import TypeAlias, TypeAliasType, TypeVar
+from typing_extensions import TypeAliasType
 
 if TYPE_CHECKING:
     from ._sparse_window import SparseWindow

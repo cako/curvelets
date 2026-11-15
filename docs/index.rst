@@ -34,7 +34,7 @@ or, if you want to use the PyTorch backend, you can install the ``torch`` option
 
     pip install curvelets[torch]
 
-**Curvelets** supports Python 3.9 and above, NumPy 1.20 and above.
+**Curvelets** supports Python 3.11 and above, NumPy 1.20 and above.
 
 First Steps
 -----------

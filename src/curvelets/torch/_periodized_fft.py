@@ -47,7 +47,7 @@ def _ravel_multi_index(
         stride *= s
     strides.reverse()
     flat = torch.zeros_like(coords[0])
-    for c, s in zip(coords, strides):
+    for c, s in zip(coords, strides, strict=False):
         flat = flat + c * s
     return flat
 
@@ -88,7 +88,7 @@ def flip_fft_indices(
     if indices.numel() == 0:
         return indices.clone()
     coords = _unravel_index(indices, shape)
-    flipped = tuple((-c) % n for c, n in zip(coords, shape))
+    flipped = tuple((-c) % n for c, n in zip(coords, shape, strict=False))
     return _ravel_multi_index(flipped, shape).to(indices.dtype)
 
 
@@ -124,7 +124,7 @@ def decimated_shape(
     if len(shape) != len(dec):
         msg = "shape and decimation must have equal length"
         raise ValueError(msg)
-    return tuple(int(s // int(d)) for s, d in zip(shape, dec))
+    return tuple(int(s // int(d)) for s, d in zip(shape, dec, strict=False))
 
 
 def compute_folded_indices(
@@ -161,5 +161,5 @@ def compute_folded_indices(
     """
     out_shape = decimated_shape(shape, decimation)
     unravel = _unravel_index(indices, shape)
-    folded = tuple(u % mi for u, mi in zip(unravel, out_shape))
+    folded = tuple(u % mi for u, mi in zip(unravel, out_shape, strict=False))
     return _ravel_multi_index(folded, out_shape).to(indices.dtype)
