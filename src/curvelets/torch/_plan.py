@@ -7,11 +7,26 @@ launch-bound: thousands of tiny kernels for large configurations.
 
 :class:`UDCTPlan` precomputes the same arithmetic for *all* wedges at once:
 
-- forward: one full-size FFT, one gather of every window sample, one fold
-  (``index_add``) into a flat buffer laid out in :meth:`UDCT.vect` order, and one
-  batched inverse FFT per run of consecutive equal-shape wedges;
-- backward: the mirror image (batched FFTs, one gather, one scatter, one
-  full-size inverse FFT).
+- forward: one full-size FFT, one fold of every window sample into a flat
+  buffer laid out in :meth:`UDCT.vect` order, and one batched inverse FFT per run
+  of consecutive equal-shape wedges;
+- backward: the mirror image (batched FFTs, one fold, one full-size inverse FFT).
+
+The fold step has one implementation per device class:
+
+- GPUs and other accelerators: one deterministic gather-only fold over all
+  wedges (:class:`~._foldmap.GatherFold`) and batched FFTs, i.e. few launches.
+- CPUs: sorted scatter-adds (:class:`~._foldmap.ScatterFold`), applied row by
+  row, with no redundant arithmetic. The forward folds all wedges at once (it
+  has to read the whole spectrum anyway). The backward is cache-blocked: wedges
+  are processed in chunks of about :data:`CPU_CHUNK_ELEMENTS` coefficients,
+  each transformed and folded into the spectrum while it is still in cache, so
+  the large intermediate buffer of all coefficient spectra never exists.
+The real transform works on half spectra: the forward gathers from ``rfftn`` of
+the (real) input, reading ``conj(F[-k])`` for frequencies outside the stored
+half (from a ``[F, conj(F)]`` buffer, so every term is a plain gather), and the
+backward accumulates the Hermitian part of the spectrum, ``A + conj(B)``, whose
+``irfftn`` equals ``ifftn(F).real``. That halves the full-size FFTs and buffers.
 
 The launch count no longer grows with the number of wedges. Every op is
 out-of-place and differentiable, so the plan works under autograd and
@@ -22,14 +37,37 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 import math
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch
 
-from ._sparse_window import _REAL_DTYPE, SparseWindow
+from ._foldmap import GatherFold, ScatterFold, _functorch_wrapped, _index_dtype
+from ._periodized_fft import _ravel_multi_index, _unravel_index
+from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
+
+CPU_CHUNK_ELEMENTS = 1 << 19  # coefficients per CPU chunk (~4 MiB as complex64)
+
+_COMPLEX_DTYPE = {
+    torch.float16: torch.complex32,
+    torch.float32: torch.complex64,
+    torch.float64: torch.complex128,
+}
+
+
+def _direct_ok(tensor: torch.Tensor) -> bool:
+    """Whether FFT results may be written in place into a preallocated buffer.
+
+    ``out=`` variants are not differentiable and are not supported inside
+    functorch transforms (``vmap``, ``grad``), so fall back in those cases.
+    """
+    if torch.is_grad_enabled() and tensor.requires_grad:
+        return False
+    return not _functorch_wrapped(tensor)
 
 
 @dataclass(frozen=True)
@@ -60,6 +98,17 @@ class _Entry:
     position: tuple[int, int, int]  # (scale, direction, wedge) in the output
 
 
+@dataclass(frozen=True)
+class _CpuChunk:
+    """Consecutive wedges of one group, folded and transformed together on CPU."""
+
+    start: int  # slot range [start, stop) in the flat coefficient vector
+    stop: int
+    count: int
+    shape: tuple[int, ...]
+    bwd: tuple[ScatterFold, ...]  # this chunk's spectra -> spectrum (plain, conj)
+
+
 @dataclass
 class UDCTPlan:
     """
@@ -75,14 +124,17 @@ class UDCTPlan:
     layout: list[tuple[int, int, int]]
     num_directions: list[int]
     ncoef: int
-    fwd_idx: torch.Tensor
-    fwd_gidx: torch.Tensor
-    fwd_vals: torch.Tensor
-    bwd_idx: torch.Tensor
-    bwd_gidx: torch.Tensor
-    bwd_vals: torch.Tensor
-    _cache: dict[tuple[str, torch.dtype, torch.device], torch.Tensor] = field(
-        default_factory=dict, repr=False
+    fwd_map: GatherFold | ScatterFold  # spectrum ([F, conj F] or full) -> folded
+    # Accelerator backward (gather strategy): one fold over all wedges.
+    bwd_map: GatherFold | None  # coefficient spectra -> spectrum (half or full)
+    bwd_conj_map: GatherFold | None  # half-spectrum terms that enter conjugated
+    # CPU backward (scatter strategy): cache-sized chunks of wedges.
+    cpu_chunks: list[_CpuChunk] | None
+    # CPU forward scratch space ([F, conj F]), reused across calls per thread.
+    # Freshly allocated large buffers cost about as much as the FFTs on CPUs,
+    # because every page is faulted in again; GPU memory is recycled by PyTorch.
+    _scratch: threading.local = field(
+        default_factory=threading.local, repr=False, compare=False
     )
 
     # ------------------------------------------------------------------ build
@@ -94,6 +146,7 @@ class UDCTPlan:
         decimation_ratios: list[torch.Tensor],
         *,
         complex_mode: bool,
+        fold_strategy: str | None = None,
     ) -> UDCTPlan:
         """
         Build the plan from windows with attached periodized maps.
@@ -109,6 +162,9 @@ class UDCTPlan:
             Decimation ratios (CPU tensors preferred; only read via ``tolist``).
         complex_mode : bool
             Complex transform (separate positive/negative frequency bands).
+        fold_strategy : {"scatter", "gather"}, optional
+            Execution strategy. By default CPUs get ``"scatter"`` (cache-blocked
+            chunks) and every other device (CUDA, MPS, XPU, ...) ``"gather"``.
 
         Returns
         -------
@@ -122,7 +178,8 @@ class UDCTPlan:
         groups: list[_Group] = []
         idx: list[torch.Tensor] = []
         gidx: list[torch.Tensor] = []
-        vals: list[torch.Tensor] = []
+        fwd_w: list[torch.Tensor] = []
+        bwd_w: list[torch.Tensor] = []
         used: list[torch.Tensor] = []
         offset = 0
         for entry in entries:
@@ -147,7 +204,11 @@ class UDCTPlan:
                 )
             idx.append(indices)
             gidx.append(folded + offset)
-            vals.append(window.values)
+            # Per-wedge normalizations are folded into the fold weights: the
+            # FFTs are linear, so scaling before them saves a full pass over
+            # the coefficients in each direction.
+            fwd_w.append(window.values * entry.fwd_scale)
+            bwd_w.append(window.values * entry.bwd_scale)
             used.append(
                 torch.full(
                     (indices.numel(),),
@@ -160,31 +221,71 @@ class UDCTPlan:
 
         fwd_idx = torch.cat(idx)
         fwd_gidx = torch.cat(gidx)
-        fwd_vals = torch.cat(vals)
+        fwd_vals = torch.cat(fwd_w)
+        bwd_vals = torch.cat(bwd_w)
         if all(entry.bwd_scale != 0.0 for entry in entries):
-            bwd_idx, bwd_gidx, bwd_vals = fwd_idx, fwd_gidx, fwd_vals
+            bwd_idx, bwd_gidx = fwd_idx, fwd_gidx
         else:
             mask = torch.cat(used)
-            bwd_idx, bwd_gidx, bwd_vals = fwd_idx[mask], fwd_gidx[mask], fwd_vals[mask]
+            bwd_idx, bwd_gidx, bwd_vals = fwd_idx[mask], fwd_gidx[mask], bwd_vals[mask]
+
+        shape = tuple(parameters.shape)
+        numel = math.prod(shape)
+        if complex_mode:
+            fwd_c = (fwd_gidx, fwd_idx, fwd_vals)
+            bwd_c = [(bwd_idx, bwd_gidx, bwd_vals)]
+            num_spectrum, num_fwd_sources = numel, numel
+        else:
+            fwd_c, bwd_c, num_spectrum = _half_spectrum_contributions(
+                shape, (fwd_idx, fwd_gidx, fwd_vals), (bwd_idx, bwd_gidx, bwd_vals)
+            )
+            num_fwd_sources = 2 * num_spectrum
+
+        strategy = fold_strategy
+        if strategy is None:
+            strategy = "scatter" if fwd_idx.device.type == "cpu" else "gather"
+        fwd_map: GatherFold | ScatterFold
+        bwd_map = bwd_conj_map = None
+        cpu_chunks = None
+        if strategy == "gather":
+            fwd_map = GatherFold.build(*fwd_c, offset, num_fwd_sources)
+            bwd_folds = [GatherFold.build(*c, num_spectrum, offset) for c in bwd_c]
+            bwd_map = bwd_folds[0]
+            bwd_conj_map = bwd_folds[1] if len(bwd_folds) > 1 else None
+        elif strategy == "scatter":
+            fwd_map = ScatterFold.build(*fwd_c, offset, num_fwd_sources)
+            cpu_chunks = _cpu_chunks(groups, bwd_c, num_spectrum)
+        else:
+            msg = f"unknown fold strategy {strategy!r}"
+            raise ValueError(msg)
 
         num_directions = [1] + [
             2 * parameters.ndim if complex_mode else len(windows[scale_idx])
             for scale_idx in range(1, parameters.num_scales)
         ]
         return cls(
-            shape=tuple(parameters.shape),
+            shape=shape,
             complex_output=complex_mode,
             groups=groups,
             layout=[entry.position for entry in entries],
             num_directions=num_directions,
             ncoef=offset,
-            fwd_idx=fwd_idx,
-            fwd_gidx=fwd_gidx,
-            fwd_vals=fwd_vals,
-            bwd_idx=bwd_idx,
-            bwd_gidx=bwd_gidx,
-            bwd_vals=bwd_vals,
+            fwd_map=fwd_map,
+            bwd_map=bwd_map,
+            bwd_conj_map=bwd_conj_map,
+            cpu_chunks=cpu_chunks,
         )
+
+    # Thread-local scratch cannot be pickled or deep-copied (``copy.deepcopy``,
+    # ``torch.save`` of a module): drop it, and start empty on the copy.
+    def __getstate__(self) -> dict[str, Any]:
+        state = dict(self.__dict__)
+        del state["_scratch"]
+        return state
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        self.__dict__.update(state)
+        self._scratch = threading.local()
 
     # ---------------------------------------------------------------- helpers
     @property
@@ -193,106 +294,66 @@ class UDCTPlan:
         return len(self.shape)
 
     @property
-    def numel(self) -> int:
-        """Number of samples in one input."""
-        return math.prod(self.shape)
+    def spectrum_shape(self) -> tuple[int, ...]:
+        """Shape of the stored spectrum (half spectrum for the real transform)."""
+        if self.complex_output:
+            return self.shape
+        return (*self.shape[:-1], self.shape[-1] // 2 + 1)
 
     def _dims(self) -> tuple[int, ...]:
         return tuple(range(-self.ndim, 0))
 
-    def _cached(
+    def _buffer(
         self,
-        key: str,
-        dtype: torch.dtype,
-        device: torch.device,
-        make: Callable[[], torch.Tensor],
+        name: str,
+        like: torch.Tensor,
+        factor: int,
+        shape: tuple[int, ...] | None = None,
     ) -> torch.Tensor:
-        cache_key = (key, dtype, device)
-        out = self._cache.get(cache_key)
-        if out is None:
-            out = make()
-            self._cache[cache_key] = out
-        return out
+        """Thread-local reusable buffer (CPU forward scratch space)."""
+        if shape is None:
+            shape = (like.shape[0], like.shape[1] * factor)
+        cached: torch.Tensor | None = getattr(self._scratch, name, None)
+        if (
+            cached is None
+            or tuple(cached.shape) != shape
+            or cached.dtype != like.dtype
+            or cached.device != like.device
+        ):
+            cached = torch.empty(shape, dtype=like.dtype, device=like.device)
+            setattr(self._scratch, name, cached)
+        return cached
 
-    def _values(self, which: str, complex_dtype: torch.dtype) -> torch.Tensor:
-        real = _REAL_DTYPE.get(complex_dtype, complex_dtype)
-        src = self.fwd_vals if which == "fwd" else self.bwd_vals
-        if src.dtype == real:
-            return src
-        return self._cached(f"{which}_vals", real, src.device, lambda: src.to(real))
-
-    def _scale(
+    def _batched_ffts(
         self,
-        group_idx: int,
-        which: str,
-        complex_dtype: torch.dtype,
-        device: torch.device,
+        flat: torch.Tensor,
+        transform: Callable[..., torch.Tensor],
+        out_dtype: torch.dtype,
     ) -> torch.Tensor:
-        group = self.groups[group_idx]
-        real = _REAL_DTYPE.get(complex_dtype, complex_dtype)
-        values = group.fwd_scale if which == "fwd" else group.bwd_scale
-        return self._cached(
-            f"{which}_scale_{group_idx}",
-            real,
-            device,
-            lambda: torch.tensor(values, dtype=real, device=device).view(
-                group.count, *([1] * self.ndim)
-            ),
-        )
+        """Apply ``transform`` (fftn/ifftn) to every group of a ``(B, ncoef)`` buffer.
 
-    @staticmethod
-    def _gather(flat: torch.Tensor, index: torch.Tensor) -> torch.Tensor:
-        """``flat[:, index]`` for a ``(batch, n)`` tensor.
-
-        A single row is gathered as a 1-D tensor, which is the fastest form;
-        advanced indexing beats ``index_select(1, ...)`` for wider batches.
+        Without autograd or functorch in the way, each group is written straight
+        into one output buffer (``out=``); otherwise the groups are concatenated.
         """
-        if flat.shape[0] == 1:
-            return flat[0].index_select(0, index).unsqueeze(0)
-        return flat[:, index]
-
-    @staticmethod
-    def _scatter(size: int, index: torch.Tensor, samples: torch.Tensor) -> torch.Tensor:
-        """Sum ``samples`` (``(batch, nnz)``) into a zero ``(batch, size)`` tensor."""
-        if samples.shape[0] == 1:
-            out = torch.zeros(size, dtype=samples.dtype, device=samples.device)
-            return out.index_add(0, index, samples[0]).unsqueeze(0)
-        out = torch.zeros(
-            samples.shape[0], size, dtype=samples.dtype, device=samples.device
-        )
-        return out.index_add(1, index, samples)
+        rows = flat.shape[0]
+        dims = self._dims()
+        chunks = [
+            flat[:, g.offset : g.stop].view(rows, g.count, *g.shape)
+            for g in self.groups
+        ]
+        if _direct_ok(flat):
+            out = torch.empty(rows, self.ncoef, dtype=out_dtype, device=flat.device)
+            for g, chunk in zip(self.groups, chunks, strict=True):
+                transform(
+                    chunk,
+                    dim=dims,
+                    out=out[:, g.offset : g.stop].view(rows, g.count, *g.shape),
+                )
+            return out
+        parts = [transform(chunk, dim=dims).reshape(rows, -1) for chunk in chunks]
+        return torch.cat(parts, dim=1)
 
     # ---------------------------------------------------------------- forward
-    def forward_groups(self, image: torch.Tensor) -> list[torch.Tensor]:
-        """
-        Forward transform, one tensor per group.
-
-        Parameters
-        ----------
-        image : torch.Tensor
-            Input of shape ``(*batch, *shape)``.
-
-        Returns
-        -------
-        list[torch.Tensor]
-            Group ``g`` has shape ``(*batch, g.count, *g.shape)``.
-        """
-        batch = image.shape[: image.ndim - self.ndim]
-        spectrum = torch.fft.fftn(image, dim=self._dims())  # pylint: disable=not-callable
-        flat = spectrum.reshape(-1, self.numel)
-        cdtype = flat.dtype
-        samples = self._gather(flat, self.fwd_idx) * self._values("fwd", cdtype)
-        folded = self._scatter(self.ncoef, self.fwd_gidx, samples)
-        out = []
-        for group_idx, group in enumerate(self.groups):
-            chunk = folded[:, group.offset : group.stop].reshape(
-                -1, group.count, *group.shape
-            )
-            coeff = torch.fft.ifftn(chunk, dim=self._dims())  # pylint: disable=not-callable
-            coeff = coeff * self._scale(group_idx, "fwd", cdtype, flat.device)
-            out.append(coeff.reshape(*batch, group.count, *group.shape))
-        return out
-
     def forward_flat(self, image: torch.Tensor) -> torch.Tensor:
         """
         Forward transform as a ``(*batch, ncoef)`` tensor in ``vect`` order.
@@ -308,8 +369,51 @@ class UDCTPlan:
             Flattened coefficients.
         """
         batch = image.shape[: image.ndim - self.ndim]
-        parts = [g.reshape(*batch, -1) for g in self.forward_groups(image)]
-        return torch.cat(parts, dim=-1)
+        if self.complex_output:
+            spectrum = torch.fft.fftn(image, dim=self._dims())  # pylint: disable=not-callable
+        else:
+            spectrum = torch.fft.rfftn(image, dim=self._dims())  # pylint: disable=not-callable
+        flat = spectrum.reshape(-1, math.prod(self.spectrum_shape))
+        reuse = isinstance(self.fwd_map, ScatterFold) and _direct_ok(flat)
+        if not self.complex_output:
+            pair = [flat, flat.conj()]
+            if reuse:
+                flat = torch.cat(pair, dim=-1, out=self._buffer("ext", flat, 2))
+            else:
+                flat = torch.cat(pair, dim=-1)
+        folded = self.fwd_map.apply(flat)
+        if reuse:
+            # The folded buffer becomes the result: inverse FFTs run in place, so
+            # each call touches exactly one fresh coefficient-sized buffer.
+            dims = self._dims()
+            for g in self.groups:
+                view = folded[:, g.offset : g.stop].view(-1, g.count, *g.shape)
+                torch.fft.ifftn(view, dim=dims, out=view)  # pylint: disable=not-callable
+            coeffs = folded
+        else:
+            coeffs = self._batched_ffts(folded, torch.fft.ifftn, folded.dtype)
+        return coeffs.reshape(*batch, self.ncoef)
+
+    def forward_groups(self, image: torch.Tensor) -> list[torch.Tensor]:
+        """
+        Forward transform, one view per group.
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            Input of shape ``(*batch, *shape)``.
+
+        Returns
+        -------
+        list[torch.Tensor]
+            Group ``g`` has shape ``(*batch, g.count, *g.shape)``; all groups are
+            views of one flat buffer.
+        """
+        flat = self.forward_flat(image)
+        return [
+            flat[..., g.offset : g.stop].unflatten(-1, (g.count, *g.shape))
+            for g in self.groups
+        ]
 
     def forward_nested(self, image: torch.Tensor) -> UDCTCoefficients:
         """
@@ -375,24 +479,155 @@ class UDCTPlan:
         """
         batch = vector.shape[:-1]
         flat = vector.reshape(-1, self.ncoef)
-        parts = []
-        cdtype: torch.dtype | None = None
-        for group_idx, group in enumerate(self.groups):
-            chunk = flat[:, group.offset : group.stop].reshape(
-                -1, group.count, *group.shape
+        cdtype = flat.dtype if flat.is_complex() else _COMPLEX_DTYPE[flat.dtype]
+        if self.cpu_chunks is not None:
+            spectrum = _stack_rows([
+                self._cpu_backward_row(row, cdtype) for row in flat
+            ])
+        else:
+            assert self.bwd_map is not None
+            small = self._batched_ffts(flat, torch.fft.fftn, cdtype)
+            spectrum = self.bwd_map.apply(small)
+            if self.bwd_conj_map is not None:
+                spectrum = spectrum + self.bwd_conj_map.apply(small).conj()
+        spectrum = spectrum.reshape(*batch, *self.spectrum_shape)
+        if self.complex_output:
+            return torch.fft.ifftn(spectrum, dim=self._dims())  # pylint: disable=not-callable
+        return torch.fft.irfftn(spectrum, s=self.shape, dim=self._dims())  # pylint: disable=not-callable
+
+    def _cpu_backward_row(self, row: torch.Tensor, cdtype: torch.dtype) -> torch.Tensor:
+        """One coefficient vector -> (half) spectrum, chunk by chunk (CPU)."""
+        assert self.cpu_chunks is not None
+        dims = self._dims()
+        size = math.prod(self.spectrum_shape)
+        terms = 1 if self.complex_output else 2
+        acc = [torch.zeros(size, dtype=cdtype) for _ in range(terms)]
+        for chunk in self.cpu_chunks:
+            spec = torch.fft.fftn(  # pylint: disable=not-callable
+                row[chunk.start : chunk.stop].view(chunk.count, *chunk.shape), dim=dims
+            ).reshape(-1)
+            for k, fold in enumerate(chunk.bwd):
+                acc[k] = fold.add_row(acc[k], spec)
+        return acc[0] if terms == 1 else acc[0] + acc[1].conj()
+
+
+def _stack_rows(rows: list[torch.Tensor]) -> torch.Tensor:
+    return rows[0].unsqueeze(0) if len(rows) == 1 else torch.stack(rows)
+
+
+def _cpu_chunks(
+    groups: list[_Group],
+    bwd: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+    num_spectrum: int,
+) -> list[_CpuChunk]:
+    """Split the backward contributions into cache-sized chunks of wedges.
+
+    Each ``bwd`` entry is ``(spectrum target, slot source, weight)``. Each list
+    is sorted once by (chunk, target), and the chunk folds are views into the
+    sorted tensors: a handful of allocations instead of several per chunk, which
+    keeps the CPU heap unfragmented for the large per-call buffers.
+    """
+    bounds: list[
+        tuple[int, int, int, tuple[int, ...]]
+    ] = []  # start, stop, count, shape
+    for group in groups:
+        per_chunk = max(1, CPU_CHUNK_ELEMENTS // group.size)
+        for first in range(0, group.count, per_chunk):
+            count = min(per_chunk, group.count - first)
+            start = group.offset + first * group.size
+            bounds.append((start, start + count * group.size, count, group.shape))
+    num_chunks = len(bounds)
+    ncoef = bounds[-1][1]
+    target_dtype = _index_dtype(num_spectrum)
+    source_dtype = _index_dtype(ncoef)
+
+    folds_per_chunk: list[list[ScatterFold]] = [[] for _ in range(num_chunks)]
+    for targets, raw_sources, weights in bwd:
+        device = raw_sources.device
+        starts = torch.tensor([b[0] for b in bounds], dtype=torch.int64, device=device)
+        sources = raw_sources.to(torch.int64)
+        chunk_of = torch.searchsorted(starts, sources, right=True) - 1
+        order = torch.argsort(chunk_of * num_spectrum + targets.to(torch.int64))
+        chunk_sorted = chunk_of[order]
+        sorted_targets = targets[order].to(target_dtype)
+        local_sources = (sources - starts[chunk_of])[order].to(source_dtype)
+        sorted_weights = weights[order]
+        ends = torch.cumsum(
+            torch.bincount(chunk_sorted, minlength=num_chunks), dim=0
+        ).tolist()
+        lo = 0
+        for chunk_idx, hi in enumerate(ends):
+            start, stop, _, _ = bounds[chunk_idx]
+            folds_per_chunk[chunk_idx].append(
+                ScatterFold(
+                    num_targets=num_spectrum,
+                    num_sources=stop - start,
+                    targets=sorted_targets[lo:hi],
+                    sources=local_sources[lo:hi],
+                    weights=sorted_weights[lo:hi],
+                )
             )
-            spec = torch.fft.fftn(chunk, dim=self._dims())  # pylint: disable=not-callable
-            cdtype = spec.dtype
-            spec = spec * self._scale(group_idx, "bwd", cdtype, flat.device)
-            parts.append(spec.reshape(flat.shape[0], -1))
-        assert cdtype is not None
-        small = torch.cat(parts, dim=1)
-        samples = self._gather(small, self.bwd_gidx) * self._values("bwd", cdtype)
-        spectrum = self._scatter(self.numel, self.bwd_idx, samples)
-        image = torch.fft.ifftn(  # pylint: disable=not-callable
-            spectrum.reshape(*batch, *self.shape), dim=self._dims()
+            lo = hi
+
+    return [
+        _CpuChunk(start, stop, count, shape, tuple(folds))
+        for (start, stop, count, shape), folds in zip(
+            bounds, folds_per_chunk, strict=True
         )
-        return image if self.complex_output else image.real
+    ]
+
+
+def _half_spectrum_contributions(
+    shape: tuple[int, ...],
+    fwd: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    bwd: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+) -> tuple[
+    tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+    int,
+]:
+    """
+    Fold contributions that read from / write to the ``rfftn`` half spectrum.
+
+    A full-grid frequency ``k`` lives in the stored half when its last coordinate
+    is at most ``n_last // 2``; otherwise ``F[k] = conj(F[-k])`` for real input.
+    The backward produces ``H[k] = (F[k] + conj(F[-k])) / 2`` on the stored half,
+    whose ``irfftn`` is ``ifftn(F).real``.
+
+    Returns the forward contributions ``(target slot, source, weight)`` with
+    sources in ``[F_half, conj(F_half)]``, the backward contributions for ``A``
+    and ``B`` with ``H = A(c) + conj(B(c))``, and the half-spectrum length.
+    """
+    fwd_idx, fwd_gidx, fwd_vals = fwd
+    bwd_idx, bwd_gidx, bwd_vals = bwd
+    half_shape = (*shape[:-1], shape[-1] // 2 + 1)
+    half_numel = math.prod(half_shape)
+    half_last = half_shape[-1]
+
+    def locate(
+        full: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        coords = _unravel_index(full, shape)
+        neg = tuple((-c) % n for c, n in zip(coords, shape, strict=True))
+        own_in_half = coords[-1] < half_last
+        neg_in_half = neg[-1] < half_last
+        zero = torch.zeros_like(coords[-1])
+        own = _ravel_multi_index(
+            (*coords[:-1], torch.where(own_in_half, coords[-1], zero)), half_shape
+        )
+        mirror = _ravel_multi_index(
+            (*neg[:-1], torch.where(neg_in_half, neg[-1], zero)), half_shape
+        )
+        return own, own_in_half, mirror, neg_in_half
+
+    own, own_in_half, mirror, _ = locate(fwd_idx)
+    # Conjugated samples come from the second half of [F_half, conj(F_half)].
+    fwd_src = torch.where(own_in_half, own, mirror + half_numel)
+
+    own, own_in_half, mirror, neg_in_half = locate(bwd_idx)
+    plain = (own[own_in_half], bwd_gidx[own_in_half], 0.5 * bwd_vals[own_in_half])
+    conj = (mirror[neg_in_half], bwd_gidx[neg_in_half], 0.5 * bwd_vals[neg_in_half])
+    return (fwd_gidx, fwd_src, fwd_vals), [plain, conj], half_numel
 
 
 def _plan_entries(
