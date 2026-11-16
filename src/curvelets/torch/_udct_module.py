@@ -44,10 +44,8 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
         torch.Tensor
             Flattened curvelet coefficients.
         """
-        # Compute forward transform and vectorize
-        # UDCT handles dispatch based on transform_kind
-        coefficients = udct.forward(image)
-        return udct.vect(coefficients)
+        # Forward transform straight to the vect layout (fused plan)
+        return udct._forward_vect(image)  # pylint: disable=protected-access
 
     @staticmethod
     def setup_context(
@@ -95,10 +93,8 @@ class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: d
         udct = ctx.udct  # ty: ignore[unresolved-attribute]
         grad_output = grad_outputs[0]
 
-        # Restructure gradient and compute backward
-        # UDCT handles dispatch based on transform_kind
-        grad_coefficients = udct.struct(grad_output)
-        grad_input = udct.backward(grad_coefficients)
+        # Adjoint of the forward: backward transform of the flat gradient
+        grad_input = udct._backward_vect(grad_output)  # pylint: disable=protected-access
 
         return grad_input, None
 

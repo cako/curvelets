@@ -2,13 +2,15 @@
 
 Compares, per configuration:
 
-- ``base``      : current code path (``UDCT`` + ``apply_to_tensors(cuda)``, i.e. what
+- ``library``   : the checked-out library code path (``UDCT`` + ``apply_to_tensors(cuda)``, i.e. what
                   ``UDCTModule.to("cuda")`` does), forward = ``vect(forward(x))``,
-                  backward = ``backward(struct(v))``.
+                  backward = ``backward(c)``. (Reported as ``base`` in older results.)
 - ``fix_maps``  : same, but re-attach the periodized index maps that
                   ``apply_to_tensors`` drops.
 - ``fix_sync``  : ``fix_maps`` + decimation ratios kept on the CPU (removes the per-wedge
                   ``.item()`` device syncs used to compute scale factors).
+                  ``fix_maps``/``fix_sync`` only differ from ``library`` before the P0
+                  fixes; select variants with ``--variants``.
 - ``fused``     : prototype that flattens every wedge into one gather, one ``index_add_``
                   and one batched FFT per run of equal-shape wedges; also supports a
                   leading batch dimension.
@@ -284,6 +286,7 @@ def run_config(
     dtype: torch.dtype,
     *,
     cpu_ref: bool,
+    variant_names: tuple[str, ...] = ("library",),
 ) -> dict[str, Any]:
     res: dict[str, Any] = {
         "name": name,
@@ -341,9 +344,9 @@ def run_config(
     u_keep = copy.deepcopy(ref)
     move_fix_maps(u_keep, dev, keep_dec_on_cpu=True)
     variants: dict[str, dict[str, Any]] = {}
-    for vname in ("base", "fix_maps", "fix_sync"):
+    for vname in variant_names:
         u = copy.deepcopy(ref)
-        if vname == "base":
+        if vname == "library":
             move_base(u, dev)
         else:
             move_fix_maps(u, dev, keep_dec_on_cpu=vname == "fix_sync")
@@ -509,6 +512,11 @@ def main() -> None:
     ap.add_argument("--dtypes", default="float32,float64")
     ap.add_argument("--only", default=None, help="comma-separated config names")
     ap.add_argument("--no-cpu-ref", action="store_true")
+    ap.add_argument(
+        "--variants",
+        default="library",
+        help="comma-separated subset of library,fix_maps,fix_sync",
+    )
     args = ap.parse_args()
 
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -541,6 +549,7 @@ def main() -> None:
                         dev,
                         dtype,
                         cpu_ref=not args.no_cpu_ref and dt_name == "float32",
+                        variant_names=tuple(args.variants.split(",")),
                     )
                 )
             except Exception as e:
