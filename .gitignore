@@ -164,3 +164,6 @@ Thumbs.db
 # Common editor files
 *~
 *.swp
+
+# Benchmark results are versioned
+!benchmarks/data/
