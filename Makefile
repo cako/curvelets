@@ -9,14 +9,6 @@ endif
 	@echo Using uv: $(UV)
 
 
-test39:
-	make uvcheck
-	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.9
-
-test310:
-	make uvcheck
-	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.10
-
 test311:
 	make uvcheck
 	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.11
@@ -33,13 +25,16 @@ test314:
 	make uvcheck
 	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.14
 
+test315:
+	make uvcheck
+	unset NO_COLOR FORCE_COLOR; $(UV) tool run nox -s tests-3.15
+
 test:
-	make test39
-	make test310
 	make test311
 	make test312
 	make test313
 	make test314
+	make test315
 
 lint:
 	make uvcheck

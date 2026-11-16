@@ -5,11 +5,10 @@ from __future__ import annotations
 # pylint: disable=duplicate-code
 # Duplicate code with numpy implementation is expected
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, Self
 
 import torch
 from torch import nn
-from typing_extensions import Self
 
 from ._udct import UDCT
 from .typing import UDCTCoefficients, UDCTWindows

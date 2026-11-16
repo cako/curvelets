@@ -54,7 +54,7 @@ def flip_fft_indices(
     1.0
     """
     coords = np.unravel_index(indices, shape)
-    flipped = tuple((-c) % n for c, n in zip(coords, shape))
+    flipped = tuple((-c) % n for c, n in zip(coords, shape, strict=True))
     return np.asarray(np.ravel_multi_index(flipped, shape), dtype=np.intp)
 
 
@@ -87,7 +87,7 @@ def decimated_shape(
     if len(shape) != len(dec):
         msg = "shape and decimation must have equal length"
         raise ValueError(msg)
-    return tuple(int(s // int(d)) for s, d in zip(shape, dec))
+    return tuple(int(s // int(d)) for s, d in zip(shape, dec, strict=True))
 
 
 def compute_folded_indices(
@@ -124,5 +124,5 @@ def compute_folded_indices(
     """
     out_shape = decimated_shape(shape, decimation)
     unravel = np.unravel_index(indices, shape)
-    folded = tuple(u % mi for u, mi in zip(unravel, out_shape))
+    folded = tuple(u % mi for u, mi in zip(unravel, out_shape, strict=True))
     return np.asarray(np.ravel_multi_index(folded, out_shape), dtype=np.intp)

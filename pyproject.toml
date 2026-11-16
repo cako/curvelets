@@ -11,7 +11,7 @@ authors = [
 description = "Open source implementation of the uniform discrete curvelet transform in Python."
 readme = "README.md"
 license.file = "LICENSE"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Science/Research",
@@ -22,19 +22,18 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Topic :: Scientific/Engineering",
   "Topic :: Scientific/Engineering :: Image Processing",
   "Topic :: Scientific/Engineering :: Mathematics",
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = ["numpy>=1.20", "typing_extensions; python_version<='3.10'"]
+dependencies = ["numpy>=1.20", "typing_extensions; python_version<'3.12'"]
 
 [project.optional-dependencies]
 torch = ["torch"]
@@ -50,8 +49,7 @@ test = [
 ]
 dev = [{ include-group = "test" }, { include-group = "docs" }]
 docs = [
-  "sphinx>=8.2.1; python_version>='3.11'",
-  "sphinx>=7.0,<8.2.1; python_version<'3.11'",
+  "sphinx>=8.2.1",
   "myst_parser",
   "sphinx_copybutton",
   "sphinx_autodoc_typehints",
@@ -61,9 +59,8 @@ docs = [
   "matplotlib",
   "scikit-learn",
   "pooch>=1.8.2",
-  "scipy>=1.16.3; python_version>='3.11'",
-  "scipy<1.16.3; python_version<'3.11'",
-  "scipy-stubs; python_version>='3.11'",
+  "scipy>=1.16.3",
+  "scipy-stubs",
   "types-docutils",
   "cmap",
   "pylops>=2.3.0",
@@ -98,6 +95,8 @@ filterwarnings = [
   "ignore::DeprecationWarning:pyparsing",
   "ignore::DeprecationWarning:pyparsing.util",
   "ignore::DeprecationWarning:pyparsing.core",
+  # torch >= 2.15 warns on macOS CI runners whose paravirtual GPU lacks Metal 2.0
+  "ignore:Skipping device Apple Paravirtual device:UserWarning",
 ]
 log_cli_level = "INFO"
 testpaths = ["tests"]
@@ -114,7 +113,7 @@ report.exclude_also = ['\\.\\.\\.', 'if typing.TYPE_CHECKING:']
 
 [tool.mypy]
 files = ["src", "tests"]
-python_version = "3.13"
+python_version = "3.14"
 warn_unused_configs = true
 strict = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
@@ -144,7 +143,7 @@ ignore_missing_imports = true
 
 
 [tool.ty.environment]
-python-version = "3.9"
+python-version = "3.11"
 
 [tool.ty.src]
 include = ["src", "tests"]
@@ -165,7 +164,7 @@ unresolved-attribute = "ignore"
 
 [tool.ruff]
 src = ["src"]
-target-version = "py39"
+target-version = "py311"
 
 [tool.ruff.format]
 preview = true
@@ -198,7 +197,6 @@ ignore = [
   "PLR09",   # Too many <...>
   "PLR2004", # Magic value used in comparison
   "ISC001",  # Conflicts with formatter
-  "UP007",   # Use X | Y for type annotations (not available in Python 3.9)
 ]
 isort.required-imports = ["from __future__ import annotations"]
 # Uncomment if using a _compat.typing backport
@@ -211,7 +209,7 @@ isort.required-imports = ["from __future__ import annotations"]
 
 
 [tool.pylint]
-py-version = "3.9"
+py-version = "3.11"
 ignore-paths = [".*/_version.py"]
 reports.output-format = "colorized"
 similarities.ignore-imports = "yes"

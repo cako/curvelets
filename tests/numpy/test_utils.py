@@ -27,9 +27,9 @@ def test_array_split_nd():
         [np.array([[4]]), np.array([[6]]), np.array([[8]])],
     ]
     assert len(split) == len(desired)
-    for s, d in zip(split, desired):
+    for s, d in zip(split, desired, strict=True):
         assert len(s) == len(d)
-    for si, di in zip(deepflatten(split), deepflatten(desired)):
+    for si, di in zip(deepflatten(split), deepflatten(desired), strict=True):
         np.testing.assert_equal(si, di)
 
 
@@ -39,5 +39,5 @@ def test_apply_along_wedges():
     y = C.forward(x)
     res = apply_along_wedges(y, lambda w, *_: w.shape)
 
-    for si, di in zip(deepflatten(res), deepflatten(y)):
+    for si, di in zip(deepflatten(res), deepflatten(y), strict=True):
         np.testing.assert_equal(np.array(si), np.array(di.shape))

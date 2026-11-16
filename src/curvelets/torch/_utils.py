@@ -4,14 +4,13 @@
 # Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 
 import numpy as np
 import torch
 
 
-@dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
+@dataclass(kw_only=True)
 class ParamUDCT:
     """
     Parameters for Uniform Discrete Curvelet Transform (UDCT).
@@ -165,7 +164,9 @@ def upsample(tensor: torch.Tensor, decimation_ratios: torch.Tensor) -> torch.Ten
     """
     assert tensor.ndim == len(decimation_ratios)
     ratios = decimation_ratios.tolist()
-    upsampled_shape = tuple(int(s * d) for s, d in zip(tensor.shape, ratios))
+    upsampled_shape = tuple(
+        int(s * d) for s, d in zip(tensor.shape, ratios, strict=True)
+    )
     upsampled_tensor = torch.zeros(
         upsampled_shape, dtype=tensor.dtype, device=tensor.device
     )

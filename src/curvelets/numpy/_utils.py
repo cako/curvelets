@@ -2,13 +2,8 @@ from __future__ import annotations
 
 # pylint: disable=duplicate-code
 # Duplicate code with torch implementation is expected
-import sys
 from dataclasses import dataclass, field
-
-if sys.version_info >= (3, 10):
-    from typing import overload
-else:
-    from typing_extensions import overload
+from typing import overload
 
 import numpy as np
 import numpy.typing as npt
@@ -16,7 +11,7 @@ import numpy.typing as npt
 from .typing import _C, _F, _T, _IntegerNDArray
 
 
-@dataclass(**({"kw_only": True} if sys.version_info >= (3, 10) else {}))
+@dataclass(kw_only=True)
 class ParamUDCT:
     """
     Parameters for Uniform Discrete Curvelet Transform (UDCT).
@@ -514,7 +509,9 @@ def upsample(
     dtype('complex64')
     """
     assert array.ndim == len(decimation_ratios)
-    upsampled_shape = tuple(s * d for s, d in zip(array.shape, decimation_ratios))
+    upsampled_shape = tuple(
+        s * d for s, d in zip(array.shape, decimation_ratios, strict=True)
+    )
     upsampled_array = np.zeros(upsampled_shape, dtype=array.dtype)
     upsampled_array[tuple(slice(None, None, d) for d in decimation_ratios)] = array[...]
     return upsampled_array

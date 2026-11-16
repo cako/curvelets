@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterable
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable, Iterable
+from typing import Any, TypeVar
 
 import numpy as np
 from numpy.fft import fft2, fftfreq, fftshift
@@ -275,7 +275,8 @@ def make_r(
     )
 
     ramps = np.meshgrid(
-        *[np.arange(s, dtype=float) - o for s, o in zip(shape, orig)], indexing="ij"
+        *[np.arange(s, dtype=float) - o for s, o in zip(shape, orig, strict=True)],
+        indexing="ij",
     )
     return sum(x**2 for x in ramps) ** (exponent / 2)
 

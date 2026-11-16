@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Iterable
 from itertools import combinations
 from math import ceil
-from typing import Union
 
 import numpy as np
 import numpy.typing as npt
@@ -315,7 +314,7 @@ class UDCTWindow:
         return circular_shift(flipped_array, tuple(shift_vector))
 
     @staticmethod
-    def _nchoosek(n: Union[Iterable[int], _IntegerNDArray], k: int) -> _IntegerNDArray:
+    def _nchoosek(n: Iterable[int] | _IntegerNDArray, k: int) -> _IntegerNDArray:
         """
         Generate all combinations of k elements from n.
 

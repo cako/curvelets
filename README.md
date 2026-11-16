@@ -48,7 +48,7 @@
 pip install curvelets
 ```
 
-**Curvelets** supports Python 3.9 and above, NumPy 1.20 and above.
+**Curvelets** supports Python 3.11 and above, NumPy 1.20 and above.
 
 ### First Steps
 
