@@ -122,7 +122,7 @@ fig.suptitle("Frequency Domain Windows at Highest Scale (Scale 1)", fontsize=14)
 
 # Top row: curvelet windows
 for i, (window, (idir, iwedge)) in enumerate(
-    zip(curvelet_windows_scale1, curvelet_window_info, strict=False)
+    zip(curvelet_windows_scale1, curvelet_window_info, strict=True)
 ):
     ax = axs[0, i]
     window_real = np.real(window).astype(np.float64)
@@ -148,7 +148,7 @@ for i in range(n_curvelet_windows, n_cols):
 # Bottom row: wavelet window (single ring-shaped window)
 wavelet_names = ["Wavelet\n(Ring)"]
 for i, (window, name) in enumerate(
-    zip(wavelet_windows_scale1, wavelet_names, strict=False)
+    zip(wavelet_windows_scale1, wavelet_names, strict=True)
 ):
     ax = axs[1, i]
     window_real = np.real(window).astype(np.float64)
@@ -210,7 +210,7 @@ fig.suptitle("Coefficients at Highest Scale (Scale 1)", fontsize=14)
 
 # Top row: curvelet coefficients
 for i, (coeff, (idir, iwedge)) in enumerate(
-    zip(curvelet_coeffs_scale1, curvelet_coeff_info, strict=False)
+    zip(curvelet_coeffs_scale1, curvelet_coeff_info, strict=True)
 ):
     ax = axs[0, i]
     # Take real part for visualization (coefficients are complex but real-valued for real input)
@@ -231,7 +231,7 @@ for i in range(n_curvelet_coeffs, n_cols):
 # Bottom row: wavelet coefficient (single coefficient)
 wavelet_coeff_names = ["Wavelet\n(Ring)"]
 for i, (coeff, name) in enumerate(
-    zip(wavelet_coeffs_scale1, wavelet_coeff_names, strict=False)
+    zip(wavelet_coeffs_scale1, wavelet_coeff_names, strict=True)
 ):
     ax = axs[1, i]
     # wavelet coefficient is real-valued
@@ -255,7 +255,7 @@ fig.tight_layout()
 
 print("\nCurvelet Scale 1 Statistics:")
 for (idir, iwedge), coeff in zip(
-    curvelet_coeff_info, curvelet_coeffs_scale1, strict=False
+    curvelet_coeff_info, curvelet_coeffs_scale1, strict=True
 ):
     energy: float = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()

@@ -100,7 +100,7 @@ highpass_opts = {
 }
 
 fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-for ax, band, name in zip(axs, highpass_bands, band_names, strict=False):
+for ax, band, name in zip(axs, highpass_bands, band_names, strict=True):
     im = ax.imshow(band.T, **highpass_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2e}")
@@ -164,7 +164,7 @@ window_opts = {
     "extent": [kx[0], kx[-1], ky[-1], ky[0]],
 }
 
-for ax, window, name in zip(axs, windows_shifted, window_names, strict=False):
+for ax, window, name in zip(axs, windows_shifted, window_names, strict=True):
     im = ax.imshow(window.T, **window_opts)
     _, cb = create_colorbar(im=im, ax=ax)
     fmt = ticker.FuncFormatter(lambda x, _: f"{x:.2f}")

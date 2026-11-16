@@ -169,7 +169,7 @@ for i in range(len(wedges_range)):
 
 # Mark default alpha (blue dashed) and optimal alpha (green solid) for each row
 for i, (def_alpha, opt_alpha) in enumerate(
-    zip(default_alphas, optimal_alphas, strict=False)
+    zip(default_alphas, optimal_alphas, strict=True)
 ):
     # Default alpha (blue dashed)
     x_pos_def = np.interp(def_alpha, alpha_range, range(len(alpha_range)))
