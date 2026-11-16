@@ -17,7 +17,6 @@ from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
 )
-from ._sparse_window import SparseWindow
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
@@ -146,6 +145,12 @@ class UDCT:
         self._windows, self._decimation_ratios, self._indices = (
             self._initialize_windows()
         )
+        # Integer metadata used to compute coefficient shapes. It stays on the
+        # CPU, next to the CPU shape tensor it is combined with, even after the
+        # public ``decimation_ratios`` are moved with ``.to()``.
+        self._decimation_ratios_cpu: list[torch.Tensor] = [
+            d.detach().cpu().clone() for d in self._decimation_ratios
+        ]
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -515,7 +520,9 @@ class UDCT:
         """Private method for real transform coefficient shapes calculation."""
         shapes: list[list[list[tuple[int, ...]]]] = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+        for scale_idx, decimation_ratios_scale in enumerate(
+            self._decimation_ratios_cpu
+        ):
             shapes.append([])
             num_directions = len(decimation_ratios_scale)
             for direction_idx in range(num_directions):
@@ -538,7 +545,9 @@ class UDCT:
         """Private method for complex transform coefficient shapes calculation."""
         shapes: list[list[list[tuple[int, ...]]]] = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+        for scale_idx, decimation_ratios_scale in enumerate(
+            self._decimation_ratios_cpu
+        ):
             shapes.append([])
             if scale_idx > 0:
                 num_directions = 2 * self._parameters.ndim
@@ -574,7 +583,9 @@ class UDCT:
         shapes: list[list[list[tuple[int, ...]]]] = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
         num_channels = self._parameters.ndim + 2
-        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+        for scale_idx, decimation_ratios_scale in enumerate(
+            self._decimation_ratios_cpu
+        ):
             shapes.append([])
             num_directions = len(decimation_ratios_scale)
             for direction_idx in range(num_directions):
@@ -674,7 +685,9 @@ class UDCT:
         begin_idx = 0
         coefficients: UDCTCoefficients = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+        for scale_idx, decimation_ratios_scale in enumerate(
+            self._decimation_ratios_cpu
+        ):
             coefficients.append([])
             num_directions = len(decimation_ratios_scale)
 
@@ -704,7 +717,9 @@ class UDCT:
         begin_idx = 0
         coefficients: UDCTCoefficients = []
         internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+        for scale_idx, decimation_ratios_scale in enumerate(
+            self._decimation_ratios_cpu
+        ):
             coefficients.append([])
             # In complex transform mode, we have 2*dim directions per scale (for scale > 0)
             # but decimation_ratios_scale only has dim rows, so we need to handle this
@@ -757,7 +772,9 @@ class UDCT:
         # Matches numpy's structure
         num_channels = self._parameters.ndim + 2
 
-        for scale_idx, decimation_ratios_scale in enumerate(self._decimation_ratios):
+        for scale_idx, decimation_ratios_scale in enumerate(
+            self._decimation_ratios_cpu
+        ):
             coefficients.append([])
             num_directions = len(decimation_ratios_scale)
 
@@ -951,11 +968,10 @@ class UDCT:
         for scale_idx, scale_windows in enumerate(self._windows):
             for dir_idx, dir_windows in enumerate(scale_windows):
                 for wedge_idx, window in enumerate(dir_windows):
-                    new_indices = fn(window.indices)
-                    new_values = fn(window.values)
-                    self._windows[scale_idx][dir_idx][wedge_idx] = SparseWindow(
-                        new_indices, new_values, window.shape
-                    )
+                    # apply() keeps the periodized index maps; rebuilding the
+                    # window from indices/values would drop them and force a
+                    # recomputation on every forward/backward call.
+                    self._windows[scale_idx][dir_idx][wedge_idx] = window.apply(fn)
 
         # Apply to decimation_ratios (list of tensors)
         for i, ratio in enumerate(self._decimation_ratios):
