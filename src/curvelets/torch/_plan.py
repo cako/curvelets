@@ -440,6 +440,34 @@ class UDCTPlan:
                 entry += 1
         return coeffs
 
+    def unflatten(self, vector: torch.Tensor) -> UDCTCoefficients:
+        """
+        Views of a ``(*batch, ncoef)`` vector in the nested layout.
+
+        Parameters
+        ----------
+        vector : torch.Tensor
+            Flattened coefficients in ``vect`` order.
+
+        Returns
+        -------
+        UDCTCoefficients
+            Each coefficient is a view of shape ``(*batch, *wedge_shape)``.
+        """
+        coeffs: UDCTCoefficients = [
+            [[] for _ in range(ndir)] for ndir in self.num_directions
+        ]
+        entry = 0
+        for group in self.groups:
+            for i in range(group.count):
+                start = group.offset + i * group.size
+                scale_idx, dir_idx, _ = self.layout[entry]
+                coeffs[scale_idx][dir_idx].append(
+                    vector[..., start : start + group.size].unflatten(-1, group.shape)
+                )
+                entry += 1
+        return coeffs
+
     # --------------------------------------------------------------- backward
     def flatten(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
