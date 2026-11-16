@@ -1,0 +1,44 @@
+{
+ "meta": {
+  "device": "CPU (8 logical cores), 4 threads",
+  "dtype": "float32",
+  "path": "UDCTModule, autograd",
+  "stat": "min over repeated runs, ms"
+ },
+ "main": {
+  "2d_512": {
+   "fwd": 10.27,
+   "fwd_bwd": 19.82
+  },
+  "2d_1024_w6": {
+   "fwd": 36.07,
+   "fwd_bwd": 72.51
+  },
+  "3d_64": {
+   "fwd": 25.38,
+   "fwd_bwd": 49.53
+  },
+  "3d_128": {
+   "fwd": 127.92,
+   "fwd_bwd": 228.51
+  }
+ },
+ "top_of_stack": {
+  "2d_512": {
+   "fwd": 4.45,
+   "fwd_bwd": 9.45
+  },
+  "2d_1024_w6": {
+   "fwd": 29.62,
+   "fwd_bwd": 53.83
+  },
+  "3d_64": {
+   "fwd": 7.02,
+   "fwd_bwd": 16.08
+  },
+  "3d_128": {
+   "fwd": 70.93,
+   "fwd_bwd": 148.33
+  }
+ }
+}
