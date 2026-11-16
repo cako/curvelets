@@ -26,6 +26,14 @@ def _wedge_analyze_scale(
     return scale
 
 
+def _lowpass_scale_norm(parameters: ParamUDCT) -> float:
+    """Lowpass normalization ``sqrt(prod(2**(num_scales-2) over ndim))``.
+
+    Computed in Python so the forward pass never round-trips to the device.
+    """
+    return math.sqrt(float(2 ** (parameters.num_scales - 2)) ** parameters.ndim)
+
+
 def _process_wedge_real(
     window: SparseWindow,
     decimation_ratio: torch.Tensor,
@@ -179,18 +187,7 @@ def _apply_forward_transform_real(
     """
     image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
 
-    scale_norm = float(
-        torch.sqrt(
-            torch.prod(
-                torch.full(
-                    (parameters.ndim,),
-                    fill_value=2 ** (parameters.num_scales - 2),
-                    dtype=torch.float64,
-                    device=image_frequency.device,
-                )
-            )
-        ).item()
-    )
+    scale_norm = _lowpass_scale_norm(parameters)
     low_freq_coeff = _forward_lowpass_periodized(
         windows[0][0][0],
         decimation_ratios[0][0],
@@ -282,18 +279,7 @@ def _apply_forward_transform_complex(
     """
     image_frequency = torch.fft.fftn(image)  # pylint: disable=not-callable
 
-    scale_norm = float(
-        torch.sqrt(
-            torch.prod(
-                torch.full(
-                    (parameters.ndim,),
-                    fill_value=2 ** (parameters.num_scales - 2),
-                    dtype=torch.float64,
-                    device=image_frequency.device,
-                )
-            )
-        ).item()
-    )
+    scale_norm = _lowpass_scale_norm(parameters)
     low_freq_coeff = _forward_lowpass_periodized(
         windows[0][0][0],
         decimation_ratios[0][0],
