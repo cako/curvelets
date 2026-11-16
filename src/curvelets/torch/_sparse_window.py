@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 # pylint: disable=duplicate-code
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
@@ -613,6 +614,51 @@ class SparseWindow:
         arr = torch.zeros(self.shape, dtype=dtype, device=self.device)
         arr.view(-1)[self.indices.view(-1)] = self.values.view(-1).to(dtype)
         return arr
+
+    def apply(self, fn: Callable[[torch.Tensor], torch.Tensor]) -> SparseWindow:
+        """
+        Return a new window with ``fn`` applied to every tensor it holds.
+
+        Unlike rebuilding the window from ``indices`` and ``values``, this keeps
+        the precomputed periodized index maps, so the transform does not have to
+        recompute them on every call. ``decimation`` is small integer metadata
+        and stays where it is (normally the CPU).
+
+        Parameters
+        ----------
+        fn : Callable[[torch.Tensor], torch.Tensor]
+            Tensor function, e.g. ``lambda t: t.cuda()`` or the function
+            ``torch.nn.Module._apply`` passes for ``.to()`` / ``.half()``.
+
+        Returns
+        -------
+        SparseWindow
+            New window with mapped tensors.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch._sparse_window import SparseWindow
+        >>> window = SparseWindow.from_dense(torch.ones((8, 8)), threshold=0.5)
+        >>> window.attach_periodized([2, 2])
+        >>> moved = window.apply(lambda t: t.clone())
+        >>> moved.folded_indices is not None
+        True
+        """
+
+        def _opt(t: torch.Tensor | None) -> torch.Tensor | None:
+            return fn(t) if t is not None else None
+
+        return SparseWindow(
+            fn(self.indices),
+            fn(self.values),
+            self.shape,
+            folded_indices=_opt(self.folded_indices),
+            flipped_indices=_opt(self.flipped_indices),
+            flipped_folded_indices=_opt(self.flipped_folded_indices),
+            decimation=self.decimation,
+            out_shape=self.out_shape,
+        )
 
     def to(self, device: torch.device) -> SparseWindow:
         """
