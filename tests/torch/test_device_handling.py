@@ -1,4 +1,4 @@
-"""Device-transfer regression tests for the PyTorch UDCT.
+"""Device-transfer and device-sync regression tests for the PyTorch UDCT.
 
 The CPU tests run everywhere. The CUDA tests are skipped without a GPU; run them on
 a GPU machine (e.g. ``pytest tests/torch``).
@@ -6,6 +6,7 @@ a GPU machine (e.g. ``pytest tests/torch``).
 
 from __future__ import annotations
 
+import warnings
 from typing import Literal
 
 import pytest
@@ -15,6 +16,9 @@ import curvelets.torch._sparse_window as sparse_window_module
 from curvelets.torch import UDCT, UDCTModule
 
 DEVICES = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
+needs_cuda = pytest.mark.skipif(
+    not torch.cuda.is_available(), reason="requires a CUDA device"
+)
 
 TransformKind = Literal["real", "complex"]
 
@@ -65,6 +69,15 @@ def test_moved_transform_does_not_recompute_maps(
     torch.testing.assert_close(recon, x)
 
 
+def test_values_as_is_cached() -> None:
+    """Window values are cast once per dtype, not on every call."""
+    window = _make_udct("real").windows[1][0][0]
+    first = window.values_as(torch.complex64)
+    assert first.dtype == torch.float32
+    assert window.values_as(torch.complex64) is first
+    assert window.values_as(torch.complex128) is window.values
+
+
 @pytest.mark.parametrize("device", DEVICES)  # type: ignore[misc]
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[misc]
 def test_struct_round_trip_after_move(device: str, kind: TransformKind) -> None:
@@ -105,3 +118,25 @@ def test_public_decimation_ratios_follow_the_module() -> None:
     module = UDCTModule(shape=(32, 32), num_scales=3, wedges_per_direction=3)
     module = module.to(DEVICES[-1])
     assert all(d.device.type == DEVICES[-1] for d in module.decimation_ratios)
+
+
+@needs_cuda  # type: ignore[misc]
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[misc]
+def test_cuda_forward_backward_have_no_host_syncs(kind: TransformKind) -> None:
+    """The hot path must not block on device-to-host copies (``.item()`` etc.)."""
+    udct = _make_udct(kind)
+    udct.apply_to_tensors(lambda t: t.cuda())
+    x = _input(kind, udct.shape, "cuda")
+    coeffs = udct.forward(x)  # warm-up (caches, cuFFT plans)
+    udct.backward(coeffs)
+    torch.cuda.synchronize()
+    try:
+        with warnings.catch_warnings():
+            # "Synchronization debug mode is a prototype feature ..."
+            warnings.simplefilter("ignore", UserWarning)
+            torch.cuda.set_sync_debug_mode("error")
+        coeffs = udct.forward(x)
+        udct.backward(coeffs)
+        udct.backward(udct.struct(udct.vect(coeffs)))
+    finally:
+        torch.cuda.set_sync_debug_mode("default")

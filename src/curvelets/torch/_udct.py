@@ -145,9 +145,9 @@ class UDCT:
         self._windows, self._decimation_ratios, self._indices = (
             self._initialize_windows()
         )
-        # Integer metadata used to compute coefficient shapes. It stays on the
-        # CPU, next to the CPU shape tensor it is combined with, even after the
-        # public ``decimation_ratios`` are moved with ``.to()``.
+        # Integer metadata used to compute scale factors and coefficient shapes.
+        # It stays on the CPU so the transform never syncs with the device for it,
+        # even after the public ``decimation_ratios`` are moved with ``.to()``.
         self._decimation_ratios_cpu: list[torch.Tensor] = [
             d.detach().cpu().clone() for d in self._decimation_ratios
         ]
@@ -844,7 +844,7 @@ class UDCT:
     def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for real forward transform (no input validation)."""
         coeffs = _apply_forward_transform_real(
-            image, self._parameters, self._windows, self._decimation_ratios
+            image, self._parameters, self._windows, self._decimation_ratios_cpu
         )
         # Store coefficient dtype from first non-empty coefficient (Option B)
         if self._coefficient_dtype is None and len(coeffs) > 0:
@@ -865,7 +865,7 @@ class UDCT:
     def _forward_complex(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for complex forward transform (no input validation)."""
         coeffs = _apply_forward_transform_complex(
-            image, self._parameters, self._windows, self._decimation_ratios
+            image, self._parameters, self._windows, self._decimation_ratios_cpu
         )
         # Store coefficient dtype from first non-empty coefficient (Option B)
         if self._coefficient_dtype is None and len(coeffs) > 0:
@@ -919,7 +919,7 @@ class UDCT:
             coefficients,
             self._parameters,
             self._windows,
-            self._decimation_ratios,
+            self._decimation_ratios_cpu,
             use_complex_transform=False,
         )
 
@@ -929,7 +929,7 @@ class UDCT:
             coefficients,
             self._parameters,
             self._windows,
-            self._decimation_ratios,
+            self._decimation_ratios_cpu,
             use_complex_transform=True,
         )
 
