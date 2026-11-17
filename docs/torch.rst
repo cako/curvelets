@@ -164,3 +164,31 @@ When the working set of a batch spills out of the GPU's L2 cache, every stage of
 On accelerators with a known L2 size, the execution plan records a working-set budget (``UDCTPlan.batch_chunk_bytes``, set to the L2 size when the plan is built; ``None`` on CPUs and on devices with an unknown L2 size). When one row's working set (one spectrum and two coefficient vectors) is larger than the budget, the forward and backward transforms run the batch row by row, writing every row into one preallocated output. Under autograd, :func:`torch.vmap` or ``torch.compile`` the pieces are concatenated instead. Every other batch runs whole: splitting batches whose rows fit in L2 was measured to be slower, since each extra piece costs a full set of kernel launches.
 
 This is automatic and does not change the results.
+
+.. _torch-cuda-graphs:
+
+CUDA graphs
+===========
+
+For single transforms up to about :math:`1024 \times 1024`, and for the backward at larger sizes, the transform is *launch-bound*: Python takes longer to enqueue a few dozen kernels than the GPU takes to run them. Passing ``cuda_graphs=True`` to :class:`~curvelets.torch.UDCT` or :class:`~curvelets.torch.UDCTModule` captures each flat transform once per input shape and dtype as a CUDA graph, and replays it afterwards: one copy into a static input buffer, one graph launch, and one copy out of the static output buffer.
+
+.. code-block:: python
+
+    import torch
+    from curvelets.torch import UDCT
+
+    transform = UDCT(shape=(512, 512), cuda_graphs=True).to("cuda")
+    x = torch.randn(512, 512, device="cuda")
+    y = transform.forward(x)  # captured on the first call, replayed afterwards
+
+Details:
+
+* It applies to every forward and backward entry point, to :meth:`~curvelets.torch.UDCT.filter` and to :class:`~curvelets.torch.UDCTModule`. The ``cuda_graphs`` attribute can be switched at any time.
+* Calls that need gradients work too: the gradient of either transform is the other one (the transform is a tight frame), so both the forward and the backward pass replay.
+* Under :func:`torch.vmap` or ``torch.compile``, inside another stream capture, and for CPU tensors, calls run as usual.
+* The most recently used ``cuda_graph_cache_size`` graphs are kept (default 8; each graph holds a private memory pool of about one call's intermediates). :meth:`~curvelets.torch.UDCT.clear_cuda_graphs` drops all of them and frees that memory. Copies and pickles of a transform start with an empty cache.
+
+When to use it
+--------------
+
+Use it for small and medium inputs, where launches dominate: on an RTX 4090, a single :math:`512 \times 512` forward drops from 0.37 to 0.065 ms and the backward from 0.55 to 0.087 ms. For large inputs the GPU work dominates and the copies in and out of the graph buffers make replay slower (6.7 ms against 5.5 ms for a :math:`2048 \times 2048` forward with a batch of 8). Measure on your own sizes with ``benchmarks/compile_experiments.py``.
