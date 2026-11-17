@@ -363,6 +363,28 @@ def test_cpu_plans_have_no_batch_chunk_budget() -> None:
     assert _use_strategy(udct, "scatter").batch_chunk_bytes is None
 
 
+def test_l2_budget_comes_from_the_device_properties(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CUDA devices report their L2 size; a missing or zero size means no budget."""
+    from types import SimpleNamespace
+
+    from curvelets.torch._plan import _l2_cache_bytes
+
+    cuda = torch.device("cuda", 0)
+    monkeypatch.setattr(
+        torch.cuda,
+        "get_device_properties",
+        lambda _: SimpleNamespace(L2_cache_size=72 << 20),
+    )
+    assert _l2_cache_bytes(cuda) == 72 << 20
+    monkeypatch.setattr(
+        torch.cuda, "get_device_properties", lambda _: SimpleNamespace()
+    )
+    assert _l2_cache_bytes(cuda) is None
+    assert _l2_cache_bytes(torch.device("cpu")) is None
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a CUDA device")  # type: ignore[untyped-decorator]
 def test_cuda_plan_budget_is_the_l2_size() -> None:
     """On CUDA the chunk budget is the device's L2 cache size."""
