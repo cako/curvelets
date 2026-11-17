@@ -54,7 +54,7 @@ Every transform accepts leading batch dimensions. For a transform of shape ``sha
 
     module = UDCTModule(shape=(28, 28))
     images = torch.randn(64, 1, 28, 28)  # (batch, channel, height, width)
-    coefficients = module(images)          # (64, 1, ncoef)
+    coefficients = module(images)  # (64, 1, ncoef)
 
 Filtering coefficients
 ----------------------
