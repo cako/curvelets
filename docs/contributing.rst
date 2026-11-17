@@ -171,6 +171,25 @@ We rely on modern, high-performance tooling to maintain our developer workflow:
 * **sphinx**: Documentation engine powering our HTML manual and gallery build.
 
 
+Benchmarking the PyTorch backend
+********************************
+
+Performance work on :mod:`curvelets.torch` is measured, not guessed. The scripts live in ``benchmarks/`` and need a machine with a CUDA GPU for the GPU numbers (the CPU numbers run anywhere):
+
+* ``benchmarks/gpu_bench.py`` times the torch :class:`~curvelets.torch.UDCT` for several 2D and 3D sizes, compares the current path against reference variants, counts kernel launches and device-to-host synchronizations with ``torch.profiler``, reports peak memory, and checks that :class:`~curvelets.torch.UDCTModule` backpropagates on the device.
+* ``benchmarks/gpu_check.py`` runs the torch test suite first and the benchmark afterwards. It exits with a non-zero status if the tests fail (the benchmark still runs, for diagnosis).
+
+.. code-block:: bash
+
+   # time the transform and save the raw numbers
+   python benchmarks/gpu_bench.py --export benchmarks/data/gpu.json
+   # quicker subset
+   python benchmarks/gpu_bench.py --quick
+   # tests + benchmark, e.g. before opening a performance pull request
+   python benchmarks/gpu_check.py --export benchmarks/data/check.json
+
+Results, the hardware they were measured on, and the prioritized list of follow-ups are recorded in ``benchmarks/GPU_PERFORMANCE.md``; the raw JSON files are kept in ``benchmarks/data/``. When you open a performance pull request, include the before/after numbers from these scripts and say which GPU produced them.
+
 Automated workflows (GitHub Actions)
 ************************************
 
