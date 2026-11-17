@@ -39,7 +39,14 @@ class GraphedUDCT:
     from Python takes longer than running them on the GPU. This class captures
     the flat forward and backward transforms once, as CUDA graphs, so each
     call is one copy into a static input buffer plus one graph launch. On an
-    RTX 4090 that makes a 512² transform 6-12x faster.
+    RTX 4090 a single 512² forward drops from 0.37 to 0.065 ms and the backward
+    from 0.55 to 0.087 ms (0.058 and 0.063 ms with ``compile=True``).
+
+    Use it where calls are launch-bound: small and medium inputs, and small
+    batches. For large inputs the GPU work dominates and eager calls are as
+    fast; there the copies in and out of the static buffers (and the graph's
+    separate memory pool) make replay slower than eager, e.g. 6.7 vs 5.5 ms
+    for a 2048² forward of a batch of 8.
 
     Parameters
     ----------
@@ -54,7 +61,7 @@ class GraphedUDCT:
     copy_outputs : bool, optional
         Return copies of the graphs' static output buffers (default). With
         False, the returned tensors are the buffers themselves, which the next
-        call of the same method overwrites.
+        call of the same method overwrites; this saves one pass over the output.
     warmup : int, optional
         Calls before capture, which build cuFFT plans and compiled kernels.
         Default is 3.
