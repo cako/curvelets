@@ -80,6 +80,21 @@ def _kernel() -> Any:
     return csr_fold_kernel
 
 
+_OP_REGISTERED = False
+
+
+def _register_op() -> None:
+    """Register ``curvelets::csr_fold`` once (eagerly, when CSR maps are built).
+
+    Calls then go through ``torch.ops.curvelets.csr_fold``, which TorchDynamo
+    traces natively; it cannot trace into a cached registration helper.
+    """
+    global _OP_REGISTERED  # pylint: disable=global-statement
+    if not _OP_REGISTERED:
+        _op()
+        _OP_REGISTERED = True
+
+
 @cache
 def _op():  # type: ignore[no-untyped-def]
     """Register the ``curvelets::csr_fold`` op on first use (imports Triton)."""
@@ -151,6 +166,7 @@ class CsrFold:
         row_ptr = torch.zeros(num_targets + 1, dtype=torch.int64, device=targets.device)
         torch.cumsum(counts, 0, out=row_ptr[1:])
         nnz_dtype = torch.int32 if targets.numel() < 2**31 - 1 else torch.int64
+        _register_op()
         return cls(
             num_targets=num_targets,
             num_sources=num_sources,
@@ -164,7 +180,11 @@ class CsrFold:
 
         The weights are cast to the working precision inside the kernel.
         """
-        return _op()(src, self.row_ptr, self.col, self.weights, self.num_targets)
+        if not _OP_REGISTERED:  # e.g. unpickled maps; a constant once registered
+            _register_op()
+        return torch.ops.curvelets.csr_fold(
+            src, self.row_ptr, self.col, self.weights, self.num_targets
+        )
 
     def tensors(self) -> list[torch.Tensor]:
         """Index and weight tensors (for size accounting)."""
