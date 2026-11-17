@@ -190,6 +190,18 @@ Performance work on :mod:`curvelets.torch` is measured, not guessed. The scripts
 
 Results, the hardware they were measured on, and the prioritized list of follow-ups are recorded in ``benchmarks/GPU_PERFORMANCE.md``; the raw JSON files are kept in ``benchmarks/data/``. When you open a performance pull request, include the before/after numbers from these scripts and say which GPU produced them.
 
+Two further scripts help decide *where* the time goes and *which* optimization to try next:
+
+* ``benchmarks/stage_profile.py`` replays the fused execution plan one stage at a time with CUDA events. For each stage it reports the device time, the host time needed to enqueue it, a lower bound on the memory bandwidth reached and the kernel count, and it checks that the replay matches the library output. Use ``--configs``, ``--batch``, ``--dtype`` and ``--kind`` to choose the case and ``--json`` to save the result.
+* ``benchmarks/compile_experiments.py`` times the library under eager execution, manual CUDA graphs, per-row batch loops and the ``torch.compile`` modes (``--configs``, ``--batch``, ``--modes``, ``--skip``).
+
+.. code-block:: bash
+
+   python benchmarks/stage_profile.py --configs 2d_512,3d_128 --json benchmarks/data/stages.json
+   python benchmarks/compile_experiments.py --configs 2d_512 --batch 1,8
+
+The RTX 4090 results and the ranked list of follow-ups are in ``benchmarks/GPU_STAGE_PROFILE.md``.
+
 Automated workflows (GitHub Actions)
 ************************************
 
