@@ -309,6 +309,17 @@ def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
     torch.testing.assert_close(backward(coeffs), plan.backward_flat(coeffs))
 
 
+@pytest.mark.parametrize("budget", [None, 1])  # type: ignore[untyped-decorator]
+def test_gather_empty_batch(budget: int | None) -> None:
+    """A batch of zero rows gives empty results, whole-batch or row by row."""
+    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    plan = _use_strategy(udct, "gather")
+    plan.batch_chunk_bytes = budget
+    coeffs = plan.forward_flat(torch.zeros(0, 32, 32))
+    assert coeffs.shape == (0, plan.ncoef)
+    assert plan.backward_flat(coeffs).shape == (0, 32, 32)
+
+
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 def test_gather_batch_chunks_match_one_batch(kind: Kind) -> None:
     """Row-by-row processing gives the same result, with and without autograd."""

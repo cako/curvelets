@@ -431,6 +431,7 @@ class UDCTPlan:
         vectors (folded and transformed), in the complex working dtype. Without
         a budget, or for rows that fit in it, the whole batch is one chunk.
         """
+        rows = max(rows, 1)
         if self.batch_chunk_bytes is None:
             return rows
         per_row = (2 * self.ncoef + math.prod(self.spectrum_shape)) * complex_itemsize
@@ -446,7 +447,7 @@ class UDCTPlan:
             cdtype = torch.promote_types(images.dtype, torch.complex64)
             out = torch.empty(rows, self.ncoef, dtype=cdtype, device=images.device)
         parts = []
-        for start in range(0, rows, step):
+        for start in range(0, max(rows, 1), step):  # one pass for an empty batch
             # Conjugated terms and the inverse FFTs' 1/size are in the weights.
             folded = self.fwd_map.apply(self._spectrum(images[start : start + step]))
             dest = None if out is None else out[start : start + step]
@@ -597,7 +598,7 @@ class UDCTPlan:
             dtype = cdtype if self.complex_output else flat.real.dtype
             out = torch.empty(rows, *self.shape, dtype=dtype, device=flat.device)
         parts = []
-        for start in range(0, rows, step):
+        for start in range(0, max(rows, 1), step):  # one pass for an empty batch
             small = self._batched_ffts(
                 flat[start : start + step], torch.fft.fftn, cdtype
             )
