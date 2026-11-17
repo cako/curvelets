@@ -145,6 +145,10 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
           are separated into different directions.
 
         Default is ``"real"``.
+    dtype : torch.dtype, optional
+        Precision of the transform (``torch.float32`` or ``torch.float64``; a
+        complex dtype means its real precision); inputs must match it. ``.to(dtype)``, ``.float()`` and ``.double()``
+        change it. Default is :func:`torch.get_default_dtype`.
 
     Examples
     --------
@@ -152,13 +156,15 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
     >>> from curvelets.torch import UDCTModule
     >>>
     >>> # Create module using num_scales (simplified interface)
-    >>> udct = UDCTModule(shape=(64, 64), num_scales=3, wedges_per_direction=3)
+    >>> udct = UDCTModule(
+    ...     shape=(64, 64), num_scales=3, wedges_per_direction=3, dtype=torch.float64
+    ... )
     >>> input_tensor = torch.randn(64, 64, dtype=torch.float64, requires_grad=True)
     >>> output = udct(input_tensor)  # Returns flattened coefficients tensor
     >>>
     >>> # Create module using angular_wedges_config (advanced interface)
     >>> cfg = torch.tensor([[3, 3], [6, 6]], dtype=torch.int64)
-    >>> udct2 = UDCTModule(shape=(64, 64), angular_wedges_config=cfg)
+    >>> udct2 = UDCTModule(shape=(64, 64), angular_wedges_config=cfg).double()
     >>> output2 = udct2(input_tensor)
     >>>
     >>> # Create module with complex transform
@@ -166,7 +172,8 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
     ...     shape=(64, 64),
     ...     num_scales=3,
     ...     wedges_per_direction=3,
-    ...     transform_type="complex"
+    ...     transform_type="complex",
+    ...     dtype=torch.float64,
     ... )
     >>> output_complex = udct_complex(input_tensor)
     >>>
@@ -189,6 +196,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         window_threshold: float = 1e-5,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_type: Literal["real", "complex"] = "real",
+        dtype: torch.dtype | None = None,
     ) -> None:
         super().__init__()
         self._transform_type = transform_type
@@ -204,6 +212,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
             window_threshold=window_threshold,
             high_frequency_mode=high_frequency_mode,
             transform_kind=transform_kind,
+            dtype=dtype,
         )
 
     def _apply(
@@ -232,6 +241,11 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         super()._apply(fn, recurse)
         self._udct.apply_to_tensors(fn)
         return self
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """Real precision of the transform."""
+        return self._udct.dtype
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         """

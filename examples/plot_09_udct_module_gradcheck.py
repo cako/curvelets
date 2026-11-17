@@ -84,6 +84,7 @@ angular_wedges_config = torch.tensor([[3, 3]])
 udct_module = UDCTModule(
     shape=shape,
     angular_wedges_config=angular_wedges_config,
+    dtype=torch.float64,  # gradcheck needs double precision
 )
 
 # %%
