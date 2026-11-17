@@ -88,7 +88,8 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
     )
     udct.apply_to_tensors(lambda t: t.cuda())
     plan = udct._get_plan()  # pylint: disable=protected-access
-    fwd, bwd = plan.fwd_map, plan.bwd_map
+    fwd: Any = plan.fwd_map  # GatherFold with CSR maps on CUDA
+    bwd: Any = plan.bwd_map
     csr = (fwd.csr, bwd.csr)
     assert csr[0] is not None, "Triton kernel unavailable"
     assert csr[1] is not None, "Triton kernel unavailable"
