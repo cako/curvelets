@@ -275,6 +275,24 @@ def test_gather_plan_gradcheck_and_vmap(kind: Kind) -> None:
     )
 
 
+def test_traced_code_takes_the_functional_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """While Dynamo traces, no out= buffers and no opaque functorch check.
+
+    (Coverage cannot see these lines in the compile test: Dynamo interprets
+    the bytecode instead of running it.)
+    """
+    from curvelets.torch._foldmap import _functorch_wrapped
+    from curvelets.torch._plan import _direct_ok
+
+    x = torch.zeros(3)
+    assert _direct_ok(x)
+    monkeypatch.setattr(torch.compiler, "is_compiling", lambda: True)
+    assert not _direct_ok(x)
+    assert not _functorch_wrapped(torch.vmap(lambda t: t)(x))
+
+
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
     """The accelerator path traces without graph breaks and matches eager."""
