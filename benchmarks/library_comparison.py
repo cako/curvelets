@@ -37,6 +37,7 @@ import importlib.metadata
 import json
 import platform
 import statistics
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
@@ -178,9 +179,30 @@ def build_curvelets_numpy(shape: tuple[int, ...], dev: str) -> Transform:
     )
 
 
+def _scattering2d() -> Any:
+    """``kymatio.torch.Scattering2D``, importable with recent SciPy.
+
+    Kymatio 0.3.0 imports ``scipy.special.sph_harm`` (removed in SciPy 1.17)
+    for its 3D transforms. The 2D transform does not use it, so a placeholder
+    is enough to import the package.
+    """
+    import scipy.special
+
+    if not hasattr(scipy.special, "sph_harm"):
+
+        def _unavailable(*_args: Any, **_kwargs: Any) -> None:
+            msg = "sph_harm is not available in this SciPy (3D scattering only)"
+            raise NotImplementedError(msg)
+
+        scipy.special.sph_harm = _unavailable  # type: ignore[attr-defined]
+    from kymatio.torch import Scattering2D
+
+    return Scattering2D
+
+
 def build_kymatio(shape: tuple[int, ...], dev: str) -> Transform:
     """Kymatio's second-order 2D wavelet scattering (not invertible)."""
-    from kymatio.torch import Scattering2D
+    Scattering2D = _scattering2d()
 
     scat = Scattering2D(J=NUM_SCALES, shape=shape, L=8).to(dev)
     x = torch.randn(1, 1, *shape, device=dev, dtype=torch.float32)
@@ -465,12 +487,131 @@ def wavelet_atoms(shape: tuple[int, ...]) -> dict[str, np.ndarray]:
     return out
 
 
-def register_stats(path: Path, size: int = 256) -> None:
+def _progress(done: int, total: int, label: str) -> None:
+    """One-line progress bar on stderr (no dependency)."""
+    width = 30
+    filled = width * done // total
+    end = "\n" if done == total else ""
+    print(
+        f"\r[{'#' * filled}{'.' * (width - filled)}] {done}/{total} {label:<40s}",
+        end=end,
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def _coefficient(scat: Any, x: torch.Tensor, channel: int) -> torch.Tensor:
+    """One scattering coefficient at the center of its output."""
+    y = scat(x)
+    return y[0, 0, channel, y.shape[-2] // 2, y.shape[-1] // 2]
+
+
+def kymatio_atoms(
+    shape: tuple[int, ...], steps: int = 10, seed: int = 0
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
+    """Images that excite one scattering coefficient the most.
+
+    The scattering transform is not invertible (it takes a modulus), so a
+    coefficient has no synthesis atom. The closest equivalent is the unit-norm
+    image ``x`` that maximizes that coefficient at the center of its output:
+
+        maximize  S(x)[k, center]   subject to  ||x|| = 1
+
+    solved from a random start by a fixed-point iteration. ``S`` is positively
+    homogeneous (``S(c x) = c S(x)``), so the maximizer over the sphere of its
+    linearization at ``x`` is ``grad S(x) / ||grad S(x)||``, and the update is
+
+        x  <-  grad S(x) / ||grad S(x)||
+
+    with no step size. Linearizing the modulus this way never decreases a
+    first-order coefficient (it is convex in ``x``) and a few steps suffice.
+    Second-order coefficients are not convex, so their curve can fluctuate and
+    the best iterate is kept. The gradient comes from PyTorch autograd; it is the adjoint of the
+    linearized transform, so no explicit linear operator (for instance from
+    PyLops) is needed. First-order paths use a ``max_order=1`` transform (33
+    channels instead of 417). Keys are
+    ``"Kymatio/order1/j<j>/o<theta>"`` and
+    ``"Kymatio/order2/j<j1><j2>/o<theta1><theta2>"``.
+
+    Returns the atoms and, under the same keys, the convergence curves: the
+    value of the coefficient before each step and after the last one
+    (``steps + 1`` values).
+    """
+    scattering = _scattering2d()
+    scats = {
+        1: scattering(J=NUM_SCALES, shape=shape, L=8, max_order=1),
+        2: scattering(J=NUM_SCALES, shape=shape, L=8, max_order=2),
+    }
+    j_max, n_theta = NUM_SCALES, 8
+    # Output channel of every path, in the order Kymatio emits them: the
+    # lowpass, then for each first-order path (j1, theta1) its own coefficient
+    # followed by the second-order paths (j2 > j1, theta2) that extend it.
+    index: dict[tuple[tuple[int, int], ...], int] = {(): 0}
+    channel = 1
+    for j1 in range(j_max):
+        for t1 in range(n_theta):
+            index[((j1, t1),)] = channel
+            channel += 1
+            for j2 in range(j1 + 1, j_max):
+                for t2 in range(n_theta):
+                    index[((j1, t1), (j2, t2))] = channel
+                    channel += 1
+    targets = {f"Kymatio/order1/j{j}/o{t}": ((j, t),) for j in (1, 2) for t in range(8)}
+    targets.update({
+        f"Kymatio/order2/j12/o{t1}{t2}": ((1, t1), (2, t2))
+        for t1 in (0, 2)
+        for t2 in range(8)
+    })
+    out: dict[str, np.ndarray] = {}
+    curves: dict[str, np.ndarray] = {}
+    total = len(targets) * steps
+    done = 0
+    for key, path in targets.items():
+        values: list[float] = []
+        gen = torch.Generator().manual_seed(seed)
+        x = torch.randn(1, 1, *shape, generator=gen)
+        x = (x / x.norm()).requires_grad_()
+        scat = scats[len(path)]
+        # a max_order=1 transform lists first-order paths without the second-order
+        # ones in between, so its channel is a plain offset
+        channel = (
+            1 + path[0][0] * n_theta + path[0][1] if len(path) == 1 else index[path]
+        )
+        best_value, best_x = -1.0, x.detach()
+        for _ in range(steps + 1):
+            value = _coefficient(scat, x, channel)
+            values.append(float(value))
+            if float(value) > best_value:  # second-order paths need not increase
+                best_value, best_x = float(value), x.detach()
+            if len(values) > steps:
+                break
+            (grad,) = torch.autograd.grad(value, x)
+            with torch.no_grad():
+                x = (grad / grad.norm()).requires_grad_()
+            done += 1
+            _progress(done, total, key)
+        x = best_x
+        curves[key] = np.array(values, dtype=np.float32)
+        # the output pixel (center) sits at 2**J * (n // 2**J // 2) in the image
+        half = 2**j_max * (shape[0] // 2**j_max // 2)
+        img = x.detach()[0, 0].numpy()
+        out[key] = np.roll(img, shape[0] // 2 - half, axis=(0, 1))[
+            shape[0] // 2 - ATOM_CROP // 2 : shape[0] // 2 + ATOM_CROP // 2,
+            shape[1] // 2 - ATOM_CROP // 2 : shape[1] // 2 + ATOM_CROP // 2,
+        ]
+    return out, curves
+
+
+def register_stats(path: Path, size: int = 256, steps: int = 10) -> None:
     """Write atoms and redundancy of every transform that can be built here."""
     shape = (size, size)
     stats: dict[str, Any] = {"size": size, "redundancy": {}, "ncoef": {}, "notes": {}}
     for name, (builder, dims, _) in LIBRARIES.items():
-        if 2 not in dims or "eager" in name or ("NumPy" in name and "curvelets" in name):
+        if (
+            2 not in dims
+            or "eager" in name
+            or ("NumPy" in name and "curvelets" in name)
+        ):
             continue
         try:
             ncoef = builder(shape, "cpu").ncoef
@@ -488,11 +629,21 @@ def register_stats(path: Path, size: int = 256) -> None:
         stats["ncoef"][name] = ncoef
         stats["redundancy"][name] = ncoef / size**2
     atoms = wavelet_atoms(shape)
+    curves: dict[str, np.ndarray] = {}
+    stats["kymatio_steps"] = steps
+    try:
+        kymatio, curves = kymatio_atoms(shape, steps=steps)
+        atoms.update(kymatio)
+    except Exception as exc:  # pylint: disable=broad-except
+        stats["notes"]["Kymatio atoms"] = (
+            f"unavailable: {type(exc).__name__}: {str(exc)[:100]}"
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         path,
         stats=json.dumps(stats),
         **{k: v.astype(np.float32) for k, v in atoms.items()},
+        **{f"curve/{k}": v for k, v in curves.items()},
     )
     print(json.dumps(stats, indent=1))
     print(f"wrote {path} ({len(atoms)} atoms)")
@@ -503,6 +654,9 @@ def main() -> None:
     p.add_argument("--export", type=Path, help="write results as JSON")
     p.add_argument("--markdown", type=Path, help="print a table from a JSON file")
     p.add_argument("--stats", type=Path, help="register atoms and redundancy (npz)")
+    p.add_argument(
+        "--steps", type=int, default=10, help="optimizer steps per Kymatio atom"
+    )
     p.add_argument("--device", default=None, help="cuda (default if available) or cpu")
     p.add_argument("--sizes-2d", type=int, nargs="*", default=DEFAULT_SHAPES_2D)
     p.add_argument("--sizes-3d", type=int, nargs="*", default=DEFAULT_SHAPES_3D)
@@ -510,7 +664,7 @@ def main() -> None:
     args = p.parse_args()
 
     if args.stats:
-        register_stats(args.stats)
+        register_stats(args.stats, steps=args.steps)
         return
 
     if args.markdown:

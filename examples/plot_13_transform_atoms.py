@@ -158,10 +158,11 @@ plt.show()
 # the separable discrete wavelet transform (DWT, Daubechies 3) and the
 # dual-tree complex wavelet transform (DTCWT).
 #
-# Those atoms are not computed while the documentation builds. They are
-# registered, together with the redundancy numbers further down, by
-# ``benchmarks/library_comparison.py --stats``, which also covers the
-# libraries that cannot be installed alongside a recent NumPy or SciPy.
+# Because the requirements of these libraries are incompatible with this
+# library's (recent NumPy and SciPy), their atoms are stored instead of being
+# computed while the documentation builds. The same goes for the redundancy
+# numbers further down. Both are registered by
+# ``benchmarks/library_comparison.py --stats``.
 #
 # One row per transform, one column per orientation of a single scale. The DWT
 # only has three orientations (horizontal, vertical and diagonal, so it cannot
@@ -169,6 +170,18 @@ plt.show()
 # the UDCT has as many wedges as it is configured to: this scale has twelve (six
 # directions are shown, covering about half of all orientations), and the finest
 # scale has more.
+#
+# Kymatio's scattering transform cannot be inverted (it takes a modulus), so a
+# coefficient has no synthesis atom. We show instead the image that excites one
+# coefficient the most: the unit-norm image :math:`x` that maximizes the
+# coefficient at the center of its output. The scattering transform is positively homogeneous,
+# :math:`S(cx) = cS(x)`, so linearizing it around the current image and
+# maximizing over the sphere gives the update :math:`x \leftarrow \nabla S(x) / \|\nabla S(x)\|`
+# with no step size. The gradient, which is the adjoint of the linearized transform,
+# comes from PyTorch autograd. Each step costs one forward and one backward pass of the transform.
+# The rows "Kymatio, order 1" are first-order coefficients (a Morlet wavelet
+# modulus, smoothed) of one scale and six orientations; the row "Kymatio, order 2"
+# are second-order coefficients that follow a fixed first-order path.
 
 STATS = (
     Path(__file__).resolve().parents[1] / "benchmarks" / "data" / "library_stats.npz"
@@ -192,9 +205,26 @@ if registered is not None:
         ),
         ("DWT db3 (Pytorch Wavelets)", [registered[f"DWT/L3/o{o}"] for o in range(3)]),
     ]
+    kymatio_rows = [
+        ("Kymatio, order 1, scale 2 (maximizing image)", "Kymatio/order1/j2/o{}"),
+        (
+            "Kymatio, order 2, paths (1, 0) -> (2, o) (maximizing image)",
+            "Kymatio/order2/j12/o0{}",
+        ),
+    ]
+    rows += [
+        (name, [registered[tmpl.format(o)] for o in range(6)])
+        for name, tmpl in kymatio_rows
+        if tmpl.format(0) in registered
+    ]
     fig, axs = plt.subplots(
-        len(rows), 6, figsize=(9, 4.8), layout="constrained", squeeze=False
+        len(rows),
+        6,
+        figsize=(9, 2.4 * len(rows) / 2),
+        layout="constrained",
+        squeeze=False,
     )
+    fig.get_layout_engine().set(h_pad=0.22)  # room for the row names
     for ax in axs.ravel():
         ax.axis("off")
     for r, (name, imgs) in enumerate(rows):
@@ -202,8 +232,42 @@ if registered is not None:
             patch = crop(img, 32)
             vmax = np.abs(patch).max()
             axs[r, c].imshow(patch, cmap="gray", vmin=-vmax, vmax=vmax)
-        axs[r, 0].set_title(name, loc="left", fontsize=9)
+        # in_layout=False: a long name must not widen the first column
+        label = axs[r, 0].text(0, 1.04, name, transform=axs[r, 0].transAxes, fontsize=9)
+        label.set_in_layout(False)
     plt.show()
+
+# %%
+# Convergence of the Kymatio atoms
+# --------------------------------
+#
+# The value of the coefficient along the iteration, starting from a random
+# image of unit norm. The first-order coefficients are convex in the image, so
+# the iteration cannot decrease them: they reach a plateau in a few steps.
+# The second-order coefficients are not convex, their curves can fluctuate,
+# and the image of the best iterate is kept. The number of steps is deliberately small.
+
+if registered is not None:
+    curves = {
+        k[len("curve/") :]: registered[k]
+        for k in registered.files
+        if k.startswith("curve/")
+    }
+    if curves:
+        fig, ax = plt.subplots(figsize=(6, 3.5), layout="constrained")
+        for key, values in curves.items():
+            order = int(key.split("/")[1][-1])
+            ax.semilogy(
+                values,
+                color="C0" if order == 1 else "C1",
+                alpha=0.6,
+                label=f"order {order}" if key.endswith(("j1/o0", "j12/o00")) else None,
+            )
+        ax.set_xlabel("iteration")
+        ax.set_ylabel("coefficient value")
+        ax.legend()
+        ax.grid(alpha=0.3)
+        plt.show()
 
 # %%
 # Redundancy
