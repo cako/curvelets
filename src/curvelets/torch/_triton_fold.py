@@ -89,7 +89,7 @@ def _register_op() -> None:
     Calls then go through ``torch.ops.curvelets.csr_fold``, which TorchDynamo
     traces natively; it cannot trace into a cached registration helper.
     """
-    global _OP_REGISTERED  # pylint: disable=global-statement
+    global _OP_REGISTERED  # noqa: PLW0603  # pylint: disable=global-statement
     if not _OP_REGISTERED:
         _op()
         _OP_REGISTERED = True
