@@ -177,7 +177,7 @@ plt.show()
 # coefficient at the center of its output. The scattering transform is positively homogeneous,
 # :math:`S(cx) = cS(x)`, so linearizing it around the current image and
 # maximizing over the sphere gives the update :math:`x \leftarrow \nabla S(x) / \|\nabla S(x)\|`
-# with no step size. The gradient, which is the adjoint of the linearized transform,
+# with no step size (for first-order coefficients; see below for second order). The gradient, which is the adjoint of the linearized transform,
 # comes from PyTorch autograd. Each step costs one forward and one backward pass of the transform.
 # The rows "Kymatio, order 1" are first-order coefficients (a Morlet wavelet
 # modulus, smoothed) of one scale and six orientations; the row "Kymatio, order 2"
@@ -221,10 +221,12 @@ if registered is not None:
         len(rows),
         6,
         figsize=(9, 2.4 * len(rows) / 2),
-        layout="constrained",
         squeeze=False,
     )
-    fig.get_layout_engine().set(h_pad=0.22)  # room for the row names
+    # fixed margins: the layout engine widens a column for a long row name
+    fig.subplots_adjust(
+        left=0.01, right=0.99, top=0.95, bottom=0.01, wspace=0.05, hspace=0.45
+    )
     for ax in axs.ravel():
         ax.axis("off")
     for r, (name, imgs) in enumerate(rows):
@@ -244,8 +246,12 @@ if registered is not None:
 # The value of the coefficient along the iteration, starting from a random
 # image of unit norm. The first-order coefficients are convex in the image, so
 # the iteration cannot decrease them: they reach a plateau in a few steps.
-# The second-order coefficients are not convex, their curves can fluctuate,
-# and the image of the best iterate is kept. The number of steps is deliberately small.
+# The second-order coefficients are not convex: the full jump overshoots and
+# the coefficient bounces, so their update is damped,
+# :math:`x \leftarrow (1-a)\,x + a\,\nabla S(x)/\|\nabla S(x)\|` with :math:`a = 0.2`
+# (followed by renormalization). It converges smoothly in 10 to 15 steps to a
+# larger coefficient than the full jump reaches (about 50% larger on the paths
+# we tried). The image of the best iterate is kept.
 
 if registered is not None:
     curves = {
