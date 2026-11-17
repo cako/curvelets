@@ -74,3 +74,15 @@ Applying the transform wedge by wedge launches a handful of tiny kernels per wed
 The number of kernel launches therefore no longer depends on the number of wedges (for a :math:`2048 \times 2048` input with 181 wedges, a forward went from about 1450 launches to 38). All operations are out-of-place and differentiable, so autograd and :func:`torch.vmap` keep working, and the plan is rebuilt when the transform is moved to another device.
 
 :class:`~curvelets.torch.UDCTModule` goes straight to and from the flat :meth:`~curvelets.torch.UDCT.vect` layout. The straightforward per-wedge functions are kept as the reference implementation that the plan is tested against (real and complex transforms, curvelet and wavelet modes, 2D and 3D, non-square shapes), so the public API and the numerical results are unchanged.
+
+Device-specific folds
+---------------------
+
+The *fold* step turns window samples into the coefficient spectra (and back). It has one implementation per device class, chosen from the device of the transform:
+
+* **GPUs and other accelerators** use a gather-only fold: deterministic (no atomics, so results are bitwise reproducible), with few launches, followed by batched FFTs.
+* **CPUs** use sorted scatter-adds applied row by row, which avoids the redundant arithmetic a gather would cost there. The forward folds all wedges at once. The backward is cache-blocked: chunks of about 2\ :sup:`19` coefficients are transformed and folded into the spectrum while they are still in cache, so the buffer holding all coefficient spectra never exists.
+
+For the real transform the FFT is a half-spectrum transform (``rfftn``), and the backward reconstructs the result with ``irfftn``, which halves the FFT work and memory. Indices use 32 bits, and the per-wedge scale factors are folded into the fold weights.
+
+Moving a module between devices with ``.to()`` rebuilds the plan with the fold that suits the new device; you do not select it yourself.
