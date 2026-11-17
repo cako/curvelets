@@ -299,6 +299,7 @@ def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
     shape = (32, 32)
     udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind)
     plan = _use_strategy(udct, "gather")
+    plan.batch_chunk_bytes = 1  # one row per chunk: the loop is unrolled
     x = _input(kind, shape).unsqueeze(0).repeat(2, 1, 1)
     coeffs = plan.forward_flat(x)
     torch._dynamo.reset()  # pylint: disable=protected-access
@@ -306,6 +307,70 @@ def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
     backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), coeffs)
     torch.testing.assert_close(backward(coeffs), plan.backward_flat(coeffs))
+
+
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+@pytest.mark.parametrize("budget_rows", [1, 2])  # type: ignore[untyped-decorator]
+def test_gather_batch_chunks_match_one_batch(kind: Kind, budget_rows: int) -> None:
+    """Cache-sized row chunks give the same result, with and without autograd."""
+    shape = (32, 32)
+    udct = UDCT(
+        shape=shape,
+        num_scales=3,
+        wedges_per_direction=3,
+        transform_kind=kind,
+        dtype=torch.float64,
+    )
+    plan = _use_strategy(udct, "gather")
+    x = torch.stack([_input(kind, shape, seed) for seed in range(5)])
+    plan.batch_chunk_bytes = None
+    coeffs = plan.forward_flat(x)
+    recon = plan.backward_flat(coeffs)
+    per_row = (2 * plan.ncoef + 32 * (32 // 2 + 1 if kind == "real" else 32)) * 16
+    plan.batch_chunk_bytes = budget_rows * per_row
+    assert plan._rows_per_chunk(5, 16) == budget_rows  # pylint: disable=protected-access
+
+    torch.testing.assert_close(plan.forward_flat(x), coeffs)
+    torch.testing.assert_close(plan.backward_flat(coeffs), recon)
+
+    x_grad = x.clone().requires_grad_(True)
+    chunked = plan.forward_flat(x_grad)
+    torch.testing.assert_close(chunked, coeffs)
+    torch.testing.assert_close(plan.backward_flat(chunked), recon)
+    (grad,) = torch.autograd.grad(chunked.abs().sum(), x_grad)
+    plan.batch_chunk_bytes = None
+    x_ref = x.clone().requires_grad_(True)
+    (expected,) = torch.autograd.grad(plan.forward_flat(x_ref).abs().sum(), x_ref)
+    torch.testing.assert_close(grad, expected)
+
+
+def test_rows_per_chunk_follows_the_budget() -> None:
+    """Without a budget the whole batch is one chunk; never fewer than one row."""
+    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    plan = _use_strategy(udct, "gather")
+    plan.batch_chunk_bytes = None
+    assert plan._rows_per_chunk(7, 8) == 7  # pylint: disable=protected-access
+    plan.batch_chunk_bytes = 1
+    assert plan._rows_per_chunk(7, 8) == 1  # pylint: disable=protected-access
+    plan.batch_chunk_bytes = 1 << 40
+    assert plan._rows_per_chunk(7, 8) == 7  # pylint: disable=protected-access
+
+
+def test_cpu_plans_have_no_batch_chunk_budget() -> None:
+    """Only accelerators with a known L2 size chunk batches."""
+    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    assert _use_strategy(udct, "gather").batch_chunk_bytes is None
+    assert _use_strategy(udct, "scatter").batch_chunk_bytes is None
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires a CUDA device")  # type: ignore[untyped-decorator]
+def test_cuda_plan_budget_is_the_l2_size() -> None:
+    """On CUDA the chunk budget is the device's L2 cache size."""
+    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    udct.apply_to_tensors(lambda t: t.to("cuda"))
+    plan = udct._get_plan()  # pylint: disable=protected-access
+    props = torch.cuda.get_device_properties(0)
+    assert plan.batch_chunk_bytes == props.L2_cache_size
 
 
 def test_odd_shape_half_spectrum_matches_reference() -> None:
