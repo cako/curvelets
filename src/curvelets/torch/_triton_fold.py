@@ -31,6 +31,7 @@ from __future__ import annotations
 import importlib.util
 import os
 from dataclasses import dataclass
+from collections.abc import Callable
 from functools import cache
 from typing import Any
 
@@ -71,6 +72,11 @@ def triton_device(device: torch.device) -> bool:
     return device.type == "cuda" or (device.type == "cpu" and _cpu_testing())
 
 
+def _direct(kernel: Any) -> Any:
+    """Launch a kernel as is (eager calls)."""
+    return kernel
+
+
 def _kernel() -> Any:
     """The jitted kernel (importing it imports Triton)."""
     from ._triton_kernels import (  # pylint: disable=import-outside-toplevel
@@ -95,10 +101,48 @@ def _register_op() -> None:
         _OP_REGISTERED = True
 
 
+def _fold(
+    launch: Callable[[Any], Any],
+    src: torch.Tensor,
+    row_ptr: torch.Tensor,
+    col: torch.Tensor,
+    weights: torch.Tensor,
+    num_targets: int,
+) -> torch.Tensor:
+    """Allocate the output and launch the kernel through ``launch(kernel)``."""
+    src = src.contiguous()
+    rows = src.shape[0]
+    out = torch.empty(rows, num_targets, dtype=src.dtype, device=src.device)
+    if rows == 0 or num_targets == 0:
+        return out
+    src_parts = torch.view_as_real(src)
+    out_parts = torch.view_as_real(out)
+    block_b = min(MAX_BATCH_TILE, 1 << (rows - 1).bit_length())  # next power of 2
+    block_t = max(32, _TARGETS_PER_PROGRAM // block_b)
+    grid = (-(-num_targets // block_t), -(-rows // block_b))
+    launch(_kernel())[grid](
+        src_parts,
+        out_parts,
+        row_ptr,
+        col,
+        weights,
+        rows,
+        num_targets,
+        src_parts.stride(0),
+        out_parts.stride(0),
+        BLOCK_T=block_t,
+        BLOCK_B=block_b,
+        PAIR=weights.ndim == 2,
+        # Explicit (Triton 3.9 warns when unset): fused multiply-adds for
+        # ``acc += x * w``, Triton's default.
+        enable_fp_fusion=True,
+    )
+    return out
+
+
 @cache
 def _op():  # type: ignore[no-untyped-def]
-    """Register the ``curvelets::csr_fold`` op on first use (imports Triton)."""
-    import triton  # pylint: disable=import-outside-toplevel
+    """Register the ``curvelets::csr_fold`` op (for ``torch.compile``)."""
 
     @torch.library.triton_op("curvelets::csr_fold", mutates_args={})  # type: ignore[misc]
     def csr_fold(
@@ -109,34 +153,7 @@ def _op():  # type: ignore[no-untyped-def]
         num_targets: int,
     ) -> torch.Tensor:
         """``(rows, num_sources)`` complex -> ``(rows, num_targets)`` complex."""
-        src = src.contiguous()
-        rows = src.shape[0]
-        out = torch.empty(rows, num_targets, dtype=src.dtype, device=src.device)
-        if rows == 0 or num_targets == 0:
-            return out
-        src_parts = torch.view_as_real(src)
-        out_parts = torch.view_as_real(out)
-        block_b = min(MAX_BATCH_TILE, triton.next_power_of_2(rows))
-        block_t = max(32, _TARGETS_PER_PROGRAM // block_b)
-        grid = (triton.cdiv(num_targets, block_t), triton.cdiv(rows, block_b))
-        torch.library.wrap_triton(_kernel())[grid](
-            src_parts,
-            out_parts,
-            row_ptr,
-            col,
-            weights,
-            rows,
-            num_targets,
-            src_parts.stride(0),
-            out_parts.stride(0),
-            BLOCK_T=block_t,
-            BLOCK_B=block_b,
-            PAIR=weights.ndim == 2,
-            # Explicit (Triton 3.9 warns when unset): fused multiply-adds for
-            # ``acc += x * w``, Triton's default.
-            enable_fp_fusion=True,
-        )
-        return out
+        return _fold(torch.library.wrap_triton, src, row_ptr, col, weights, num_targets)
 
     return csr_fold
 
@@ -178,13 +195,17 @@ class CsrFold:
     def apply(self, src: torch.Tensor) -> torch.Tensor:
         """Apply to complex ``src`` of shape ``(rows, num_sources)``.
 
-        The weights are cast to the working precision inside the kernel.
+        The weights are cast to the working precision inside the kernel. Eager
+        calls launch it directly: the registered op costs about twice the host
+        time per call (dispatcher and autograd checks), which matters where the
+        transform is launch-bound. ``torch.compile`` traces the registered op.
         """
-        if not _OP_REGISTERED:  # e.g. unpickled maps; a constant once registered
-            _register_op()
-        return torch.ops.curvelets.csr_fold(
-            src, self.row_ptr, self.col, self.weights, self.num_targets
-        )
+        args = (src, self.row_ptr, self.col, self.weights, self.num_targets)
+        if torch.compiler.is_compiling():
+            if not _OP_REGISTERED:  # e.g. unpickled maps; a constant once registered
+                _register_op()
+            return torch.ops.curvelets.csr_fold(*args)
+        return _fold(_direct, *args)
 
     def tensors(self) -> list[torch.Tensor]:
         """Index and weight tensors (for size accounting)."""
