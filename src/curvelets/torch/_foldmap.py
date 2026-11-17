@@ -30,11 +30,9 @@ unique targets.
 from __future__ import annotations
 
 # pylint: disable=duplicate-code
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import torch
-
-from ._sparse_window import _REAL_DTYPE
 
 MAX_LEVELS = 3  # explicit sparse levels before the padded tail block
 
@@ -87,9 +85,6 @@ class GatherFold:
     src0: torch.Tensor
     w0: torch.Tensor
     levels: list[_Level]
-    _cast: dict[tuple[int, torch.dtype], torch.Tensor] = field(
-        default_factory=dict, repr=False
-    )
 
     @classmethod
     def build(
@@ -172,18 +167,6 @@ class GatherFold:
             levels=levels,
         )
 
-    def _weights(
-        self, slot: int, tensor: torch.Tensor, real: torch.dtype
-    ) -> torch.Tensor:
-        if tensor.dtype == real:
-            return tensor
-        key = (slot, real)
-        cast = self._cast.get(key)
-        if cast is None:
-            cast = tensor.to(real)
-            self._cast[key] = cast
-        return cast
-
     def apply(self, src: torch.Tensor) -> torch.Tensor:
         """
         Apply the map to ``src`` of shape ``(batch, num_sources)``.
@@ -198,17 +181,16 @@ class GatherFold:
         torch.Tensor
             Output of shape ``(batch, num_targets)``.
         """
-        real = _REAL_DTYPE.get(src.dtype, src.dtype)
         single = src.shape[0] == 1
         row = src[0] if single else src
 
         def take(index: torch.Tensor) -> torch.Tensor:
             return row.index_select(0, index) if single else row[:, index]
 
-        out = take(self.src0) * self._weights(0, self.w0, real)
+        out = take(self.src0) * self.w0
         dim = 0 if single else 1
-        for slot, lvl in enumerate(self.levels, start=1):
-            term = take(lvl.sources) * self._weights(slot, lvl.weights, real)
+        for lvl in self.levels:
+            term = take(lvl.sources) * lvl.weights
             if lvl.width > 1:
                 term = term.unflatten(-1, (-1, lvl.width)).sum(-1)
             # ``out`` is a fresh tensor owned by this call, so the level is added
@@ -231,7 +213,6 @@ class ScatterFold:
     targets: torch.Tensor
     sources: torch.Tensor
     weights: torch.Tensor
-    _cast: dict[torch.dtype, torch.Tensor] = field(default_factory=dict, repr=False)
 
     @classmethod
     def build(
@@ -269,17 +250,6 @@ class ScatterFold:
             weights=weights[order],
         )
 
-    def _terms(self, row: torch.Tensor) -> torch.Tensor:
-        real = _REAL_DTYPE.get(row.dtype, row.dtype)
-        weights = self.weights
-        if weights.dtype != real:
-            cached = self._cast.get(real)
-            if cached is None:
-                cached = self.weights.to(real)
-                self._cast[real] = cached
-            weights = cached
-        return row.index_select(0, self.sources) * weights
-
     def add_row(self, out: torch.Tensor, row: torch.Tensor) -> torch.Tensor:
         """
         Add this fold of the 1-D ``row`` into the 1-D ``out`` and return it.
@@ -299,7 +269,7 @@ class ScatterFold:
         torch.Tensor
             The accumulator.
         """
-        terms = self._terms(row)
+        terms = row.index_select(0, self.sources) * self.weights
         if _functorch_wrapped(row) or _functorch_wrapped(out):
             return out.index_add(0, self.targets, terms)
         return out.index_add_(0, self.targets, terms)

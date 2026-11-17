@@ -296,7 +296,7 @@ def run_config(
         "dtype": str(dtype),
     }
     t0 = time.perf_counter()
-    ref = UDCT(shape=shape, num_scales=ns, wedges_per_direction=wpd)
+    ref = UDCT(shape=shape, num_scales=ns, wedges_per_direction=wpd, dtype=dtype)
     res["init_s"] = time.perf_counter() - t0
     nwedges = sum(len(d) for s in ref.windows for d in s)
     res["n_wedges"] = nwedges
@@ -386,7 +386,9 @@ def run_config(
     try:
         from curvelets.torch import UDCTModule
 
-        m = UDCTModule(shape=shape, num_scales=ns, wedges_per_direction=wpd).to(dev)
+        m = UDCTModule(
+            shape=shape, num_scales=ns, wedges_per_direction=wpd, dtype=dtype
+        ).to(dev)
         xg = x.clone().requires_grad_(True)
         m(xg).abs().sum().backward()
         res["udctmodule_autograd"] = "ok"

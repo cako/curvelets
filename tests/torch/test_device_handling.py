@@ -69,15 +69,6 @@ def test_moved_transform_does_not_recompute_maps(
     torch.testing.assert_close(recon, x)
 
 
-def test_values_as_is_cached() -> None:
-    """Window values are cast once per dtype, not on every call."""
-    window = _make_udct("real").windows[1][0][0]
-    first = window.values_as(torch.complex64)
-    assert first.dtype == torch.float32
-    assert window.values_as(torch.complex64) is first
-    assert window.values_as(torch.complex128) is window.values
-
-
 @pytest.mark.parametrize("device", DEVICES)  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 def test_struct_round_trip_after_move(device: str, kind: TransformKind) -> None:

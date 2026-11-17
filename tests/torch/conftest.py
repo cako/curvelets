@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any, Literal
 
 import numpy as np
@@ -9,6 +10,22 @@ import pytest
 import torch
 
 import curvelets.torch as torch_curvelets
+
+
+@pytest.fixture(autouse=True)  # type: ignore[untyped-decorator]
+def _double_precision_default() -> Iterator[None]:
+    """Run in double precision unless a test asks otherwise.
+
+    ``UDCT`` follows :func:`torch.get_default_dtype`, so tests that compare
+    against NumPy references build float64 transforms and inputs by default.
+    """
+    previous = torch.get_default_dtype()
+    torch.set_default_dtype(torch.float64)
+    try:
+        yield
+    finally:
+        torch.set_default_dtype(previous)
+
 
 # Common test parameters
 COMMON_ALPHA = 0.15

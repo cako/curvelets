@@ -295,54 +295,6 @@ def test_cpu_scratch_reuse_does_not_leak_between_calls() -> None:
     torch.testing.assert_close(udct._forward_vect(batch)[0], first)  # pylint: disable=protected-access
 
 
-@pytest.mark.parametrize("fold_cls", [GatherFold, ScatterFold])  # type: ignore[untyped-decorator]
-def test_fold_casts_weights_once_for_single_precision(
-    fold_cls: type[GatherFold | ScatterFold],
-) -> None:
-    """float64 weights are cast (and cached) for complex64 inputs, on both folds."""
-    gen = torch.Generator().manual_seed(5)
-    num_targets, num_sources, n = 30, 20, 300
-    targets = torch.randint(0, num_targets, (n,), generator=gen)
-    sources = torch.randint(0, num_sources, (n,), generator=gen)
-    weights = torch.rand(n, generator=gen, dtype=torch.float64)
-    fold = fold_cls.build(targets, sources, weights, num_targets, num_sources)
-    src = torch.randn(2, num_sources, dtype=torch.complex64, generator=gen)
-    expected = torch.zeros(2, num_targets, dtype=torch.complex64).index_add(
-        1, targets, src[:, sources] * weights.to(torch.float32)
-    )
-    first = fold.apply(src)
-    cached = dict(fold._cast)  # pylint: disable=protected-access
-    assert cached
-    second = fold.apply(src)
-    assert fold._cast.keys() == cached.keys()  # pylint: disable=protected-access
-    assert all(
-        fold._cast[k] is v  # pylint: disable=protected-access
-        for k, v in cached.items()
-    )
-    assert first.dtype == torch.complex64
-    torch.testing.assert_close(first, expected)
-    torch.testing.assert_close(second, first)
-
-
-@pytest.mark.parametrize("strategy", ["scatter", "gather"])  # type: ignore[untyped-decorator]
-def test_single_precision_transform_matches_double(strategy: str) -> None:
-    """float32 inputs run end to end through both strategies (weights cast once)."""
-    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    _use_strategy(udct, strategy)
-    x = _input("real", (32, 32))
-    coeffs = udct._forward_vect(x.float())  # pylint: disable=protected-access
-    assert coeffs.dtype == torch.complex64
-    torch.testing.assert_close(
-        coeffs,
-        udct._forward_vect(x).to(torch.complex64),  # pylint: disable=protected-access
-        atol=1e-5,
-        rtol=1e-4,
-    )
-    recon = udct._backward_vect(coeffs)  # pylint: disable=protected-access
-    assert recon.dtype == torch.float32
-    torch.testing.assert_close(recon, x.float(), atol=1e-4, rtol=1e-4)
-
-
 def test_plan_rejects_unknown_strategy() -> None:
     """An unknown fold strategy is an error, not a silent fallback."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)

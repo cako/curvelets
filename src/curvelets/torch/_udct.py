@@ -12,6 +12,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
+from ._dtypes import check_dtype, resolve_dtype
 from ._plan import UDCTPlan
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
@@ -68,6 +69,21 @@ class UDCT:
           by applying Riesz transforms, producing ndim+1 components per band
           (scalar plus all Riesz components).
 
+    dtype : torch.dtype, optional
+        Precision of the transform: ``torch.float32`` or ``torch.float64``
+        (``torch.complex64`` / ``torch.complex128`` are accepted and mean the
+        same precision). The windows are computed in double precision and
+        stored once in this dtype. Inputs must have this precision (or its
+        complex counterpart for the complex transform), and coefficients come
+        out as :attr:`coefficient_dtype`. Default is
+        :func:`torch.get_default_dtype` (normally ``torch.float32``).
+
+    Attributes
+    ----------
+    dtype : torch.dtype
+        Real precision of the transform.
+    coefficient_dtype : torch.dtype
+        Dtype of the coefficients (complex for the real and complex transforms).
     high_frequency_mode : str
         High frequency mode.
     transform_kind : str
@@ -106,7 +122,10 @@ class UDCT:
         window_threshold: float = 1e-5,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
+        dtype: torch.dtype | None = None,
     ) -> None:
+        dtype = resolve_dtype(dtype)
+
         # Validate transform_kind
         if transform_kind not in ("real", "complex", "monogenic"):
             msg = f"transform_kind must be 'real', 'complex', or 'monogenic', got {transform_kind!r}"
@@ -115,7 +134,6 @@ class UDCT:
         # Store basic attributes
         self._high_frequency_mode = high_frequency_mode
         self._transform_kind = transform_kind
-        self._coefficient_dtype: torch.dtype | None = None
 
         # Calculate necessary parameters
         params_dict = self._initialize_parameters(
@@ -139,7 +157,7 @@ class UDCT:
 
         # Calculate windows
         self._windows, self._decimation_ratios, self._indices = (
-            self._initialize_windows()
+            self._initialize_windows(dtype)
         )
         # Integer metadata used to compute scale factors and coefficient shapes.
         # It stays on the CPU so the transform never syncs with the device for it,
@@ -165,6 +183,18 @@ class UDCT:
     def num_scales(self) -> int:
         """Number of scales."""
         return self._parameters.num_scales
+
+    @property
+    def dtype(self) -> torch.dtype:
+        """Real precision of the transform (follows ``UDCTModule.to(dtype)``)."""
+        return self._windows[0][0][0].values.dtype
+
+    @property
+    def coefficient_dtype(self) -> torch.dtype:
+        """Dtype of the coefficients: complex, or real for the monogenic transform."""
+        if self._transform_kind == "monogenic":
+            return self.dtype
+        return self.dtype.to_complex()
 
     @property
     def windows(self) -> UDCTWindows:
@@ -458,10 +488,10 @@ class UDCT:
         }
 
     def _initialize_windows(
-        self,
+        self, dtype: torch.dtype
     ) -> tuple[UDCTWindows, list[torch.Tensor], dict[int, dict[int, torch.Tensor]]]:
         """
-        Calculate curvelet windows, decimation ratios, and indices.
+        Calculate curvelet windows (stored in ``dtype``), decimation ratios, and indices.
 
         Returns
         -------
@@ -481,6 +511,8 @@ class UDCT:
                     ]
                 for window in direction_windows:
                     window.attach_periodized(dec, with_flip=need_flip)
+                    # Computed in double precision, stored once in the transform's.
+                    window.values = window.values.to(dtype)
         return windows, decimation_ratios, indices
 
     def coefficient_shapes(self) -> list[list[list[tuple[int, ...]]]]:
@@ -652,9 +684,8 @@ class UDCT:
         Returns
         -------
         UDCTCoefficients
-            Restructured coefficients, each of shape ``(*batch, *wedge_shape)``.
-            The dtype is preserved from the forward transform if available,
-            otherwise uses the vector's dtype.
+            Restructured coefficients, each of shape ``(*batch, *wedge_shape)``,
+            as views into ``vector`` (same dtype).
 
         Examples
         --------
@@ -671,8 +702,6 @@ class UDCT:
         # Dispatch based on transform_kind
         if self._transform_kind == "monogenic":
             return self._struct_monogenic(vector)
-        if self._coefficient_dtype is not None:
-            vector = vector.to(self._coefficient_dtype)
         return self._get_plan().unflatten(vector)
 
     def _struct_monogenic(self, vector: torch.Tensor) -> UDCTCoefficients:
@@ -708,9 +737,6 @@ class UDCT:
                         size = prod(shape_decimated)
                         end_idx = begin_idx + size
                         channel = vector[begin_idx:end_idx].reshape(shape_decimated)
-                        # Preserve dtype from forward transform
-                        if self._coefficient_dtype is not None:
-                            channel = channel.to(self._coefficient_dtype)
                         wedge_channels.append(channel)
                         begin_idx = end_idx
                     # Stack channels along last axis: shape (*wedge_shape, num_channels)
@@ -751,22 +777,21 @@ class UDCT:
         >>> transform.backward(coeffs).shape
         torch.Size([8, 32, 32])
         """
+        self._check_input(image)
+        if self._transform_kind == "monogenic":
+            return self._forward_monogenic(image)
+        return self._get_plan().forward_nested(image)
+
+    def _check_input(self, image: torch.Tensor) -> None:
+        """Validate the shape, kind and precision of a forward-transform input."""
         self._check_shape(image)
-        # Validate input based on transform_kind
         if self._transform_kind in ("real", "monogenic") and image.is_complex():
             msg = (
                 f"{self._transform_kind.capitalize()} transform requires real-valued input. "
                 "Got complex tensor. Use transform_kind='complex' for complex inputs."
             )
             raise ValueError(msg)
-
-        # Dispatch based on transform_kind
-        if self._transform_kind == "real":
-            return self._forward_real(image)
-        if self._transform_kind == "complex":
-            return self._forward_complex(image)
-        # Must be "monogenic" (checked by type system)
-        return self._forward_monogenic(image)
+        check_dtype(image, self.dtype, "input")
 
     def _check_shape(self, image: torch.Tensor) -> None:
         shape = tuple(self._parameters.shape)
@@ -815,7 +840,6 @@ class UDCT:
         >>> transform.filter(noisy, hard_threshold).shape
         torch.Size([4, 32, 32])
         """
-        self._check_shape(image)
         return self._backward_vect(fn(self._forward_vect(image)))
 
     def _get_plan(self) -> UDCTPlan:
@@ -829,40 +853,24 @@ class UDCT:
             )
         return self._plan
 
-    def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
-        """Private method for real forward transform (no input validation)."""
-        coeffs = self._get_plan().forward_nested(image)
-        if self._coefficient_dtype is None:
-            self._coefficient_dtype = coeffs[0][0][0].dtype
-        return coeffs
-
-    def _forward_complex(self, image: torch.Tensor) -> UDCTCoefficients:
-        """Private method for complex forward transform (no input validation)."""
-        coeffs = self._get_plan().forward_nested(image)
-        if self._coefficient_dtype is None:
-            self._coefficient_dtype = coeffs[0][0][0].dtype
-        return coeffs
-
     def _forward_vect(self, image: torch.Tensor) -> torch.Tensor:
         """Forward transform straight to the ``vect`` layout (used by UDCTModule)."""
         if self._transform_kind == "monogenic":
             return self.vect(self.forward(image))
-        flat = self._get_plan().forward_flat(image)
-        if self._coefficient_dtype is None:
-            self._coefficient_dtype = flat.dtype
-        return flat
+        self._check_input(image)
+        return self._get_plan().forward_flat(image)
 
     def _backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
         """Backward transform from the ``vect`` layout (used by UDCTModule)."""
         if self._transform_kind == "monogenic":
             return self.backward(self.struct(vector))
+        check_dtype(vector, self.dtype, "coefficients")
         return self._get_plan().backward_flat(vector)
 
     def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
         # TODO: Implement monogenic forward transform for PyTorch
         # For now, raise NotImplementedError
-        # When implemented, store dtype like in _forward_real and _forward_complex
         msg = "Monogenic transform not yet implemented for PyTorch"
         raise NotImplementedError(msg)
 
@@ -881,23 +889,13 @@ class UDCT:
         torch.Tensor
             Reconstruction of shape ``(*batch, *self.shape)``.
         """
-        # Dispatch based on transform_kind
-        if self._transform_kind == "real":
-            return self._backward_real(coefficients)
-        if self._transform_kind == "complex":
-            return self._backward_complex(coefficients)
-        # Must be "monogenic" (checked by type system)
-        return self._backward_monogenic(coefficients)
-
-    def _backward_real(self, coefficients: UDCTCoefficients) -> torch.Tensor:
-        """Private method for real backward transform (no input validation)."""
+        if self._transform_kind == "monogenic":
+            return self._backward_monogenic(coefficients)
         plan = self._get_plan()
-        return plan.backward_flat(plan.flatten(coefficients))
-
-    def _backward_complex(self, coefficients: UDCTCoefficients) -> torch.Tensor:
-        """Private method for complex backward transform (no input validation)."""
-        plan = self._get_plan()
-        return plan.backward_flat(plan.flatten(coefficients))
+        # Checked after flattening, so mixed-precision wedges are caught too.
+        flat = plan.flatten(coefficients)
+        check_dtype(flat, self.dtype, "coefficients")
+        return plan.backward_flat(flat)
 
     def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
@@ -913,7 +911,9 @@ class UDCT:
         This method is used for device and dtype transfers (e.g., when calling
         `model.to(device)` on a module containing this UDCT instance). It applies
         the given function to all internal tensor attributes including windows
-        and decimation ratios.
+        and decimation ratios. If ``fn`` changes the floating-point dtype of the
+        windows, :attr:`dtype` follows it; a complex target dtype (e.g.
+        ``module.to(torch.complex64)``) sets the matching real precision.
 
         Parameters
         ----------
