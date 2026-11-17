@@ -155,3 +155,12 @@ On accelerators, the gather fold works on the real view of complex data (:func:`
 * the ``1/size`` normalization of each wedge's inverse FFT is folded into the forward weights, and the inverse FFT runs with ``norm="forward"``.
 
 Every step is a real gather, multiply or sum. This avoids the slow complex-by-real multiply kernel and lets TorchInductor fuse the fold into Triton kernels. The accelerator path of the fused plan's flat forward and backward transforms traces into a single graph, without graph breaks (checked in the test suite for the real and complex transforms). The FFTs themselves remain cuFFT calls. CPU scatter folds are unchanged.
+
+Batches that exceed the L2 cache
+--------------------------------
+
+When the working set of a batch spills out of the GPU's L2 cache, every stage of the transform runs at DRAM bandwidth. For inputs whose single row is already larger than the L2 budget (for example :math:`2048 \times 2048` in 2D or :math:`128 \times 128 \times 128` in 3D on an RTX 4090, with 72 MB of L2), running the rows one at a time is 30–44% faster than one batch of 8, because each row has enough GPU work to hide its kernel launches.
+
+On accelerators with a known L2 size, the execution plan records a working-set budget (``UDCTPlan.batch_chunk_bytes``, set to the L2 size when the plan is built; ``None`` on CPUs and on devices with an unknown L2 size). When one row's working set (one spectrum and two coefficient vectors) is larger than the budget, the forward and backward transforms run the batch row by row, writing every row into one preallocated output. Under autograd, :func:`torch.vmap` or ``torch.compile`` the pieces are concatenated instead. Every other batch runs whole: splitting batches whose rows fit in L2 was measured to be slower, since each extra piece costs a full set of kernel launches.
+
+This is automatic and does not change the results.
