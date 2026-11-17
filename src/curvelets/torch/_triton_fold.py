@@ -30,8 +30,8 @@ from __future__ import annotations
 
 import importlib.util
 import os
-from dataclasses import dataclass
 from collections.abc import Callable
+from dataclasses import dataclass
 from functools import cache
 from typing import Any
 

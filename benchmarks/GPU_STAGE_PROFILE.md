@@ -249,3 +249,33 @@ matches the library to ≤2e-7 relative error.
    `view_as_real` gather with an inner size of 2 is no faster than the
    complex gather at B=1, and the merged backward fold is slower than the
    two separate folds. The gains come from the fusion.
+
+## 7. Follow-up: fused Triton fold, grouped layout, FFT fusion bound (A40)
+
+NVIDIA A40 (6 MB L2), torch 2.15 (cu132), Triton 3.9, float32, real transform.
+On this card every batch of 8 runs row by row (§6, item 4 and the L2 rule).
+Raw fold results: `benchmarks/data/fold_bench_a40.json` (`benchmarks/fold_bench.py`).
+
+- **Fused fold (item 2):** one Triton kernel per direction (CSR by target) takes
+  43–61% off the forward fold and 35–81% off the backward fold (§5 predicted
+  ~2/3 off at 2048² B=8; measured −59% / −75%). End to end see the PR.
+- **Grouped layout (item 3a): not worth doing after row-by-row batching.** Per-group
+  FFTs on the strided `(B, ncoef)` view vs a contiguous group-major copy, device ms:
+
+  | config | B=1 strided / contiguous | B=8 strided / contiguous | regroup copy, B=8 |
+  |---|---:|---:|---:|
+  | 512² | 0.053 / 0.053 | 0.500 / 0.369 | 0.139 |
+  | 1024², 85 wedges | 0.168 / 0.167 | 1.954 / 1.474 | 0.502 |
+  | 2048², 181 wedges | 0.725 / 0.727 | 7.706 / 5.830 | 1.926 |
+  | 64³ | 0.100 / 0.100 | 1.204 / 0.958 | 0.249 |
+  | 128³ | 0.958 / 0.961 | 9.405 / 7.623 | 1.872 |
+
+  With one row the group slices are already contiguous, so the ~25% gap only
+  exists for whole-batch runs. Large rows no longer run whole-batch, and where
+  batches still do (rows that fit in L2), copying back to the `vect` layout costs
+  as much as the contiguous FFTs save (e.g. 1024² B=8: −0.48 ms FFT, +0.50 ms copy).
+- **Fold-into-FFT fusion (item 3d): bounded at ~15–20%.** A cuFFT load callback
+  removes one write and one read of the folded `(rows, ncoef)` buffer, about one
+  copy of it: 0.24 ms of 1.26 ms (19%) for the 2048² B=1 forward, 0.24 / 1.35 ms
+  (18%) at 128³, 4–6% for small batched inputs. That is an upper bound; gathers
+  inside callbacks usually cost cuFFT some of its own throughput.
