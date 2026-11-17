@@ -154,11 +154,4 @@ On accelerators, the gather fold works on the real view of complex data (:func:`
 * the plain and conjugated backward folds are merged into one, removing the extra ``A + conj(B)`` pass;
 * the ``1/size`` normalization of each wedge's inverse FFT is folded into the forward weights, and the inverse FFT runs with ``norm="forward"``.
 
-Every step is a real gather, multiply or sum. This avoids the slow complex-by-real multiply kernel and lets TorchInductor fuse the fold into Triton kernels. The accelerator path traces into a single graph, so ``torch.compile`` can be applied to the transform:
-
-.. code-block:: python
-
-    transform = UDCT(shape=(512, 512)).to("cuda")
-    compiled = torch.compile(transform.forward)
-
-The FFTs themselves remain cuFFT calls. CPU scatter folds are unchanged.
+Every step is a real gather, multiply or sum. This avoids the slow complex-by-real multiply kernel and lets TorchInductor fuse the fold into Triton kernels. The accelerator path of the fused plan's flat forward and backward transforms traces into a single graph, without graph breaks (checked in the test suite for the real and complex transforms). The FFTs themselves remain cuFFT calls. CPU scatter folds are unchanged.
