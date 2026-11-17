@@ -27,7 +27,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import torch
 from torch.profiler import ProfilerActivity, profile
@@ -89,7 +89,7 @@ class Timeline:
 def fold_bytes(fold: GatherFold, csize: int, rows: int) -> dict[str, float]:
     """Minimum traffic per fold level: index + weight + gathered source + output."""
     rsize = csize // 2
-    out = {"L0": fold.num_targets * (4 + rsize + rows * 2 * csize)}
+    out: dict[str, float] = {"L0": fold.num_targets * (4 + rsize + rows * 2 * csize)}
     for i, lvl in enumerate(fold.levels, start=1):
         n = lvl.sources.numel()
         t = lvl.targets.numel()
@@ -238,7 +238,11 @@ def print_table(title: str, stages, total_dev: float, total_host: float) -> None
 
 
 def run(
-    name: str, batch: int, dtype: torch.dtype, kind: str, iters: int
+    name: str,
+    batch: int,
+    dtype: torch.dtype,
+    kind: Literal["real", "complex"],
+    iters: int,
 ) -> dict[str, Any]:
     shape, ns, wpd = CONFIGS[name]
     dev = torch.device("cuda")
@@ -313,6 +317,7 @@ def run(
         f"  init {init_s:.2f}s, plan build {plan_s:.2f}s, replay err fwd {err_f:.1e} bwd {err_b:.1e}"
     )
     fm = plan.fwd_map
+    assert isinstance(fm, GatherFold)  # CUDA plans use gather folds
     print(
         f"  fwd fold: {fm.num_targets:,} targets, levels "
         f"{[(lv.targets.numel(), lv.width) for lv in fm.levels]}"
@@ -364,7 +369,7 @@ def main() -> None:
     ap.add_argument("--configs", default=",".join(CONFIGS))
     ap.add_argument("--batch", default="1")
     ap.add_argument("--dtype", default="float32")
-    ap.add_argument("--kind", default="real")
+    ap.add_argument("--kind", default="real", choices=["real", "complex"])
     ap.add_argument("--iters", type=int, default=7)
     ap.add_argument("--json")
     args = ap.parse_args()
@@ -373,7 +378,8 @@ def main() -> None:
     results = []
     for name in args.configs.split(","):
         for b in (int(v) for v in args.batch.split(",")):
-            results.append(run(name, b, dtype, args.kind, args.iters))
+            kind = cast(Literal["real", "complex"], args.kind)
+            results.append(run(name, b, dtype, kind, args.iters))
             torch.cuda.empty_cache()
     if args.json:
         with Path(args.json).open("w", encoding="utf-8") as fh:
