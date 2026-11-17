@@ -41,6 +41,8 @@ from dataclasses import dataclass
 
 import torch
 
+from ._triton_fold import CsrFold, triton_device
+
 MAX_LEVELS = 3  # explicit sparse levels before the padded tail block
 
 
@@ -60,6 +62,19 @@ def _functorch_wrapped(tensor: torch.Tensor) -> bool:
         return False
     is_wrapped = getattr(torch._C._functorch, "is_functorch_wrapped_tensor", None)  # pylint: disable=protected-access
     return is_wrapped is not None and bool(is_wrapped(tensor))
+
+
+def _kernel_ok(src: torch.Tensor) -> bool:
+    """Whether the fused kernel may run on ``src``.
+
+    It has no autograd or functorch rules, so differentiable calls and
+    ``vmap``/``grad`` transforms take the torch implementation. (Gradients of the
+    UDCT through ``UDCTModule`` or ``cuda_graphs=True`` are the adjoint
+    transform evaluated without autograd, so they still use the kernel.)
+    """
+    if src.requires_grad and torch.is_grad_enabled():
+        return False
+    return not _functorch_wrapped(src)
 
 
 def _ranks(targets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -99,6 +114,9 @@ class GatherFold:
     src0: torch.Tensor
     w0: torch.Tensor
     levels: list[_Level]
+    # The same contributions in CSR form, for the fused Triton kernel. Built on
+    # devices that can run it (CUDA with Triton installed); None elsewhere.
+    csr: CsrFold | None = None
 
     @classmethod
     def build(
@@ -175,12 +193,18 @@ class GatherFold:
                     width=width,
                 )
             )
+        csr = None
+        if triton_device(device):
+            csr = CsrFold.from_sorted(
+                t_sorted, s_sorted, w_sorted, num_targets, num_sources, idx_s
+            )
         return cls(
             num_targets=num_targets,
             num_sources=num_sources,
             src0=src0,
             w0=w0,
             levels=levels,
+            csr=csr,
         )
 
     def apply(self, src: torch.Tensor) -> torch.Tensor:
@@ -197,6 +221,8 @@ class GatherFold:
         torch.Tensor
             Complex output of shape ``(batch, num_targets)``.
         """
+        if self.csr is not None and _kernel_ok(src):
+            return self.csr.apply(src)
         parts = torch.view_as_real(src)  # (batch, num_sources, 2)
 
         def weighted(index: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
