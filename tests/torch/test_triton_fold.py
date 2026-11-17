@@ -215,8 +215,9 @@ def test_compile_sees_through_kernel(kind: Kind) -> None:
     x = _input(kind, (2, 64, 64), torch.float32)
     coeffs = plan.forward_flat(x)
     torch._dynamo.reset()  # pylint: disable=protected-access
-    forward = torch.compile(plan.forward_flat, fullgraph=True)
-    backward = torch.compile(plan.backward_flat, fullgraph=True)
+    # aot_eager, as in test_plan.py: Inductor warns on the complex FFTs.
+    forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), coeffs, atol=1e-5, rtol=1e-5)
     torch.testing.assert_close(
         backward(coeffs), plan.backward_flat(coeffs), atol=1e-5, rtol=1e-5
