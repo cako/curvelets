@@ -62,3 +62,15 @@ You can verify this on your own setup. The call below raises if anything in the 
     torch.cuda.set_sync_debug_mode("error")
     transform.forward(x)
     torch.cuda.set_sync_debug_mode("default")
+
+Fused execution plan
+--------------------
+
+Applying the transform wedge by wedge launches a handful of tiny kernels per wedge, so the cost grows with the number of wedges. :class:`~curvelets.torch.UDCT` instead builds, lazily and on first use, an execution plan that runs the whole transform in a fixed number of steps:
+
+* **forward**: one full-size FFT, one gather of every window sample, one fold into a flat buffer in :meth:`~curvelets.torch.UDCT.vect` order, and one batched inverse FFT per run of consecutive wedges with the same shape;
+* **backward**: batched FFTs per group, one gather, one scatter and one inverse FFT.
+
+The number of kernel launches therefore no longer depends on the number of wedges (for a :math:`2048 \times 2048` input with 181 wedges, a forward went from about 1450 launches to 38). All operations are out-of-place and differentiable, so autograd and :func:`torch.vmap` keep working, and the plan is rebuilt when the transform is moved to another device.
+
+:class:`~curvelets.torch.UDCTModule` goes straight to and from the flat :meth:`~curvelets.torch.UDCT.vect` layout. The straightforward per-wedge functions are kept as the reference implementation that the plan is tested against (real and complex transforms, curvelet and wavelet modes, 2D and 3D, non-square shapes), so the public API and the numerical results are unchanged.
