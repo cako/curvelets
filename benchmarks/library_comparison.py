@@ -21,8 +21,6 @@ Usage (the extra libraries are only needed for their rows)::
     pip install kymatio pytorch-wavelets dtcwt
     python benchmarks/library_comparison.py --export benchmarks/data/library_comparison.json
     python benchmarks/library_comparison.py --markdown benchmarks/data/library_comparison.json
-
-The registered results are read by ``examples/plot_13_library_comparison.py``.
 """
 
 from __future__ import annotations
