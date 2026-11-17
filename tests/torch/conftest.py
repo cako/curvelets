@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from typing import Any, Literal
 
 import numpy as np
 import pytest
 import torch
+
+# Without a GPU, Triton kernels can only run in Triton's CPU interpreter, and
+# Triton reads TRITON_INTERPRET when ``triton.language`` is first imported (by
+# TorchInductor or the curvelets kernels, whichever comes first). Set it before
+# any test can import Triton. CPU plans use the fused fold only where a test
+# opts in with CURVELETS_TRITON_CPU=1 (tests/torch/test_triton_fold.py).
+if not torch.cuda.is_available():
+    os.environ.setdefault("TRITON_INTERPRET", "1")
 
 import curvelets.torch as torch_curvelets
 

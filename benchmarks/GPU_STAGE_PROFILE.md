@@ -140,7 +140,8 @@ the two causes with a microbenchmark (same group, 2048² layout):
   therefore optimistic for cards with a smaller L2, such as the RTX 2000 Ada
   baseline used in #81–#86.
 - **Axis order matters for cuFFT:** the same 3D wedge size is 1.7× faster when
-  the long axis is outermost.
+  the long axis is outermost. ⚠️ This is one microbenchmark of two group shapes
+  on one card and one cuFFT version; see the caveats under §5, item 3(c).
 
 ## 5. Where the next gains are (ranked)
 
@@ -170,8 +171,17 @@ the two causes with a microbenchmark (same group, 2048² layout):
      changes the batched `vect` layout or needs a permute at the API boundary.
    - (b) Fold the ifft normalization into the weights (`norm=` choice): one
      fewer full pass over the coefficients.
-   - (c) Store 3D wedges with the long axis outermost when cuFFT prefers it
-     (1.7× on the `x,x,2x` groups).
+   - (c) ⚠️ **Not a free win.** Store 3D wedges with the long axis outermost
+     when cuFFT prefers it (1.7× on the `x,x,2x` groups in one microbenchmark).
+     - It changes the coefficient layout: the `vect` order and the nested wedge
+       shapes would no longer match the NumPy backend or saved coefficients.
+     - Keeping the public layout means transposing back at the API boundary,
+       an extra read and write of those coefficients that can cancel most of
+       the gain on a memory-bound transform.
+     - The 1.7× is from two group shapes on one GPU (RTX 4090) and one cuFFT
+       version; cuFFT's algorithm choice varies by GPU and version.
+     Only worth pursuing as an internal layout (e.g. written by a fused fold
+     into scratch space) and after measuring it on more than one card.
    - (d) Longer term, cuFFT load/store callbacks (nvmath-python) to fuse the
      fold into the FFT so the folded buffer never goes through DRAM.
 4. **Full-size FFTs (13–21% at 2048² B=8).** Mostly at cuFFT speed already.

@@ -18,9 +18,9 @@ every output element exactly once. So the fold is
   tile of up to :data:`MAX_BATCH_TILE` batch rows (the table entries are loaded
   once and reused for every row of the tile).
 
-The kernel is used only where it is safe and useful: CUDA tensors (or any device
-under ``TRITON_INTERPRET=1``, for testing), outside autograd and functorch
-transforms. It is registered as a ``torch.library.triton_op``, so
+The kernel is used only where it is safe and useful: CUDA tensors (or CPU
+tensors through Triton's interpreter, in the tests), outside autograd and
+functorch transforms. It is registered as a ``torch.library.triton_op``, so
 ``torch.compile`` and CUDA graphs see through it. Everything else falls back to
 the torch implementation, which is also used when Triton is not installed.
 Set ``CURVELETS_TRITON=0`` to disable the kernel.
@@ -32,6 +32,7 @@ import importlib.util
 import os
 from dataclasses import dataclass
 from functools import cache
+from typing import Any
 
 import torch
 
@@ -40,78 +41,51 @@ _TARGETS_PER_PROGRAM = 1024  # targets x batch rows handled by one program
 
 
 @cache
+def _triton_installed() -> bool:
+    return importlib.util.find_spec("triton") is not None
+
+
 def triton_available() -> bool:
     """Whether the fused fold kernel can be used at all (Triton importable, not disabled)."""
     if os.environ.get("CURVELETS_TRITON", "1").strip().lower() in {"0", "false", "off"}:
         return False
-    return importlib.util.find_spec("triton") is not None
+    return _triton_installed()
 
 
-def _interpreting() -> bool:
-    return os.environ.get("TRITON_INTERPRET", "0") == "1"
+def _cpu_testing() -> bool:
+    """CPU tensors through Triton's interpreter: for tests only.
+
+    Needs both ``CURVELETS_TRITON_CPU=1`` and ``TRITON_INTERPRET=1``; the latter
+    must be set before Triton is first imported (``tests/torch/conftest.py``).
+    """
+    return (
+        os.environ.get("CURVELETS_TRITON_CPU", "0") == "1"
+        and os.environ.get("TRITON_INTERPRET", "0") == "1"
+    )
 
 
 def triton_device(device: torch.device) -> bool:
     """Whether fold maps on ``device`` should carry a :class:`CsrFold`."""
     if not triton_available():
         return False
-    return device.type == "cuda" or _interpreting()
+    return device.type == "cuda" or (device.type == "cpu" and _cpu_testing())
+
+
+def _kernel() -> Any:
+    """The jitted kernel (importing it imports Triton)."""
+    from ._triton_kernels import (  # pylint: disable=import-outside-toplevel
+        csr_fold_kernel,
+    )
+
+    return csr_fold_kernel
 
 
 @cache
-def _op():  # type: ignore[no-untyped-def]  # noqa: ANN202
-    """Build the kernel and its ``torch.library`` op on first use (imports Triton)."""
+def _op():  # type: ignore[no-untyped-def]
+    """Register the ``curvelets::csr_fold`` op on first use (imports Triton)."""
     import triton  # pylint: disable=import-outside-toplevel
-    import triton.language as tl  # pylint: disable=import-outside-toplevel
 
-    @triton.jit
-    def _csr_fold_kernel(  # noqa: PLR0913
-        src_ptr,
-        out_ptr,
-        row_ptr,
-        col_ptr,
-        w_ptr,
-        rows,
-        num_targets,
-        src_row_stride,
-        out_row_stride,
-        BLOCK_T: tl.constexpr,  # noqa: N803
-        BLOCK_B: tl.constexpr,  # noqa: N803
-        PAIR: tl.constexpr,  # noqa: N803
-    ):
-        pid_t = tl.program_id(0)
-        pid_b = tl.program_id(1)
-        t = pid_t * BLOCK_T + tl.arange(0, BLOCK_T)
-        t_mask = t < num_targets
-        start = tl.load(row_ptr + t, mask=t_mask, other=0)
-        stop = tl.load(row_ptr + t + 1, mask=t_mask, other=0)
-        count = stop - start
-        b = pid_b * BLOCK_B + tl.arange(0, BLOCK_B)
-        b_mask = b < rows
-        src_rows = src_ptr + b.to(tl.int64)[:, None] * src_row_stride
-        acc_dtype = src_ptr.dtype.element_ty
-        acc_re = tl.zeros((BLOCK_B, BLOCK_T), dtype=acc_dtype)
-        acc_im = tl.zeros((BLOCK_B, BLOCK_T), dtype=acc_dtype)
-        for k in range(0, tl.max(count, axis=0)):
-            m = t_mask & (k < count)
-            j = start + k
-            s = tl.load(col_ptr + j, mask=m, other=0).to(tl.int64)
-            if PAIR:
-                w_re = tl.load(w_ptr + 2 * j, mask=m, other=0.0).to(acc_dtype)
-                w_im = tl.load(w_ptr + 2 * j + 1, mask=m, other=0.0).to(acc_dtype)
-            else:
-                w_re = tl.load(w_ptr + j, mask=m, other=0.0).to(acc_dtype)
-                w_im = w_re
-            mm = b_mask[:, None] & m[None, :]
-            p = src_rows + 2 * s[None, :]
-            acc_re += tl.load(p, mask=mm, other=0.0) * w_re[None, :]
-            acc_im += tl.load(p + 1, mask=mm, other=0.0) * w_im[None, :]
-        o = out_ptr + b.to(tl.int64)[:, None] * out_row_stride + 2 * t[None, :]
-        om = b_mask[:, None] & t_mask[None, :]
-        tl.store(o, acc_re, mask=om)
-        tl.store(o + 1, acc_im, mask=om)
-
-    @torch.library.triton_op("curvelets::csr_fold", mutates_args={})
+    @torch.library.triton_op("curvelets::csr_fold", mutates_args={})  # type: ignore[misc]
     def csr_fold(
         src: torch.Tensor,
         row_ptr: torch.Tensor,
@@ -130,7 +104,7 @@ def _op():  # type: ignore[no-untyped-def]  # noqa: ANN202
         block_b = min(MAX_BATCH_TILE, triton.next_power_of_2(rows))
         block_t = max(32, _TARGETS_PER_PROGRAM // block_b)
         grid = (triton.cdiv(num_targets, block_t), triton.cdiv(rows, block_b))
-        torch.library.wrap_triton(_csr_fold_kernel)[grid](
+        torch.library.wrap_triton(_kernel())[grid](
             src_parts,
             out_parts,
             row_ptr,
