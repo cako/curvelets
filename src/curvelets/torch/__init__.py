@@ -15,7 +15,6 @@ if not TORCH_ENABLED:
     )
     raise ImportError(_error_msg)
 
-from ._graphed import GraphedUDCT
 from ._meyerwavelet import MeyerWavelet
 from ._sparse_window import SparseWindow
 from ._udct import UDCT
@@ -26,7 +25,6 @@ from .typing import UDCTCoefficients, UDCTWindows
 # Similar __all__ to numpy.__init__ is intentional - both modules export the same API
 __all__ = [
     "UDCT",
-    "GraphedUDCT",
     "MeyerWavelet",
     "SparseWindow",
     "UDCTCoefficients",
