@@ -438,6 +438,9 @@ def markdown(data: dict[str, Any]) -> str:
 # ------------------------------------------------------------- atoms, stats
 
 ATOM_CROP = 64
+# Relative soft threshold (L1 proximal step) of second-order atoms: 2% of the
+# largest pixel after every update. 0.05 starts to truncate the lobes.
+SOFT_THRESHOLD = 0.02
 
 
 def _crop(img: np.ndarray, half: int = ATOM_CROP // 2) -> np.ndarray:
@@ -529,12 +532,15 @@ def kymatio_atoms(
     coefficient bounces, so the update is damped,
     ``x <- normalize((1 - a) x + a grad / ||grad||)`` with ``a = 0.2``, which
     converges smoothly in 10-15 steps (and reached a coefficient about 50%
-    higher than the full jump on the paths tried). The best iterate is kept. The gradient comes from PyTorch autograd; it is the adjoint of the
+    higher than the full jump on the paths tried). An L1 proximal step (soft-threshold at 2% of the
+    largest pixel) removes faint sidelobes at about 3% of the coefficient. The best
+    iterate is kept. The gradient comes from PyTorch autograd; it is the adjoint of the
     linearized transform, so no explicit linear operator (for instance from
     PyLops) is needed. First-order paths use a ``max_order=1`` transform (33
     channels instead of 417). Keys are
     ``"Kymatio/order1/j<j>/o<theta>"`` and
-    ``"Kymatio/order2/j<j1><j2>/o<theta1><theta2>"``.
+    ``"Kymatio/order2/j<j1><j2>/o<theta1><theta2>"`` (scales 2 and 3: at finer scales
+    the carrier oscillates every few pixels and the atom looks like stripes).
 
     Returns the atoms and, under the same keys, the convergence curves: the
     value of the coefficient before each step and after the last one
@@ -561,7 +567,7 @@ def kymatio_atoms(
                     channel += 1
     targets = {f"Kymatio/order1/j{j}/o{t}": ((j, t),) for j in (1, 2) for t in range(8)}
     targets.update({
-        f"Kymatio/order2/j12/o{t1}{t2}": ((1, t1), (2, t2))
+        f"Kymatio/order2/j23/o{t1}{t2}": ((2, t1), (3, t2))
         for t1 in (0, 2)
         for t2 in range(8)
     })
@@ -594,6 +600,10 @@ def kymatio_atoms(
             (grad,) = torch.autograd.grad(value, x)
             with torch.no_grad():
                 x = (1 - alpha) * x + alpha * grad / grad.norm()
+                if len(path) == 2:  # L1: soft-threshold the sidelobes away
+                    x = x.sign() * (x.abs() - SOFT_THRESHOLD * x.abs().max()).clamp(
+                        min=0
+                    )
                 x = (x / x.norm()).requires_grad_()
             done += 1
             _progress(done, total, key)

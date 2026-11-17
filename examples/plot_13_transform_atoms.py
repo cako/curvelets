@@ -208,8 +208,8 @@ if registered is not None:
     kymatio_rows = [
         ("Kymatio, order 1, scale 2 (maximizing image)", "Kymatio/order1/j2/o{}"),
         (
-            "Kymatio, order 2, paths (1, 0) -> (2, o) (maximizing image)",
-            "Kymatio/order2/j12/o0{}",
+            "Kymatio, order 2, paths (2, 2) -> (3, o) (maximizing image)",
+            "Kymatio/order2/j23/o2{}",
         ),
     ]
     rows += [
@@ -267,7 +267,7 @@ if registered is not None:
                 values,
                 color="C0" if order == 1 else "C1",
                 alpha=0.6,
-                label=f"order {order}" if key.endswith(("j1/o0", "j12/o00")) else None,
+                label=f"order {order}" if key.endswith(("j1/o0", "j23/o00")) else None,
             )
         ax.set_xlabel("iteration")
         ax.set_ylabel("coefficient value")
