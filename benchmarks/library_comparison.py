@@ -21,6 +21,12 @@ Usage (the extra libraries are only needed for their rows)::
     pip install kymatio pytorch-wavelets dtcwt
     python benchmarks/library_comparison.py --export benchmarks/data/library_comparison.json
     python benchmarks/library_comparison.py --markdown benchmarks/data/library_comparison.json
+
+``--stats`` needs no GPU. It registers what ``examples/plot_13_transform_atoms.py``
+shows: the redundancy of each transform and the image-space atom (the
+synthesis of a single coefficient) of every wavelet subband::
+
+    python benchmarks/library_comparison.py --stats benchmarks/data/library_stats.npz
 """
 
 from __future__ import annotations
@@ -407,15 +413,105 @@ def markdown(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# ------------------------------------------------------------- atoms, stats
+
+ATOM_CROP = 64
+
+
+def _crop(img: np.ndarray, half: int = ATOM_CROP // 2) -> np.ndarray:
+    cy, cx = (n // 2 for n in img.shape)
+    return img[cy - half : cy + half, cx - half : cx + half]
+
+
+def kymatio_ncoef_formula(
+    shape: tuple[int, ...], j: int = NUM_SCALES, l: int = 8
+) -> int:
+    """Output size of a second-order ``Scattering2D`` (no import needed)."""
+    channels = 1 + j * l + l * l * j * (j - 1) // 2
+    return channels * int(np.prod([n // 2**j for n in shape]))
+
+
+def wavelet_atoms(shape: tuple[int, ...]) -> dict[str, np.ndarray]:
+    """Image-space atoms of pytorch_wavelets' DWT and DTCWT.
+
+    One coefficient at the center of each subband of levels 3 and 4 (the
+    coarser half of ``NUM_SCALES`` levels) is set to one and the transform is
+    inverted. Keys are ``"<transform>/L<level>/o<orientation>"``.
+    """
+    from pytorch_wavelets import DTCWTForward, DTCWTInverse, DWTForward, DWTInverse
+
+    x = torch.zeros(1, 1, *shape)
+    out: dict[str, np.ndarray] = {}
+
+    yl, yh = DWTForward(J=NUM_SCALES, wave="db3", mode="zero")(x)
+    inverse = DWTInverse(wave="db3", mode="zero")
+    for level in (2, 3):
+        for o in range(3):
+            bands = [torch.zeros_like(y) for y in yh]
+            h, w = bands[level].shape[-2:]
+            bands[level][0, 0, o, h // 2, w // 2] = 1.0
+            atom = inverse((torch.zeros_like(yl), bands))[0, 0].numpy()
+            out[f"DWT/L{level + 1}/o{o}"] = _crop(atom)
+
+    yl, yh = DTCWTForward(J=NUM_SCALES, biort="near_sym_a", qshift="qshift_a")(x)
+    inverse = DTCWTInverse(biort="near_sym_a", qshift="qshift_a")
+    for level in (2, 3):
+        for o in range(6):
+            bands = [torch.zeros_like(y) for y in yh]
+            h, w = bands[level].shape[-3:-1]
+            bands[level][0, 0, o, h // 2, w // 2, 0] = 1.0  # real part
+            atom = inverse((torch.zeros_like(yl), bands))[0, 0].numpy()
+            out[f"DTCWT/L{level + 1}/o{o}"] = _crop(atom)
+    return out
+
+
+def register_stats(path: Path, size: int = 256) -> None:
+    """Write atoms and redundancy of every transform that can be built here."""
+    shape = (size, size)
+    stats: dict[str, Any] = {"size": size, "redundancy": {}, "ncoef": {}, "notes": {}}
+    for name, (builder, dims, _) in LIBRARIES.items():
+        if 2 not in dims or "eager" in name or ("NumPy" in name and "curvelets" in name):
+            continue
+        try:
+            ncoef = builder(shape, "cpu").ncoef
+        except Exception as exc:  # pylint: disable=broad-except
+            if "Kymatio" in name:
+                ncoef = kymatio_ncoef_formula(shape)
+                stats["notes"][name] = (
+                    f"from the output-size formula ({type(exc).__name__} on import)"
+                )
+            else:
+                stats["notes"][name] = (
+                    f"unavailable: {type(exc).__name__}: {str(exc)[:100]}"
+                )
+                continue
+        stats["ncoef"][name] = ncoef
+        stats["redundancy"][name] = ncoef / size**2
+    atoms = wavelet_atoms(shape)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path,
+        stats=json.dumps(stats),
+        **{k: v.astype(np.float32) for k, v in atoms.items()},
+    )
+    print(json.dumps(stats, indent=1))
+    print(f"wrote {path} ({len(atoms)} atoms)")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--export", type=Path, help="write results as JSON")
     p.add_argument("--markdown", type=Path, help="print a table from a JSON file")
+    p.add_argument("--stats", type=Path, help="register atoms and redundancy (npz)")
     p.add_argument("--device", default=None, help="cuda (default if available) or cpu")
     p.add_argument("--sizes-2d", type=int, nargs="*", default=DEFAULT_SHAPES_2D)
     p.add_argument("--sizes-3d", type=int, nargs="*", default=DEFAULT_SHAPES_3D)
     p.add_argument("--only", nargs="*", help="library names to run")
     args = p.parse_args()
+
+    if args.stats:
+        register_stats(args.stats)
+        return
 
     if args.markdown:
         print(markdown(json.loads(args.markdown.read_text())))
