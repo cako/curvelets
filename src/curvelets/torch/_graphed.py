@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import warnings
 from collections.abc import Callable
 
 import torch
@@ -113,7 +114,12 @@ class GraphedUDCT:
             dtype=transform.coefficient_dtype,
             device=device,
         )
-        with torch.no_grad():
+        with torch.no_grad(), warnings.catch_warnings():
+            # Compiling warns that the complex FFT calls are not code-generated;
+            # they stay cuFFT calls by design (the folds are real arithmetic).
+            warnings.filterwarnings(
+                "ignore", message=".*code generation for complex operators.*"
+            )
             self._forward_graph, self._forward_out = _capture(forward, image, warmup)
             self._backward_graph, self._backward_out = _capture(
                 backward, vector, warmup

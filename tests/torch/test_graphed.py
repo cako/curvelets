@@ -81,7 +81,7 @@ def test_real_input_to_complex_transform() -> None:
     """The complex transform also takes real images of its precision."""
     udct = _cuda_udct("complex")
     graphed = GraphedUDCT(udct)
-    x = torch.randn(64, 64, device="cuda")
+    x = torch.randn(64, 64, dtype=torch.float32, device="cuda")
     torch.testing.assert_close(graphed.forward(x), udct._forward_vect(x))  # pylint: disable=protected-access
 
 
@@ -89,7 +89,7 @@ def test_real_input_to_complex_transform() -> None:
 def test_outputs_are_copies_unless_asked() -> None:
     """By default results survive the next call; copy_outputs=False aliases them."""
     udct = _cuda_udct("real")
-    x1, x2 = (torch.randn(64, 64, device="cuda") for _ in range(2))
+    x1, x2 = (torch.randn(64, 64, dtype=torch.float32, device="cuda") for _ in range(2))
 
     graphed = GraphedUDCT(udct)
     first = graphed.forward(x1)
@@ -107,7 +107,7 @@ def test_rejects_other_shapes_and_dtypes() -> None:
     """Inputs must match the captured shape and the transform's precision."""
     graphed = GraphedUDCT(_cuda_udct("real"), (2,))
     with pytest.raises(ValueError, match="shape"):
-        graphed.forward(torch.randn(3, 64, 64, device="cuda"))
+        graphed.forward(torch.randn(3, 64, 64, dtype=torch.float32, device="cuda"))
     with pytest.raises(TypeError):
         graphed.forward(torch.randn(2, 64, 64, device="cuda", dtype=torch.float64))
     with pytest.raises(ValueError, match="shape"):
