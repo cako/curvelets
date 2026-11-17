@@ -167,7 +167,7 @@ plt.show()
 # only has three orientations (horizontal, vertical and diagonal, so it cannot
 # tell the two diagonals apart); the DTCWT has six, spaced by 30 degrees;
 # the UDCT has as many wedges as it is configured to: this scale has twelve (six
-# directions are shown, covering a quarter of all orientations), and the finest
+# directions are shown, covering about half of all orientations), and the finest
 # scale has more.
 
 STATS = (
