@@ -1,5 +1,7 @@
 """torch.compile / CUDA graph / batch chunking variants for the fused UDCT.
 
+Includes the library's GraphedUDCT, with and without compile=True.
+
 Usage: python benchmarks/compile_experiments.py [--configs 2d_512,3d_128] [--batch 1,8]
        [--modes default,reduce-overhead,max-autotune-no-cudagraphs,max-autotune]
 """
@@ -14,7 +16,7 @@ from typing import Any
 
 import torch
 
-from curvelets.torch import UDCT
+from curvelets.torch import UDCT, GraphedUDCT
 
 CONFIGS = {
     "2d_512": ((512, 512), 3, 3),
@@ -220,6 +222,16 @@ def main() -> None:
                             )
                             continue
                         report(cfg, batch, direction, f"compile[{mode}]", call, ref, cs)
+                for name, compile_graphs in (
+                    ("GraphedUDCT", False),
+                    ("GraphedUDCT(compile=True)", True),
+                ):
+                    if compile_graphs and "compile" in skip:
+                        continue
+                    runner = GraphedUDCT(udct, (batch,), compile=compile_graphs)
+                    report(cfg, batch, "fwd", name, partial(runner.forward, x), ref_f)
+                    report(cfg, batch, "inv", name, partial(runner.backward, v), ref_b)
+                    del runner
             torch.cuda.empty_cache()
 
 
