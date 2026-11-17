@@ -117,6 +117,9 @@ def _op():  # type: ignore[no-untyped-def]
             BLOCK_T=block_t,
             BLOCK_B=block_b,
             PAIR=weights.ndim == 2,
+            # Explicit (Triton 3.9 warns when unset): fused multiply-adds for
+            # ``acc += x * w``, Triton's default.
+            enable_fp_fusion=True,
         )
         return out
 
