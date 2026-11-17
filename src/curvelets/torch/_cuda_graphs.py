@@ -5,6 +5,15 @@ inputs, launching them from Python takes longer than running them on the GPU,
 so the cache captures each flat transform once per input shape as a CUDA
 graph and replays it: one copy into a static input buffer, one graph launch,
 and one copy out of the static output buffer.
+
+Calls that need gradients go through the adjoint autograd Functions
+(:mod:`._autograd`), whose forward and backward are both plain calls, so both
+replay. Under ``torch.vmap`` or ``torch.compile``, inside another stream
+capture, and for CPU tensors, calls run as usual.
+
+On an RTX 4090 a single 512² forward drops from 0.37 to 0.065 ms and the
+backward from 0.55 to 0.087 ms. For large inputs the GPU work dominates and
+the copies make replay slower (6.7 vs 5.5 ms for a 2048² forward, batch 8).
 """
 
 from __future__ import annotations
@@ -15,6 +24,7 @@ from typing import Any
 
 import torch
 
+from ._autograd import BackwardWithAdjoint, ForwardWithAdjoint
 from ._foldmap import _functorch_wrapped
 
 _Key = tuple[str, tuple[int, ...], torch.dtype, torch.device]
@@ -38,7 +48,7 @@ def _replay_possible(tensor: torch.Tensor) -> bool:
 
 
 def _needs_grad(tensor: torch.Tensor) -> bool:
-    return torch.is_grad_enabled() and tensor.requires_grad
+    return bool(torch.is_grad_enabled() and tensor.requires_grad)
 
 
 def graphable(tensor: torch.Tensor) -> bool:
@@ -101,6 +111,26 @@ class CudaGraphCache:
         """Drop every captured graph (and its memory pool)."""
         self._entries.clear()
 
+    def call(
+        self,
+        name: str,
+        fn: Callable[[torch.Tensor], torch.Tensor],
+        tensor: torch.Tensor,
+        adjoint_apply: Callable[[torch.Tensor, Any], torch.Tensor],
+        udct: Any,
+    ) -> torch.Tensor:
+        """``fn(tensor)``: replayed, through the adjoint Function, or plainly.
+
+        Calls that need gradients go through ``adjoint_apply(tensor, udct)``
+        (an autograd Function whose forward and backward call back into the
+        transform without gradients, and so replay).
+        """
+        if graphable(tensor):
+            return self.run(name, fn, tensor)
+        if graphable_with_adjoint(tensor):
+            return adjoint_apply(tensor, udct)
+        return fn(tensor)
+
     def run(
         self,
         name: str,
@@ -125,3 +155,62 @@ class CudaGraphCache:
         static_input.copy_(tensor)
         graph.replay()
         return static_output.clone()
+
+
+class CudaGraphsMixin:
+    """The ``cuda_graphs`` switch of :class:`~curvelets.torch.UDCT`.
+
+    Expects ``_cuda_graphs`` (bool), ``_graphs`` (:class:`CudaGraphCache`) and
+    ``_get_plan()`` on the class it is mixed into.
+    """
+
+    _cuda_graphs: bool
+    _graphs: CudaGraphCache
+
+    def _get_plan(self) -> Any:  # pragma: no cover - provided by UDCT
+        raise NotImplementedError
+
+    @property
+    def cuda_graphs(self) -> bool:
+        """Whether CUDA calls replay CUDA graphs (see the class docstring)."""
+        return self._cuda_graphs
+
+    @cuda_graphs.setter
+    def cuda_graphs(self, enabled: bool) -> None:
+        self._cuda_graphs = enabled
+        if not enabled:
+            self._graphs.clear()
+
+    @property
+    def cuda_graph_cache_size(self) -> int:
+        """Number of captured CUDA graphs kept (least recently used dropped)."""
+        return self._graphs.max_entries
+
+    @cuda_graph_cache_size.setter
+    def cuda_graph_cache_size(self, size: int) -> None:
+        self._graphs.max_entries = size
+        self._graphs.clear()
+
+    def clear_cuda_graphs(self) -> None:
+        """Drop all captured CUDA graphs and their memory."""
+        self._graphs.clear()
+
+    def _forward_flat(self, image: torch.Tensor) -> torch.Tensor:
+        """Flat forward of checked input (from a CUDA graph when enabled)."""
+        forward: Callable[[torch.Tensor], torch.Tensor] = self._get_plan().forward_flat
+        if not self._cuda_graphs:
+            return forward(image)
+        return self._graphs.call(
+            "forward", forward, image, ForwardWithAdjoint.apply, self
+        )
+
+    def _backward_flat(self, vector: torch.Tensor) -> torch.Tensor:
+        """Flat backward of checked input (from a CUDA graph when enabled)."""
+        backward: Callable[[torch.Tensor], torch.Tensor] = (
+            self._get_plan().backward_flat
+        )
+        if not self._cuda_graphs:
+            return backward(vector)
+        return self._graphs.call(
+            "backward", backward, vector, BackwardWithAdjoint.apply, self
+        )

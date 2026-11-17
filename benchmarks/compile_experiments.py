@@ -223,13 +223,30 @@ def main() -> None:
                             continue
                         report(cfg, batch, direction, f"compile[{mode}]", call, ref, cs)
                 graphed_udct = UDCT(
-                    shape=shape, num_scales=ns, wedges_per_direction=wpd, cuda_graphs=True
+                    shape=shape,
+                    num_scales=ns,
+                    wedges_per_direction=wpd,
+                    cuda_graphs=True,
                 )
                 graphed_udct.apply_to_tensors(lambda t: t.to(dev))
                 fwd_g = graphed_udct._forward_vect  # pylint: disable=protected-access
                 bwd_g = graphed_udct._backward_vect  # pylint: disable=protected-access
-                report(cfg, batch, "fwd", "UDCT(cuda_graphs=True)", partial(fwd_g, x), ref_f)
-                report(cfg, batch, "inv", "UDCT(cuda_graphs=True)", partial(bwd_g, v), ref_b)
+                report(
+                    cfg,
+                    batch,
+                    "fwd",
+                    "UDCT(cuda_graphs=True)",
+                    partial(fwd_g, x),
+                    ref_f,
+                )
+                report(
+                    cfg,
+                    batch,
+                    "inv",
+                    "UDCT(cuda_graphs=True)",
+                    partial(bwd_g, v),
+                    ref_b,
+                )
                 del graphed_udct
             torch.cuda.empty_cache()
 

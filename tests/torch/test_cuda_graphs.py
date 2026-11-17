@@ -136,9 +136,7 @@ def test_copies_keep_the_flag_and_start_without_graphs() -> None:
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 def test_adjoint_functions_gradcheck(kind: Kind) -> None:
     """Each direction's gradient is the other direction (tight frame)."""
-    udct = UDCT(
-        shape=(16, 16), num_scales=2, transform_kind=kind, dtype=torch.float64
-    )
+    udct = UDCT(shape=(16, 16), num_scales=2, transform_kind=kind, dtype=torch.float64)
     x = torch.randn(16, 16, dtype=torch.float64)
     if kind == "complex":
         x = torch.complex(x, torch.randn_like(x))
@@ -180,7 +178,10 @@ def test_replay_matches_plain_calls(
 def test_results_survive_later_calls(device: str) -> None:
     """Replays return copies, not the graph's static output buffer."""
     udct = _udct(cuda_graphs=True, device=device)
-    x1, x2 = _image("real", device=device, seed=1), _image("real", device=device, seed=2)
+    x1, x2 = (
+        _image("real", device=device, seed=1),
+        _image("real", device=device, seed=2),
+    )
     first = udct._forward_vect(x1)  # pylint: disable=protected-access
     expected = first.clone()
     udct._forward_vect(x2)  # pylint: disable=protected-access
@@ -215,7 +216,9 @@ def test_gradients_match_plain_autograd(kind: Kind, device: str) -> None:
         return grad
 
     torch.testing.assert_close(image_grad(graphed), image_grad(plain))
-    assert len(graphed._graphs) == 2  # forward, and backward as its gradient  # pylint: disable=protected-access
+    assert (
+        len(graphed._graphs) == 2
+    )  # forward, and backward as its gradient  # pylint: disable=protected-access
 
     coeffs = plain._forward_vect(x)  # pylint: disable=protected-access
 

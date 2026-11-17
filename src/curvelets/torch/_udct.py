@@ -12,8 +12,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
-from ._autograd import BackwardWithAdjoint, ForwardWithAdjoint
-from ._cuda_graphs import CudaGraphCache, graphable, graphable_with_adjoint
+from ._cuda_graphs import CudaGraphCache, CudaGraphsMixin
 from ._dtypes import check_dtype, resolve_dtype
 from ._plan import UDCTPlan
 from ._udct_windows import UDCTWindow
@@ -21,7 +20,7 @@ from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
 
 
-class UDCT:
+class UDCT(CudaGraphsMixin):
     """
     Uniform Discrete Curvelet Transform (UDCT) implementation.
 
@@ -80,25 +79,15 @@ class UDCT:
         out as :attr:`coefficient_dtype`. Default is
         :func:`torch.get_default_dtype` (normally ``torch.float32``).
     cuda_graphs : bool, optional
-        Replay the real and complex transforms on CUDA from CUDA graphs. Each
-        transform launches a few dozen small kernels, and for small and medium
-        inputs launching them from Python takes longer than running them; a
-        graph replay launches them all at once. The first call for each input
-        shape and dtype captures a graph (a few warmup calls, plus a memory
-        pool of about one call's intermediates); later calls replay it. The
-        last :data:`cuda_graph_cache_size` graphs are kept.
-
-        It applies to every flat or nested forward/backward call, to
-        :meth:`filter` and to :class:`UDCTModule`. Calls that need gradients
-        use the adjoint transform (the other direction) as their gradient, so
-        both run from graphs; under ``torch.vmap``, ``torch.compile`` or
-        another stream capture, and for CPU tensors, calls run as usual.
-
-        On an RTX 4090, a 512² forward drops from 0.37 to 0.065 ms and the
-        backward from 0.55 to 0.087 ms. For large inputs the GPU work
-        dominates, and copying in and out of the graph's buffers makes replay
-        slower than plain calls (6.7 vs 5.5 ms for a 2048² forward of a batch
-        of 8), so leave it off there. Default is False.
+        Replay the real and complex transforms on CUDA from CUDA graphs: one
+        launch per call instead of a few dozen, captured on the first call for
+        each input shape and dtype (the last :attr:`cuda_graph_cache_size` are
+        kept). Covers every forward/backward entry point, :meth:`filter`,
+        :class:`UDCTModule` and gradients (through the adjoint transform).
+        Worthwhile for small and medium inputs, where launches dominate (a
+        512² transform gets ~6x faster on an RTX 4090); slower for large
+        inputs, where copying in and out of the graph buffers costs more.
+        Default is False.
 
     Attributes
     ----------
@@ -225,31 +214,6 @@ class UDCT:
         if self._transform_kind == "monogenic":
             return self.dtype
         return self.dtype.to_complex()
-
-    @property
-    def cuda_graphs(self) -> bool:
-        """Whether CUDA calls replay CUDA graphs (see the class docstring)."""
-        return self._cuda_graphs
-
-    @cuda_graphs.setter
-    def cuda_graphs(self, enabled: bool) -> None:
-        self._cuda_graphs = enabled
-        if not enabled:
-            self._graphs.clear()
-
-    @property
-    def cuda_graph_cache_size(self) -> int:
-        """Number of captured CUDA graphs kept (least recently used dropped)."""
-        return self._graphs.max_entries
-
-    @cuda_graph_cache_size.setter
-    def cuda_graph_cache_size(self, size: int) -> None:
-        self._graphs.max_entries = size
-        self._graphs.clear()
-
-    def clear_cuda_graphs(self) -> None:
-        """Drop all captured CUDA graphs and their memory."""
-        self._graphs.clear()
 
     @property
     def windows(self) -> UDCTWindows:
@@ -923,26 +887,6 @@ class UDCT:
             return self.backward(self.struct(vector))
         check_dtype(vector, self.dtype, "coefficients")
         return self._backward_flat(vector)
-
-    def _forward_flat(self, image: torch.Tensor) -> torch.Tensor:
-        """Flat forward transform of checked input, from a CUDA graph when enabled."""
-        plan = self._get_plan()
-        if self._cuda_graphs:
-            if graphable(image):
-                return self._graphs.run("forward", plan.forward_flat, image)
-            if graphable_with_adjoint(image):
-                return ForwardWithAdjoint.apply(image, self)  # type: ignore[no-any-return]
-        return plan.forward_flat(image)
-
-    def _backward_flat(self, vector: torch.Tensor) -> torch.Tensor:
-        """Flat backward transform of checked input, from a CUDA graph when enabled."""
-        plan = self._get_plan()
-        if self._cuda_graphs:
-            if graphable(vector):
-                return self._graphs.run("backward", plan.backward_flat, vector)
-            if graphable_with_adjoint(vector):
-                return BackwardWithAdjoint.apply(vector, self)  # type: ignore[no-any-return]
-        return plan.backward_flat(vector)
 
     def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
