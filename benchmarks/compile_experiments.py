@@ -1,4 +1,4 @@
-"""torch.compile / CUDA graph / batch chunking / fold variants for the fused UDCT.
+"""torch.compile / CUDA graph / batch chunking variants for the fused UDCT.
 
 Usage: python benchmarks/compile_experiments.py [--configs 2d_512,3d_128] [--batch 1,8]
        [--modes default,reduce-overhead,max-autotune-no-cudagraphs,max-autotune]
@@ -7,7 +7,6 @@ Usage: python benchmarks/compile_experiments.py [--configs 2d_512,3d_128] [--bat
 from __future__ import annotations
 
 import argparse
-import math
 import time
 from collections.abc import Callable
 from functools import partial
@@ -141,60 +140,6 @@ def graph_breaks(fn: Callable[[torch.Tensor], torch.Tensor], arg: torch.Tensor) 
         return f"explain failed: {type(exc).__name__}: {str(exc)[:120]}"
 
 
-def fold_experiment(cfg: str, plan: Any, x: torch.Tensor) -> None:
-    """Forward fold level L0: [F, conj F] + gather + complex mul vs on-the-fly conj."""
-    fm = plan.fwd_map
-    rows = x.shape[0]
-    nspec = math.prod(plan.spectrum_shape)
-    dims = tuple(range(-plan.ndim, 0))
-    spec = torch.fft.rfftn(x, dim=dims).reshape(rows, nspec)
-    src = fm.src0.to(torch.int64)
-    idx = (src % nspec).to(torch.int32)
-    sign = torch.where(src >= nspec, -1.0, 1.0).to(fm.w0.dtype)
-    wpair = torch.stack([fm.w0, fm.w0 * sign], dim=-1).contiguous()
-    w0 = fm.w0
-
-    def current(spec: torch.Tensor) -> torch.Tensor:
-        ext = torch.cat([spec, spec.conj()], dim=-1)
-        if rows == 1:
-            return ext[0].index_select(0, fm.src0).unsqueeze(0) * w0
-        return ext[:, fm.src0] * w0
-
-    def on_the_fly(spec: torch.Tensor) -> torch.Tensor:
-        sr = torch.view_as_real(spec)  # (rows, nspec, 2)
-        g = sr.index_select(1, idx) * wpair
-        return torch.view_as_complex(g)
-
-    ref = current(spec)
-    variants = [
-        ("cat+gather+mul (current)", current),
-        ("view_as_real, conj on the fly", on_the_fly),
-    ]
-    torch._dynamo.reset()  # pylint: disable=protected-access
-    variants.append(("on the fly, torch.compile", torch.compile(on_the_fly)))
-    for name, fn in variants:
-        try:
-            out = fn(spec)
-            torch.cuda.synchronize()
-            torch.cuda.reset_peak_memory_stats()
-            base = torch.cuda.memory_allocated()
-            out = fn(spec)
-            torch.cuda.synchronize()
-            peak = (torch.cuda.max_memory_allocated() - base) / 2**20
-            err = rel_err(out, ref)
-            del out
-            wall, dev = timeit(partial(fn, spec))
-            print(
-                f"{cfg:11s} B={rows} fold-L0 {name:30s} dev {dev:8.3f}  extra mem {peak:8.1f} MiB  err {err:.1e}",
-                flush=True,
-            )
-        except Exception as exc:  # pylint: disable=broad-except
-            print(
-                f"{cfg:11s} B={rows} fold-L0 {name:30s} FAILED {type(exc).__name__}: {str(exc)[:160]}",
-                flush=True,
-            )
-
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--configs", default="2d_512,2d_2048_w6,3d_128")
@@ -221,8 +166,6 @@ def main() -> None:
             with torch.no_grad():
                 v = fwd(x)
                 ref_f, ref_b = v.clone(), bwd(v).clone()
-                if "fold" not in skip:
-                    fold_experiment(cfg, plan, x)
                 for direction, fn, arg, ref in (
                     ("fwd", fwd, x, ref_f),
                     ("inv", bwd, v, ref_b),

@@ -87,13 +87,13 @@ class Timeline:
 
 
 def fold_bytes(fold: GatherFold, csize: int, rows: int) -> dict[str, float]:
-    """Minimum traffic per fold level: index + weight + gathered source + output."""
-    rsize = csize // 2
-    out: dict[str, float] = {"L0": fold.num_targets * (4 + rsize + rows * 2 * csize)}
+    """Minimum traffic per fold level: index + weight(s) + gathered source + output."""
+    wsize = (csize // 2) * (2 if fold.w0.ndim == 2 else 1)
+    out: dict[str, float] = {"L0": fold.num_targets * (4 + wsize + rows * 2 * csize)}
     for i, lvl in enumerate(fold.levels, start=1):
         n = lvl.sources.numel()
         t = lvl.targets.numel()
-        out[f"L{i}"] = n * (4 + rsize + rows * csize) + t * (4 + rows * 2 * csize)
+        out[f"L{i}"] = n * (4 + wsize + rows * csize) + t * (4 + rows * 2 * csize)
     return out
 
 
@@ -101,25 +101,24 @@ def timed_fold(
     tl: Timeline, fold: GatherFold, src: torch.Tensor, tag: str
 ) -> torch.Tensor:
     """GatherFold.apply, one marker per level (gather*weight, then index_add)."""
-    rows = src.shape[0]
-    single = rows == 1
-    row = src[0] if single else src
-    nb = fold_bytes(fold, CSIZE[src.dtype], rows)
+    parts = torch.view_as_real(src)
+    nb = fold_bytes(fold, CSIZE[src.dtype], src.shape[0])
 
-    def take(index: torch.Tensor) -> torch.Tensor:
-        return row.index_select(0, index) if single else row[:, index]
+    def weighted(index: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
+        if weights.ndim == 1:
+            weights = weights.unsqueeze(-1)
+        return parts.index_select(1, index) * weights
 
-    out = take(fold.src0) * fold.w0
+    out = weighted(fold.src0, fold.w0)
     tl.mark(f"{tag} L0 gather (dense {fold.num_targets:,})", nb["L0"])
-    dim = 0 if single else 1
     for slot, lvl in enumerate(fold.levels, start=1):
-        term = take(lvl.sources) * lvl.weights
+        term = weighted(lvl.sources, lvl.weights)
         if lvl.width > 1:
-            term = term.unflatten(-1, (-1, lvl.width)).sum(-1)
-        out.index_add_(dim, lvl.targets, term)
+            term = term.unflatten(1, (-1, lvl.width)).sum(2)
+        out.index_add_(1, lvl.targets, term)
         kind = f"tail w={lvl.width}" if lvl.width > 1 else "sparse"
         tl.mark(f"{tag} L{slot} {kind} ({lvl.targets.numel():,} tgt)", nb[f"L{slot}"])
-    return out.unsqueeze(0) if single else out
+    return torch.view_as_complex(out)
 
 
 def staged_forward(plan, image: torch.Tensor, tl: Timeline) -> torch.Tensor:
@@ -137,16 +136,13 @@ def staged_forward(plan, image: torch.Tensor, tl: Timeline) -> torch.Tensor:
         spectrum = torch.fft.rfftn(image, dim=dims)
         tl.mark(f"rfftn full {plan.shape}", rows * (n * rs + nspec * cs))
     flat = spectrum.reshape(-1, nspec)
-    if not plan.complex_output:
-        flat = torch.cat([flat, flat.conj()], dim=-1)
-        tl.mark("cat [F, conj F]", rows * nspec * 3 * cs)
     folded = timed_fold(tl, plan.fwd_map, flat, "fwd fold")
     # Like UDCTPlan._batched_ffts without autograd: each group writes into one buffer.
     coeffs = torch.empty_like(folded)
     for g in plan.groups:
         chunk = folded[:, g.offset : g.stop].view(rows, g.count, *g.shape)
         dst = coeffs[:, g.offset : g.stop].view(rows, g.count, *g.shape)
-        torch.fft.ifftn(chunk, dim=dims, out=dst)
+        torch.fft.ifftn(chunk, dim=dims, norm="forward", out=dst)
         tl.mark(f"ifftn {g.count}x{g.shape}", rows * g.count * g.size * 2 * cs)
     return coeffs
 
@@ -164,11 +160,7 @@ def staged_backward(plan, vector: torch.Tensor, tl: Timeline) -> torch.Tensor:
         dst = small[:, g.offset : g.stop].view(rows, g.count, *g.shape)
         torch.fft.fftn(chunk, dim=dims, out=dst)
         tl.mark(f"fftn {g.count}x{g.shape}", rows * g.count * g.size * 2 * cs)
-    spectrum = timed_fold(tl, plan.bwd_map, small, "bwd fold A")
-    if plan.bwd_conj_map is not None:
-        conj = timed_fold(tl, plan.bwd_conj_map, small, "bwd fold B")
-        spectrum = spectrum + conj.conj()
-        tl.mark("A + conj(B)", rows * nspec * 3 * cs)
+    spectrum = timed_fold(tl, plan.bwd_map, small, "bwd fold")
     spectrum = spectrum.reshape(rows, *plan.spectrum_shape)
     if plan.complex_output:
         out = torch.fft.ifftn(spectrum, dim=dims)
