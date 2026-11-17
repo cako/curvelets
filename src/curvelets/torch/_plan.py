@@ -33,10 +33,13 @@ scatter folds read conjugated terms from a ``[F, conj(F)]`` scratch buffer.
 On accelerators, the ``1/size`` normalization of each wedge's inverse FFT is
 also folded into the forward weights (the FFTs then run unnormalized).
 
-Batches on accelerators are processed in chunks of rows whose working set fits
-in the device's L2 cache (:attr:`UDCTPlan.batch_chunk_bytes`). Once a batch
-spills out of L2, every stage runs at DRAM bandwidth, and on GPUs with a large
-L2 a loop over cache-sized chunks is then much faster than one big batch.
+Large batches on accelerators are processed one row at a time when a single
+row's working set already exceeds the device's L2 cache
+(:attr:`UDCTPlan.batch_chunk_bytes`). A whole batch of such inputs runs every
+stage at DRAM bandwidth, while row by row each stage's buffers stay largely in
+L2, and each row still has enough GPU work to hide its kernel launches.
+Batches of smaller inputs run whole: for them, more launches would cost more
+than the cache saves.
 
 The launch count no longer grows with the number of wedges. Every op is
 out-of-place and differentiable, so the plan works under autograd and
@@ -143,8 +146,8 @@ class UDCTPlan:
     bwd_map: GatherFold | None  # coefficient spectra -> spectrum (half or full)
     # CPU backward (scatter strategy): cache-sized chunks of wedges.
     cpu_chunks: list[_CpuChunk] | None
-    # Accelerators: working-set budget per chunk of batch rows (the device's L2
-    # size); None processes the whole batch at once.
+    # Accelerators: the device's L2 size. Batches whose rows each need more
+    # working memory than this run row by row; None runs every batch whole.
     batch_chunk_bytes: int | None = None
     # CPU forward scratch space ([F, conj F]), reused across calls per thread.
     # Freshly allocated large buffers cost about as much as the FFTs on CPUs,
@@ -422,15 +425,16 @@ class UDCTPlan:
         return spectrum.reshape(-1, math.prod(self.spectrum_shape))
 
     def _rows_per_chunk(self, rows: int, complex_itemsize: int) -> int:
-        """Batch rows per accelerator chunk (all of them without a budget).
+        """Batch rows per accelerator chunk: 1 for rows larger than the budget.
 
         The working set of one row is about one spectrum plus two coefficient
-        vectors (folded and transformed), in the complex working dtype.
+        vectors (folded and transformed), in the complex working dtype. Without
+        a budget, or for rows that fit in it, the whole batch is one chunk.
         """
         if self.batch_chunk_bytes is None:
             return rows
         per_row = (2 * self.ncoef + math.prod(self.spectrum_shape)) * complex_itemsize
-        return max(1, min(rows, self.batch_chunk_bytes // per_row))
+        return 1 if per_row > self.batch_chunk_bytes else rows
 
     def _gather_forward(self, images: torch.Tensor) -> torch.Tensor:
         """Accelerator forward of ``(rows, *shape)``, in cache-sized row chunks."""

@@ -310,9 +310,8 @@ def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("budget_rows", [1, 2])  # type: ignore[untyped-decorator]
-def test_gather_batch_chunks_match_one_batch(kind: Kind, budget_rows: int) -> None:
-    """Cache-sized row chunks give the same result, with and without autograd."""
+def test_gather_batch_chunks_match_one_batch(kind: Kind) -> None:
+    """Row-by-row processing gives the same result, with and without autograd."""
     shape = (32, 32)
     udct = UDCT(
         shape=shape,
@@ -327,8 +326,8 @@ def test_gather_batch_chunks_match_one_batch(kind: Kind, budget_rows: int) -> No
     coeffs = plan.forward_flat(x)
     recon = plan.backward_flat(coeffs)
     per_row = (2 * plan.ncoef + 32 * (32 // 2 + 1 if kind == "real" else 32)) * 16
-    plan.batch_chunk_bytes = budget_rows * per_row
-    assert plan._rows_per_chunk(5, 16) == budget_rows  # pylint: disable=protected-access
+    plan.batch_chunk_bytes = per_row - 1  # one row no longer fits: row by row
+    assert plan._rows_per_chunk(5, 16) == 1  # pylint: disable=protected-access
 
     torch.testing.assert_close(plan.forward_flat(x), coeffs)
     torch.testing.assert_close(plan.backward_flat(coeffs), recon)
@@ -345,14 +344,15 @@ def test_gather_batch_chunks_match_one_batch(kind: Kind, budget_rows: int) -> No
 
 
 def test_rows_per_chunk_follows_the_budget() -> None:
-    """Without a budget the whole batch is one chunk; never fewer than one row."""
+    """Rows larger than the budget run one at a time; otherwise the batch is whole."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
     plan = _use_strategy(udct, "gather")
+    per_row = (2 * plan.ncoef + 32 * 17) * 8
     plan.batch_chunk_bytes = None
     assert plan._rows_per_chunk(7, 8) == 7  # pylint: disable=protected-access
-    plan.batch_chunk_bytes = 1
+    plan.batch_chunk_bytes = per_row - 1
     assert plan._rows_per_chunk(7, 8) == 1  # pylint: disable=protected-access
-    plan.batch_chunk_bytes = 1 << 40
+    plan.batch_chunk_bytes = per_row  # a row fits, even if the batch does not
     assert plan._rows_per_chunk(7, 8) == 7  # pylint: disable=protected-access
 
 
