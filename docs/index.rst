@@ -4,6 +4,7 @@
 
     self
     curvelet_faqs.rst
+    torch.rst
     contributing.rst
     auto_examples/index.rst
     API <api/modules>
