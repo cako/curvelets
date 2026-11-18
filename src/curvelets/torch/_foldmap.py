@@ -259,7 +259,7 @@ class GatherFold:
         assert self.tables is not None
         return self.tables
 
-    @torch.compiler.disable  # type: ignore[misc]
+    @torch.compiler.disable  # type: ignore[untyped-decorator]
     def _build_tables(self) -> None:
         """One-off build with data-dependent sizes: kept out of compiled graphs."""
         assert self.csr is not None

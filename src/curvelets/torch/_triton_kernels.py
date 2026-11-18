@@ -10,7 +10,7 @@ import triton  # pylint: disable=import-error
 import triton.language as tl  # pylint: disable=import-error
 
 
-@triton.jit
+@triton.jit  # type: ignore[untyped-decorator]
 def csr_fold_kernel(
     src_ptr,
     out_ptr,

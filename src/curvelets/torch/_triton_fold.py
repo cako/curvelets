@@ -144,7 +144,7 @@ def _fold(
 def _op():  # type: ignore[no-untyped-def]
     """Register the ``curvelets::csr_fold`` op (for ``torch.compile``)."""
 
-    @torch.library.triton_op("curvelets::csr_fold", mutates_args={})  # type: ignore[misc]
+    @torch.library.triton_op("curvelets::csr_fold", mutates_args={})  # type: ignore[untyped-decorator]
     def csr_fold(
         src: torch.Tensor,
         row_ptr: torch.Tensor,
