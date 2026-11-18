@@ -100,6 +100,9 @@ filterwarnings = [
   "ignore::DeprecationWarning:pyparsing.core",
   # torch >= 2.15 warns on macOS CI runners whose paravirtual GPU lacks Metal 2.0
   "ignore:Skipping device Apple Paravirtual device:UserWarning",
+  # Free-threaded CPython re-enables the GIL to load Triton's extension (torch
+  # imports Triton when it is installed, e.g. in torch.profiler)
+  "ignore:The global interpreter lock \\(GIL\\) has been enabled to load module 'triton:RuntimeWarning",
 ]
 log_cli_level = "INFO"
 testpaths = ["tests"]

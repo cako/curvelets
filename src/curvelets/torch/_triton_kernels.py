@@ -5,8 +5,9 @@
 # pylint: disable=invalid-name
 from __future__ import annotations
 
-import triton
-import triton.language as tl
+# Triton is optional: this module is imported only when it is installed.
+import triton  # pylint: disable=import-error
+import triton.language as tl  # pylint: disable=import-error
 
 
 @triton.jit
