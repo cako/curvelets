@@ -853,7 +853,17 @@ def speed_table(data: dict[str, Any], fmt: str) -> str:
         cell = best.setdefault(_label(r["library"]), {})
         if shape not in cell or r["median_ms"] < cell[shape][0]:
             cell[shape] = (r["median_ms"], r["device"], r["library"])
-    order = list(best)
+    order = [
+        TORCH_LABEL,
+        NUMPY_LABEL,
+        "Kymatio Scattering2D",
+        "pytorch_wavelets DWT",
+        "pytorch_wavelets DTCWT",
+        "dtcwt (NumPy)",
+        "dtcwt (OpenCL)",
+        "dtcwt (TensorFlow)",
+    ]
+    order += [n for n in best if n not in order]
     labels = sorted(
         best,
         key=lambda n: (
@@ -918,12 +928,17 @@ def speed_reference(data: dict[str, Any]) -> str:
             shape not in slowest or r["median_ms"] > slowest[shape][0]
         ):
             slowest[shape] = (r["median_ms"], _label(r["library"]))
-    parts = [
-        f"{'x'.join(map(str, s))}: {slowest[s][1]} ({slowest[s][0]:.3g} ms)"
-        for s in SPEED_SHAPES
-        if s in slowest
-    ]
-    return "; ".join(parts)
+    by_library: dict[str, list[str]] = {}
+    for shape in SPEED_SHAPES:
+        if shape in slowest:
+            ms, name = slowest[shape]
+            by_library.setdefault(name, []).append(
+                f"{'x'.join(map(str, shape))} ({ms:.3g} ms)"
+            )
+    parts = []
+    for name, cells in by_library.items():
+        parts.append(f"{name} at {' and '.join(cells)}")
+    return ", and ".join(parts) if len(parts) < 3 else "; ".join(parts)
 
 
 def redundancy_table(data: dict[str, Any], fmt: str) -> str:
@@ -935,7 +950,10 @@ def redundancy_table(data: dict[str, Any], fmt: str) -> str:
         if r["direction"] != "forward" or r["redundancy"] is None:
             continue
         if shape in shapes:
-            name = "Curvelets" if r["library"].startswith("curvelets") else r["library"]
+            name = r["library"]
+            for prefix, short in (("curvelets", "Curvelets"), ("dtcwt", "dtcwt")):
+                if name.startswith(prefix):
+                    name = short
             found.setdefault(name, {})[shape] = r["redundancy"]
     header = ["Library"] + ["x".join(map(str, s)) for s in shapes]
     body = [

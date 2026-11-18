@@ -6,7 +6,7 @@
      - 256x256
      - 512x512
      - 64x64x64
-   * - Curvelets (torch)\*
+   * - Curvelets (torch) [#cudagraphs]_
      - cuda
      - **1925x**
      - **1048x**
@@ -16,6 +16,11 @@
      - 50x
      - 14x
      - 5x
+   * - Kymatio Scattering2D
+     - cuda
+     - 1x
+     - 1x
+     - -
    * - pytorch_wavelets DWT
      - cuda
      - 258x
@@ -31,12 +36,15 @@
      - 26x
      - 10x
      - 1x
-   * - Kymatio Scattering2D
+   * - dtcwt (OpenCL)
+     - opencl
+     - 30x
+     - 25x
+     - -
+   * - dtcwt (TensorFlow)
      - cuda
-     - 1x
-     - 1x
+     - 54x
+     - 56x
      - -
 
-Speed relative to the slowest library of each column (1x): 256x256: Kymatio Scattering2D (162 ms); 512x512: Kymatio Scattering2D (165 ms); 64x64x64: dtcwt (NumPy) (169 ms).
-
-\* All with CUDA graphs.
+.. [#cudagraphs] Best mode of the torch implementation in each column; it was CUDA graphs (``cuda_graphs=True``) in all of them.

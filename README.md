@@ -129,6 +129,28 @@ Another aspect to consider is the availability of high-performance, GPU-accelera
 
 ## Related Projects
 
+### Curvelab
+
+Curvelab implements the fast discrete curvelet transforms (FDCT) [[1](#1-candès-e-l-demanet-d-donoho-and-l-ying-2006-fast-discrete-curvelet-transforms-multiscale-modeling--simulation-5-861899)] in C++ and MATLAB, for 2D and 3D signals. It is proprietary and free for academic use only.
+
+### Curvelet.jl
+
+Curvelet.jl implements the UDCT [[2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634)] in Julia, for 2D signals. The repository is archived, and its last commit is from 2017.
+
+### Kymatio
+
+[Kymatio](https://www.kymat.io/) implements the wavelet scattering transform [[10](#10-bruna-j-and-s-mallat-2013-invariant-scattering-convolution-networks-ieee-transactions-on-pattern-analysis-and-machine-intelligence-35-18721886), [13](#13-andreux-m-t-angles-g-exarchakis-r-leonarduzzi-g-rochette-l-thiry-j-zarka-s-mallat-j-andén-e-belilovsky-j-bruna-v-lostanlen-m-j-hirn-e-oyallon-s-zhang-c-cella-and-m-eickenberg-2019-kymatio-scattering-transforms-in-python-arxiv-preprint-arxiv181211214-paper)] in Python, with PyTorch, TensorFlow and JAX frontends. The scattering transform takes a modulus, so it is not invertible. The project is not under active development: the last release is 0.3.0, and since mid-2024 the commits only fix tests, CI and dependencies. Version 0.3.0 does not import with current SciPy, because it needs `scipy.special.sph_harm`, which was removed.
+
+### dtcwt
+
+[dtcwt](https://dtcwt.readthedocs.io/) is a Python port of the MATLAB dual-tree complex wavelet transform toolbox [[12](#12-kingsbury-n-2001-complex-wavelets-for-shift-invariant-analysis-and-filtering-of-signals-applied-and-computational-harmonic-analysis-10-234253)], with NumPy, OpenCL and TensorFlow backends. The original repository was archived in July 2024 and states that it is no longer maintained. A fork, [xir4n/dtcwt](https://github.com/xir4n/dtcwt), continued it, but it also looks unmaintained: its last merged change is from June 2024, and its open pull requests, including support for NumPy 2, have not been merged. Version 0.14 does not work with NumPy 2, because it calls the removed `np.asfarray`.
+
+### Pytorch Wavelets
+
+[Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/) implements the 2D DWT, the DTCWT and a DTCWT-based scattering network in PyTorch, with GPU support [[14](#14-cotter-f-and-s-mclaughlin-2019-fbcotterpytorch_wavelets-zenodo-release-v110-zenodo-doi105281zenodo3471950)]. Its last commit is from September 2022.
+
+### Summary
+
 | Project                                                     | Algorithm                            | Language        | License                                  | N-dimensional?       | Invertible? |
 | ----------------------------------------------------------- | ------------------------------------ | --------------- | ---------------------------------------- | ------------------- | ----------- |
 | [Curvelets](https://curvelets.readthedocs.io/)              | UDCT                                 | Python          | MIT                                      | Yes        | Yes       |
@@ -138,38 +160,30 @@ Another aspect to consider is the availability of high-performance, GPU-accelera
 | [dtcwt](https://dtcwt.readthedocs.io)                       | Dual-Tree Complex Wavelet Transform  | Python          | BSD 2-Clause                      | 1D, 2D, 3D | Yes       |
 | [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io) | Discrete WT and Dual-Tree CWT       | Python          | MIT                                      | 2D         | Yes       |
 
-### About each project
+### Performance comparison
 
-- **Curvelab** implements the fast discrete curvelet transforms (FDCT) [[1](#1-candès-e-l-demanet-d-donoho-and-l-ying-2006-fast-discrete-curvelet-transforms-multiscale-modeling--simulation-5-861899)] in C++ and MATLAB, for 2D and 3D. It is proprietary, but free for academic use.
-- **Curvelet.jl** is a Julia implementation of the UDCT [[2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634)] for 2D signals. The repository was archived and its last commit was in 2017.
-- [Kymatio](https://www.kymat.io/) implements the wavelet scattering transform [[10](#10-bruna-j-and-s-mallat-2013-invariant-scattering-convolution-networks-ieee-transactions-on-pattern-analysis-and-machine-intelligence-35-18721886), [13](#13-andreux-m-t-angles-g-exarchakis-r-leonarduzzi-g-rochette-l-thiry-j-zarka-s-mallat-j-andén-e-belilovsky-j-bruna-v-lostanlen-m-j-hirn-e-oyallon-s-zhang-c-cella-and-m-eickenberg-2019-kymatio-scattering-transforms-in-python-arxiv-preprint-arxiv181211214-paper)] for PyTorch, TensorFlow and JAX. The scattering transform takes a modulus, so it is not invertible. It is not under active development: the last release is 0.3.0, and since mid-2024 the commits are limited to fixes in tests, CI and dependencies (the most recent is from June 2026). Version 0.3.0 does not import with current SciPy (it needs `scipy.special.sph_harm`, which was removed).
-- [dtcwt](https://dtcwt.readthedocs.io/) is a Python port of the MATLAB dual-tree complex wavelet transform toolbox [[12](#12-kingsbury-n-2001-complex-wavelets-for-shift-invariant-analysis-and-filtering-of-signals-applied-and-computational-harmonic-analysis-10-234253)], with NumPy, OpenCL and TensorFlow backends. Its repository was archived in July 2024 and states that it is no longer maintained. Version 0.14 does not work with NumPy 2 (it calls the removed `np.asfarray`).
-- [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/) implements the DWT, the DTCWT and a DTCWT-based scattering network in PyTorch, with GPU support [[14](#14-cotter-f-and-s-mclaughlin-2019-fbcotterpytorch_wavelets-zenodo-release-v110-zenodo-doi105281zenodo3471950)]. It is not archived, but there have been no commits since September 2022.
-
-### How fast is it compared to other libraries?
-
-The table below shows the speed of the forward transform of one 2D image or 3D volume (batch of one, float32) on an NVIDIA RTX 3070 with 8 GB of memory, for the projects above that have a Python implementation. Each column is relative to its slowest library, which is 1x; higher is faster and the fastest is in bold. The times were measured with `benchmarks/library_comparison.py`. The absolute times, in milliseconds, and the results for larger sizes (up to $2048 \times 2048$) are in `benchmarks/data/library_comparison.json`.
+The forward transform of one 2D image or 3D volume (batch of one, float32) was timed on an NVIDIA RTX 3070 with 8 GB of memory, with `benchmarks/library_comparison.py`. In the table, each column is relative to its slowest library, which is 1x: Kymatio Scattering2D at 256x256 (162 ms) and 512x512 (165 ms), and dtcwt (NumPy) at 64x64x64 (169 ms). Higher is faster, and the fastest is in bold. The absolute times, in milliseconds, and the results for larger sizes (up to $2048 \times 2048$) are in `benchmarks/data/library_comparison.json`.
 
 | Library | Device | 256x256 | 512x512 | 64x64x64 |
 |---|---|---:|---:|---:|
-| Curvelets (torch)\* | cuda | **1925x** | **1048x** | **655x** |
+| Curvelets (torch)[^cudagraphs] | cuda | **1925x** | **1048x** | **655x** |
 | Curvelets (NumPy) | cpu | 50x | 14x | 5x |
+| Kymatio Scattering2D | cuda | 1x | 1x | - |
 | pytorch_wavelets DWT | cuda | 258x | 262x | - |
 | pytorch_wavelets DTCWT | cuda | 22x | 23x | - |
 | dtcwt (NumPy) | cpu | 26x | 10x | 1x |
-| Kymatio Scattering2D | cuda | 1x | 1x | - |
+| dtcwt (OpenCL) | opencl | 30x | 25x | - |
+| dtcwt (TensorFlow) | cuda | 54x | 56x | - |
 
-Speed relative to the slowest library of each column (1x): 256x256: Kymatio Scattering2D (162 ms); 512x512: Kymatio Scattering2D (165 ms); 64x64x64: dtcwt (NumPy) (169 ms).
+[^cudagraphs]: Best mode of the torch implementation in each column; it was CUDA graphs (`cuda_graphs=True`) in all of them.
 
-\* All with CUDA graphs.
+The rows marked cpu run on the CPU: the NumPy implementation of **Curvelets** and the NumPy backend of `dtcwt`. The OpenCL rows of `dtcwt` pass NumPy arrays in and out, so they include the copies between the host and the device. The TensorFlow row is the backend written for TensorFlow 1, run in graph mode with the outputs fetched to the host. Both agree with the NumPy backend. The OpenCL backend in 3D was not timed, because its output does not match the NumPy backend. Kymatio was not run at $2048 \times 2048$, because building its filter bank took over 20 minutes on the CPU.
 
-The rows marked cpu run on the CPU: the NumPy implementation of **Curvelets** and the NumPy backend of `dtcwt`. The OpenCL and TensorFlow backends of `dtcwt` were not tested. Kymatio was not run at $2048 \times 2048$, because building its filter bank took over 20 minutes on the CPU.
+For small and medium inputs, the GPU transform is limited by the cost of launching kernels, which CUDA graphs mostly remove. At $512 \times 512$, the forward transform takes 0.16 ms, against 0.63 ms for the DWT, 2.9 ms for the TensorFlow backend of `dtcwt`, 6.5 ms for its OpenCL backend, 7.3 ms for the dual-tree wavelet transform of Pytorch Wavelets and 165 ms for the scattering transform of Kymatio. At $2048 \times 2048$ (not in the table), the DWT of Pytorch Wavelets takes 0.73 ms, which is 3x faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help (the eager transform takes 1.75 ms).
 
-For small and medium inputs, the GPU transform is limited by the cost of launching kernels, which CUDA graphs mostly remove. At $512 \times 512$, the forward transform takes 0.16 ms, against 0.63 ms for the DWT, 7.3 ms for the dual-tree wavelet transform and 165 ms for Kymatio's scattering transform. At $2048 \times 2048$ (not in the table) this advantage is gone: the DWT of Pytorch Wavelets takes 0.73 ms, which is 3x faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help (the eager transform takes 1.75 ms).
+The transforms are not equivalent. They differ in redundancy (below), in their directions (three for the DWT, six for the dual-tree transforms, and as many as configured for the curvelets; see the [atom comparison](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_13_transform_atoms.html)), and in invertibility: the scattering transform is not invertible, so only its forward transform is timed.
 
-The transforms are not equivalent. They differ in redundancy (below), in their directions (three for the DWT, six for the dual-tree transforms, and as many as configured for the curvelets; see the [transform atoms example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_13_transform_atoms.html)), and in invertibility: Kymatio's scattering transform is not invertible, so only its forward transform is timed.
-
-### How many coefficients does each transform return?
+### Redundancy comparison
 
 The redundancy of a transform is the number of (real-valued) coefficients it returns per input sample. It goes from nearly one for the DWT to about four for the dual-tree wavelet transform and the curvelets in 2D. More coefficients cost memory and time, and buy more directions and stability to shifts, which is a large part of why the DWT is faster at large sizes.
 
@@ -178,7 +192,7 @@ The redundancy of a transform is the number of (real-valued) coefficients it ret
 | Curvelets | 4.06x | 7.73x |
 | pytorch_wavelets DWT | 1.06x | - |
 | pytorch_wavelets DTCWT | 4.00x | - |
-| dtcwt (NumPy) | 4.00x | 8.00x |
+| dtcwt | 4.00x | 8.00x |
 | Kymatio Scattering2D | 1.63x | - |
 
 ## Credits

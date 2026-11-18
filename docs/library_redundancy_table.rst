@@ -13,7 +13,7 @@
    * - pytorch_wavelets DTCWT
      - 4.00x
      - -
-   * - dtcwt (NumPy)
+   * - dtcwt
      - 4.00x
      - 8.00x
    * - Kymatio Scattering2D

@@ -11,7 +11,9 @@
    "curvelets": "stack top #94 (perf/torch-triton-fold)",
    "kymatio": "0.3.0",
    "pytorch_wavelets": "1.3.0",
-   "dtcwt": "0.14.0"
+   "dtcwt": "0.14.0",
+   "tensorflow": "2.21.0",
+   "pyopencl": "2026.1.5"
   },
   "cpu_threads": 56,
   "python": "3.12.3",
@@ -23,7 +25,10 @@
    "Times are medians of repeated calls with a device synchronization around each; values rounded to 5 significant digits.",
    "Kymatio medians come from an earlier run of the same script on the same pod and GPU (its timing does not depend on the curvelets code); only medians were logged, so min_ms is null.",
    "Kymatio is not invertible and was not run at 2048x2048: building its filter bank on the CPU took over 20 minutes.",
-   "Kymatio and dtcwt do not provide 3D rows here (Kymatio's 3D scattering is a different transform; dtcwt 3D is included)."
+   "Kymatio and dtcwt do not provide 3D rows here (Kymatio's 3D scattering is a different transform; dtcwt 3D is included).",
+   "The dtcwt OpenCL and TensorFlow rows were measured in a later pod session of the same GPU model (RTX 3070, driver 580.95.05), with TensorFlow 2.21.0 and PyOpenCL 2026.1.5. The OpenCL driver had to be registered in the container (/etc/OpenCL/vendors/nvidia.icd).",
+   "dtcwt OpenCL rows pass NumPy arrays in and out, so they include the host/device copies. The dtcwt TensorFlow backend is written for TensorFlow 1; it was run in graph mode through tf.compat.v1 aliases, with the outputs fetched to the host. Both backends were checked against the NumPy backend (coefficients agree to 1e-3 of their scale) before being timed.",
+   "dtcwt OpenCL 3D was not timed: its highpass coefficients differ from the NumPy backend's (the lowpass agrees)."
   ]
  },
  "results": [
@@ -1156,6 +1161,279 @@
    "invertible": true,
    "config": "nlevels=4, NumPy",
    "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 5.3244,
+   "min_ms": 5.281,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 5.2976,
+   "min_ms": 5.2558,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 6.5398,
+   "min_ms": 6.4946,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 17.248,
+   "min_ms": 16.959,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 9.1988,
+   "min_ms": 9.15,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 74.696,
+   "min_ms": 73.899,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 17.895,
+   "min_ms": 17.849,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 420.01,
+   "min_ms": 419.42,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 2.9976,
+   "min_ms": 1.5589,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 6.1513,
+   "min_ms": 3.8415,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 2.9315,
+   "min_ms": 1.6003,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 6.5964,
+   "min_ms": 5.1889,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 3.0025,
+   "min_ms": 2.6824,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 7.5084,
+   "min_ms": 6.1307,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 9.9063,
+   "min_ms": 9.7306,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 16.848,
+   "min_ms": 16.72,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": null,
+   "min_ms": null,
+   "ncoef": null,
+   "redundancy": null,
+   "invertible": false,
+   "config": "",
+   "status": "failed: the 3D output differs from the NumPy backend (highpass 0 by 3.65, scale 2.01); not timed"
   }
  ]
 }
