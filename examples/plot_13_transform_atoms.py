@@ -1,22 +1,14 @@
 r"""
-What Does a Point in Transformed Space Look Like?
-=================================================
+Comparison of Transform Atoms
+=============================
 
-Each curvelet coefficient is the inner product of the image with one
-*curvelet*: a small, oriented, band-limited wave packet. Conversely, the
-inverse transform builds an image by adding up curvelets weighted by the
-coefficients. So a single non-zero coefficient, a "point" in transformed space,
-is the image of one curvelet: a localized, oriented oscillation.
-
-Because the UDCT is a tight frame, the inverse transform
-:meth:`~curvelets.numpy.UDCT.backward` is the adjoint of the forward
-transform, and applying it to a coefficient array that is zero except for one
-entry returns exactly that curvelet. This example looks at how the position,
-scale and direction of the point decide what the curvelet looks like.
-
-The second half compares those atoms with the ones of other multiscale
-transforms, and compares how many coefficients each transform produces (its
-*redundancy*).
+An *atom* of an invertible transform is the image that a single coefficient
+stands for: set one coefficient to one, all the others to zero, and invert the
+transform. This example compares the atoms of the UDCT (this package) with the
+ones of the discrete wavelet transform (DWT) and the dual-tree complex wavelet
+transform (DTCWT), and with the images that excite one coefficient of Kymatio's
+scattering transform the most (the scattering transform is not invertible, so it
+has no atoms). It closes with the redundancy of each transform.
 """
 
 # sphinx_gallery_thumbnail_number = 1
@@ -36,127 +28,36 @@ from curvelets.numpy import UDCT
 # Setup
 # #####
 #
-# We use a 256 x 256 image with four scales and three wedges per direction at
-# the coarsest directional scale. The number of wedges doubles with every
+# A UDCT for a 256 x 256 image with four scales and three wedges per direction
+# at the coarsest directional scale. The number of wedges doubles with every
 # scale (3, 6, 12), so the finest scale has the sharpest directions.
 
 shape = (256, 256)
 C = UDCT(shape=shape, num_scales=4, wedges_per_direction=3)
-n_wedges = [[len(direction) for direction in scale] for scale in C.coefficient_shapes()]
-print("wedges per direction at each scale:", n_wedges)
-
-# %%
-# A function that returns the curvelet of one coefficient
-# -------------------------------------------------------
-#
-# We start from an all-zero coefficient structure, set one entry, and invert.
-# ``position`` is the index of the coefficient inside its wedge; ``None`` selects the
-# center of the wedge's array.
 
 
-def curvelet(
-    scale: int,
-    direction: int,
-    wedge: int,
-    position: tuple[int, int] | None = None,
-    value: complex = 1.0,
-) -> npt.NDArray[np.floating]:
-    """Image of the single coefficient ``value`` at ``position``."""
+def curvelet(scale: int, direction: int, wedge: int) -> npt.NDArray[np.floating]:
+    """Atom of the UDCT: the image of the coefficient at the center of a wedge."""
     coeffs = C.forward(np.zeros(shape))  # right structure, all zeros
     array = coeffs[scale][direction][wedge]
-    if position is None:
-        position = (array.shape[0] // 2, array.shape[1] // 2)
-    array[position] = value
+    array[array.shape[0] // 2, array.shape[1] // 2] = 1.0
     return C.backward(coeffs)
 
 
 def crop(img: npt.NDArray[np.floating], half: int = 48) -> npt.NDArray[np.floating]:
-    """Central ``2 * half`` square, where a centered coefficient puts its curvelet."""
+    """Central ``2 * half`` square, where a centered coefficient puts its atom."""
     cy, cx = (s // 2 for s in img.shape)
     return img[cy - half : cy + half, cx - half : cx + half]
 
 
 # %%
-# Scale and direction
-# ###################
+# Atoms
+# #####
 #
-# Each column is a different wedge, which is a different direction; each row is
-# a different scale. All coefficients sit at the center of their array, so every
-# curvelet is centered on the image center. Going down the rows, the curvelets
-# get finer, with more oscillations in a smaller support, and the wedge count
-# grows, so neighboring directions get closer together. The second row of
-# panels shows the Fourier magnitude of the curvelet. Its support is the wedge
-# of Fourier space that the coefficient belongs to, together with the opposite
-# wedge: the real transform keeps both, which is why the curvelet is real. In
-# the image, the curvelet oscillates across the direction of its wedge and is
-# elongated along the perpendicular, like the ridge of a wave packet.
-
-picks = [
-    (1, 0, [0, 1, 2]),  # scale 1: three wedges of the first direction
-    (2, 0, [0, 2, 5]),
-    (3, 0, [0, 4, 11]),
-]
-fig, axs = plt.subplots(2 * len(picks), 3, figsize=(7, 14), layout="constrained")
-for r, (scale, direction, wedges) in enumerate(picks):
-    for c, wedge in enumerate(wedges):
-        img = curvelet(scale, direction, wedge)
-        vmax = np.abs(img).max()
-        ax = axs[2 * r, c]
-        ax.imshow(crop(img), cmap="gray", vmin=-vmax, vmax=vmax)
-        ax.set_title(f"scale {scale}, wedge {wedge}", fontsize=9)
-        spec = np.fft.fftshift(np.abs(np.fft.fft2(img)))
-        axs[2 * r + 1, c].imshow(spec, cmap="magma")
-for ax in axs.ravel():
-    ax.set_xticks([])
-    ax.set_yticks([])
-axs[0, 0].set_ylabel("image")
-axs[1, 0].set_ylabel("|FFT|")
-plt.show()
-
-# %%
-# Position
-# ########
-#
-# Moving the point *inside* a wedge's coefficient array moves the curvelet
-# across the image, without changing its shape. Left, a coefficient array with
-# three points; right, the sum of their curvelets. Each curvelet is centered at the
-# image position that corresponds to its coefficient. The coefficient arrays are
-# subsampled (coarser scales and thinner wedges use fewer samples), so one step in the
-# coefficient array moves the curvelet by several pixels.
-
-scale, direction, wedge = 2, 0, 1
-shape_w = C.coefficient_shapes()[scale][direction][wedge]
-points = [
-    (shape_w[0] // 4, shape_w[1] // 4),
-    (shape_w[0] // 2, shape_w[1] // 2),
-    (3 * shape_w[0] // 4, shape_w[1] // 2),
-]
-coeff_map = np.zeros(shape_w)
-total = np.zeros(shape)
-for p in points:
-    coeff_map[p] = 1
-    total += curvelet(scale, direction, wedge, position=p)
-
-fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(9, 4.5), layout="constrained")
-ax0.imshow(coeff_map, cmap="gray_r", interpolation="nearest")
-ax0.set_title(f"coefficient array {shape_w}")
-vmax = np.abs(total).max()
-ax1.imshow(total, cmap="gray", vmin=-vmax, vmax=vmax)
-ax1.set_title("sum of the three curvelets")
-for ax in (ax0, ax1):
-    ax.set_xticks([])
-    ax.set_yticks([])
-plt.show()
-
-# %%
-# Atoms of other transforms
-# #########################
-#
-# The same experiment works for any invertible transform: set one
-# coefficient, invert, look at the image. Besides the UDCT we use the two
-# wavelet transforms of `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_:
-# the separable discrete wavelet transform (DWT, Daubechies 3) and the
-# dual-tree complex wavelet transform (DTCWT).
+# Besides the UDCT we use the two wavelet transforms of
+# `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_: the separable
+# discrete wavelet transform (DWT, Daubechies 3) and the dual-tree complex
+# wavelet transform (DTCWT).
 #
 # Because the requirements of these libraries are incompatible with this
 # library's (recent NumPy and SciPy), their atoms are stored instead of being
@@ -320,10 +221,38 @@ if registered is not None:
     )
     for name, value in sorted(red.items(), key=lambda kv: kv[1]):
         print(f"{name.replace(chr(10), ' '):18s} {value:5.2f}x")
-    fig, ax = plt.subplots(figsize=(6, 3.2), layout="constrained")
-    ax.bar(list(red), list(red.values()), color="0.35")
-    ax.set_ylabel("coefficients per pixel")
-    ax.axhline(1, color="k", lw=0.8, ls="--")
-    for i, v in enumerate(red.values()):
-        ax.text(i, v, f"{v:.1f}x", ha="center", va="bottom")
+    order = sorted(red, key=red.get)  # smallest at the bottom
+    invertible = {"Kymatio\nscattering": False}
+    fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
+    for i, name in enumerate(order):
+        bar = ax.barh(
+            i,
+            red[name],
+            height=0.62,
+            color="C3" if name == "UDCT" else "0.62",
+            hatch=None if invertible.get(name, True) else "///",
+            edgecolor="white",
+        )
+        ax.bar_label(bar, labels=[f"{red[name]:.2f}x"], padding=4, fontsize=10)
+    ax.axvline(1, color="0.25", lw=1, ls="--")
+    ax.set_ylim(-0.95, len(order) - 0.4)
+    ax.text(1.04, -0.82, "orthogonal basis (1x)", fontsize=8, color="0.25")
+    ax.set_yticks(range(len(order)), [n.replace("\n", " ") for n in order])
+    ax.set_xlim(0, max(red.values()) * 1.18)
+    ax.set_xlabel("coefficients per pixel")
+    ax.set_title("Redundancy of a 256 x 256 transform", loc="left", fontsize=11)
+    ax.grid(axis="x", alpha=0.25)
+    ax.set_axisbelow(True)
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.tick_params(axis="y", length=0)
+    ax.text(
+        0.99,
+        0.02,
+        "hatched: not invertible",
+        transform=ax.transAxes,
+        ha="right",
+        fontsize=8,
+        color="0.35",
+    )
     plt.show()
