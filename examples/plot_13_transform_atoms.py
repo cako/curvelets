@@ -183,11 +183,24 @@ plt.show()
 # modulus, smoothed) of one scale and six orientations; the row "Kymatio, order 2"
 # are second-order coefficients that follow a fixed first-order path.
 
-STATS = (
-    Path(__file__).resolve().parents[1] / "benchmarks" / "data" / "library_stats.npz"
-    if "__file__" in globals()
-    else Path("benchmarks/data/library_stats.npz")
-)
+
+def find_registered(name: str) -> Path:
+    """Locate ``benchmarks/data/<name>``, wherever the script is run from.
+
+    ``__file__`` is not defined in every environment that runs gallery
+    scripts (Read the Docs, notebooks), so the search also walks up from the
+    current directory.
+    """
+    here = [Path(__file__).resolve().parent] if "__file__" in globals() else []
+    for start in [*here, Path.cwd()]:
+        for folder in [start, *start.parents]:
+            candidate = folder / "benchmarks" / "data" / name
+            if candidate.exists():
+                return candidate
+    return Path("benchmarks") / "data" / name
+
+
+STATS = find_registered("library_stats.npz")
 registered = np.load(STATS) if STATS.exists() else None
 if registered is None:
     print(

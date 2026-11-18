@@ -116,10 +116,10 @@ def bench(
 def _count(obj: Any) -> int:
     """Real-valued coefficient count of tensors/arrays (complex counts twice)."""
     if isinstance(obj, torch.Tensor):
-        return obj.numel() * (2 if obj.is_complex() else 1)
+        return int(obj.numel()) * (2 if obj.is_complex() else 1)
     if isinstance(obj, np.ndarray):
-        return obj.size * (2 if np.iscomplexobj(obj) else 1)
-    if isinstance(obj, (list, tuple)):
+        return int(obj.size) * (2 if np.iscomplexobj(obj) else 1)
+    if isinstance(obj, list | tuple):
         return sum(_count(o) for o in obj)
     return 0
 
@@ -413,7 +413,7 @@ def run(shapes: list[tuple[int, ...]], dev: str, only: list[str] | None) -> list
 
 def meta(dev: str) -> dict[str, Any]:
     """Versions and hardware, stored with the results."""
-    versions = {}
+    versions: dict[str, str | None] = {}
     for pkg in ("torch", "numpy", "curvelets", "kymatio", "pytorch_wavelets", "dtcwt"):
         try:
             versions[pkg] = importlib.metadata.version(pkg.replace("_", "-"))
@@ -480,10 +480,10 @@ def _crop(img: np.ndarray, half: int = ATOM_CROP // 2) -> np.ndarray:
 
 
 def kymatio_ncoef_formula(
-    shape: tuple[int, ...], j: int = NUM_SCALES, l: int = 8
+    shape: tuple[int, ...], j: int = NUM_SCALES, n_theta: int = 8
 ) -> int:
     """Output size of a second-order ``Scattering2D`` (no import needed)."""
-    channels = 1 + j * l + l * l * j * (j - 1) // 2
+    channels = 1 + j * n_theta + n_theta * n_theta * j * (j - 1) // 2
     return channels * int(np.prod([n // 2**j for n in shape]))
 
 
@@ -596,7 +596,9 @@ def kymatio_atoms(
                 for t2 in range(n_theta):
                     index[((j1, t1), (j2, t2))] = channel
                     channel += 1
-    targets = {f"Kymatio/order1/j{j}/o{t}": ((j, t),) for j in (1, 2) for t in range(8)}
+    targets: dict[str, tuple[tuple[int, int], ...]] = {
+        f"Kymatio/order1/j{j}/o{t}": ((j, t),) for j in (1, 2) for t in range(8)
+    }
     targets.update({
         f"Kymatio/order2/j23/o{t1}{t2}": ((2, t1), (3, t2))
         for t1 in (0, 2)
@@ -688,12 +690,10 @@ def register_stats(path: Path, size: int = 256, steps: int = 20) -> None:
             f"unavailable: {type(exc).__name__}: {str(exc)[:100]}"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
-        path,
-        stats=json.dumps(stats),
-        **{k: v.astype(np.float32) for k, v in atoms.items()},
-        **{f"curve/{k}": v for k, v in curves.items()},
-    )
+    payload: dict[str, Any] = {"stats": json.dumps(stats)}
+    payload.update({k: v.astype(np.float32) for k, v in atoms.items()})
+    payload.update({f"curve/{k}": v for k, v in curves.items()})
+    np.savez_compressed(path, **payload)
     print(json.dumps(stats, indent=1))
     print(f"wrote {path} ({len(atoms)} atoms)")
 
@@ -755,7 +755,8 @@ def main() -> None:
 
     dev = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(0)
-    shapes = [(n, n) for n in args.sizes_2d] + [(n, n, n) for n in args.sizes_3d]
+    shapes: list[tuple[int, ...]] = [(n, n) for n in args.sizes_2d]
+    shapes += [(n, n, n) for n in args.sizes_3d]
     rows = run(shapes, dev, args.only)
     data = {"meta": meta(dev), "results": [asdict(r) for r in rows]}
     if args.export:
