@@ -129,28 +129,42 @@ Another aspect to consider is the availability of high-performance, GPU-accelera
 
 ### How fast is it compared to other libraries?
 
-The table below is the time of the forward transform of one 2D image or 3D volume (batch of one, float32) on an NVIDIA RTX 3070 with 8 GB of memory, for the libraries in the next section that have a Python implementation. Values are medians in milliseconds, measured with `benchmarks/library_comparison.py` (raw results in `benchmarks/data/library_comparison.json`). All sizes are shown, not just the ones that favor **Curvelets**.
+The table below shows the speed of the forward transform of one 2D image or 3D volume (batch of one, float32) on an NVIDIA RTX 3070 with 8 GB of memory, for the [related projects](#related-projects) that have a Python implementation. Each column is relative to its slowest library, which is 1.00x; higher is faster and the fastest is in bold. The times were measured with `benchmarks/library_comparison.py`; the absolute times, in milliseconds, and the results for larger sizes (up to 2048²) are in `benchmarks/data/library_comparison.json`.
 
-| Library | Device | 256x256 | 512x512 | 1024x1024 | 2048x2048 | 64x64x64 | Redundancy (2D) |
-|---|---|---:|---:|---:|---:|---:|---:|
-| **curvelets (torch, CUDA graphs)** | cuda | 0.0841 | 0.157 | 0.55 | 2.14 | 0.258 | 4.1x |
-| curvelets (torch, CUDA graphs, no Triton) | cuda | 0.0897 | 0.174 | 0.634 | 2.5 | 0.309 | 4.1x |
-| curvelets (torch, eager) | cuda | 0.442 | 0.448 | 0.569 | 1.75 | 0.563 | 4.1x |
-| curvelets (NumPy) | cpu | 3.26 | 11.5 | 52.8 | 510 | 33.4 | 4.1x |
-| pytorch_wavelets DWT | cuda | 0.628 | 0.628 | 0.624 | 0.729 | - | 1.0x |
-| pytorch_wavelets DTCWT | cuda | 7.24 | 7.31 | 7.36 | 9.77 | - | 4.0x |
-| dtcwt (NumPy) | cpu | 6.27 | 16.3 | 73.6 | 444 | 169 | 4.0x |
-| Kymatio Scattering2D | cuda | 162 | 165 | 162 | - | - | 1.6x |
+| Library | Device | 256x256 | 512x512 | 64x64x64 |
+|---|---|---:|---:|---:|
+| Curvelets (torch)\* | cuda | **1925.05x** | **1048.29x** | **655.27x** |
+| Curvelets (NumPy) | cpu | 49.57x | 14.32x | 5.06x |
+| pytorch_wavelets DWT | cuda | 257.68x | 261.92x | - |
+| pytorch_wavelets DTCWT | cuda | 22.36x | 22.51x | - |
+| dtcwt (NumPy) | cpu | 25.82x | 10.07x | 1.00x |
+| Kymatio Scattering2D | cuda | 1.00x | 1.00x | - |
 
-The `dtcwt` package and the NumPy implementation of **Curvelets** run on the CPU. Kymatio was not run at 2048², because building its filter bank took over 20 minutes on the CPU.
+Speed relative to the slowest library of each column (1.00x): 256x256: Kymatio Scattering2D (162 ms); 512x512: Kymatio Scattering2D (165 ms); 64x64x64: dtcwt (NumPy) (169 ms).
+
+\* Best mode of the torch implementation in each column (CUDA graphs, with or without the Triton fold, or eager): 256x256: CUDA graphs; 512x512: CUDA graphs; 64x64x64: CUDA graphs.
+
+The rows marked CPU run on the CPU (NumPy): the `dtcwt` package and, for reference, the NumPy implementation of **Curvelets**. Kymatio was not run at 2048², because building its filter bank took over 20 minutes on the CPU.
 
 - **Small and medium inputs.** The GPU transform is bound by the cost of launching kernels. `cuda_graphs=True` removes most of it: at 512², the forward transform takes 0.16 ms, against 0.63 ms for the DWT, 7.3 ms for the dual-tree wavelet transform and 165 ms for Kymatio's scattering transform. The other libraries are also launch-bound.
-- **Large inputs.** The advantage disappears. At 2048², the DWT of Pytorch Wavelets (0.73 ms) is about three times faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help (the eager transform takes 1.75 ms). The break-even is around 1024².
-- **Fused fold kernel.** The Triton kernel cuts the time by 6% to 17% in every size measured (the "no Triton" row).
+- **Large inputs (not in the table).** The advantage disappears. At 2048², the DWT of Pytorch Wavelets (0.73 ms) is about three times faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help (the eager transform takes 1.75 ms). The break-even is around 1024².
+- **Fused fold kernel.** The Triton kernel cuts the time by 6% to 17% in every size measured.
 
-These numbers measure the cost of computing each decomposition, not "the same result, faster": the transforms differ in redundancy (coefficients per input sample, last column), in the number of directions, and in invertibility (Kymatio's scattering transform is not invertible). See the [transform atoms example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_13_transform_atoms.html) for what a single coefficient looks like in each of them.
+These numbers measure the cost of computing each decomposition, not "the same result, faster": the transforms differ in redundancy (below), in the number of directions, and in invertibility (Kymatio's scattering transform is not invertible). See the [transform atoms example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_13_transform_atoms.html) for what a single coefficient looks like in each of them.
 
-### Related Projects
+### How many coefficients does each transform return?
+
+The redundancy of a transform is the number of (real-valued) coefficients it returns per input sample. It goes from nearly one for the DWT to about four for the dual-tree wavelet transform and the curvelets in 2D. More coefficients cost memory and time, and buy more directions and stability to shifts, which is a large part of why the DWT is faster at large sizes.
+
+| Library | 256x256 | 64x64x64 |
+|---|---:|---:|
+| Curvelets | 4.06x | 7.73x |
+| pytorch_wavelets DWT | 1.06x | - |
+| pytorch_wavelets DTCWT | 4.00x | - |
+| dtcwt (NumPy) | 4.00x | 8.00x |
+| Kymatio Scattering2D | 1.63x | - |
+
+## Related Projects
 
 | Project                                                     | Algorithm                            | Language        | License                                  | N-dimensional?       | Invertible? |
 | ----------------------------------------------------------- | ------------------------------------ | --------------- | ---------------------------------------- | ------------------- | ----------- |

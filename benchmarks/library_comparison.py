@@ -21,6 +21,8 @@ Usage (the extra libraries are only needed for their rows)::
     pip install kymatio pytorch-wavelets dtcwt
     python benchmarks/library_comparison.py --export benchmarks/data/library_comparison.json
     python benchmarks/library_comparison.py --markdown benchmarks/data/library_comparison.json
+    python benchmarks/library_comparison.py --table speed --format rst
+    python benchmarks/library_comparison.py --table redundancy --format md
 
 ``--stats`` needs no GPU. It registers what ``examples/plot_13_transform_atoms.py``
 shows: the redundancy of each transform and the image-space atom (the
@@ -698,39 +700,141 @@ def register_stats(path: Path, size: int = 256, steps: int = 20) -> None:
     print(f"wrote {path} ({len(atoms)} atoms)")
 
 
-def rst_table(data: dict[str, Any]) -> str:
-    """Forward-time ``list-table`` for the documentation (milliseconds)."""
-    rows = [r for r in data["results"] if r["direction"] == "forward"]
-    shapes = sorted({tuple(r["shape"]) for r in rows}, key=lambda s: (len(s), s))
-    names = list(dict.fromkeys(r["library"] for r in rows))
-    ref = "curvelets (torch, CUDA graphs)"
-    head = ["Library", "Device"] + ["x".join(map(str, s)) for s in shapes]
-    head += ["Redundancy (2D)"]
+SPEED_SHAPES: list[tuple[int, ...]] = [(256, 256), (512, 512), (64, 64, 64)]
+TORCH_LABEL = "Curvelets (torch)*"
+NUMPY_LABEL = "Curvelets (NumPy)"
+_MODES = {
+    "curvelets (torch, CUDA graphs)": "CUDA graphs",
+    "curvelets (torch, CUDA graphs, no Triton)": "CUDA graphs, no Triton",
+    "curvelets (torch, eager)": "eager",
+}
+
+
+def _label(library: str) -> str:
+    if library == "curvelets (NumPy)":
+        return NUMPY_LABEL
+    return TORCH_LABEL if library.startswith("curvelets") else library
+
+
+def _esc(row: list[str]) -> list[str]:
+    """Escape the asterisk that marks a footnote in the library name."""
+    return [row[0].replace("*", "\\*"), *row[1:]]
+
+
+def _table(header: list[str], body: list[list[str]], fmt: str, text_cols: int) -> str:
+    """A table as MyST/GitHub Markdown or as an RST ``list-table``.
+
+    The first ``text_cols`` columns are left-aligned, the others right-aligned.
+    """
+    if fmt == "md":
+        lines = ["| " + " | ".join(header) + " |"]
+        lines.append("|" + "---|" * text_cols + "---:|" * (len(header) - text_cols))
+        lines += ["| " + " | ".join(_esc(row)) + " |" for row in body]
+        return "\n".join(lines)
     lines = [".. list-table::", "   :header-rows: 1", ""]
-    lines += ["   * - " + head[0]] + [f"     - {h}" for h in head[1:]]
-    for name in names:
-        mine = {tuple(r["shape"]): r for r in rows if r["library"] == name}
-        ok = [r for r in mine.values() if r["median_ms"] is not None]
-        device = ok[0]["device"] if ok else "-"
-        cells = []
-        for s in shapes:
-            r = mine.get(s)
-            cells.append(
-                "-" if r is None or r["median_ms"] is None else f"{r['median_ms']:.3g}"
-            )
-        two_d = [r for r in ok if len(r["shape"]) == 2]
-        red = f"{two_d[-1]['redundancy']:.1f}x" if two_d else "-"
-        label = f"**{name}**" if name == ref else name
-        lines += [f"   * - {label}", f"     - {device}"]
-        lines += [f"     - {c}" for c in cells] + [f"     - {red}"]
+    for raw in [header, *body]:
+        row = _esc(raw)
+        lines.append("   * - " + row[0])
+        lines += [f"     - {cell}" for cell in row[1:]]
     return "\n".join(lines)
+
+
+def speed_table(data: dict[str, Any], fmt: str) -> str:
+    """Forward-transform speed, as multiples of the slowest library per column.
+
+    The torch implementation of curvelets appears once, with its best mode in
+    each column. The slowest entry of a column is 1.00x and the fastest is bold.
+    """
+    # label -> shape -> (median ms, device, library row that gave it)
+    best: dict[str, dict[tuple[int, ...], tuple[float, str, str]]] = {}
+    for r in data["results"]:
+        shape = tuple(r["shape"])
+        if r["direction"] != "forward" or r["median_ms"] is None:
+            continue
+        if shape not in SPEED_SHAPES:
+            continue
+        cell = best.setdefault(_label(r["library"]), {})
+        if shape not in cell or r["median_ms"] < cell[shape][0]:
+            cell[shape] = (r["median_ms"], r["device"], r["library"])
+    order = list(best)
+    labels = sorted(
+        best,
+        key=lambda n: (
+            n not in (TORCH_LABEL, NUMPY_LABEL),
+            n != TORCH_LABEL,
+            order.index(n),
+        ),
+    )
+    slowest = {
+        s: max((t[s][0], n) for n, t in best.items() if s in t) for s in SPEED_SHAPES
+    }
+    header = ["Library", "Device"] + ["x".join(map(str, s)) for s in SPEED_SHAPES]
+    body = []
+    for name in labels:
+        devices = sorted({d for _, d, _ in best[name].values()})
+        row = [name, "/".join(devices)]
+        for s in SPEED_SHAPES:
+            if s not in best[name]:
+                row.append("-")
+                continue
+            factor = slowest[s][0] / best[name][s][0]
+            fastest = factor == max(
+                slowest[s][0] / t[s][0] for t in best.values() if s in t
+            )
+            text = f"{factor:.2f}x"
+            row.append(f"**{text}**" if fastest else text)
+        body.append(row)
+    shape_names = ["x".join(map(str, s)) for s in SPEED_SHAPES]
+    modes = "; ".join(
+        f"{n}: {_MODES.get(best[TORCH_LABEL][s][2], best[TORCH_LABEL][s][2])}"
+        for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
+        if s in best.get(TORCH_LABEL, {})
+    )
+    refs = "; ".join(
+        f"{n}: {slowest[s][1]} ({slowest[s][0]:.3g} ms)"
+        for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
+    )
+    notes = [
+        f"Speed relative to the slowest library of each column (1.00x): {refs}.",
+        f"\\* Best mode of the torch implementation in each column (CUDA graphs, with or without the Triton fold, or eager): {modes}.",
+    ]
+    return _table(header, body, fmt, 2) + "\n\n" + "\n\n".join(notes)
+
+
+def redundancy_table(data: dict[str, Any], fmt: str) -> str:
+    """Coefficients per input sample of each transform."""
+    shapes = [SPEED_SHAPES[0], SPEED_SHAPES[-1]]
+    found: dict[str, dict[tuple[int, ...], float]] = {}
+    for r in data["results"]:
+        shape = tuple(r["shape"])
+        if r["direction"] != "forward" or r["redundancy"] is None:
+            continue
+        if shape in shapes:
+            name = "Curvelets" if r["library"].startswith("curvelets") else r["library"]
+            found.setdefault(name, {})[shape] = r["redundancy"]
+    header = ["Library"] + ["x".join(map(str, s)) for s in shapes]
+    body = [
+        [name] + [f"{vals[s]:.2f}x" if s in vals else "-" for s in shapes]
+        for name, vals in found.items()
+    ]
+    return _table(header, body, fmt, 1)
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--export", type=Path, help="write results as JSON")
     p.add_argument("--markdown", type=Path, help="print a table from a JSON file")
-    p.add_argument("--rst", type=Path, help="print the documentation table (RST)")
+    p.add_argument(
+        "--table",
+        choices=["speed", "redundancy"],
+        help="print a documentation table from --data",
+    )
+    p.add_argument("--format", choices=["rst", "md"], default="rst")
+    p.add_argument(
+        "--data",
+        type=Path,
+        default=Path(__file__).parent / "data" / "library_comparison.json",
+    )
     p.add_argument("--stats", type=Path, help="register atoms and redundancy (npz)")
     p.add_argument(
         "--steps", type=int, default=20, help="optimizer steps per Kymatio atom"
@@ -745,8 +849,9 @@ def main() -> None:
         register_stats(args.stats, steps=args.steps)
         return
 
-    if args.rst:
-        print(rst_table(json.loads(args.rst.read_text())))
+    if args.table:
+        table = speed_table if args.table == "speed" else redundancy_table
+        print(table(json.loads(args.data.read_text()), args.format))
         return
 
     if args.markdown:

@@ -5,71 +5,38 @@
      - Device
      - 256x256
      - 512x512
-     - 1024x1024
-     - 2048x2048
      - 64x64x64
-     - Redundancy (2D)
-   * - **curvelets (torch, CUDA graphs)**
+   * - Curvelets (torch)\*
      - cuda
-     - 0.0841
-     - 0.157
-     - 0.55
-     - 2.14
-     - 0.258
-     - 4.1x
-   * - curvelets (torch, CUDA graphs, no Triton)
-     - cuda
-     - 0.0897
-     - 0.174
-     - 0.634
-     - 2.5
-     - 0.309
-     - 4.1x
-   * - curvelets (torch, eager)
-     - cuda
-     - 0.442
-     - 0.448
-     - 0.569
-     - 1.75
-     - 0.563
-     - 4.1x
-   * - curvelets (NumPy)
+     - **1925.05x**
+     - **1048.29x**
+     - **655.27x**
+   * - Curvelets (NumPy)
      - cpu
-     - 3.26
-     - 11.5
-     - 52.8
-     - 510
-     - 33.4
-     - 4.1x
+     - 49.57x
+     - 14.32x
+     - 5.06x
    * - pytorch_wavelets DWT
      - cuda
-     - 0.628
-     - 0.628
-     - 0.624
-     - 0.729
+     - 257.68x
+     - 261.92x
      - -
-     - 1.0x
    * - pytorch_wavelets DTCWT
      - cuda
-     - 7.24
-     - 7.31
-     - 7.36
-     - 9.77
+     - 22.36x
+     - 22.51x
      - -
-     - 4.0x
    * - dtcwt (NumPy)
      - cpu
-     - 6.27
-     - 16.3
-     - 73.6
-     - 444
-     - 169
-     - 4.0x
+     - 25.82x
+     - 10.07x
+     - 1.00x
    * - Kymatio Scattering2D
      - cuda
-     - 162
-     - 165
-     - 162
+     - 1.00x
+     - 1.00x
      - -
-     - -
-     - 1.6x
+
+Speed relative to the slowest library of each column (1.00x): 256x256: Kymatio Scattering2D (162 ms); 512x512: Kymatio Scattering2D (165 ms); 64x64x64: dtcwt (NumPy) (169 ms).
+
+\* Best mode of the torch implementation in each column (CUDA graphs, with or without the Triton fold, or eager): 256x256: CUDA graphs; 512x512: CUDA graphs; 64x64x64: CUDA graphs.

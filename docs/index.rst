@@ -4,6 +4,7 @@
 
     self
     curvelet_faqs.rst
+    related_projects.rst
     torch.rst
     contributing.rst
     auto_examples/index.rst
