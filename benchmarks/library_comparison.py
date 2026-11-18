@@ -128,10 +128,36 @@ def _count(obj: Any) -> int:
 
 
 def build_curvelets(
-    shape: tuple[int, ...], dev: str, *, cuda_graphs: bool
+    shape: tuple[int, ...], dev: str, *, cuda_graphs: bool, triton: bool = True
 ) -> Transform:
-    """``curvelets.torch.UDCT`` on the flat path that ``UDCTModule`` uses."""
+    """``curvelets.torch.UDCT`` on the flat path that ``UDCTModule`` uses.
+
+    On CUDA the folds run as fused Triton kernels when Triton is installed;
+    ``triton=False`` sets ``CURVELETS_TRITON=0`` while the plan is built.
+    """
+    import os
+
     from curvelets.torch import UDCT
+
+    previous = os.environ.get("CURVELETS_TRITON")
+    os.environ["CURVELETS_TRITON"] = "1" if triton else "0"
+    try:
+        return _build_curvelets(UDCT, shape, dev, cuda_graphs, triton)
+    finally:
+        if previous is None:
+            del os.environ["CURVELETS_TRITON"]
+        else:
+            os.environ["CURVELETS_TRITON"] = previous
+
+
+def _build_curvelets(
+    udct_cls: Any,
+    shape: tuple[int, ...],
+    dev: str,
+    cuda_graphs: bool,
+    triton: bool,
+) -> Transform:
+    UDCT = udct_cls
 
     udct = UDCT(
         shape=shape,
@@ -151,7 +177,7 @@ def build_curvelets(
         ncoef=_count(v),
         device=dev,
         config=f"num_scales={NUM_SCALES}, wedges_per_direction={WEDGES_PER_DIRECTION}"
-        f", cuda_graphs={cuda_graphs}",
+        f", cuda_graphs={cuda_graphs}, triton={triton}",
     )
 
 
@@ -273,6 +299,11 @@ Builder = Callable[..., Transform]
 LIBRARIES: dict[str, tuple[Builder, tuple[int, ...], bool]] = {
     "curvelets (torch, CUDA graphs)": (
         lambda s, d: build_curvelets(s, d, cuda_graphs=d == "cuda"),
+        (2, 3),
+        True,
+    ),
+    "curvelets (torch, CUDA graphs, no Triton)": (
+        lambda s, d: build_curvelets(s, d, cuda_graphs=d == "cuda", triton=False),
         (2, 3),
         True,
     ),
@@ -627,6 +658,7 @@ def register_stats(path: Path, size: int = 256, steps: int = 20) -> None:
         if (
             2 not in dims
             or "eager" in name
+            or "no Triton" in name
             or ("NumPy" in name and "curvelets" in name)
         ):
             continue
@@ -666,10 +698,39 @@ def register_stats(path: Path, size: int = 256, steps: int = 20) -> None:
     print(f"wrote {path} ({len(atoms)} atoms)")
 
 
+def rst_table(data: dict[str, Any]) -> str:
+    """Forward-time ``list-table`` for the documentation (milliseconds)."""
+    rows = [r for r in data["results"] if r["direction"] == "forward"]
+    shapes = sorted({tuple(r["shape"]) for r in rows}, key=lambda s: (len(s), s))
+    names = list(dict.fromkeys(r["library"] for r in rows))
+    ref = "curvelets (torch, CUDA graphs)"
+    head = ["Library", "Device"] + ["x".join(map(str, s)) for s in shapes]
+    head += ["Redundancy (2D)"]
+    lines = [".. list-table::", "   :header-rows: 1", ""]
+    lines += ["   * - " + head[0]] + [f"     - {h}" for h in head[1:]]
+    for name in names:
+        mine = {tuple(r["shape"]): r for r in rows if r["library"] == name}
+        ok = [r for r in mine.values() if r["median_ms"] is not None]
+        device = ok[0]["device"] if ok else "-"
+        cells = []
+        for s in shapes:
+            r = mine.get(s)
+            cells.append(
+                "-" if r is None or r["median_ms"] is None else f"{r['median_ms']:.3g}"
+            )
+        two_d = [r for r in ok if len(r["shape"]) == 2]
+        red = f"{two_d[-1]['redundancy']:.1f}x" if two_d else "-"
+        label = f"**{name}**" if name == ref else name
+        lines += [f"   * - {label}", f"     - {device}"]
+        lines += [f"     - {c}" for c in cells] + [f"     - {red}"]
+    return "\n".join(lines)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--export", type=Path, help="write results as JSON")
     p.add_argument("--markdown", type=Path, help="print a table from a JSON file")
+    p.add_argument("--rst", type=Path, help="print the documentation table (RST)")
     p.add_argument("--stats", type=Path, help="register atoms and redundancy (npz)")
     p.add_argument(
         "--steps", type=int, default=20, help="optimizer steps per Kymatio atom"
@@ -682,6 +743,10 @@ def main() -> None:
 
     if args.stats:
         register_stats(args.stats, steps=args.steps)
+        return
+
+    if args.rst:
+        print(rst_table(json.loads(args.rst.read_text())))
         return
 
     if args.markdown:

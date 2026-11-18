@@ -54,6 +54,21 @@ It has been shown that fixed filter banks can be useful in speeding up training 
 
 Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ which implements the wavelet scattering transform :cite:`Bruna2013` in PyTorch, TensorFlow and JAX, and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implements the dual-tree complex wavelet transform :cite:`Kingsbury2001` in PyTorch.
 
+How fast is it compared to other libraries?
+###########################################
+
+Here is a measurement of the forward transform of one 2D image or 3D volume on an NVIDIA RTX 3070 (8 GB, float32, batch of one), for the libraries listed below with a Python implementation. The times are medians, in milliseconds, and come from ``benchmarks/library_comparison.py``; the raw results are in ``benchmarks/data/library_comparison.json``. The sizes cover the range from small images to the largest one that fits in memory, and all of them are shown. Small and medium inputs are where the GPU path of **Curvelets** is the most advantageous: a single transform is bound by the cost of launching kernels, which ``cuda_graphs=True`` removes (see :ref:`torch-backend`).
+
+.. include:: library_speed_table.rst
+
+These numbers should be read as the *cost of computing each decomposition*, and not as "the same result, faster". The transforms differ in:
+
+* **Redundancy**, the number of coefficients per input sample (last column): from nearly orthogonal (the DWT) to the 4× of the dual-tree wavelet and the curvelets. More coefficients cost memory and time, and buy a representation that is more stable to shifts and has more directions.
+* **Directions**: three for the DWT, six for the dual-tree transforms, and as many as configured for the curvelets. :ref:`sphx_glr_auto_examples_plot_13_transform_atoms.py` shows what a single coefficient looks like in each of them.
+* **Invertibility**: Kymatio's scattering transform is not invertible, so only its forward transform is timed.
+
+The ``dtcwt`` package runs on the CPU (NumPy), and so does the NumPy implementation of **Curvelets**, which is included for reference.
+
 Related Projects
 ################
 .. include:: table.md
