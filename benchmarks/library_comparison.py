@@ -296,6 +296,26 @@ def build_dtcwt(shape: tuple[int, ...], dev: str) -> Transform:
     )
 
 
+def _check_dtcwt(shape: tuple[int, ...], lowpass: Any, highpasses: Any) -> None:
+    """Raise unless a ``dtcwt`` backend agrees with the NumPy backend.
+
+    A timing of a transform that returns different coefficients means nothing.
+    """
+    import dtcwt
+
+    x = np.random.default_rng(0).standard_normal(shape).astype(np.float32)
+    cls = dtcwt.Transform2d if len(shape) == 2 else dtcwt.Transform3d
+    ref = cls().forward(x, nlevels=NUM_SCALES)
+    pairs = [(ref.lowpass, lowpass), *zip(ref.highpasses, highpasses, strict=True)]
+    for i, (expected, got) in enumerate(pairs):
+        scale = float(np.abs(expected).max())
+        diff = float(np.abs(np.asarray(got) - expected).max())
+        if diff > 1e-3 * scale:
+            name = "lowpass" if i == 0 else f"highpass {i - 1}"
+            msg = f"{name} differs from the NumPy backend by {diff:.3g} (scale {scale:.3g})"
+            raise RuntimeError(msg)
+
+
 def build_dtcwt_opencl(shape: tuple[int, ...], dev: str) -> Transform:
     """The ``dtcwt`` OpenCL backend (2D and 3D).
 
@@ -303,12 +323,13 @@ def build_dtcwt_opencl(shape: tuple[int, ...], dev: str) -> Transform:
     copies, which is how the backend is normally called.
     """
     import dtcwt.opencl
+    from dtcwt.opencl.transform3d import Transform3d
 
     del dev
     x = np.random.default_rng(0).standard_normal(shape).astype(np.float32)
-    cls = dtcwt.opencl.Transform2d if len(shape) == 2 else dtcwt.opencl.Transform3d
-    transform = cls()
+    transform = dtcwt.opencl.Transform2d() if len(shape) == 2 else Transform3d()
     pyramid = transform.forward(x, nlevels=NUM_SCALES)
+    _check_dtcwt(shape, pyramid.lowpass, pyramid.highpasses)
     ncoef = _count(pyramid.lowpass) + _count(list(pyramid.highpasses))
     return Transform(
         forward=lambda: transform.forward(x, nlevels=NUM_SCALES),
@@ -357,7 +378,9 @@ def build_dtcwt_tf(shape: tuple[int, ...], dev: str) -> Transform:
         init = v1.global_variables_initializer()
     session = v1.Session(graph=graph)
     session.run(init)
-    ncoef = _count(session.run(forward_ops))
+    values = session.run(forward_ops)
+    _check_dtcwt(shape, values[0], values[1:])
+    ncoef = _count(values)
     gpu = bool(tf.config.list_physical_devices("GPU"))
     return Transform(
         forward=lambda: session.run(forward_ops),
