@@ -93,6 +93,8 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
     csr = (fwd.csr, bwd.csr)
     assert csr[0] is not None, "Triton kernel unavailable"
     assert csr[1] is not None, "Triton kernel unavailable"
+    # Plain calls keep only the CSR maps; the torch rows need the level tables,
+    # which are built here (as a differentiable call would).
     tables = {
         "levels_mib": mib(level_tensors(fwd) + level_tensors(bwd)),
         "csr_mib": mib(csr[0].tensors() + csr[1].tensors()),

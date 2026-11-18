@@ -76,8 +76,11 @@ def _csr(plan: UDCTPlan) -> tuple[tf.CsrFold | None, tf.CsrFold | None]:
 
 
 def _set_csr(plan: UDCTPlan, csr: tuple[tf.CsrFold | None, tf.CsrFold | None]) -> None:
+    """Swap the CSR maps; the torch tables are built first (from the CSR maps)."""
     assert isinstance(plan.fwd_map, GatherFold)
     assert plan.bwd_map is not None
+    plan.fwd_map.torch_tables()
+    plan.bwd_map.torch_tables()
     plan.fwd_map.csr, plan.bwd_map.csr = csr
 
 
@@ -203,6 +206,43 @@ def test_registered_op_and_compile_branch(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(tf, "_OP_REGISTERED", False)
     torch.testing.assert_close(fwd_csr.apply(src), eager)
     assert tf._OP_REGISTERED  # pylint: disable=protected-access
+
+
+def test_torch_tables_are_built_lazily_from_csr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Kernel plans keep only CSR maps until a differentiable call needs the tables.
+
+    The rebuilt tables equal the ones built directly from the contributions.
+    """
+    udct = _udct((16, 16, 16), 3, 3, "real", torch.float64)
+    plan = _plan(udct)
+    folds = [plan.fwd_map, plan.bwd_map]
+    assert all(isinstance(f, GatherFold) and f.tables is None for f in folds)
+    x = _input("real", (2, 16, 16, 16), torch.float64)
+    plan.backward_flat(plan.forward_flat(x))
+    assert all(f.tables is None for f in folds)  # type: ignore[union-attr]
+
+    xg = x.clone().requires_grad_(True)
+    plan.backward_flat(plan.forward_flat(xg)).sum().backward()
+    assert all(f.tables is not None for f in folds)  # type: ignore[union-attr]
+
+    monkeypatch.setenv("CURVELETS_TRITON", "0")
+    eager = _plan(udct)
+    for lazy, direct in zip(folds, [eager.fwd_map, eager.bwd_map], strict=True):
+        assert isinstance(lazy, GatherFold)
+        assert isinstance(direct, GatherFold)
+        assert direct.csr is None
+        assert direct.tables is not None
+        torch.testing.assert_close(lazy.src0, direct.src0, rtol=0, atol=0)
+        torch.testing.assert_close(lazy.w0, direct.w0, rtol=0, atol=0)
+        assert len(lazy.levels) == len(direct.levels)
+        for a, b in zip(lazy.levels, direct.levels, strict=True):
+            assert a.width == b.width
+            for name in ("targets", "sources", "weights"):
+                torch.testing.assert_close(
+                    getattr(a, name), getattr(b, name), rtol=0, atol=0
+                )
 
 
 def test_disabled_by_environment(monkeypatch: pytest.MonkeyPatch) -> None:
