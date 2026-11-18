@@ -11,7 +11,7 @@ from curvelets.torch import UDCTModule
 class TestUDCTModuleApply:
     """Test that UDCTModule._apply correctly transfers internal tensors."""
 
-    @pytest.fixture  # type: ignore[misc]
+    @pytest.fixture  # type: ignore[untyped-decorator]
     def udct_module(self) -> UDCTModule:
         """Create a UDCTModule for testing."""
         return UDCTModule(shape=(28, 28), num_scales=2, wedges_per_direction=3)
