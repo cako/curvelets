@@ -296,6 +296,72 @@ def build_dtcwt(shape: tuple[int, ...], dev: str) -> Transform:
     )
 
 
+def build_dtcwt_opencl(shape: tuple[int, ...], dev: str) -> Transform:
+    """The ``dtcwt`` OpenCL backend (2D and 3D).
+
+    NumPy arrays go in and come out, so the timing includes the host/device
+    copies, which is how the backend is normally called.
+    """
+    import dtcwt.opencl
+
+    del dev
+    x = np.random.default_rng(0).standard_normal(shape).astype(np.float32)
+    cls = dtcwt.opencl.Transform2d if len(shape) == 2 else dtcwt.opencl.Transform3d
+    transform = cls()
+    pyramid = transform.forward(x, nlevels=NUM_SCALES)
+    ncoef = _count(pyramid.lowpass) + _count(list(pyramid.highpasses))
+    return Transform(
+        forward=lambda: transform.forward(x, nlevels=NUM_SCALES),
+        inverse=lambda: transform.inverse(pyramid),
+        ncoef=ncoef,
+        device="opencl",
+        config=f"nlevels={NUM_SCALES}, OpenCL backend, NumPy arrays in and out",
+    )
+
+
+def build_dtcwt_tf(shape: tuple[int, ...], dev: str) -> Transform:
+    """The ``dtcwt`` TensorFlow backend (2D).
+
+    The backend is written for TensorFlow 1 (``tf.Session``, ``tf.variable_scope``),
+    so TensorFlow 2 runs it in graph mode through the ``tf.compat.v1`` aliases.
+    The graph is built once and the transform is run with ``Session.run``
+    without fetching the outputs (nothing is copied back to the host).
+    """
+    import tensorflow as tf
+
+    del dev
+    v1 = tf.compat.v1
+    v1.disable_eager_execution()
+    for name in ("variable_scope", "Session", "global_variables_initializer"):
+        if not hasattr(tf, name):
+            setattr(tf, name, getattr(v1, name))
+    import dtcwt.tf
+
+    x = np.random.default_rng(0).standard_normal(shape).astype(np.float32)
+    graph = tf.Graph()
+    with graph.as_default():
+        variable = tf.Variable(x)
+        transform = dtcwt.tf.Transform2d()
+        pyramid = transform.forward(variable, nlevels=NUM_SCALES)
+        forward_ops = [pyramid.lowpass_op, *pyramid.highpasses_ops]
+        inverse_op = transform.inverse(pyramid)
+        init = v1.global_variables_initializer()
+    session = v1.Session(graph=graph)
+    session.run(init)
+    ncoef = _count(session.run(forward_ops))
+    with graph.as_default():
+        forward_run = tf.group(*forward_ops)
+        inverse_run = tf.group(inverse_op)
+    gpu = bool(tf.config.list_physical_devices("GPU"))
+    return Transform(
+        forward=lambda: session.run(forward_run),
+        inverse=lambda: session.run(inverse_run),
+        ncoef=ncoef,
+        device="cuda" if gpu else "cpu",
+        config=f"nlevels={NUM_SCALES}, TensorFlow backend (graph mode), outputs not copied to host",
+    )
+
+
 # name -> (builder, dimensions supported, uses the accelerator)
 Builder = Callable[..., Transform]
 LIBRARIES: dict[str, tuple[Builder, tuple[int, ...], bool]] = {
@@ -319,6 +385,8 @@ LIBRARIES: dict[str, tuple[Builder, tuple[int, ...], bool]] = {
     "pytorch_wavelets DWT": (build_pw_dwt, (2,), True),
     "pytorch_wavelets DTCWT": (build_pw_dtcwt, (2,), True),
     "dtcwt (NumPy)": (build_dtcwt, (2, 3), False),
+    "dtcwt (OpenCL)": (build_dtcwt_opencl, (2, 3), True),
+    "dtcwt (TensorFlow)": (build_dtcwt_tf, (2,), True),
 }
 
 

@@ -145,6 +145,8 @@ module = [
   "kymatio.*",
   "pytorch_wavelets.*",
   "dtcwt.*",
+  "tensorflow.*",
+  "pyopencl.*",
 ]
 ignore_missing_imports = true
 
