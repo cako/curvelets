@@ -127,6 +127,29 @@ It has been shown that fixed filter banks can be useful in speeding up training 
 
 Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in [Kymatio](https://www.kymat.io/) which implements the wavelet scattering transform [[10](#10-bruna-j-and-s-mallat-2013-invariant-scattering-convolution-networks-ieee-transactions-on-pattern-analysis-and-machine-intelligence-35-18721886)] in PyTorch, TensorFlow and JAX, and [Pytorch Wavelets](https://pytorch-wavelets.readthedocs.io/) which implements the dual-tree complex wavelet transform [[12](#12-kingsbury-n-2001-complex-wavelets-for-shift-invariant-analysis-and-filtering-of-signals-applied-and-computational-harmonic-analysis-10-234253)] in PyTorch.
 
+### How fast is it compared to other libraries?
+
+The table below is the time of the forward transform of one 2D image or 3D volume (batch of one, float32) on an NVIDIA RTX 3070 with 8 GB of memory, for the libraries in the next section that have a Python implementation. Values are medians in milliseconds, measured with `benchmarks/library_comparison.py` (raw results in `benchmarks/data/library_comparison.json`). All sizes are shown, not just the ones that favor **Curvelets**.
+
+| Library | Device | 256x256 | 512x512 | 1024x1024 | 2048x2048 | 64x64x64 | Redundancy (2D) |
+|---|---|---:|---:|---:|---:|---:|---:|
+| **curvelets (torch, CUDA graphs)** | cuda | 0.0841 | 0.157 | 0.55 | 2.14 | 0.258 | 4.1x |
+| curvelets (torch, CUDA graphs, no Triton) | cuda | 0.0897 | 0.174 | 0.634 | 2.5 | 0.309 | 4.1x |
+| curvelets (torch, eager) | cuda | 0.442 | 0.448 | 0.569 | 1.75 | 0.563 | 4.1x |
+| curvelets (NumPy) | cpu | 3.26 | 11.5 | 52.8 | 510 | 33.4 | 4.1x |
+| pytorch_wavelets DWT | cuda | 0.628 | 0.628 | 0.624 | 0.729 | - | 1.0x |
+| pytorch_wavelets DTCWT | cuda | 7.24 | 7.31 | 7.36 | 9.77 | - | 4.0x |
+| dtcwt (NumPy) | cpu | 6.27 | 16.3 | 73.6 | 444 | 169 | 4.0x |
+| Kymatio Scattering2D | cuda | 162 | 165 | 162 | - | - | 1.6x |
+
+The `dtcwt` package and the NumPy implementation of **Curvelets** run on the CPU. Kymatio was not run at 2048², because building its filter bank took over 20 minutes on the CPU.
+
+- **Small and medium inputs.** The GPU transform is bound by the cost of launching kernels. `cuda_graphs=True` removes most of it: at 512², the forward transform takes 0.16 ms, against 0.63 ms for the DWT, 7.3 ms for the dual-tree wavelet transform and 165 ms for Kymatio's scattering transform. The other libraries are also launch-bound.
+- **Large inputs.** The advantage disappears. At 2048², the DWT of Pytorch Wavelets (0.73 ms) is about three times faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help (the eager transform takes 1.75 ms). The break-even is around 1024².
+- **Fused fold kernel.** The Triton kernel cuts the time by 6% to 17% in every size measured (the "no Triton" row).
+
+These numbers measure the cost of computing each decomposition, not "the same result, faster": the transforms differ in redundancy (coefficients per input sample, last column), in the number of directions, and in invertibility (Kymatio's scattering transform is not invertible). See the [transform atoms example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_13_transform_atoms.html) for what a single coefficient looks like in each of them.
+
 ### Related Projects
 
 | Project                                                     | Algorithm                            | Language        | License                                  | N-dimensional?       | Invertible? |

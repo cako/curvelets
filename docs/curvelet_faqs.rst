@@ -57,17 +57,23 @@ Another aspect to consider is the availability of high-performance, GPU-accelera
 How fast is it compared to other libraries?
 ###########################################
 
-Here is a measurement of the forward transform of one 2D image or 3D volume on an NVIDIA RTX 3070 (8 GB, float32, batch of one), for the libraries listed below with a Python implementation. The times are medians, in milliseconds, and come from ``benchmarks/library_comparison.py``; the raw results are in ``benchmarks/data/library_comparison.json``. The sizes cover the range from small images to the largest one that fits in memory, and all of them are shown. Small and medium inputs are where the GPU path of **Curvelets** is the most advantageous: a single transform is bound by the cost of launching kernels, which ``cuda_graphs=True`` removes (see :ref:`torch-backend`).
+The table below is the time of the forward transform of one 2D image or 3D volume (batch of one, float32) on an NVIDIA RTX 3070 with 8 GB of memory, for the libraries of the next section that have a Python implementation. The values are medians, in milliseconds, measured with ``benchmarks/library_comparison.py`` (raw results in ``benchmarks/data/library_comparison.json``). Sizes go from 256² to 2048² in 2D, plus a 64³ volume. All of them are shown, not just the ones that favor **Curvelets**.
 
 .. include:: library_speed_table.rst
 
-These numbers should be read as the *cost of computing each decomposition*, and not as "the same result, faster". The transforms differ in:
+The rows marked CPU run on the CPU (NumPy): the ``dtcwt`` package and, for reference, the NumPy implementation of **Curvelets**. Kymatio was not run at 2048², because building its filter bank took over 20 minutes on the CPU.
 
-* **Redundancy**, the number of coefficients per input sample (last column): from nearly orthogonal (the DWT) to the 4× of the dual-tree wavelet and the curvelets. More coefficients cost memory and time, and buy a representation that is more stable to shifts and has more directions.
+What the numbers say:
+
+* **Small and medium inputs.** The GPU transform is bound by the cost of launching kernels, not by the work on the GPU. ``cuda_graphs=True`` removes most of that cost (see :ref:`torch-backend`): at 512², the forward transform takes 0.16 ms, against 0.63 ms for the DWT, 7.3 ms for the dual-tree wavelet transform and 165 ms for the scattering transform of Kymatio. The other libraries are also launch-bound; their times barely change between 256² and 1024².
+* **Large inputs.** The advantage disappears. At 2048², the DWT of Pytorch Wavelets (0.73 ms) is about three times faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help: the eager transform (1.75 ms) is faster, since the copies into and out of the graph's buffers cost more than the launches they save. The break-even is around 1024².
+* **Fused fold kernel.** The Triton kernel for the fold (see :ref:`torch-backend`) cuts the time by 6% to 17% compared with the same transform without it, in every size measured (the "no Triton" row).
+
+These numbers measure the *cost of computing each decomposition*, not "the same result, faster". The transforms differ in:
+
+* **Redundancy**, the number of coefficients per input sample (last column): from nearly one for the DWT to about 4 for the dual-tree wavelet and the curvelets in 2D. More coefficients cost memory and time, and buy more directions and stability to shifts. This is a large part of why the DWT is faster at 2048².
 * **Directions**: three for the DWT, six for the dual-tree transforms, and as many as configured for the curvelets. :ref:`sphx_glr_auto_examples_plot_13_transform_atoms.py` shows what a single coefficient looks like in each of them.
 * **Invertibility**: Kymatio's scattering transform is not invertible, so only its forward transform is timed.
-
-The ``dtcwt`` package runs on the CPU (NumPy), and so does the NumPy implementation of **Curvelets**, which is included for reference.
 
 Related Projects
 ################
