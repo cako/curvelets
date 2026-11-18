@@ -332,9 +332,17 @@ def build_dtcwt_tf(shape: tuple[int, ...], dev: str) -> Transform:
     del dev
     v1 = tf.compat.v1
     v1.disable_eager_execution()
-    for name in ("variable_scope", "Session", "global_variables_initializer"):
+    aliases = {
+        "variable_scope": v1.variable_scope,
+        "Session": v1.Session,
+        "global_variables_initializer": v1.global_variables_initializer,
+        "real": tf.math.real,
+        "imag": tf.math.imag,
+    }
+    for name, function in aliases.items():
         if not hasattr(tf, name):
-            setattr(tf, name, getattr(v1, name))
+            setattr(tf, name, function)
+    tf.nn.conv2d = v1.nn.conv2d  # the TensorFlow 1 signature
     import dtcwt.tf
 
     x = np.random.default_rng(0).standard_normal(shape).astype(np.float32)
@@ -769,7 +777,7 @@ def register_stats(path: Path, size: int = 256, steps: int = 20) -> None:
 
 
 SPEED_SHAPES: list[tuple[int, ...]] = [(256, 256), (512, 512), (64, 64, 64)]
-TORCH_LABEL = "Curvelets (torch)*"
+TORCH_LABEL = "Curvelets (torch)"
 NUMPY_LABEL = "Curvelets (NumPy)"
 _MODES = {
     "curvelets (torch, CUDA graphs)": "CUDA graphs",
@@ -852,30 +860,49 @@ def speed_table(data: dict[str, Any], fmt: str) -> str:
             text = f"{factor:.0f}x"
             row.append(f"**{text}**" if fastest else text)
         body.append(row)
-    shape_names = ["x".join(map(str, s)) for s in SPEED_SHAPES]
     winners = {
         _MODES.get(best[TORCH_LABEL][s][2], best[TORCH_LABEL][s][2])
         for s in SPEED_SHAPES
         if s in best.get(TORCH_LABEL, {})
     }
     if winners == {"CUDA graphs"}:
-        footnote = "\\* All with CUDA graphs."
-    else:
-        modes = "; ".join(
-            f"{n}: {_MODES.get(best[TORCH_LABEL][s][2], best[TORCH_LABEL][s][2])}"
-            for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
-            if s in best.get(TORCH_LABEL, {})
+        text = (
+            "Best mode of the torch implementation in each column; "
+            "it was CUDA graphs (``cuda_graphs=True``) in all of them."
         )
-        footnote = f"\\* Best mode in each column: {modes}."
-    refs = "; ".join(
-        f"{n}: {slowest[s][1]} ({slowest[s][0]:.3g} ms)"
-        for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
-    )
-    notes = [
-        f"Speed relative to the slowest library of each column (1x): {refs}.",
-        footnote,
+    else:
+        text = (
+            f"Best mode of the torch implementation in each column: {sorted(winners)}."
+        )
+    if fmt == "md":
+        text = text.replace("``", "`")
+        footnote = f"[^cudagraphs]: {text}"
+    else:
+        footnote = f".. [#cudagraphs] {text}"
+    mark = "[^cudagraphs]" if fmt == "md" else " [#cudagraphs]_"
+    for row in body:
+        if row[0] == TORCH_LABEL:
+            row[0] += mark
+    return _table(header, body, fmt, 2) + "\n\n" + footnote
+
+
+def speed_reference(data: dict[str, Any]) -> str:
+    """The slowest library of each speed column, which is the 1x reference."""
+    slowest: dict[tuple[int, ...], tuple[float, str]] = {}
+    for r in data["results"]:
+        shape = tuple(r["shape"])
+        if r["direction"] != "forward" or r["median_ms"] is None:
+            continue
+        if shape in SPEED_SHAPES and (
+            shape not in slowest or r["median_ms"] > slowest[shape][0]
+        ):
+            slowest[shape] = (r["median_ms"], _label(r["library"]))
+    parts = [
+        f"{'x'.join(map(str, s))}: {slowest[s][1]} ({slowest[s][0]:.3g} ms)"
+        for s in SPEED_SHAPES
+        if s in slowest
     ]
-    return _table(header, body, fmt, 2) + "\n\n" + "\n\n".join(notes)
+    return "; ".join(parts)
 
 
 def redundancy_table(data: dict[str, Any], fmt: str) -> str:
@@ -903,7 +930,7 @@ def main() -> None:
     p.add_argument("--markdown", type=Path, help="print a table from a JSON file")
     p.add_argument(
         "--table",
-        choices=["speed", "redundancy"],
+        choices=["speed", "redundancy", "speed-ref"],
         help="print a documentation table from --data",
     )
     p.add_argument("--format", choices=["rst", "md"], default="rst")
@@ -927,8 +954,12 @@ def main() -> None:
         return
 
     if args.table:
-        table = speed_table if args.table == "speed" else redundancy_table
-        print(table(json.loads(args.data.read_text()), args.format))
+        data = json.loads(args.data.read_text())
+        if args.table == "speed-ref":
+            print(speed_reference(data))
+        else:
+            table = speed_table if args.table == "speed" else redundancy_table
+            print(table(data, args.format))
         return
 
     if args.markdown:
