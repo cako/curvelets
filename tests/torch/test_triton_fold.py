@@ -184,6 +184,27 @@ def test_kernel_is_used_and_falls_back_for_autograd_and_vmap(
     torch.testing.assert_close(vmapped, coeffs)
 
 
+def test_registered_op_and_compile_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ``torch.library`` op (used under ``torch.compile``) matches the eager launch."""
+    plan = _plan(_udct((32, 32), 3, 3, "real", torch.float32))
+    fwd_csr, bwd_csr = _csr(plan)
+    assert fwd_csr is not None
+    assert bwd_csr is not None
+    assert sum(t.numel() for t in fwd_csr.tensors()) > 0
+    src = plan._spectrum(_input("real", (2, 32, 32), torch.float32))  # pylint: disable=protected-access
+    eager = fwd_csr.apply(src)
+    op = torch.ops.curvelets.csr_fold(
+        src, fwd_csr.row_ptr, fwd_csr.col, fwd_csr.weights, fwd_csr.num_targets
+    )
+    torch.testing.assert_close(op, eager)
+    # The traced branch, including registration for maps built elsewhere
+    # (e.g. unpickled), without paying for a real compilation.
+    monkeypatch.setattr(torch.compiler, "is_compiling", lambda: True)
+    monkeypatch.setattr(tf, "_OP_REGISTERED", False)
+    torch.testing.assert_close(fwd_csr.apply(src), eager)
+    assert tf._OP_REGISTERED  # pylint: disable=protected-access
+
+
 def test_disabled_by_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """``CURVELETS_TRITON=0`` builds no CSR maps."""
     monkeypatch.setenv("CURVELETS_TRITON", "0")
