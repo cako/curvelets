@@ -221,10 +221,10 @@ if registered is not None:
     )
     for name, value in sorted(red.items(), key=lambda kv: kv[1]):
         print(f"{name.replace(chr(10), ' '):18s} {value:5.2f}x")
-    order = sorted(red, key=red.get)  # smallest at the bottom
+    ranked = sorted(red, key=lambda name: red[name])  # smallest at the bottom
     invertible = {"Kymatio\nscattering": False}
     fig, ax = plt.subplots(figsize=(7, 3.4), layout="constrained")
-    for i, name in enumerate(order):
+    for i, name in enumerate(ranked):
         bar = ax.barh(
             i,
             red[name],
@@ -235,9 +235,9 @@ if registered is not None:
         )
         ax.bar_label(bar, labels=[f"{red[name]:.2f}x"], padding=4, fontsize=10)
     ax.axvline(1, color="0.25", lw=1, ls="--")
-    ax.set_ylim(-0.95, len(order) - 0.4)
+    ax.set_ylim(-0.95, len(ranked) - 0.4)
     ax.text(1.04, -0.82, "orthogonal basis (1x)", fontsize=8, color="0.25")
-    ax.set_yticks(range(len(order)), [n.replace("\n", " ") for n in order])
+    ax.set_yticks(range(len(ranked)), [n.replace("\n", " ") for n in ranked])
     ax.set_xlim(0, max(red.values()) * 1.18)
     ax.set_xlabel("coefficients per pixel")
     ax.set_title("Redundancy of a 256 x 256 transform", loc="left", fontsize=11)
