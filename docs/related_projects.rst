@@ -14,12 +14,12 @@ Curvelet.jl implements the UDCT :cite:p:`Nguyen2010` in Julia, for 2D signals. T
 Kymatio
 #######
 
-`Kymatio <https://www.kymat.io/>`_ implements the wavelet scattering transform :cite:p:`Bruna2013,Andreux2019` in Python, with PyTorch, TensorFlow and JAX frontends. The scattering transform takes a modulus, so it is not invertible. The project is not under active development: the last release is 0.3.0, and since mid-2024 the commits only fix tests, CI and dependencies. Version 0.3.0 does not import with current SciPy, because it needs ``scipy.special.sph_harm``, which was removed.
+`Kymatio <https://www.kymat.io/>`_ implements the wavelet scattering transform :cite:p:`Bruna2013,Andreux2019` in Python, with PyTorch, TensorFlow and JAX frontends. The scattering transform takes a modulus, so it is not invertible. The project is not under active development: the last release is 0.3.0, and since mid-2024 the commits only fix tests, CI and dependencies. Version 0.3.0 does not import with current SciPy.
 
 dtcwt
 #####
 
-`dtcwt <https://dtcwt.readthedocs.io/>`_ is a Python port of the MATLAB dual-tree complex wavelet transform toolbox :cite:p:`Kingsbury2001`, with NumPy, OpenCL and TensorFlow backends. The original repository was archived in July 2024 and states that it is no longer maintained. A fork, `xir4n/dtcwt <https://github.com/xir4n/dtcwt>`_, continued it, but it also looks unmaintained: its last merged change is from June 2024, and its open pull requests, including support for NumPy 2, have not been merged. Version 0.14 does not work with NumPy 2, because it calls the removed ``np.asfarray``.
+`dtcwt <https://dtcwt.readthedocs.io/>`_ is a Python port of the MATLAB dual-tree complex wavelet transform toolbox :cite:p:`Kingsbury2001`, with NumPy, OpenCL and TensorFlow backends. The original repository was archived in July 2024 and states that it is no longer maintained. A fork, `xir4n/dtcwt <https://github.com/xir4n/dtcwt>`_, continued it, but it also looks unmaintained: its last merged change is from June 2024, and its open pull requests, including support for NumPy 2, have not been merged. Version 0.14 does not work with NumPy 2.
 
 Pytorch Wavelets
 ################
