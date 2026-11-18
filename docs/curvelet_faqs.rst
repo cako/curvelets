@@ -52,31 +52,7 @@ This is yet another facet of the "data-centric" vs. "model-centric" debate in ma
 
 It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks in some situations :cite:`Luan2018,Andreux2018`. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality training data.
 
-Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ which implements the wavelet scattering transform :cite:`Bruna2013` in PyTorch, TensorFlow and JAX, and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implements the dual-tree complex wavelet transform :cite:`Kingsbury2001` in PyTorch.
-
-How fast is it compared to other libraries?
-###########################################
-
-The table below shows the speed of the forward transform of one 2D image or 3D volume (batch of one, float32) on an NVIDIA RTX 3070 with 8 GB of memory, for the :doc:`related projects <related_projects>` that have a Python implementation. Each column is relative to its slowest library, which is 1.00x; higher is faster and the fastest is in bold. The times were measured with ``benchmarks/library_comparison.py``; the absolute times, in milliseconds, and the results for larger sizes (up to 2048²) are in ``benchmarks/data/library_comparison.json``.
-
-.. include:: library_speed_table.rst
-
-The rows marked CPU run on the CPU (NumPy): the ``dtcwt`` package and, for reference, the NumPy implementation of **Curvelets**. Kymatio was not run at 2048², because building its filter bank took over 20 minutes on the CPU.
-
-What the numbers say:
-
-* **Small and medium inputs.** The GPU transform is bound by the cost of launching kernels, not by the work on the GPU. ``cuda_graphs=True`` removes most of that cost (see :ref:`torch-backend`): at 512², the forward transform takes 0.16 ms, against 0.63 ms for the DWT, 7.3 ms for the dual-tree wavelet transform and 165 ms for the scattering transform of Kymatio. The other libraries are also launch-bound; their times barely change between 256² and 1024².
-* **Large inputs (not in the table).** The advantage disappears. At 2048², the DWT of Pytorch Wavelets (0.73 ms) is about three times faster than **Curvelets** (2.1 ms), and CUDA graphs no longer help: the eager transform (1.75 ms) is faster, since the copies into and out of the graph's buffers cost more than the launches they save. The break-even is around 1024².
-* **Fused fold kernel.** The Triton kernel for the fold (see :ref:`torch-backend`) cuts the time by 6% to 17% compared with the same transform without it, in every size measured.
-
-These numbers measure the *cost of computing each decomposition*, not "the same result, faster". The transforms differ in their redundancy (below), in their directions (three for the DWT, six for the dual-tree transforms, and as many as configured for the curvelets; :ref:`sphx_glr_auto_examples_plot_13_transform_atoms.py` shows what a single coefficient looks like in each of them), and in invertibility: Kymatio's scattering transform is not invertible, so only its forward transform is timed.
-
-How many coefficients does each transform return?
-#################################################
-
-The redundancy of a transform is the number of (real-valued) coefficients it returns per input sample. It goes from nearly one for the DWT to about four for the dual-tree wavelet transform and the curvelets in 2D. More coefficients cost memory and time, and buy more directions and stability to shifts, which is a large part of why the DWT is faster at large sizes.
-
-.. include:: library_redundancy_table.rst
+Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ which implements the wavelet scattering transform :cite:`Bruna2013` in PyTorch, TensorFlow and JAX, and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implements the dual-tree complex wavelet transform :cite:`Kingsbury2001` in PyTorch. A speed comparison is in :doc:`related_projects`.
 
 References
 ##########

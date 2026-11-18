@@ -781,22 +781,31 @@ def speed_table(data: dict[str, Any], fmt: str) -> str:
             fastest = factor == max(
                 slowest[s][0] / t[s][0] for t in best.values() if s in t
             )
-            text = f"{factor:.2f}x"
+            text = f"{factor:.0f}x"
             row.append(f"**{text}**" if fastest else text)
         body.append(row)
     shape_names = ["x".join(map(str, s)) for s in SPEED_SHAPES]
-    modes = "; ".join(
-        f"{n}: {_MODES.get(best[TORCH_LABEL][s][2], best[TORCH_LABEL][s][2])}"
-        for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
+    winners = {
+        _MODES.get(best[TORCH_LABEL][s][2], best[TORCH_LABEL][s][2])
+        for s in SPEED_SHAPES
         if s in best.get(TORCH_LABEL, {})
-    )
+    }
+    if winners == {"CUDA graphs"}:
+        footnote = "\\* All with CUDA graphs."
+    else:
+        modes = "; ".join(
+            f"{n}: {_MODES.get(best[TORCH_LABEL][s][2], best[TORCH_LABEL][s][2])}"
+            for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
+            if s in best.get(TORCH_LABEL, {})
+        )
+        footnote = f"\\* Best mode in each column: {modes}."
     refs = "; ".join(
         f"{n}: {slowest[s][1]} ({slowest[s][0]:.3g} ms)"
         for n, s in zip(shape_names, SPEED_SHAPES, strict=True)
     )
     notes = [
-        f"Speed relative to the slowest library of each column (1.00x): {refs}.",
-        f"\\* Best mode of the torch implementation in each column (CUDA graphs, with or without the Triton fold, or eager): {modes}.",
+        f"Speed relative to the slowest library of each column (1x): {refs}.",
+        footnote,
     ]
     return _table(header, body, fmt, 2) + "\n\n" + "\n\n".join(notes)
 
