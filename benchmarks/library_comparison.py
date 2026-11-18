@@ -324,8 +324,9 @@ def build_dtcwt_tf(shape: tuple[int, ...], dev: str) -> Transform:
 
     The backend is written for TensorFlow 1 (``tf.Session``, ``tf.variable_scope``),
     so TensorFlow 2 runs it in graph mode through the ``tf.compat.v1`` aliases.
-    The graph is built once and the transform is run with ``Session.run``
-    without fetching the outputs (nothing is copied back to the host).
+    The graph is built once and run with ``Session.run``, which fetches the
+    outputs to the host. (Running a ``tf.group`` of the outputs instead does
+    not execute the transform: it costs the same at every size.)
     """
     import tensorflow as tf
 
@@ -357,16 +358,13 @@ def build_dtcwt_tf(shape: tuple[int, ...], dev: str) -> Transform:
     session = v1.Session(graph=graph)
     session.run(init)
     ncoef = _count(session.run(forward_ops))
-    with graph.as_default():
-        forward_run = tf.group(*forward_ops)
-        inverse_run = tf.group(inverse_op)
     gpu = bool(tf.config.list_physical_devices("GPU"))
     return Transform(
-        forward=lambda: session.run(forward_run),
-        inverse=lambda: session.run(inverse_run),
+        forward=lambda: session.run(forward_ops),
+        inverse=lambda: session.run(inverse_op),
         ncoef=ncoef,
         device="cuda" if gpu else "cpu",
-        config=f"nlevels={NUM_SCALES}, TensorFlow backend (graph mode), outputs not copied to host",
+        config=f"nlevels={NUM_SCALES}, TensorFlow backend (graph mode), outputs fetched to the host",
     )
 
 
