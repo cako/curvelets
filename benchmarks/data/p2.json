@@ -1,0 +1,341 @@
+{
+ "meta": {
+  "torch": "2.8.0+cu128",
+  "numpy": "2.1.2",
+  "device": "NVIDIA RTX 2000 Ada Generation",
+  "cpu_threads": 24,
+  "python": "3.12.3"
+ },
+ "results": [
+  {
+   "name": "2d_512",
+   "shape": [
+    512,
+    512
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 0.7624888820573688,
+   "n_wedges": 19,
+   "window_bytes": 7723800,
+   "ncoef": 557056,
+   "redundancy": 2.125,
+   "udctmodule_autograd": "ok",
+   "batched": {
+    "16": {
+     "fused_fwd_ms_per_img": 0.34642760874703526,
+     "fused_bwd_ms_per_img": 0.3347622259752825,
+     "loop_fix_sync_fwd_ms_per_img": 0.5145196919329464,
+     "vmap_fix_sync_fwd_ms_per_img": 0.33716695907060057
+    }
+   },
+   "variants": {
+    "library": {
+     "fwd_ms": 0.41588512249290943,
+     "bwd_ms": 0.6136118900030851,
+     "rel_err_vs_cpu": 4.7128762221356955e-07,
+     "fwd_counts": {
+      "kernels": 20,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 44,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 54.302734375
+    },
+    "library_vect": {
+     "fwd_ms": 0.4303411114960909,
+     "bwd_ms": 0.769338570535183,
+     "rel_err_vs_cpu": 4.7128762221356955e-07,
+     "fwd_counts": {
+      "kernels": 19,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 43,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 55.0888671875
+    },
+    "fused": {
+     "fwd_ms": 0.43211597949266434,
+     "bwd_ms": 0.4391858819872141,
+     "rel_err_vs_cpu": 4.859221332147863e-07,
+     "roundtrip_err": 6.141856619790311e-07,
+     "fwd_counts": {
+      "kernels": 23,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 23,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 4,
+     "nnz": 321825,
+     "peak_mem_mib": 93.1572265625,
+     "est_fwd_bytes": 37800100
+    },
+    "fused_graph": {
+     "fwd_ms": 0.18020649440586567,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_2048_w6",
+   "shape": [
+    2048,
+    2048
+   ],
+   "num_scales": 5,
+   "wedges_per_direction": 6,
+   "dtype": "torch.float32",
+   "init_s": 49.02733227517456,
+   "n_wedges": 181,
+   "window_bytes": 131673144,
+   "ncoef": 8421376,
+   "redundancy": 2.0078125,
+   "udctmodule_autograd": "ok",
+   "batched": {
+    "4": {
+     "fused_fwd_ms_per_img": 6.422647507861257,
+     "fused_bwd_ms_per_img": 6.33181439479813,
+     "loop_fix_sync_fwd_ms_per_img": 4.7730940277688205,
+     "vmap_fix_sync_fwd_ms_per_img": 6.175210000947118
+    }
+   },
+   "variants": {
+    "library": {
+     "fwd_ms": 4.798004869371653,
+     "bwd_ms": 5.026523023843765,
+     "rel_err_vs_cpu": 5.202288842747586e-07,
+     "fwd_counts": {
+      "kernels": 35,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 61,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 833.39501953125
+    },
+    "library_vect": {
+     "fwd_ms": 4.143520724028349,
+     "bwd_ms": 4.257505293935537,
+     "rel_err_vs_cpu": 5.202288842747586e-07,
+     "fwd_counts": {
+      "kernels": 33,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 59,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 832.58642578125
+    },
+    "fused": {
+     "fwd_ms": 5.4154470562934875,
+     "bwd_ms": 5.470888921990991,
+     "rel_err_vs_cpu": 5.622478173499256e-07,
+     "roundtrip_err": 8.45403662401386e-07,
+     "fwd_counts": {
+      "kernels": 36,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 36,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 9,
+     "nnz": 5486381,
+     "peak_mem_mib": 1455.482421875,
+     "est_fwd_bytes": 601211476
+    },
+    "fused_graph": {
+     "fwd_ms": 5.357394926249981,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "3d_64",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 1.1935601020231843,
+   "n_wedges": 136,
+   "window_bytes": 9861624,
+   "ncoef": 1028096,
+   "redundancy": 3.921875,
+   "udctmodule_autograd": "ok",
+   "batched": {
+    "8": {
+     "fused_fwd_ms_per_img": 0.497268745675683,
+     "fused_bwd_ms_per_img": 0.4545603005681187,
+     "loop_fix_sync_fwd_ms_per_img": 0.8121783030219376,
+     "vmap_fix_sync_fwd_ms_per_img": 0.5732839927077293
+    }
+   },
+   "variants": {
+    "library": {
+     "fwd_ms": 0.816859770566225,
+     "bwd_ms": 1.1318160686641932,
+     "rel_err_vs_cpu": 3.650287739444321e-07,
+     "fwd_counts": {
+      "kernels": 22,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 50,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 82.8759765625
+    },
+    "library_vect": {
+     "fwd_ms": 0.4699870478361845,
+     "bwd_ms": 0.8263401687145233,
+     "rel_err_vs_cpu": 3.650287739444321e-07,
+     "fwd_counts": {
+      "kernels": 20,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 48,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 82.67333984375
+    },
+    "fused": {
+     "fwd_ms": 0.4856823943555355,
+     "bwd_ms": 0.49568782560527325,
+     "rel_err_vs_cpu": 3.7381707877913773e-07,
+     "roundtrip_err": 6.141856619790311e-07,
+     "fwd_counts": {
+      "kernels": 25,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 25,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 5,
+     "nnz": 410901,
+     "peak_mem_mib": 139.5439453125,
+     "est_fwd_bytes": 56080116
+    },
+    "fused_graph": {
+     "fwd_ms": 0.2799653448164463,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "3d_128",
+   "shape": [
+    128,
+    128,
+    128
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 18.025791761931032,
+   "n_wedges": 136,
+   "window_bytes": 76726920,
+   "ncoef": 8224768,
+   "redundancy": 3.921875,
+   "udctmodule_autograd": "ok",
+   "batched": {
+    "2": {
+     "fused_fwd_ms_per_img": 5.0704097375273705,
+     "fused_bwd_ms_per_img": 4.81930049136281,
+     "loop_fix_sync_fwd_ms_per_img": 3.8342144107446074,
+     "vmap_fix_sync_fwd_ms_per_img": 5.387320998124778
+    }
+   },
+   "variants": {
+    "library": {
+     "fwd_ms": 3.8388287648558617,
+     "bwd_ms": 3.7223054096102715,
+     "rel_err_vs_cpu": 5.367381387104303e-07,
+     "fwd_counts": {
+      "kernels": 27,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 55,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 653.16943359375
+    },
+    "library_vect": {
+     "fwd_ms": 3.202196443453431,
+     "bwd_ms": 2.9094365891069174,
+     "rel_err_vs_cpu": 5.367381387104303e-07,
+     "fwd_counts": {
+      "kernels": 25,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 53,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 652.220703125
+    },
+    "fused": {
+     "fwd_ms": 3.580295480787754,
+     "bwd_ms": 3.222167957574129,
+     "rel_err_vs_cpu": 5.61512364180365e-07,
+     "roundtrip_err": 8.45403662401386e-07,
+     "fwd_counts": {
+      "kernels": 29,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 29,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 5,
+     "nnz": 3196955,
+     "peak_mem_mib": 1101.63037109375,
+     "est_fwd_bytes": 445391820
+    },
+    "fused_graph": {
+     "fwd_ms": 3.504157066345215,
+     "err_vs_fused": 0.0
+    }
+   }
+  }
+ ]
+}

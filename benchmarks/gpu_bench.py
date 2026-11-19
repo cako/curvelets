@@ -2,7 +2,7 @@
 
 Compares, per configuration:
 
-- ``library``   : the checked-out library code path (``UDCT`` + ``apply_to_tensors(cuda)``, i.e. what
+- ``library``   : the checked-out library code path (nested-list API) (``UDCT`` + ``apply_to_tensors(cuda)``, i.e. what
                   ``UDCTModule.to("cuda")`` does), forward = ``vect(forward(x))``,
                   backward = ``backward(c)``. (Reported as ``base`` in older results.)
 - ``fix_maps``  : same, but re-attach the periodized index maps that
@@ -346,17 +346,22 @@ def run_config(
     variants: dict[str, dict[str, Any]] = {}
     for vname in variant_names:
         u = copy.deepcopy(ref)
-        if vname == "library":
+        if vname in ("library", "library_vect"):
             move_base(u, dev)
         else:
             move_fix_maps(u, dev, keep_dec_on_cpu=vname == "fix_sync")
         c = u.forward(x)
         v = u.vect(c)
         err = (v.cpu() - v_ref).abs().max().item() / v_ref.abs().max().item()
-        fwd = lambda u=u: u.vect(u.forward(x))  # noqa: E731
-        # NB: backward is fed the nested coefficients directly; UDCT.struct() crashes on
-        # CUDA after apply_to_tensors (CPU shape tensor // CUDA decimation ratios).
-        bwd = lambda u=u, c=c: u.backward(c)  # noqa: E731
+        if vname == "library_vect":
+            # Flat path used by UDCTModule (no nested-list round trip).
+            fwd = lambda u=u: u._forward_vect(x)  # noqa: E731
+            bwd = lambda u=u, v=v: u._backward_vect(v)  # noqa: E731
+        else:
+            fwd = lambda u=u: u.vect(u.forward(x))  # noqa: E731
+            # NB: backward is fed the nested coefficients directly; before the P0
+            # fixes UDCT.struct() crashed on CUDA after apply_to_tensors.
+            bwd = lambda u=u, c=c: u.backward(c)  # noqa: E731
         if dev.type == "cuda":
             torch.cuda.reset_peak_memory_stats()
         r = {
@@ -514,8 +519,8 @@ def main() -> None:
     ap.add_argument("--no-cpu-ref", action="store_true")
     ap.add_argument(
         "--variants",
-        default="library",
-        help="comma-separated subset of library,fix_maps,fix_sync",
+        default="library,library_vect",
+        help="comma-separated subset of library,library_vect,fix_maps,fix_sync",
     )
     args = ap.parse_args()
 
