@@ -8,6 +8,62 @@ with a CUDA GPU:
 python benchmarks/gpu_bench.py --export benchmarks/data/gpu.json
 ```
 
+## TL;DR: top of the stack vs `main`
+
+float32, `UDCTModule` forward + backward, single image.
+
+| config | GPU (RTX 2000 Ada) | CPU (4 threads) |
+|---|---:|---:|
+| 512² | **11x** faster | **2.1x** faster |
+| 1024², 85 wedges | **30x** faster | **1.3x** faster |
+| 64³ | **67x** faster | **3.1x** faster |
+| 128³ | **16x** faster | **1.5x** faster |
+
+CPU raw data: [`data/cpu_vs_main.json`](data/cpu_vs_main.json) (forward + backward through autograd, min over repeated runs).
+
+## Status after the GPU stack
+
+The roadmap below has been implemented through P2, plus native batching (PRs
+#82, #83, #84, #85, #86). Measured on the same RTX 2000 Ada as the baseline,
+float32, `UDCTModule` flat path (raw data: [`data/final.json`](data/final.json)):
+
+| config | before fwd / bwd (ms) | after fwd / bwd (ms) | speedup |
+|---|---:|---:|---:|
+| 28² (MNIST) | 2.06 / 1.71 | 0.33 / 0.55 | 6× / 3× |
+| 512² | 6.53 / 5.35 | 0.39 / 0.69 | 17× / 8× |
+| 1024², 85 wedges | 29.1 / 23.9 | 0.76 / 0.98 | 38× / 24× |
+| 2048², 181 wedges | 64.1 / 52.8 | 4.15 / 4.29 | 15× / 12× |
+| 64³ | 52.2 / 42.5 | 0.47 / 0.94 | 111× / 45× |
+| 128³ | 53.5 / 44.2 | 3.21 / 2.92 | 17× / 15× |
+
+Zero device-to-host copies per call, bitwise-deterministic results, and backprop
+through `UDCTModule` works on CUDA. Not done yet: streaming `filter` for bounded
+memory, building windows on the GPU (init still takes ~40 s for 2048²), and fusing the folds into the FFTs (Triton or cuFFT callbacks).
+
+
+### CPU
+
+The fold step is implemented per device class. On CPUs it is a sorted scatter-add
+with a cache-blocked backward (wedges are transformed and folded into the spectrum
+in chunks that stay in cache). GPU-style folds would cost redundant arithmetic there;
+for example, their backward was about 2× slower at 64³ on this CPU.
+
+float32, single image, `UDCTModule` path, min over repeated runs, ms, fwd / bwd
+(raw data: [`data/cpu.json`](data/cpu.json)):
+
+| config | per-wedge (#83), 4 threads | CPU path (#85), 4 threads | per-wedge, 1 thread | CPU path, 1 thread |
+|---|---:|---:|---:|---:|
+| 256² | 3.0 / 2.6 | 0.9 / 0.9 | 3.0 / 3.0 | 1.1 / 1.2 |
+| 512² | 6.1 / 5.9 | 4.7 / 4.0 | 8.4 / 8.2 | 5.7 / 4.9 |
+| 1024², 85 wedges | 28.7 / 29.3 | 20.4 / 19.0 | 38.5 / 37.6 | 24.4 / 24.0 |
+| 64³ | 24.6 / 22.1 | 6.3 / 5.9 | 21.3 / 18.9 | 8.0 / 7.4 |
+| 128³ | 98.6 / 69.1 | 59.3 / 52.5 | 124.4 / 83.9 | 93.1 / 67.1 |
+
+At 128³ the forward varies by ±20% between runs (first-touch costs of ~66 MB
+buffers), so compare it with care.
+
+The original assessment follows.
+
 ## TL;DR
 
 The current GPU path is **launch- and sync-bound**, not compute- or bandwidth-bound. Every

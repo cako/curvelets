@@ -103,9 +103,10 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
     """
     PyTorch nn.Module wrapper for UDCT with autograd support.
 
-    PyTorch module with automatic differentiation. When called, it returns
-    flattened coefficients as a single tensor, enabling gradient computation
-    through the backward transform. The backward transform is automatically
+    PyTorch module with automatic differentiation. When called on an input of
+    shape ``(*batch, *shape)``, it returns flattened coefficients of shape
+    ``(*batch, ncoef)``, enabling gradient computation through the backward
+    transform. Batches are processed natively (no ``torch.vmap`` needed). The backward transform is automatically
     used in the autograd graph when computing gradients.
 
     Parameters

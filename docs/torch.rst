@@ -34,6 +34,43 @@ The integer metadata that determines the shape of the coefficients (:meth:`~curv
 
 The public ``decimation_ratios`` attribute still follows ``.to()``.
 
+.. _torch-batching:
+
+Batching
+========
+
+Every transform accepts leading batch dimensions. For a transform of shape ``shape``:
+
+* :meth:`~curvelets.torch.UDCT.forward` maps ``(*batch, *shape)`` to coefficients whose arrays have shape ``(*batch, *wedge_shape)``;
+* :meth:`~curvelets.torch.UDCT.vect` maps those to a tensor of shape ``(*batch, ncoef)`` and :meth:`~curvelets.torch.UDCT.struct` goes back;
+* :meth:`~curvelets.torch.UDCT.backward` maps coefficients back to ``(*batch, *shape)``.
+
+:class:`~curvelets.torch.UDCTModule` transforms a whole batch in one call, so :func:`torch.vmap` is no longer needed (it still works). The trailing dimensions are checked against the transform's shape.
+
+.. code-block:: python
+
+    import torch
+    from curvelets.torch import UDCTModule
+
+    module = UDCTModule(shape=(28, 28))
+    images = torch.randn(64, 1, 28, 28)  # (batch, channel, height, width)
+    coefficients = module(images)  # (64, 1, ncoef)
+
+Filtering coefficients
+----------------------
+
+:meth:`UDCT.filter(image, fn) <curvelets.torch.UDCT.filter>` is a shortcut for the forward transform, ``fn`` applied to the coefficients, and the backward transform. ``fn`` receives a single tensor of shape ``(*batch, ncoef)`` in :meth:`~curvelets.torch.UDCT.vect` order (call :meth:`~curvelets.torch.UDCT.struct` inside it for per-wedge access), and the nested coefficient lists are never built.
+
+.. code-block:: python
+
+    from curvelets.torch import UDCT
+
+    transform = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    noisy = torch.randn(4, 32, 32)
+    denoised = transform.filter(noisy, lambda c: c * (c.abs() > 0.5))
+
+See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a training loop.
+
 .. _torch-performance:
 
 Performance

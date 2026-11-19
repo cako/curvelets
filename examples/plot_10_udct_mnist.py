@@ -21,7 +21,7 @@ Architecture Overview
 - **Feature extraction**: UDCTModule transforms each image into curvelet coefficients
 - **Features**: All coefficient values (every pixel in every wedge) form the feature vector
 - **Classification**: Two-layer MLP (Linear -> ReLU -> Linear) maps features to 10 classes
-- **Batch processing**: ``torch.vmap`` enables efficient batched inference
+- **Batch processing**: ``UDCTModule`` transforms a whole batch in one call
 
 **Credits**
 
@@ -54,7 +54,8 @@ from curvelets.torch import UDCTModule
 # 2. Feature extraction: Uses all coefficient values as features
 # 3. Two-layer MLP: Maps features to class probabilities
 #
-# We use ``torch.vmap`` to efficiently process batches of images.
+# ``UDCTModule`` accepts a leading batch dimension, so a whole batch of images
+# is transformed in one call.
 
 
 class UDCTNet(nn.Module):  # type: ignore[misc]
@@ -90,15 +91,15 @@ class UDCTNet(nn.Module):  # type: ignore[misc]
         """Forward pass with batched curvelet feature extraction."""
         # x: (batch, 1, 28, 28) -> squeeze to (batch, 28, 28)
         x = x.squeeze(1)
-        # Use vmap for batch processing
-        features = torch.vmap(self._extract_features)(x)
+        # UDCTModule handles the leading batch dimension natively
+        features = self._extract_features(x)
         x = F.relu(self.fc1(features))
         return F.log_softmax(self.fc2(x), dim=1)
 
     def get_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract features without classification (for visualization)."""
         x = x.squeeze(1)
-        return torch.vmap(self._extract_features)(x)
+        return self._extract_features(x)
 
 
 # %%
