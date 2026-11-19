@@ -26,7 +26,7 @@ def _udct(dtype: torch.dtype | None = None, kind: str = "real") -> UDCT:
 
 def _fold_weights(plan: UDCTPlan) -> list[torch.Tensor]:
     folds: list[GatherFold | ScatterFold] = [plan.fwd_map]
-    folds += [f for f in (plan.bwd_map, plan.bwd_conj_map) if f is not None]
+    folds += [plan.bwd_map] if plan.bwd_map is not None else []
     folds += [f for chunk in plan.cpu_chunks or [] for f in chunk.bwd]
     weights: list[torch.Tensor] = []
     for fold in folds:

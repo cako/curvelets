@@ -144,3 +144,14 @@ The *fold* step turns window samples into the coefficient spectra (and back). It
 For the real transform the FFT is a half-spectrum transform (``rfftn``), and the backward reconstructs the result with ``irfftn``, which halves the FFT work and memory. Indices use 32 bits, and the per-wedge scale factors are folded into the fold weights.
 
 Moving a module between devices with ``.to()`` rebuilds the plan with the fold that suits the new device; you do not select it yourself.
+
+Real-arithmetic folds and ``torch.compile``
+-------------------------------------------
+
+On accelerators, the gather fold works on the real view of complex data (:func:`torch.view_as_real`) with a pair of weights per contribution, applied to the real and imaginary parts. A term can therefore enter conjugated without materializing a conjugate. For the real transform this means:
+
+* the forward gathers straight from the ``rfftn`` half spectrum, so the ``[F, conj F]`` buffer, as large as a full complex spectrum, is gone;
+* the plain and conjugated backward folds are merged into one, removing the extra ``A + conj(B)`` pass;
+* the ``1/size`` normalization of each wedge's inverse FFT is folded into the forward weights, and the inverse FFT runs with ``norm="forward"``.
+
+Every step is a real gather, multiply or sum. This avoids the slow complex-by-real multiply kernel and lets TorchInductor fuse the fold into Triton kernels. The accelerator path of the fused plan's flat forward and backward transforms traces into a single graph, without graph breaks (checked in the test suite for the real and complex transforms). The FFTs themselves remain cuFFT calls. CPU scatter folds are unchanged.

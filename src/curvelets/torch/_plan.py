@@ -24,13 +24,19 @@ The fold step has one implementation per device class:
   the large intermediate buffer of all coefficient spectra never exists.
 The real transform works on half spectra: the forward gathers from ``rfftn`` of
 the (real) input, reading ``conj(F[-k])`` for frequencies outside the stored
-half (from a ``[F, conj(F)]`` buffer, so every term is a plain gather), and the
-backward accumulates the Hermitian part of the spectrum, ``A + conj(B)``, whose
-``irfftn`` equals ``ifftn(F).real``. That halves the full-size FFTs and buffers.
+half, and the backward accumulates the Hermitian part of the spectrum,
+``A + conj(B)``, whose ``irfftn`` equals ``ifftn(F).real``. That halves the
+full-size FFTs and buffers. The gather folds apply the conjugation on the fly
+with per-term weight pairs ``(w, -w)`` for the real and imaginary parts, so the
+backward is one fold and the forward reads the half spectrum directly; the CPU
+scatter folds read conjugated terms from a ``[F, conj(F)]`` scratch buffer.
+On accelerators, the ``1/size`` normalization of each wedge's inverse FFT is
+also folded into the forward weights (the FFTs then run unnormalized).
 
 The launch count no longer grows with the number of wedges. Every op is
 out-of-place and differentiable, so the plan works under autograd and
-``torch.vmap``, and it accepts arbitrary leading batch dimensions.
+``torch.vmap``, and it accepts arbitrary leading batch dimensions. The gather
+path traces into a single graph under ``torch.compile``.
 """
 
 from __future__ import annotations
@@ -40,6 +46,7 @@ import math
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 import torch
@@ -52,13 +59,19 @@ from .typing import UDCTCoefficients, UDCTWindows
 
 CPU_CHUNK_ELEMENTS = 1 << 19  # coefficients per CPU chunk (~4 MiB as complex64)
 
+# Gather plans fold each wedge's 1/size into the forward weights.
+_IFFTN_UNNORMALIZED = partial(torch.fft.ifftn, norm="forward")
+
 
 def _direct_ok(tensor: torch.Tensor) -> bool:
     """Whether FFT results may be written in place into a preallocated buffer.
 
     ``out=`` variants are not differentiable and are not supported inside
-    functorch transforms (``vmap``, ``grad``), so fall back in those cases.
+    functorch transforms (``vmap``, ``grad``) or traced graphs
+    (``torch.compile``), so fall back in those cases.
     """
+    if torch.compiler.is_compiling():
+        return False
     if torch.is_grad_enabled() and tensor.requires_grad:
         return False
     return not _functorch_wrapped(tensor)
@@ -118,10 +131,11 @@ class UDCTPlan:
     layout: list[tuple[int, int, int]]
     num_directions: list[int]
     ncoef: int
-    fwd_map: GatherFold | ScatterFold  # spectrum ([F, conj F] or full) -> folded
+    # Forward: spectrum -> folded coefficients. Gather: reads the (half)
+    # spectrum, conj via weight pairs. Scatter: reads [F, conj F] (real) or F.
+    fwd_map: GatherFold | ScatterFold
     # Accelerator backward (gather strategy): one fold over all wedges.
     bwd_map: GatherFold | None  # coefficient spectra -> spectrum (half or full)
-    bwd_conj_map: GatherFold | None  # half-spectrum terms that enter conjugated
     # CPU backward (scatter strategy): cache-sized chunks of wedges.
     cpu_chunks: list[_CpuChunk] | None
     # CPU forward scratch space ([F, conj F]), reused across calls per thread.
@@ -239,13 +253,12 @@ class UDCTPlan:
         if strategy is None:
             strategy = "scatter" if fwd_idx.device.type == "cpu" else "gather"
         fwd_map: GatherFold | ScatterFold
-        bwd_map = bwd_conj_map = None
+        bwd_map = None
         cpu_chunks = None
         if strategy == "gather":
-            fwd_map = GatherFold.build(*fwd_c, offset, num_fwd_sources)
-            bwd_folds = [GatherFold.build(*c, num_spectrum, offset) for c in bwd_c]
-            bwd_map = bwd_folds[0]
-            bwd_conj_map = bwd_folds[1] if len(bwd_folds) > 1 else None
+            fwd_map, bwd_map = _gather_folds(
+                groups, fwd_c, bwd_c, offset, num_spectrum, complex_mode=complex_mode
+            )
         elif strategy == "scatter":
             fwd_map = ScatterFold.build(*fwd_c, offset, num_fwd_sources)
             cpu_chunks = _cpu_chunks(groups, bwd_c, num_spectrum)
@@ -266,7 +279,6 @@ class UDCTPlan:
             ncoef=offset,
             fwd_map=fwd_map,
             bwd_map=bwd_map,
-            bwd_conj_map=bwd_conj_map,
             cpu_chunks=cpu_chunks,
         )
 
@@ -368,7 +380,12 @@ class UDCTPlan:
         else:
             spectrum = torch.fft.rfftn(image, dim=self._dims())  # pylint: disable=not-callable
         flat = spectrum.reshape(-1, math.prod(self.spectrum_shape))
-        reuse = isinstance(self.fwd_map, ScatterFold) and _direct_ok(flat)
+        if isinstance(self.fwd_map, GatherFold):
+            # Conjugated terms and the inverse FFTs' 1/size are in the weights.
+            folded = self.fwd_map.apply(flat)
+            coeffs = self._batched_ffts(folded, _IFFTN_UNNORMALIZED, folded.dtype)
+            return coeffs.reshape(*batch, self.ncoef)
+        reuse = _direct_ok(flat)
         if not self.complex_output:
             pair = [flat, flat.conj()]
             if reuse:
@@ -501,7 +518,8 @@ class UDCTPlan:
         """
         batch = vector.shape[:-1]
         flat = vector.reshape(-1, self.ncoef)
-        cdtype = flat.dtype.to_complex()
+        # Same as ``dtype.to_complex()``, which TorchDynamo cannot trace.
+        cdtype = torch.promote_types(flat.dtype, torch.complex64)
         if self.cpu_chunks is not None:
             spectrum = _stack_rows([
                 self._cpu_backward_row(row, cdtype) for row in flat
@@ -510,8 +528,6 @@ class UDCTPlan:
             assert self.bwd_map is not None
             small = self._batched_ffts(flat, torch.fft.fftn, cdtype)
             spectrum = self.bwd_map.apply(small)
-            if self.bwd_conj_map is not None:
-                spectrum = spectrum + self.bwd_conj_map.apply(small).conj()
         spectrum = spectrum.reshape(*batch, *self.spectrum_shape)
         if self.complex_output:
             return torch.fft.ifftn(spectrum, dim=self._dims())  # pylint: disable=not-callable
@@ -597,6 +613,53 @@ def _cpu_chunks(
             bounds, folds_per_chunk, strict=True
         )
     ]
+
+
+def _gather_folds(
+    groups: list[_Group],
+    fwd: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    bwd: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+    ncoef: int,
+    num_spectrum: int,
+    *,
+    complex_mode: bool,
+) -> tuple[GatherFold, GatherFold]:
+    """Forward and backward gather folds (accelerator strategy).
+
+    ``fwd`` is ``(slot, source, weight)``; for the real transform its sources
+    index ``[F_half, conj(F_half)]``, which becomes a source in ``F_half`` and the
+    weight pair ``(w, -w)``. The forward weights also absorb ``1/size`` of each
+    wedge's inverse FFT, which then runs unnormalized. ``bwd`` holds the
+    ``(spectrum target, slot, weight)`` contributions, plain and (real
+    transform) conjugated; they are merged into one fold with weight pairs
+    ``(w, w)`` and ``(w, -w)``.
+    """
+    targets, sources, weights = fwd
+    slot_size = torch.empty(ncoef, dtype=weights.dtype, device=weights.device)
+    for group in groups:
+        slot_size[group.offset : group.stop] = group.size
+    weights = weights / slot_size[targets]
+    if not complex_mode:
+        conj = sources >= num_spectrum
+        sources = torch.where(conj, sources - num_spectrum, sources)
+        weights = torch.stack([weights, torch.where(conj, -weights, weights)], dim=-1)
+    fwd_map = GatherFold.build(targets, sources, weights, ncoef, num_spectrum)
+
+    if complex_mode:
+        (bwd_c,) = bwd
+        return fwd_map, GatherFold.build(*bwd_c, num_spectrum, ncoef)
+    (t_plain, s_plain, w_plain), (t_conj, s_conj, w_conj) = bwd
+    bwd_map = GatherFold.build(
+        torch.cat([t_plain, t_conj]),
+        torch.cat([s_plain, s_conj]),
+        torch.cat([
+            torch.stack([w_plain, w_plain], dim=-1),
+            torch.stack([w_conj, -w_conj], dim=-1),
+        ]),
+        num_spectrum,
+        ncoef,
+    )
+    return fwd_map, bwd_map
 
 
 def _half_spectrum_contributions(

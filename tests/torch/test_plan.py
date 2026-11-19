@@ -143,10 +143,8 @@ def test_launch_count_does_not_grow_with_wedges(
     plan = _use_strategy(udct, "gather")
     assert isinstance(plan.fwd_map, GatherFold)
     assert isinstance(plan.bwd_map, GatherFold)
-    assert isinstance(plan.bwd_conj_map, GatherFold)
     assert len(plan.fwd_map.levels) <= MAX_LEVELS + 1
     assert len(plan.bwd_map.levels) <= MAX_LEVELS + 1
-    conj_levels = 1 + len(plan.bwd_conj_map.levels)
     x = _input("real", shape)
     coeffs = udct.forward(x)
     with profile(activities=[ProfilerActivity.CPU]) as prof:
@@ -156,9 +154,7 @@ def test_launch_count_does_not_grow_with_wedges(
     with profile(activities=[ProfilerActivity.CPU]) as prof:
         udct.backward(coeffs)
     names = [event.name for event in prof.events()]
-    assert names.count("aten::index_select") == (
-        1 + len(plan.bwd_map.levels) + conj_levels
-    )
+    assert names.count("aten::index_select") == 1 + len(plan.bwd_map.levels)
 
 
 def test_cpu_defaults_to_scatter_folds() -> None:
@@ -214,6 +210,102 @@ def test_fold_matches_dense_scatter(
         1, targets, src[:, sources] * weights
     )
     torch.testing.assert_close(fold.apply(src), expected)
+
+
+@pytest.mark.parametrize("batch", [1, 3])  # type: ignore[untyped-decorator]
+def test_gather_fold_weight_pairs_scale_real_and_imaginary_parts(batch: int) -> None:
+    """Weight pairs (a, b) give a * Re(src) + i * b * Im(src); (w, -w) is w * conj."""
+    gen = torch.Generator().manual_seed(4)
+    num_targets, num_sources, n = 50, 40, 600
+    targets = torch.randint(0, num_targets, (n,), generator=gen)
+    sources = torch.randint(0, num_sources, (n,), generator=gen)
+    pairs = torch.rand(n, 2, generator=gen, dtype=torch.float64)
+    pairs[::3, 1] = -pairs[::3, 0]  # some conjugated terms
+    fold = GatherFold.build(targets, sources, pairs, num_targets, num_sources)
+    assert any(level.width > 1 for level in fold.levels)
+
+    src = torch.randn(batch, num_sources, dtype=torch.complex128, generator=gen)
+    terms = torch.complex(
+        src.real[:, sources] * pairs[:, 0], src.imag[:, sources] * pairs[:, 1]
+    )
+    expected = torch.zeros(batch, num_targets, dtype=torch.complex128).index_add(
+        1, targets, terms
+    )
+    torch.testing.assert_close(fold.apply(src), expected)
+
+
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+def test_gather_plan_has_one_backward_fold_and_reads_the_half_spectrum(
+    kind: Kind,
+) -> None:
+    """Conjugated terms use weight pairs: no [F, conj F] input, one backward fold."""
+    shape = (32, 32)
+    udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind)
+    plan = _use_strategy(udct, "gather")
+    assert isinstance(plan.fwd_map, GatherFold)
+    assert isinstance(plan.bwd_map, GatherFold)
+    num_spectrum = 32 * (32 // 2 + 1) if kind == "real" else 32 * 32
+    assert plan.fwd_map.num_sources == num_spectrum
+    assert plan.bwd_map.num_targets == num_spectrum
+    weight_dims = 2 if kind == "real" else 1
+    assert plan.fwd_map.w0.ndim == weight_dims
+    assert plan.bwd_map.w0.ndim == weight_dims
+
+
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+def test_gather_plan_gradcheck_and_vmap(kind: Kind) -> None:
+    """The weight-pair folds are differentiable and work under ``torch.vmap``."""
+    shape = (16, 16)
+    udct = UDCT(
+        shape=shape,
+        num_scales=2,
+        wedges_per_direction=3,
+        transform_kind=kind,
+        dtype=torch.float64,
+    )
+    plan = _use_strategy(udct, "gather")
+    x = _input(kind, shape).unsqueeze(0).requires_grad_(True)
+    assert torch.autograd.gradcheck(plan.forward_flat, (x,))
+    coeffs = plan.forward_flat(x.detach()).requires_grad_(True)
+    assert torch.autograd.gradcheck(plan.backward_flat, (coeffs,))
+
+    batch = torch.stack([_input(kind, shape, seed) for seed in range(3)])
+    torch.testing.assert_close(
+        torch.vmap(plan.forward_flat)(batch), plan.forward_flat(batch)
+    )
+
+
+def test_traced_code_takes_the_functional_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """While Dynamo traces, no out= buffers and no opaque functorch check.
+
+    (Coverage cannot see these lines in the compile test: Dynamo interprets
+    the bytecode instead of running it.)
+    """
+    from curvelets.torch._foldmap import _functorch_wrapped
+    from curvelets.torch._plan import _direct_ok
+
+    x = torch.zeros(3)
+    assert _direct_ok(x)
+    monkeypatch.setattr(torch.compiler, "is_compiling", lambda: True)
+    assert not _direct_ok(x)
+    assert not _functorch_wrapped(torch.vmap(lambda t: t)(x))
+
+
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
+    """The accelerator path traces without graph breaks and matches eager."""
+    shape = (32, 32)
+    udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind)
+    plan = _use_strategy(udct, "gather")
+    x = _input(kind, shape).unsqueeze(0).repeat(2, 1, 1)
+    coeffs = plan.forward_flat(x)
+    torch._dynamo.reset()  # pylint: disable=protected-access
+    forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
+    torch.testing.assert_close(forward(x), coeffs)
+    torch.testing.assert_close(backward(coeffs), plan.backward_flat(coeffs))
 
 
 def test_odd_shape_half_spectrum_matches_reference() -> None:

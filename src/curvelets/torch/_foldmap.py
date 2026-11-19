@@ -1,7 +1,11 @@
 """Sparse reductions ("folds") used by the fused UDCT plan, one per device class.
 
 A fold evaluates ``out[t] = sum_j w_j * src[s_j]`` with real weights for a fixed
-list of contributions ``(t_j, s_j, w_j)``. The best way to do that depends on the
+list of contributions ``(t_j, s_j, w_j)``. :class:`GatherFold` also accepts a
+weight *pair* ``(a_j, b_j)`` per contribution, which scales the real and
+imaginary parts separately: ``a_j * Re(src[s_j]) + i * b_j * Im(src[s_j])``. With
+``b_j = -a_j`` that is ``a_j * conj(src[s_j])``, so conjugated terms need no
+separate conjugated copy of the input. The best way to do that depends on the
 hardware, so there are two implementations:
 
 - :class:`ScatterFold` (CPU): one ``index_add`` over the contributions sorted by
@@ -9,7 +13,10 @@ hardware, so there are two implementations:
   redundant arithmetic, which is what matters on a CPU. The plan builds one per
   cache-sized chunk of wedges (see ``UDCTPlan``).
 - :class:`GatherFold` (GPUs and other accelerators): trades extra arithmetic for
-  fewer launches and no atomics, as described below.
+  fewer launches and no atomics, as described below. It works on real views of
+  the complex data (``view_as_real``), so every step is a real gather, multiply
+  or sum: TorchInductor can fuse them, and the slow complex-by-real multiply
+  kernel is avoided.
 
 GatherFold: instead of a scatter-add (``index_add`` over every contribution, which needs
 atomics on GPU, a zero-filled output, and gives run-to-run differences in
@@ -43,7 +50,14 @@ def _index_dtype(size: int) -> torch.dtype:
 
 
 def _functorch_wrapped(tensor: torch.Tensor) -> bool:
-    """Whether ``tensor`` is wrapped by a functorch transform (vmap, grad, ...)."""
+    """Whether ``tensor`` is wrapped by a functorch transform (vmap, grad, ...).
+
+    Always ``False`` while TorchDynamo traces (``torch.compile``): the check is an
+    opaque builtin that would break the graph, and traced code takes the
+    functional paths anyway.
+    """
+    if torch.compiler.is_compiling():
+        return False
     is_wrapped = getattr(torch._C._functorch, "is_functorch_wrapped_tensor", None)  # pylint: disable=protected-access
     return is_wrapped is not None and bool(is_wrapped(tensor))
 
@@ -104,7 +118,8 @@ class GatherFold:
             Integer tensors of equal length: contribution ``j`` adds
             ``weights[j] * src[sources[j]]`` to ``out[targets[j]]``.
         weights : torch.Tensor
-            Real weights.
+            Real weights, shape ``(n,)``, or weight pairs, shape ``(n, 2)``, for
+            the real and imaginary parts of each source.
         num_targets, num_sources : int
             Output and input lengths.
 
@@ -123,7 +138,8 @@ class GatherFold:
 
         first = rank == 0
         src0 = torch.zeros(num_targets, dtype=idx_s, device=device)
-        w0 = torch.zeros(num_targets, dtype=weights.dtype, device=device)
+        pair = tuple(weights.shape[1:])
+        w0 = torch.zeros((num_targets, *pair), dtype=weights.dtype, device=device)
         src0[t_sorted[first]] = s_sorted[first].to(idx_s)
         w0[t_sorted[first]] = w_sorted[first]
 
@@ -148,7 +164,7 @@ class GatherFold:
             flat = rows * width + (rank[sel] - first_tail)
             size = tail_targets.numel() * width
             tail_src = torch.zeros(size, dtype=idx_s, device=device)
-            tail_w = torch.zeros(size, dtype=weights.dtype, device=device)
+            tail_w = torch.zeros((size, *pair), dtype=weights.dtype, device=device)
             tail_src[flat] = s_sorted[sel].to(idx_s)
             tail_w[flat] = w_sorted[sel]
             levels.append(
@@ -179,24 +195,24 @@ class GatherFold:
         Returns
         -------
         torch.Tensor
-            Output of shape ``(batch, num_targets)``.
+            Complex output of shape ``(batch, num_targets)``.
         """
-        single = src.shape[0] == 1
-        row = src[0] if single else src
+        parts = torch.view_as_real(src)  # (batch, num_sources, 2)
 
-        def take(index: torch.Tensor) -> torch.Tensor:
-            return row.index_select(0, index) if single else row[:, index]
+        def weighted(index: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
+            if weights.ndim == 1:
+                weights = weights.unsqueeze(-1)
+            return parts.index_select(1, index) * weights
 
-        out = take(self.src0) * self.w0
-        dim = 0 if single else 1
+        out = weighted(self.src0, self.w0)
         for lvl in self.levels:
-            term = take(lvl.sources) * lvl.weights
+            term = weighted(lvl.sources, lvl.weights)
             if lvl.width > 1:
-                term = term.unflatten(-1, (-1, lvl.width)).sum(-1)
+                term = term.unflatten(1, (-1, lvl.width)).sum(2)
             # ``out`` is a fresh tensor owned by this call, so the level is added
             # in place (an out-of-place index_add would copy the whole output).
-            out.index_add_(dim, lvl.targets, term)
-        return out.unsqueeze(0) if single else out
+            out.index_add_(1, lvl.targets, term)
+        return torch.view_as_complex(out)
 
 
 @dataclass
