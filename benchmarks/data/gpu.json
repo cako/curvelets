@@ -1,0 +1,1233 @@
+{
+ "meta": {
+  "torch": "2.8.0+cu128",
+  "numpy": "2.1.2",
+  "device": "NVIDIA RTX 2000 Ada Generation",
+  "cpu_threads": 64,
+  "python": "3.12.3"
+ },
+ "results": [
+  {
+   "name": "mnist_28x28",
+   "shape": [
+    28,
+    28
+   ],
+   "num_scales": 2,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 0.3603942170739174,
+   "n_wedges": 7,
+   "window_bytes": 25560,
+   "ncoef": 1960,
+   "redundancy": 2.5,
+   "numpy_init_s": 0.003072525840252638,
+   "numpy_cpu_fwd_ms": 0.20475545898079872,
+   "numpy_cpu_bwd_ms": 0.19743083976209164,
+   "torch_cpu_fwd_ms": 3.923090873286128,
+   "torch_cpu_bwd_ms": 3.884270554408431,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "64": {
+     "fused_fwd_ms_per_img": 0.003005337930517271,
+     "fused_bwd_ms_per_img": 0.0031375930120702833,
+     "loop_fix_sync_fwd_ms_per_img": 0.8523139113094658,
+     "vmap_fix_sync_fwd_ms_per_img": 0.020227220375090837
+    },
+    "512": {
+     "fused_fwd_ms_per_img": 0.0005382353265304118,
+     "fused_bwd_ms_per_img": 0.000557171915716026,
+     "loop_fix_sync_fwd_ms_per_img": 0.8551050950700301,
+     "vmap_fix_sync_fwd_ms_per_img": 0.00251912524618092
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 2.061240840703249,
+     "bwd_ms": 1.7056844662874937,
+     "rel_err_vs_cpu": 2.4740998853502113e-07,
+     "fwd_counts": {
+      "kernels": 147,
+      "item_calls": 36,
+      "dtoh_syncs": 36
+     },
+     "bwd_counts": {
+      "kernels": 133,
+      "item_calls": 21,
+      "dtoh_syncs": 21
+     },
+     "peak_mem_mib": 0.0947265625
+    },
+    "fix_maps": {
+     "fwd_ms": 1.0288602206856012,
+     "bwd_ms": 0.7943194359540939,
+     "rel_err_vs_cpu": 2.4740998853502113e-07,
+     "fwd_counts": {
+      "kernels": 84,
+      "item_calls": 8,
+      "dtoh_syncs": 8
+     },
+     "bwd_counts": {
+      "kernels": 70,
+      "item_calls": 7,
+      "dtoh_syncs": 7
+     },
+     "peak_mem_mib": 0.1005859375
+    },
+    "fix_sync": {
+     "fwd_ms": 0.87017472833395,
+     "bwd_ms": 0.6119387689977884,
+     "rel_err_vs_cpu": 2.4740998853502113e-07,
+     "fwd_counts": {
+      "kernels": 70,
+      "item_calls": 8,
+      "dtoh_syncs": 1
+     },
+     "bwd_counts": {
+      "kernels": 56,
+      "item_calls": 7,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 0.099609375
+    },
+    "fused": {
+     "fwd_ms": 0.17133099026978016,
+     "bwd_ms": 0.1765107735991478,
+     "rel_err_vs_cpu": 2.4740998853502113e-07,
+     "roundtrip_err": 3.4877820089740633e-07,
+     "fwd_counts": {
+      "kernels": 15,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 15,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 2,
+     "nnz": 1065,
+     "peak_mem_mib": 0.21728515625,
+     "est_fwd_bytes": 126148
+    },
+    "fused_graph": {
+     "fwd_ms": 0.03369990736246109,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_512",
+   "shape": [
+    512,
+    512
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 2.459135729353875,
+   "n_wedges": 19,
+   "window_bytes": 7723800,
+   "ncoef": 557056,
+   "redundancy": 2.125,
+   "numpy_init_s": 0.15527230501174927,
+   "numpy_cpu_fwd_ms": 9.87800257280469,
+   "numpy_cpu_bwd_ms": 13.43349157832563,
+   "torch_cpu_fwd_ms": 305.1760639064014,
+   "torch_cpu_bwd_ms": 298.0158352293074,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "16": {
+     "fused_fwd_ms_per_img": 0.34434805274941027,
+     "fused_bwd_ms_per_img": 0.3358874237164855,
+     "loop_fix_sync_fwd_ms_per_img": 2.1796147048007697,
+     "vmap_fix_sync_fwd_ms_per_img": 0.2971015783259645
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 6.528413854539394,
+     "bwd_ms": 5.3500281646847725,
+     "rel_err_vs_cpu": 4.3795622776835927e-07,
+     "fwd_counts": {
+      "kernels": 386,
+      "item_calls": 96,
+      "dtoh_syncs": 96
+     },
+     "bwd_counts": {
+      "kernels": 348,
+      "item_calls": 57,
+      "dtoh_syncs": 57
+     },
+     "peak_mem_mib": 22.92236328125
+    },
+    "fix_maps": {
+     "fwd_ms": 2.6416340842843056,
+     "bwd_ms": 2.0052308682352304,
+     "rel_err_vs_cpu": 4.3795622776835927e-07,
+     "fwd_counts": {
+      "kernels": 215,
+      "item_calls": 20,
+      "dtoh_syncs": 20
+     },
+     "bwd_counts": {
+      "kernels": 177,
+      "item_calls": 19,
+      "dtoh_syncs": 19
+     },
+     "peak_mem_mib": 25.39208984375
+    },
+    "fix_sync": {
+     "fwd_ms": 2.188785932958126,
+     "bwd_ms": 1.504547894001007,
+     "rel_err_vs_cpu": 4.3795622776835927e-07,
+     "fwd_counts": {
+      "kernels": 177,
+      "item_calls": 20,
+      "dtoh_syncs": 1
+     },
+     "bwd_counts": {
+      "kernels": 139,
+      "item_calls": 19,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 25.390625
+    },
+    "fused": {
+     "fwd_ms": 0.25067152455449104,
+     "bwd_ms": 0.25489088147878647,
+     "rel_err_vs_cpu": 4.3795622776835927e-07,
+     "roundtrip_err": 6.141856619790311e-07,
+     "fwd_counts": {
+      "kernels": 22,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 22,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 4,
+     "nnz": 321825,
+     "peak_mem_mib": 57.802734375,
+     "est_fwd_bytes": 37800100
+    },
+    "fused_graph": {
+     "fwd_ms": 0.17321621999144554,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_1024_w6",
+   "shape": [
+    1024,
+    1024
+   ],
+   "num_scales": 4,
+   "wedges_per_direction": 6,
+   "dtype": "torch.float32",
+   "init_s": 8.246104738209397,
+   "n_wedges": 85,
+   "window_bytes": 33078360,
+   "ncoef": 2129920,
+   "redundancy": 2.03125,
+   "numpy_init_s": 1.3313523610122502,
+   "numpy_cpu_fwd_ms": 45.96709948964417,
+   "numpy_cpu_bwd_ms": 58.731433004140854,
+   "torch_cpu_fwd_ms": 1415.6196862459183,
+   "torch_cpu_bwd_ms": 1504.316670820117,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "8": {
+     "fused_fwd_ms_per_img": 1.5002760919742286,
+     "fused_bwd_ms_per_img": 1.4589540078304708,
+     "loop_fix_sync_fwd_ms_per_img": 9.65629261918366,
+     "vmap_fix_sync_fwd_ms_per_img": 2.1165863145142794
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 29.13139504380524,
+     "bwd_ms": 23.881966713815928,
+     "rel_err_vs_cpu": 5.881555945406935e-07,
+     "fwd_counts": {
+      "kernels": 1703,
+      "item_calls": 426,
+      "dtoh_syncs": 426
+     },
+     "bwd_counts": {
+      "kernels": 1533,
+      "item_calls": 255,
+      "dtoh_syncs": 254
+     },
+     "peak_mem_mib": 90.0576171875
+    },
+    "fix_maps": {
+     "fwd_ms": 12.98924908041954,
+     "bwd_ms": 8.797836024314165,
+     "rel_err_vs_cpu": 5.881555945406935e-07,
+     "fwd_counts": {
+      "kernels": 938,
+      "item_calls": 86,
+      "dtoh_syncs": 86
+     },
+     "bwd_counts": {
+      "kernels": 768,
+      "item_calls": 85,
+      "dtoh_syncs": 84
+     },
+     "peak_mem_mib": 100.626953125
+    },
+    "fix_sync": {
+     "fwd_ms": 9.555069729685783,
+     "bwd_ms": 6.440313998609781,
+     "rel_err_vs_cpu": 5.881555945406935e-07,
+     "fwd_counts": {
+      "kernels": 768,
+      "item_calls": 86,
+      "dtoh_syncs": 1
+     },
+     "bwd_counts": {
+      "kernels": 598,
+      "item_calls": 85,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 100.625
+    },
+    "fused": {
+     "fwd_ms": 0.9004049934446812,
+     "bwd_ms": 0.9153198916465044,
+     "rel_err_vs_cpu": 5.881555945406935e-07,
+     "roundtrip_err": 8.51286634619564e-07,
+     "fwd_counts": {
+      "kernels": 30,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 30,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 7,
+     "nnz": 1378265,
+     "peak_mem_mib": 233.31494140625,
+     "est_fwd_bytes": 151329412
+    },
+    "fused_graph": {
+     "fwd_ms": 0.8455093484371901,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_2048_w6",
+   "shape": [
+    2048,
+    2048
+   ],
+   "num_scales": 5,
+   "wedges_per_direction": 6,
+   "dtype": "torch.float32",
+   "init_s": 53.70864238915965,
+   "n_wedges": 181,
+   "window_bytes": 131673144,
+   "ncoef": 8421376,
+   "redundancy": 2.0078125,
+   "numpy_init_s": 37.93208753922954,
+   "numpy_cpu_fwd_ms": 228.6134259775281,
+   "numpy_cpu_bwd_ms": 252.03330116346478,
+   "torch_cpu_fwd_ms": 3506.181798875332,
+   "torch_cpu_bwd_ms": 4020.551783964038,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "4": {
+     "fused_fwd_ms_per_img": 6.417315278667957,
+     "fused_bwd_ms_per_img": 6.321891152765602,
+     "loop_fix_sync_fwd_ms_per_img": 21.436376497149467,
+     "vmap_fix_sync_fwd_ms_per_img": 8.84643942117691
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 64.05701139010489,
+     "bwd_ms": 52.8185460716486,
+     "rel_err_vs_cpu": 5.525331941993548e-07,
+     "fwd_counts": {
+      "kernels": 3613,
+      "item_calls": 906,
+      "dtoh_syncs": 902
+     },
+     "bwd_counts": {
+      "kernels": 3249,
+      "item_calls": 543,
+      "dtoh_syncs": 540
+     },
+     "peak_mem_mib": 356.80029296875
+    },
+    "fix_maps": {
+     "fwd_ms": 25.825466960668564,
+     "bwd_ms": 20.1763566583395,
+     "rel_err_vs_cpu": 5.525331941993548e-07,
+     "fwd_counts": {
+      "kernels": 1982,
+      "item_calls": 182,
+      "dtoh_syncs": 180
+     },
+     "bwd_counts": {
+      "kernels": 1618,
+      "item_calls": 181,
+      "dtoh_syncs": 179
+     },
+     "peak_mem_mib": 398.78759765625
+    },
+    "fix_sync": {
+     "fwd_ms": 21.443424746394157,
+     "bwd_ms": 15.151431318372488,
+     "rel_err_vs_cpu": 5.525331941993548e-07,
+     "fwd_counts": {
+      "kernels": 1619,
+      "item_calls": 182,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 1255,
+      "item_calls": 181,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 398.78515625
+    },
+    "fused": {
+     "fwd_ms": 5.397527944296598,
+     "bwd_ms": 5.351848667487502,
+     "rel_err_vs_cpu": 5.525331941993548e-07,
+     "roundtrip_err": 8.45403662401386e-07,
+     "fwd_counts": {
+      "kernels": 20,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 20,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 9,
+     "nnz": 5486381,
+     "peak_mem_mib": 923.27490234375,
+     "est_fwd_bytes": 601211476
+    },
+    "fused_graph": {
+     "fwd_ms": 5.354563472792506,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "3d_64",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 2.316371810156852,
+   "n_wedges": 136,
+   "window_bytes": 9861624,
+   "ncoef": 1028096,
+   "redundancy": 3.921875,
+   "numpy_init_s": 0.2601041439920664,
+   "numpy_cpu_fwd_ms": 19.551209174096584,
+   "numpy_cpu_bwd_ms": 27.242349460721016,
+   "torch_cpu_fwd_ms": 1293.4721503406763,
+   "torch_cpu_bwd_ms": 1289.012414868921,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "8": {
+     "fused_fwd_ms_per_img": 0.501275178976357,
+     "fused_bwd_ms_per_img": 0.45673863496631384,
+     "loop_fix_sync_fwd_ms_per_img": 15.485897369217128,
+     "vmap_fix_sync_fwd_ms_per_img": 2.9005715914536268
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 52.186412969604135,
+     "bwd_ms": 42.49507607892156,
+     "rel_err_vs_cpu": 3.4457605833465486e-07,
+     "fwd_counts": {
+      "kernels": 3252,
+      "item_calls": 953,
+      "dtoh_syncs": 948
+     },
+     "bwd_counts": {
+      "kernels": 2978,
+      "item_calls": 544,
+      "dtoh_syncs": 540
+     },
+     "peak_mem_mib": 38.70263671875
+    },
+    "fix_maps": {
+     "fwd_ms": 19.084841944277287,
+     "bwd_ms": 14.334325678646564,
+     "rel_err_vs_cpu": 3.4457605833465486e-07,
+     "fwd_counts": {
+      "kernels": 1618,
+      "item_calls": 137,
+      "dtoh_syncs": 134
+     },
+     "bwd_counts": {
+      "kernels": 1344,
+      "item_calls": 136,
+      "dtoh_syncs": 133
+     },
+     "peak_mem_mib": 41.93212890625
+    },
+    "fix_sync": {
+     "fwd_ms": 15.569822862744331,
+     "bwd_ms": 10.505900485441089,
+     "rel_err_vs_cpu": 3.4457605833465486e-07,
+     "fwd_counts": {
+      "kernels": 1345,
+      "item_calls": 137,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 1070,
+      "item_calls": 136,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 41.9306640625
+    },
+    "fused": {
+     "fwd_ms": 0.3286262508481741,
+     "bwd_ms": 0.3803819417953491,
+     "rel_err_vs_cpu": 3.4457605833465486e-07,
+     "roundtrip_err": 6.141856619790311e-07,
+     "fwd_counts": {
+      "kernels": 7,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 7,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 5,
+     "nnz": 410901,
+     "peak_mem_mib": 84.26708984375,
+     "est_fwd_bytes": 56080116
+    },
+    "fused_graph": {
+     "fwd_ms": 0.2757513429969549,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "3d_128",
+   "shape": [
+    128,
+    128,
+    128
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float32",
+   "init_s": 10.577294667251408,
+   "n_wedges": 136,
+   "window_bytes": 76726920,
+   "ncoef": 8224768,
+   "redundancy": 3.921875,
+   "numpy_init_s": 4.306713416241109,
+   "numpy_cpu_fwd_ms": 244.62346080690622,
+   "numpy_cpu_bwd_ms": 213.60316593199968,
+   "torch_cpu_fwd_ms": 612.9121696576476,
+   "torch_cpu_bwd_ms": 396.8166601844132,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "2": {
+     "fused_fwd_ms_per_img": 5.068944534286857,
+     "fused_bwd_ms_per_img": 4.809602978639305,
+     "loop_fix_sync_fwd_ms_per_img": 16.42895000986755,
+     "vmap_fix_sync_fwd_ms_per_img": 12.43441877886653
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 53.50550962612033,
+     "bwd_ms": 44.16103498078883,
+     "rel_err_vs_cpu": 5.479319367573026e-07,
+     "fwd_counts": {
+      "kernels": 3251,
+      "item_calls": 953,
+      "dtoh_syncs": 945
+     },
+     "bwd_counts": {
+      "kernels": 2975,
+      "item_calls": 544,
+      "dtoh_syncs": 540
+     },
+     "peak_mem_mib": 307.86572265625
+    },
+    "fix_maps": {
+     "fwd_ms": 19.857955630868673,
+     "bwd_ms": 14.86618397757411,
+     "rel_err_vs_cpu": 5.479319367573026e-07,
+     "fwd_counts": {
+      "kernels": 1616,
+      "item_calls": 137,
+      "dtoh_syncs": 134
+     },
+     "bwd_counts": {
+      "kernels": 1341,
+      "item_calls": 136,
+      "dtoh_syncs": 133
+     },
+     "peak_mem_mib": 332.3642578125
+    },
+    "fix_sync": {
+     "fwd_ms": 16.467228066176176,
+     "bwd_ms": 11.09294407069683,
+     "rel_err_vs_cpu": 5.479319367573026e-07,
+     "fwd_counts": {
+      "kernels": 1342,
+      "item_calls": 137,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 1067,
+      "item_calls": 136,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 332.36279296875
+    },
+    "fused": {
+     "fwd_ms": 3.557543968781829,
+     "bwd_ms": 3.209817223250866,
+     "rel_err_vs_cpu": 5.479319367573026e-07,
+     "roundtrip_err": 8.45403662401386e-07,
+     "fwd_counts": {
+      "kernels": 9,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 9,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 5,
+     "nnz": 3196955,
+     "peak_mem_mib": 660.7158203125,
+     "est_fwd_bytes": 445391820
+    },
+    "fused_graph": {
+     "fwd_ms": 3.5415291786193848,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "mnist_28x28",
+   "shape": [
+    28,
+    28
+   ],
+   "num_scales": 2,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float64",
+   "init_s": 0.0037889997474849224,
+   "n_wedges": 7,
+   "window_bytes": 25560,
+   "ncoef": 1960,
+   "redundancy": 2.5,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "64": {
+     "fused_fwd_ms_per_img": 0.0033365795388817787,
+     "fused_bwd_ms_per_img": 0.0034189215512014925,
+     "loop_fix_sync_fwd_ms_per_img": 0.8598266103945207,
+     "vmap_fix_sync_fwd_ms_per_img": 0.0202685478143394
+    },
+    "512": {
+     "fused_fwd_ms_per_img": 0.002135508111678064,
+     "fused_bwd_ms_per_img": 0.0021230489437584765,
+     "loop_fix_sync_fwd_ms_per_img": 0.8615056176495273,
+     "vmap_fix_sync_fwd_ms_per_img": 0.0032763355193310417
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 2.4809278547763824,
+     "bwd_ms": 2.0752709824591875,
+     "rel_err_vs_cpu": 5.257738523842689e-16,
+     "fwd_counts": {
+      "kernels": 123,
+      "item_calls": 36,
+      "dtoh_syncs": 30
+     },
+     "bwd_counts": {
+      "kernels": 109,
+      "item_calls": 21,
+      "dtoh_syncs": 15
+     },
+     "peak_mem_mib": 0.15087890625
+    },
+    "fix_maps": {
+     "fwd_ms": 1.0791958775371313,
+     "bwd_ms": 0.810074619948864,
+     "rel_err_vs_cpu": 5.257738523842689e-16,
+     "fwd_counts": {
+      "kernels": 57,
+      "item_calls": 8,
+      "dtoh_syncs": 5
+     },
+     "bwd_counts": {
+      "kernels": 42,
+      "item_calls": 7,
+      "dtoh_syncs": 4
+     },
+     "peak_mem_mib": 0.1630859375
+    },
+    "fix_sync": {
+     "fwd_ms": 0.8878344669938087,
+     "bwd_ms": 0.6172782741487026,
+     "rel_err_vs_cpu": 5.257738523842689e-16,
+     "fwd_counts": {
+      "kernels": 42,
+      "item_calls": 8,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 26,
+      "item_calls": 7,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 0.162109375
+    },
+    "fused": {
+     "fwd_ms": 0.174450920894742,
+     "bwd_ms": 0.18134107813239098,
+     "rel_err_vs_cpu": 5.257738523842689e-16,
+     "roundtrip_err": 4.469813164592912e-08,
+     "fwd_counts": {
+      "kernels": 0,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 0,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 2,
+     "nnz": 1065,
+     "peak_mem_mib": 0.3310546875,
+     "est_fwd_bytes": 235256
+    },
+    "fused_graph": {
+     "fwd_ms": 0.05975598469376564,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_512",
+   "shape": [
+    512,
+    512
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float64",
+   "init_s": 0.5649395547807217,
+   "n_wedges": 19,
+   "window_bytes": 7723800,
+   "ncoef": 557056,
+   "redundancy": 2.125,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "16": {
+     "fused_fwd_ms_per_img": 1.014022302115336,
+     "fused_bwd_ms_per_img": 0.9988237434299663,
+     "loop_fix_sync_fwd_ms_per_img": 2.380922669544816,
+     "vmap_fix_sync_fwd_ms_per_img": 0.8709349640412256
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 6.814471911638975,
+     "bwd_ms": 6.084662396460772,
+     "rel_err_vs_cpu": 1.0926797289665448e-15,
+     "fwd_counts": {
+      "kernels": 363,
+      "item_calls": 96,
+      "dtoh_syncs": 90
+     },
+     "bwd_counts": {
+      "kernels": 325,
+      "item_calls": 57,
+      "dtoh_syncs": 51
+     },
+     "peak_mem_mib": 41.92236328125
+    },
+    "fix_maps": {
+     "fwd_ms": 2.8802049346268177,
+     "bwd_ms": 2.2248171735554934,
+     "rel_err_vs_cpu": 1.0926797289665448e-15,
+     "fwd_counts": {
+      "kernels": 189,
+      "item_calls": 20,
+      "dtoh_syncs": 17
+     },
+     "bwd_counts": {
+      "kernels": 150,
+      "item_calls": 19,
+      "dtoh_syncs": 16
+     },
+     "peak_mem_mib": 44.39208984375
+    },
+    "fix_sync": {
+     "fwd_ms": 2.400067402049899,
+     "bwd_ms": 1.7259139567613602,
+     "rel_err_vs_cpu": 1.0926797289665448e-15,
+     "fwd_counts": {
+      "kernels": 150,
+      "item_calls": 20,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 110,
+      "item_calls": 19,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 44.390625
+    },
+    "fused": {
+     "fwd_ms": 0.8168043568730354,
+     "bwd_ms": 0.8531841449439526,
+     "rel_err_vs_cpu": 1.0926797289665448e-15,
+     "roundtrip_err": 8.959817458354482e-16,
+     "fwd_counts": {
+      "kernels": 0,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 0,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 4,
+     "nnz": 321825,
+     "peak_mem_mib": 89.619140625,
+     "est_fwd_bytes": 70451000
+    },
+    "fused_graph": {
+     "fwd_ms": 0.8170690853148699,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_1024_w6",
+   "shape": [
+    1024,
+    1024
+   ],
+   "num_scales": 4,
+   "wedges_per_direction": 6,
+   "dtype": "torch.float64",
+   "init_s": 4.211407599039376,
+   "n_wedges": 85,
+   "window_bytes": 33078360,
+   "ncoef": 2129920,
+   "redundancy": 2.03125,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "8": {
+     "fused_fwd_ms_per_img": 4.225204989779741,
+     "fused_bwd_ms_per_img": 4.157782124821097,
+     "loop_fix_sync_fwd_ms_per_img": 10.817133152158931,
+     "vmap_fix_sync_fwd_ms_per_img": 3.652147570392117
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 30.675592832267284,
+     "bwd_ms": 27.180743869394064,
+     "rel_err_vs_cpu": 1.0150010820257794e-15,
+     "fwd_counts": {
+      "kernels": 1682,
+      "item_calls": 426,
+      "dtoh_syncs": 420
+     },
+     "bwd_counts": {
+      "kernels": 1513,
+      "item_calls": 255,
+      "dtoh_syncs": 249
+     },
+     "peak_mem_mib": 159.0576171875
+    },
+    "fix_maps": {
+     "fwd_ms": 13.154839631170034,
+     "bwd_ms": 9.997303131967783,
+     "rel_err_vs_cpu": 1.0150010820257794e-15,
+     "fwd_counts": {
+      "kernels": 914,
+      "item_calls": 86,
+      "dtoh_syncs": 83
+     },
+     "bwd_counts": {
+      "kernels": 743,
+      "item_calls": 85,
+      "dtoh_syncs": 82
+     },
+     "peak_mem_mib": 169.626953125
+    },
+    "fix_sync": {
+     "fwd_ms": 10.764116887003183,
+     "bwd_ms": 7.732152007520199,
+     "rel_err_vs_cpu": 1.0150010820257794e-15,
+     "fwd_counts": {
+      "kernels": 744,
+      "item_calls": 86,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 571,
+      "item_calls": 85,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 169.625
+    },
+    "fused": {
+     "fwd_ms": 3.678829874843359,
+     "bwd_ms": 3.497087862342596,
+     "rel_err_vs_cpu": 1.0150010820257794e-15,
+     "roundtrip_err": 5.6349860859628296e-09,
+     "fwd_counts": {
+      "kernels": 4,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 4,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 7,
+     "nnz": 1378265,
+     "peak_mem_mib": 359.392578125,
+     "est_fwd_bytes": 280606584
+    },
+    "fused_graph": {
+     "fwd_ms": 3.64202493801713,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "2d_2048_w6",
+   "shape": [
+    2048,
+    2048
+   ],
+   "num_scales": 5,
+   "wedges_per_direction": 6,
+   "dtype": "torch.float64",
+   "init_s": 49.84180817194283,
+   "n_wedges": 181,
+   "window_bytes": 131673144,
+   "ncoef": 8421376,
+   "redundancy": 2.0078125,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "4": {
+     "fused_fwd_ms_per_img": 17.758075788151473,
+     "fused_bwd_ms_per_img": 17.56167836720124,
+     "loop_fix_sync_fwd_ms_per_img": 25.98785818554461,
+     "vmap_fix_sync_fwd_ms_per_img": 16.382847155909985
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 73.20633996278048,
+     "bwd_ms": 65.71158464066684,
+     "rel_err_vs_cpu": 1.0151292382490648e-15,
+     "fwd_counts": {
+      "kernels": 3600,
+      "item_calls": 906,
+      "dtoh_syncs": 897
+     },
+     "bwd_counts": {
+      "kernels": 3235,
+      "item_calls": 543,
+      "dtoh_syncs": 537
+     },
+     "peak_mem_mib": 629.80029296875
+    },
+    "fix_maps": {
+     "fwd_ms": 34.29069183766842,
+     "bwd_ms": 27.809612918645144,
+     "rel_err_vs_cpu": 1.0151292382490648e-15,
+     "fwd_counts": {
+      "kernels": 1967,
+      "item_calls": 182,
+      "dtoh_syncs": 178
+     },
+     "bwd_counts": {
+      "kernels": 1602,
+      "item_calls": 181,
+      "dtoh_syncs": 177
+     },
+     "peak_mem_mib": 671.78759765625
+    },
+    "fix_sync": {
+     "fwd_ms": 26.8090832978487,
+     "bwd_ms": 22.743506357073784,
+     "rel_err_vs_cpu": 1.0151292382490648e-15,
+     "fwd_counts": {
+      "kernels": 1603,
+      "item_calls": 182,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 1238,
+      "item_calls": 181,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 671.78515625
+    },
+    "fused": {
+     "fwd_ms": 16.44333708100021,
+     "bwd_ms": 16.223115846514702,
+     "rel_err_vs_cpu": 1.0151292382490648e-15,
+     "roundtrip_err": 5.43641445462924e-09,
+     "fwd_counts": {
+      "kernels": 2,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 2,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 9,
+     "nnz": 5486381,
+     "peak_mem_mib": 1427.169921875,
+     "est_fwd_bytes": 1114640856
+    },
+    "fused_graph": {
+     "fwd_ms": 16.387566924095154,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "3d_64",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float64",
+   "init_s": 2.4058935856446624,
+   "n_wedges": 136,
+   "window_bytes": 9861624,
+   "ncoef": 1028096,
+   "redundancy": 3.921875,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "8": {
+     "fused_fwd_ms_per_img": 1.452149561373517,
+     "fused_bwd_ms_per_img": 1.397194864694029,
+     "loop_fix_sync_fwd_ms_per_img": 15.78201400116086,
+     "vmap_fix_sync_fwd_ms_per_img": 3.146512870443985
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 52.08608158864081,
+     "bwd_ms": 42.757267132401466,
+     "rel_err_vs_cpu": 7.226666027033688e-16,
+     "fwd_counts": {
+      "kernels": 3240,
+      "item_calls": 953,
+      "dtoh_syncs": 944
+     },
+     "bwd_counts": {
+      "kernels": 2967,
+      "item_calls": 544,
+      "dtoh_syncs": 536
+     },
+     "peak_mem_mib": 71.70263671875
+    },
+    "fix_maps": {
+     "fwd_ms": 19.31177801452577,
+     "bwd_ms": 14.48602695018053,
+     "rel_err_vs_cpu": 7.226666027033688e-16,
+     "fwd_counts": {
+      "kernels": 1604,
+      "item_calls": 137,
+      "dtoh_syncs": 133
+     },
+     "bwd_counts": {
+      "kernels": 1329,
+      "item_calls": 136,
+      "dtoh_syncs": 132
+     },
+     "peak_mem_mib": 74.93212890625
+    },
+    "fix_sync": {
+     "fwd_ms": 15.822978923097253,
+     "bwd_ms": 10.888962773606181,
+     "rel_err_vs_cpu": 7.226666027033688e-16,
+     "fwd_counts": {
+      "kernels": 1330,
+      "item_calls": 137,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 1055,
+      "item_calls": 136,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 74.9306640625
+    },
+    "fused": {
+     "fwd_ms": 1.1116007808595896,
+     "bwd_ms": 1.0398351587355137,
+     "rel_err_vs_cpu": 7.226666027033688e-16,
+     "roundtrip_err": 5.375890475012689e-16,
+     "fwd_counts": {
+      "kernels": 0,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 0,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 5,
+     "nnz": 410901,
+     "peak_mem_mib": 136.96484375,
+     "est_fwd_bytes": 105585816
+    },
+    "fused_graph": {
+     "fwd_ms": 1.0838061571121216,
+     "err_vs_fused": 0.0
+    }
+   }
+  },
+  {
+   "name": "3d_128",
+   "shape": [
+    128,
+    128,
+    128
+   ],
+   "num_scales": 3,
+   "wedges_per_direction": 3,
+   "dtype": "torch.float64",
+   "init_s": 12.02487732609734,
+   "n_wedges": 136,
+   "window_bytes": 76726920,
+   "ncoef": 8224768,
+   "redundancy": 3.921875,
+   "udctmodule_autograd": "RuntimeError('Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!')",
+   "batched": {
+    "2": {
+     "fused_fwd_ms_per_img": 13.515631668269634,
+     "fused_bwd_ms_per_img": 13.067921972833574,
+     "loop_fix_sync_fwd_ms_per_img": 18.93472543451935,
+     "vmap_fix_sync_fwd_ms_per_img": 14.654870261438191
+    }
+   },
+   "variants": {
+    "base": {
+     "fwd_ms": 57.13961413130164,
+     "bwd_ms": 51.820801105350256,
+     "rel_err_vs_cpu": 7.799771827919888e-16,
+     "fwd_counts": {
+      "kernels": 3240,
+      "item_calls": 953,
+      "dtoh_syncs": 942
+     },
+     "bwd_counts": {
+      "kernels": 2965,
+      "item_calls": 544,
+      "dtoh_syncs": 536
+     },
+     "peak_mem_mib": 567.86572265625
+    },
+    "fix_maps": {
+     "fwd_ms": 23.645815905183554,
+     "bwd_ms": 17.533513251692057,
+     "rel_err_vs_cpu": 7.799771827919888e-16,
+     "fwd_counts": {
+      "kernels": 1603,
+      "item_calls": 137,
+      "dtoh_syncs": 133
+     },
+     "bwd_counts": {
+      "kernels": 1328,
+      "item_calls": 136,
+      "dtoh_syncs": 132
+     },
+     "peak_mem_mib": 592.3642578125
+    },
+    "fix_sync": {
+     "fwd_ms": 19.782945048063993,
+     "bwd_ms": 13.930948916822672,
+     "rel_err_vs_cpu": 7.799771827919888e-16,
+     "fwd_counts": {
+      "kernels": 1329,
+      "item_calls": 137,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 1053,
+      "item_calls": 136,
+      "dtoh_syncs": 0
+     },
+     "peak_mem_mib": 591.86279296875
+    },
+    "fused": {
+     "fwd_ms": 12.143789324909449,
+     "bwd_ms": 11.669191997498274,
+     "rel_err_vs_cpu": 7.799771827919888e-16,
+     "roundtrip_err": 5.707603873565257e-16,
+     "fwd_counts": {
+      "kernels": 4,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "bwd_counts": {
+      "kernels": 4,
+      "item_calls": 0,
+      "dtoh_syncs": 0
+     },
+     "n_groups": 5,
+     "nnz": 3196955,
+     "peak_mem_mib": 1079.05224609375,
+     "est_fwd_bytes": 839632360
+    },
+    "fused_graph": {
+     "fwd_ms": 12.071449542418122,
+     "err_vs_fused": 0.0
+    }
+   }
+  }
+ ]
+}
