@@ -12,11 +12,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
-from ._backward_transform import _apply_backward_transform
-from ._forward_transform import (
-    _apply_forward_transform_complex,
-    _apply_forward_transform_real,
-)
+from ._plan import UDCTPlan
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
@@ -151,6 +147,9 @@ class UDCT:
         self._decimation_ratios_cpu: list[torch.Tensor] = [
             d.detach().cpu().clone() for d in self._decimation_ratios
         ]
+        # Fused execution plan, built lazily from the windows on first use and
+        # dropped whenever the windows move (see apply_to_tensors).
+        self._plan: UDCTPlan | None = None
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -841,47 +840,45 @@ class UDCT:
         # Must be "monogenic" (checked by type system)
         return self._forward_monogenic(image)
 
+    def _get_plan(self) -> UDCTPlan:
+        """Fused plan for the real/complex transform (built on first use)."""
+        if self._plan is None:
+            self._plan = UDCTPlan.build(
+                self._parameters,
+                self._windows,
+                self._decimation_ratios_cpu,
+                complex_mode=self._transform_kind == "complex",
+            )
+        return self._plan
+
     def _forward_real(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for real forward transform (no input validation)."""
-        coeffs = _apply_forward_transform_real(
-            image, self._parameters, self._windows, self._decimation_ratios_cpu
-        )
-        # Store coefficient dtype from first non-empty coefficient (Option B)
-        if self._coefficient_dtype is None and len(coeffs) > 0:
-            for scale in coeffs:
-                found = False
-                for direction in scale:
-                    for wedge in direction:
-                        if wedge.numel() > 0:
-                            self._coefficient_dtype = wedge.dtype
-                            found = True
-                            break
-                    if found:
-                        break
-                if found:
-                    break
+        coeffs = self._get_plan().forward_nested(image)
+        if self._coefficient_dtype is None:
+            self._coefficient_dtype = coeffs[0][0][0].dtype
         return coeffs
 
     def _forward_complex(self, image: torch.Tensor) -> UDCTCoefficients:
         """Private method for complex forward transform (no input validation)."""
-        coeffs = _apply_forward_transform_complex(
-            image, self._parameters, self._windows, self._decimation_ratios_cpu
-        )
-        # Store coefficient dtype from first non-empty coefficient (Option B)
-        if self._coefficient_dtype is None and len(coeffs) > 0:
-            for scale in coeffs:
-                found = False
-                for direction in scale:
-                    for wedge in direction:
-                        if wedge.numel() > 0:
-                            self._coefficient_dtype = wedge.dtype
-                            found = True
-                            break
-                    if found:
-                        break
-                if found:
-                    break
+        coeffs = self._get_plan().forward_nested(image)
+        if self._coefficient_dtype is None:
+            self._coefficient_dtype = coeffs[0][0][0].dtype
         return coeffs
+
+    def _forward_vect(self, image: torch.Tensor) -> torch.Tensor:
+        """Forward transform straight to the ``vect`` layout (used by UDCTModule)."""
+        if self._transform_kind == "monogenic":
+            return self.vect(self.forward(image))
+        flat = self._get_plan().forward_flat(image)
+        if self._coefficient_dtype is None:
+            self._coefficient_dtype = flat.dtype
+        return flat
+
+    def _backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
+        """Backward transform from the ``vect`` layout (used by UDCTModule)."""
+        if self._transform_kind == "monogenic":
+            return self.backward(self.struct(vector))
+        return self._get_plan().backward_flat(vector)
 
     def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
@@ -915,23 +912,13 @@ class UDCT:
 
     def _backward_real(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """Private method for real backward transform (no input validation)."""
-        return _apply_backward_transform(
-            coefficients,
-            self._parameters,
-            self._windows,
-            self._decimation_ratios_cpu,
-            use_complex_transform=False,
-        )
+        plan = self._get_plan()
+        return plan.backward_flat(plan.flatten(coefficients))
 
     def _backward_complex(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """Private method for complex backward transform (no input validation)."""
-        return _apply_backward_transform(
-            coefficients,
-            self._parameters,
-            self._windows,
-            self._decimation_ratios_cpu,
-            use_complex_transform=True,
-        )
+        plan = self._get_plan()
+        return plan.backward_flat(plan.flatten(coefficients))
 
     def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
@@ -972,6 +959,9 @@ class UDCT:
                     # window from indices/values would drop them and force a
                     # recomputation on every forward/backward call.
                     self._windows[scale_idx][dir_idx][wedge_idx] = window.apply(fn)
+
+        # The fused plan holds copies of the window tensors; rebuild it lazily.
+        self._plan = None
 
         # Apply to decimation_ratios (list of tensors)
         for i, ratio in enumerate(self._decimation_ratios):
