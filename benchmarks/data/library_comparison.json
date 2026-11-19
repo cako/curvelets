@@ -1,0 +1,1439 @@
+{
+ "meta": {
+  "date": "2026-11-18",
+  "device": "NVIDIA GeForce RTX 3070",
+  "vram_gb": 8,
+  "cloud": "Runpod community cloud",
+  "versions": {
+   "torch": "2.8.0+cu128",
+   "numpy": "1.26.4",
+   "triton": "3.4.0",
+   "curvelets": "stack top #94 (perf/torch-triton-fold)",
+   "kymatio": "0.3.0",
+   "pytorch_wavelets": "1.3.0",
+   "dtcwt": "0.14.0",
+   "tensorflow": "2.21.0",
+   "pyopencl": "2026.1.5"
+  },
+  "cpu_threads": 56,
+  "python": "3.12.3",
+  "dtype": "float32",
+  "batch": 1,
+  "num_scales": 4,
+  "wedges_per_direction": 3,
+  "notes": [
+   "Times are medians of repeated calls with a device synchronization around each; values rounded to 5 significant digits.",
+   "Kymatio medians come from an earlier run of the same script on the same pod and GPU (its timing does not depend on the curvelets code); only medians were logged, so min_ms is null.",
+   "Kymatio is not invertible and was not run at 2048x2048: building its filter bank on the CPU took over 20 minutes.",
+   "Kymatio and dtcwt do not provide 3D rows here (Kymatio's 3D scattering is a different transform; dtcwt 3D is included).",
+   "The dtcwt OpenCL and TensorFlow rows were measured in a later pod session of the same GPU model (RTX 3070, driver 580.95.05), with TensorFlow 2.21.0 and PyOpenCL 2026.1.5. The OpenCL driver had to be registered in the container (/etc/OpenCL/vendors/nvidia.icd).",
+   "dtcwt OpenCL rows pass NumPy arrays in and out, so they include the host/device copies. The dtcwt TensorFlow backend is written for TensorFlow 1; it was run in graph mode through tf.compat.v1 aliases, with the outputs fetched to the host. Both backends were checked against the NumPy backend (coefficients agree to 1e-3 of their scale) before being timed.",
+   "dtcwt OpenCL 3D was not timed: its highpass coefficients differ from the NumPy backend's (the lowpass agrees)."
+  ]
+ },
+ "results": [
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 0.08406,
+   "min_ms": 0.08221,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 0.08859,
+   "min_ms": 0.08738,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 0.08971,
+   "min_ms": 0.08837,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 0.12439,
+   "min_ms": 0.12297,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 0.44241,
+   "min_ms": 0.42555,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 0.45213,
+   "min_ms": 0.44302,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 3.2642,
+   "min_ms": 3.232,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 4.063,
+   "min_ms": 4.048,
+   "ncoef": 266240,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 0.62799,
+   "min_ms": 0.61321,
+   "ncoef": 69655,
+   "redundancy": 1.0628509521484375,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 1.2756,
+   "min_ms": 1.2649,
+   "ncoef": 69655,
+   "redundancy": 1.0628509521484375,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 7.2356,
+   "min_ms": 7.1434,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 11.284,
+   "min_ms": 11.241,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 6.2666,
+   "min_ms": 6.2041,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 7.0005,
+   "min_ms": 6.9434,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "Kymatio Scattering2D",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 161.82,
+   "min_ms": null,
+   "ncoef": 106752,
+   "redundancy": 1.62890625,
+   "invertible": false,
+   "config": "J=4, L=8, max_order=2",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 0.15697,
+   "min_ms": 0.15499,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 0.15697,
+   "min_ms": 0.15472,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 0.17448,
+   "min_ms": 0.17227,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 0.19308,
+   "min_ms": 0.19043,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 0.44847,
+   "min_ms": 0.43,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 0.4608,
+   "min_ms": 0.44818,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 11.487,
+   "min_ms": 11.441,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 15.194,
+   "min_ms": 15.135,
+   "ncoef": 1064960,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 0.62824,
+   "min_ms": 0.61293,
+   "ncoef": 270231,
+   "redundancy": 1.0308494567871094,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 1.2958,
+   "min_ms": 1.2819,
+   "ncoef": 270231,
+   "redundancy": 1.0308494567871094,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 7.3112,
+   "min_ms": 7.2092,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 11.222,
+   "min_ms": 11.179,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 16.341,
+   "min_ms": 16.219,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 17.951,
+   "min_ms": 17.862,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "Kymatio Scattering2D",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 164.55,
+   "min_ms": null,
+   "ncoef": 427008,
+   "redundancy": 1.62890625,
+   "invertible": false,
+   "config": "J=4, L=8, max_order=2",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 0.54987,
+   "min_ms": 0.53847,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 0.57793,
+   "min_ms": 0.57286,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 0.63361,
+   "min_ms": 0.62752,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 0.66329,
+   "min_ms": 0.65831,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 0.5689,
+   "min_ms": 0.5571,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 0.66389,
+   "min_ms": 0.65563,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 52.845,
+   "min_ms": 52.203,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 84.282,
+   "min_ms": 83.67,
+   "ncoef": 4259840,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 0.62419,
+   "min_ms": 0.60694,
+   "ncoef": 1064599,
+   "redundancy": 1.0152807235717773,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 1.3626,
+   "min_ms": 1.3484,
+   "ncoef": 1064599,
+   "redundancy": 1.0152807235717773,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 7.3637,
+   "min_ms": 7.2692,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 11.289,
+   "min_ms": 11.188,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 73.613,
+   "min_ms": 73.19,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 73.878,
+   "min_ms": 71.514,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "Kymatio Scattering2D",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 162.49,
+   "min_ms": null,
+   "ncoef": 1708032,
+   "redundancy": 1.62890625,
+   "invertible": false,
+   "config": "J=4, L=8, max_order=2",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 2.1404,
+   "min_ms": 2.1314,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 2.2767,
+   "min_ms": 2.2617,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 2.4979,
+   "min_ms": 2.486,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 2.6002,
+   "min_ms": 2.591,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 1.7539,
+   "min_ms": 1.7438,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 1.9777,
+   "min_ms": 1.9628,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 509.65,
+   "min_ms": 509.07,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 574.48,
+   "min_ms": 573.67,
+   "ncoef": 17039360,
+   "redundancy": 4.0625,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 0.7293,
+   "min_ms": 0.66198,
+   "ncoef": 4226199,
+   "redundancy": 1.0076043605804443,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DWT",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 2.1279,
+   "min_ms": 2.112,
+   "ncoef": 4226199,
+   "redundancy": 1.0076043605804443,
+   "invertible": true,
+   "config": "J=4, wave=db3",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 9.7688,
+   "min_ms": 9.7351,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "pytorch_wavelets DTCWT",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 14.596,
+   "min_ms": 14.551,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "J=4, near_sym_a, qshift_a",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 443.77,
+   "min_ms": 442.18,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 474.45,
+   "min_ms": 467.92,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "Kymatio Scattering2D",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": null,
+   "min_ms": null,
+   "ncoef": null,
+   "redundancy": null,
+   "invertible": false,
+   "config": "",
+   "status": "skipped: the CPU-side filter bank build took over 20 minutes"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": 0.25762,
+   "min_ms": 0.24396,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs)",
+   "device": "cuda",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "inverse",
+   "median_ms": 0.28479,
+   "min_ms": 0.28194,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": 0.30878,
+   "min_ms": 0.30576,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, CUDA graphs, no Triton)",
+   "device": "cuda",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "inverse",
+   "median_ms": 0.34565,
+   "min_ms": 0.34261,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=True, triton=False",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": 0.56292,
+   "min_ms": 0.5478,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (torch, eager)",
+   "device": "cuda",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "inverse",
+   "median_ms": 0.59765,
+   "min_ms": 0.58369,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3, cuda_graphs=False, triton=True",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": 33.357,
+   "min_ms": 33.252,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "curvelets (NumPy)",
+   "device": "cpu",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "inverse",
+   "median_ms": 38.874,
+   "min_ms": 38.609,
+   "ncoef": 2026496,
+   "redundancy": 7.73046875,
+   "invertible": true,
+   "config": "num_scales=4, wedges_per_direction=3",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": 168.81,
+   "min_ms": 168.32,
+   "ncoef": 2097152,
+   "redundancy": 8.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (NumPy)",
+   "device": "cpu",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "inverse",
+   "median_ms": 182.7,
+   "min_ms": 182.38,
+   "ncoef": 2097152,
+   "redundancy": 8.0,
+   "invertible": true,
+   "config": "nlevels=4, NumPy",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 5.3244,
+   "min_ms": 5.281,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 5.2976,
+   "min_ms": 5.2558,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 6.5398,
+   "min_ms": 6.4946,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 17.248,
+   "min_ms": 16.959,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 9.1988,
+   "min_ms": 9.15,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 74.696,
+   "min_ms": 73.899,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 17.895,
+   "min_ms": 17.849,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 420.01,
+   "min_ms": 419.42,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, OpenCL backend, NumPy arrays in and out",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "forward",
+   "median_ms": 2.9976,
+   "min_ms": 1.5589,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    256,
+    256
+   ],
+   "direction": "inverse",
+   "median_ms": 6.1513,
+   "min_ms": 3.8415,
+   "ncoef": 262144,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "forward",
+   "median_ms": 2.9315,
+   "min_ms": 1.6003,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    512,
+    512
+   ],
+   "direction": "inverse",
+   "median_ms": 6.5964,
+   "min_ms": 5.1889,
+   "ncoef": 1048576,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "forward",
+   "median_ms": 3.0025,
+   "min_ms": 2.6824,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    1024,
+    1024
+   ],
+   "direction": "inverse",
+   "median_ms": 7.5084,
+   "min_ms": 6.1307,
+   "ncoef": 4194304,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "forward",
+   "median_ms": 9.9063,
+   "min_ms": 9.7306,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (TensorFlow)",
+   "device": "cuda",
+   "shape": [
+    2048,
+    2048
+   ],
+   "direction": "inverse",
+   "median_ms": 16.848,
+   "min_ms": 16.72,
+   "ncoef": 16777216,
+   "redundancy": 4.0,
+   "invertible": true,
+   "config": "nlevels=4, TensorFlow backend (graph mode), outputs fetched to the host",
+   "status": "ok"
+  },
+  {
+   "library": "dtcwt (OpenCL)",
+   "device": "opencl",
+   "shape": [
+    64,
+    64,
+    64
+   ],
+   "direction": "forward",
+   "median_ms": null,
+   "min_ms": null,
+   "ncoef": null,
+   "redundancy": null,
+   "invertible": false,
+   "config": "",
+   "status": "failed: the 3D output differs from the NumPy backend (highpass 0 by 3.65, scale 2.01); not timed"
+  }
+ ]
+}

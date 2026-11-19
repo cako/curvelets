@@ -52,14 +52,7 @@ This is yet another facet of the "data-centric" vs. "model-centric" debate in ma
 
 It has been shown that fixed filter banks can be useful in speeding up training and improving performance of deep neural networks in some situations :cite:`Luan2018,Andreux2018`. My suggestion is to use curvelets or similar transforms for small to mid-sized datasets, especially in niche areas without a wide variety of high-quality training data.
 
-Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ which implements the wavelet scattering transform :cite:`Bruna2013` in PyTorch, TensorFlow and JAX, and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implements the dual-tree complex wavelet transform :cite:`Kingsbury2001` in PyTorch.
-
-Related Projects
-################
-.. include:: table.md
-   :parser: myst_parser.sphinx_
-
-
+Another aspect to consider is the availability of high-performance, GPU-accelerated, autodiff-friendly libraries. As far as I know, no curvelet library (apart from this one) satisfies those constraints. Alternative transforms can be found in `Kymatio <https://www.kymat.io/>`_ which implements the wavelet scattering transform :cite:`Bruna2013` in PyTorch, TensorFlow and JAX, and `Pytorch Wavelets <https://pytorch-wavelets.readthedocs.io/>`_ which implements the dual-tree complex wavelet transform :cite:`Kingsbury2001` in PyTorch. A speed comparison is in :doc:`related_projects`.
 
 References
 ##########
