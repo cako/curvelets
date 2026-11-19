@@ -12,6 +12,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
+from ._cuda_graphs import CudaGraphCache, CudaGraphsMixin
 from ._dtypes import check_dtype, resolve_dtype
 from ._plan import UDCTPlan
 from ._udct_windows import UDCTWindow
@@ -19,7 +20,7 @@ from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
 
 
-class UDCT:
+class UDCT(CudaGraphsMixin):
     """
     Uniform Discrete Curvelet Transform (UDCT) implementation.
 
@@ -77,11 +78,25 @@ class UDCT:
         complex counterpart for the complex transform), and coefficients come
         out as :attr:`coefficient_dtype`. Default is
         :func:`torch.get_default_dtype` (normally ``torch.float32``).
+    cuda_graphs : bool, optional
+        Replay the real and complex transforms on CUDA from CUDA graphs: one
+        launch per call instead of a few dozen, captured on the first call for
+        each input shape and dtype (the last :attr:`cuda_graph_cache_size` are
+        kept). Covers every forward/backward entry point, :meth:`filter`,
+        :class:`UDCTModule` and gradients (through the adjoint transform).
+        Worthwhile for small and medium inputs, where launches dominate (a
+        512² transform gets ~6x faster on an RTX 4090); slower for large
+        inputs, where copying in and out of the graph buffers costs more.
+        Default is False.
 
     Attributes
     ----------
     dtype : torch.dtype
         Real precision of the transform.
+    cuda_graphs : bool
+        Whether CUDA calls replay CUDA graphs (can be switched at any time).
+    cuda_graph_cache_size : int
+        Number of captured graphs kept (least recently used dropped first).
     coefficient_dtype : torch.dtype
         Dtype of the coefficients (complex for the real and complex transforms).
     high_frequency_mode : str
@@ -123,6 +138,7 @@ class UDCT:
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
         dtype: torch.dtype | None = None,
+        cuda_graphs: bool = False,
     ) -> None:
         dtype = resolve_dtype(dtype)
 
@@ -168,6 +184,9 @@ class UDCT:
         # Fused execution plan, built lazily from the windows on first use and
         # dropped whenever the windows move (see apply_to_tensors).
         self._plan: UDCTPlan | None = None
+        # Captured CUDA graphs of the plan's flat transforms (cuda_graphs=True).
+        self._cuda_graphs = cuda_graphs
+        self._graphs = CudaGraphCache()
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -780,6 +799,8 @@ class UDCT:
         self._check_input(image)
         if self._transform_kind == "monogenic":
             return self._forward_monogenic(image)
+        if self._cuda_graphs:
+            return self._get_plan().unflatten(self._forward_flat(image))
         return self._get_plan().forward_nested(image)
 
     def _check_input(self, image: torch.Tensor) -> None:
@@ -858,14 +879,14 @@ class UDCT:
         if self._transform_kind == "monogenic":
             return self.vect(self.forward(image))
         self._check_input(image)
-        return self._get_plan().forward_flat(image)
+        return self._forward_flat(image)
 
     def _backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
         """Backward transform from the ``vect`` layout (used by UDCTModule)."""
         if self._transform_kind == "monogenic":
             return self.backward(self.struct(vector))
         check_dtype(vector, self.dtype, "coefficients")
-        return self._get_plan().backward_flat(vector)
+        return self._backward_flat(vector)
 
     def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
         """Private method for monogenic forward transform (no input validation)."""
@@ -895,7 +916,7 @@ class UDCT:
         # Checked after flattening, so mixed-precision wedges are caught too.
         flat = plan.flatten(coefficients)
         check_dtype(flat, self.dtype, "coefficients")
-        return plan.backward_flat(flat)
+        return self._backward_flat(flat)
 
     def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
         """Private method for monogenic backward transform (no input validation)."""
@@ -940,7 +961,9 @@ class UDCT:
                     self._windows[scale_idx][dir_idx][wedge_idx] = window.apply(fn)
 
         # The fused plan holds copies of the window tensors; rebuild it lazily.
+        # Captured graphs refer to the old plan's tensors.
         self._plan = None
+        self._graphs.clear()
 
         # Apply to decimation_ratios (list of tensors)
         for i, ratio in enumerate(self._decimation_ratios):

@@ -10,93 +10,9 @@ from typing import Literal, Self
 import torch
 from torch import nn
 
+from ._autograd import ForwardWithAdjoint
 from ._udct import UDCT
 from .typing import UDCTCoefficients, UDCTWindows
-
-
-class _UDCTFunction(torch.autograd.Function):  # type: ignore[misc]  # pylint: disable=abstract-method
-    """Private autograd Function that uses backward transform as gradient.
-
-    This implementation uses the modern setup_context pattern to support
-    functorch transforms like vmap, grad, and jacrev.
-    """
-
-    # Enable automatic vmap rule generation for functorch compatibility
-    generate_vmap_rule = True
-
-    @staticmethod
-    def forward(  # pylint: disable=arguments-differ
-        image: torch.Tensor,
-        udct: UDCT,
-    ) -> torch.Tensor:
-        """
-        Forward pass: compute forward transform and flatten coefficients.
-
-        Parameters
-        ----------
-        image : torch.Tensor
-            Input image tensor.
-        udct : UDCT
-            UDCT instance to use for transform.
-
-        Returns
-        -------
-        torch.Tensor
-            Flattened curvelet coefficients.
-        """
-        # Forward transform straight to the vect layout (fused plan)
-        return udct._forward_vect(image)  # pylint: disable=protected-access
-
-    @staticmethod
-    def setup_context(
-        ctx: torch.autograd.function.FunctionCtx,
-        inputs: tuple[torch.Tensor, UDCT],
-        output: torch.Tensor,  # noqa: ARG004
-    ) -> None:
-        """
-        Save context for backward pass.
-
-        This method is required for functorch compatibility (vmap, grad, etc.).
-
-        Parameters
-        ----------
-        ctx : torch.autograd.function.FunctionCtx
-            Context for saving information for backward pass.
-        inputs : tuple
-            Tuple of (image, udct) from forward.
-        output : torch.Tensor
-            Output from forward (unused).
-        """
-        _, udct = inputs
-        ctx.udct = udct  # ty: ignore[unresolved-attribute]
-
-    @staticmethod
-    def backward(
-        ctx: torch.autograd.function.FunctionCtx,
-        *grad_outputs: torch.Tensor,
-    ) -> tuple[torch.Tensor | None, None]:
-        """
-        Backward pass: use backward transform to compute gradient.
-
-        Parameters
-        ----------
-        ctx : torch.autograd.function.FunctionCtx
-            Context containing saved information from forward pass.
-        *grad_outputs : torch.Tensor
-            Gradient w.r.t. flattened coefficients (single tensor expected).
-
-        Returns
-        -------
-        tuple[torch.Tensor | None, None]
-            Gradient w.r.t. input image, and None for UDCT (not differentiable).
-        """
-        udct = ctx.udct  # ty: ignore[unresolved-attribute]
-        grad_output = grad_outputs[0]
-
-        # Adjoint of the forward: backward transform of the flat gradient
-        grad_input = udct._backward_vect(grad_output)  # pylint: disable=protected-access
-
-        return grad_input, None
 
 
 class UDCTModule(nn.Module):  # type: ignore[misc]
@@ -149,6 +65,10 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         Precision of the transform (``torch.float32`` or ``torch.float64``; a
         complex dtype means its real precision); inputs must match it. ``.to(dtype)``, ``.float()`` and ``.double()``
         change it. Default is :func:`torch.get_default_dtype`.
+    cuda_graphs : bool, optional
+        Replay the transform and its gradient from CUDA graphs on CUDA (see
+        :class:`UDCT`); worthwhile for small and medium inputs. Default is
+        False.
 
     Examples
     --------
@@ -197,6 +117,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_type: Literal["real", "complex"] = "real",
         dtype: torch.dtype | None = None,
+        cuda_graphs: bool = False,
     ) -> None:
         super().__init__()
         self._transform_type = transform_type
@@ -213,6 +134,7 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
             high_frequency_mode=high_frequency_mode,
             transform_kind=transform_kind,
             dtype=dtype,
+            cuda_graphs=cuda_graphs,
         )
 
     def _apply(
@@ -247,6 +169,15 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         """Real precision of the transform."""
         return self._udct.dtype
 
+    @property
+    def cuda_graphs(self) -> bool:
+        """Whether CUDA calls replay CUDA graphs (see :class:`UDCT`)."""
+        return self._udct.cuda_graphs
+
+    @cuda_graphs.setter
+    def cuda_graphs(self, enabled: bool) -> None:
+        self._udct.cuda_graphs = enabled
+
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         """
         Forward pass: compute forward transform and return flattened coefficients.
@@ -261,7 +192,9 @@ class UDCTModule(nn.Module):  # type: ignore[misc]
         torch.Tensor
             Flattened curvelet coefficients as a single tensor.
         """
-        return _UDCTFunction.apply(image, self._udct)
+        self._udct._check_input(image)  # pylint: disable=protected-access
+        # Gradient: the backward (adjoint) transform, no graph through the plan.
+        return ForwardWithAdjoint.apply(image, self._udct)
 
     def coefficient_shapes(self) -> list[list[list[tuple[int, ...]]]]:
         """
