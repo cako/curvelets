@@ -13,6 +13,9 @@ CUDA event between stages. Each stage reports:
 
 It also reports the uninstrumented end-to-end time (device and host) and the
 kernel count, and checks that the replay matches the library output.
+The replay runs the whole batch at once; the library splits large batches into
+L2-sized row chunks (``UDCTPlan.batch_chunk_bytes``), so for those the
+end-to-end figures are those of the chunked library call.
 
 Usage: python benchmarks/stage_profile.py [--configs 2d_512,3d_128] [--batch 1]
        [--dtype float32] [--json out.json]
