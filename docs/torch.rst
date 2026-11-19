@@ -33,3 +33,32 @@ The integer metadata that determines the shape of the coefficients (:meth:`~curv
 * the backward pass of :class:`~curvelets.torch.UDCTModule`, which calls :meth:`~curvelets.torch.UDCT.struct`, works on CUDA devices.
 
 The public ``decimation_ratios`` attribute still follows ``.to()``.
+
+.. _torch-performance:
+
+Performance
+===========
+
+The transform is designed to keep a GPU busy instead of waiting on the Python process. This section describes what the implementation does; measured numbers and the hardware they come from are in ``benchmarks/GPU_PERFORMANCE.md`` (see :ref:`contributing` for how to reproduce them).
+
+No device-to-host synchronizations
+----------------------------------
+
+A blocking copy from the GPU to the CPU (``.item()``, ``.tolist()``, ``.cpu()`` on a CUDA tensor) stalls the host until all queued kernels finish, so the GPU then sits idle while Python enqueues the next ones. The forward and backward transforms issue none:
+
+* the per-wedge scale factors are computed from a CPU copy of the decimation ratios, and
+* the normalization of the lowpass band is computed with plain Python ``math``, not with a device tensor.
+
+You can verify this on your own setup. The call below raises if anything in the transform synchronizes with the device:
+
+.. code-block:: python
+
+    import torch
+    from curvelets.torch import UDCT
+
+    transform = UDCT(shape=(512, 512)).to("cuda")
+    x = torch.randn(512, 512, device="cuda")
+    transform.forward(x)  # warm up
+    torch.cuda.set_sync_debug_mode("error")
+    transform.forward(x)
+    torch.cuda.set_sync_debug_mode("default")
