@@ -71,6 +71,27 @@ Filtering coefficients
 
 See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a training loop.
 
+.. _torch-precision:
+
+Precision
+=========
+
+A transform has a fixed precision, set when it is created with ``dtype`` (``torch.float32`` or ``torch.float64``; the default is :func:`torch.get_default_dtype`). A complex dtype names the precision of its parts: ``torch.complex64`` means ``torch.float32`` and ``torch.complex128`` means ``torch.float64``. The windows are computed in double precision and stored once in that dtype, so nothing is cast on each call.
+
+.. code-block:: python
+
+    import torch
+    from curvelets.torch import UDCT, UDCTModule
+
+    transform = UDCT(shape=(256, 256), dtype=torch.float64)
+    module = UDCTModule(shape=(256, 256), dtype=torch.float64)
+
+Inputs and coefficients of another precision are not cast silently: they raise a :class:`TypeError` that names the fix. To change the precision of a :class:`~curvelets.torch.UDCTModule` afterwards, use ``.to(dtype)``, ``.float()`` or ``.double()``. ``.to(torch.complex64)`` keeps the windows real and sets the matching precision. :meth:`~curvelets.torch.UDCT.struct` no longer takes its dtype from the last forward call; it uses the transform's.
+
+.. note::
+
+   **Breaking change.** Previously, float64 inputs to a default-constructed transform were accepted and cast. They now raise a :class:`TypeError`. Either pass ``dtype=torch.float64`` when creating the transform, call ``.double()`` on the module, or cast the input to the transform's precision.
+
 .. _torch-performance:
 
 Performance

@@ -12,13 +12,6 @@ import torch
 
 from ._periodized_fft import compute_folded_indices, decimated_shape, flip_fft_indices
 
-# Real dtype of the window values that multiply a tensor of a given (complex) dtype.
-_REAL_DTYPE = {
-    torch.complex32: torch.float16,
-    torch.complex64: torch.float32,
-    torch.complex128: torch.float64,
-}
-
 
 @dataclass
 class SparseWindow:
@@ -68,9 +61,6 @@ class SparseWindow:
     flipped_folded_indices: torch.Tensor | None = field(default=None, repr=False)
     decimation: torch.Tensor | None = field(default=None, repr=False)
     out_shape: tuple[int, ...] | None = field(default=None, repr=False)
-    _cast_cache: dict[torch.dtype, torch.Tensor] = field(
-        default_factory=dict, init=False, repr=False, compare=False
-    )
 
     @property
     def device(self) -> torch.device:
@@ -304,7 +294,7 @@ class SparseWindow:
         """
         indices, folded_indices = self.resolve_indices(flip=flip, decimation=decimation)
         out_shape = self._resolved_out_shape(decimation)
-        vals = image_frequency.view(-1)[indices] * self.values_as(image_frequency.dtype)
+        vals = image_frequency.view(-1)[indices] * self.values
         if extra_at_indices is not None:
             vals = vals * extra_at_indices.to(image_frequency.dtype)
         if out is None:
@@ -368,7 +358,7 @@ class SparseWindow:
         True
         """
         indices, folded_indices = self.resolve_indices(flip=flip, decimation=decimation)
-        vals = small_fft.view(-1)[folded_indices] * self.values_as(target.dtype) * scale
+        vals = small_fft.view(-1)[folded_indices] * self.values * scale
         try:
             target.view(-1).index_add_(0, indices, vals)
         except RuntimeError as e:
@@ -625,41 +615,6 @@ class SparseWindow:
         arr.view(-1)[self.indices.view(-1)] = self.values.view(-1).to(dtype)
         return arr
 
-    def values_as(self, dtype: torch.dtype) -> torch.Tensor:
-        """
-        Window values in the real dtype matching ``dtype``, cached per dtype.
-
-        Complex dtypes map to their real counterpart (``complex64`` to
-        ``float32``), so ``complex_tensor * values_as(complex_dtype)`` stays
-        complex without materializing a complex copy of the window.
-
-        Parameters
-        ----------
-        dtype : torch.dtype
-            Dtype of the tensor the values will multiply.
-
-        Returns
-        -------
-        torch.Tensor
-            Window values, on the window's device.
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch._sparse_window import SparseWindow
-        >>> window = SparseWindow.from_dense(torch.tensor([0.1, 0.9], dtype=torch.float64), 0.5)
-        >>> window.values_as(torch.complex64).dtype
-        torch.float32
-        """
-        real_dtype = _REAL_DTYPE.get(dtype, dtype)
-        if self.values.dtype == real_dtype:
-            return self.values
-        cached = self._cast_cache.get(real_dtype)
-        if cached is None or cached.device != self.values.device:
-            cached = self.values.to(real_dtype)
-            self._cast_cache[real_dtype] = cached
-        return cached
-
     def apply(self, fn: Callable[[torch.Tensor], torch.Tensor]) -> SparseWindow:
         """
         Return a new window with ``fn`` applied to every tensor it holds.
@@ -694,9 +649,14 @@ class SparseWindow:
         def _opt(t: torch.Tensor | None) -> torch.Tensor | None:
             return fn(t) if t is not None else None
 
+        values = fn(self.values)
+        if values.is_complex() and not self.values.is_complex():
+            # Window values are real weights: a complex target dtype (e.g.
+            # ``module.to(torch.complex64)``) means its real precision.
+            values = values.real.contiguous()
         return SparseWindow(
             fn(self.indices),
-            fn(self.values),
+            values,
             self.shape,
             folded_indices=_opt(self.folded_indices),
             flipped_indices=_opt(self.flipped_indices),

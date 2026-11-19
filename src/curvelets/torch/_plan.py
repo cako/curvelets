@@ -52,12 +52,6 @@ from .typing import UDCTCoefficients, UDCTWindows
 
 CPU_CHUNK_ELEMENTS = 1 << 19  # coefficients per CPU chunk (~4 MiB as complex64)
 
-_COMPLEX_DTYPE = {
-    torch.float16: torch.complex32,
-    torch.float32: torch.complex64,
-    torch.float64: torch.complex128,
-}
-
 
 def _direct_ok(tensor: torch.Tensor) -> bool:
     """Whether FFT results may be written in place into a preallocated buffer.
@@ -507,7 +501,7 @@ class UDCTPlan:
         """
         batch = vector.shape[:-1]
         flat = vector.reshape(-1, self.ncoef)
-        cdtype = flat.dtype if flat.is_complex() else _COMPLEX_DTYPE[flat.dtype]
+        cdtype = flat.dtype.to_complex()
         if self.cpu_chunks is not None:
             spectrum = _stack_rows([
                 self._cpu_backward_row(row, cdtype) for row in flat
