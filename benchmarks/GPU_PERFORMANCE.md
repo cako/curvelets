@@ -8,7 +8,36 @@ with a CUDA GPU:
 python benchmarks/gpu_bench.py --export benchmarks/data/gpu.json
 ```
 
-## TL;DR: top of the stack vs `main`
+## TL;DR: the whole stack (#81–#94) vs `main`, one GPU
+
+Re-measured 2026-11-18 on one **NVIDIA RTX 2000 Ada** (the card of the baseline
+above), torch 2.15.0+cu132, Triton 3.9, `main` and #94 in the same session.
+float32, real transform, wall ms with a sync per call, through the public API
+both versions have: `vect(forward(x))` and `backward(coeffs)`. Raw data:
+[`data/stack_rtx2000ada/`](data/stack_rtx2000ada/). Reproduce with
+`python benchmarks/stack_bench.py --label <name> --export <file>` against each
+checkout.
+
+| config | `main` fwd / bwd | #94 fwd / bwd | speedup | batch of 8: `main` (loop) → #94 | speedup |
+|---|---:|---:|---:|---:|---:|
+| 512² | 5.67 / 4.65 | 0.265 / 0.245 | **21x / 19x** | 45.3 / 36.9 → 1.40 / 1.36 | **32x / 27x** |
+| 1024², 85 wedges | 26.0 / 21.1 | 0.706 / 0.774 | **37x / 27x** | 206 / 166 → 5.51 / 5.58 | **37x / 30x** |
+| 2048², 181 wedges | 55.9 / 46.1 | 3.63 / 3.70 | **15x / 12x** | 449 / 370 → 28.9 / 28.5 | **16x / 13x** |
+| 64³ | 44.3 / 36.6 | 0.549 / 0.501 | **81x / 73x** | 359 / 307 → 3.19 / 3.34 | **113x / 92x** |
+| 128³ | 45.4 / 37.1 | 2.97 / 2.85 | **15x / 13x** | 369 / 304 → 23.7 / 22.0 | **16x / 14x** |
+
+- `main` has no batch dimension, so its batch of 8 is a Python loop over images.
+- With `cuda_graphs=True` (#92), the 512² single image drops further to
+  0.170 / 0.180 ms (33x / 26x). At the larger sizes it is slower than plain
+  calls on this card (e.g. 2048²: 4.38 / 4.44 ms), as #92 documents.
+- Construction time is unchanged (about 58 s for 2048², 20 s for 128³, in
+  both versions): the windows are still built on the host.
+- The Triton fold (#94) alone, on this card, against the torch fold of #92
+  ([`data/stack_rtx2000ada/fold.json`](data/stack_rtx2000ada/fold.json)): 42–86%
+  less fold time, 10–36% less end to end, except the 512² single-image forward
+  (+7%, host-bound).
+
+## TL;DR after the first round (#81–#87) vs `main`
 
 float32, `UDCTModule` forward + backward, single image.
 
@@ -38,7 +67,9 @@ float32, `UDCTModule` flat path (raw data: [`data/final.json`](data/final.json))
 
 Zero device-to-host copies per call, bitwise-deterministic results, and backprop
 through `UDCTModule` works on CUDA. Not done yet: streaming `filter` for bounded
-memory, building windows on the GPU (init still takes ~40 s for 2048²), and fusing the folds into the FFTs (Triton or cuFFT callbacks).
+memory and building windows on the GPU (init still takes ~40 s for 2048²). The
+folds became one Triton kernel per direction in #94; fusing them into the FFTs
+with cuFFT callbacks is bounded at ~15–20% (see `GPU_STAGE_PROFILE.md` §7).
 
 
 ### CPU
