@@ -204,7 +204,7 @@ plt.tight_layout()
 # Part 2: Regularity estimation
 # #############################
 #
-# Following Section 7 of :cite:t:`Storath2011`: decay rates of amplitudes across
+# Following Section 7 of Storath (2011): decay rates of amplitudes across
 # scales, with the isotropic band as an extra data point.
 
 # %%
@@ -508,7 +508,7 @@ plt.tight_layout()
 # #########
 #
 # - At the fine, directional scales the real and monogenic amplitudes agree
-#   :cite:p:`Storath2011`.
+#   (Storath, 2011).
 # - At the isotropic scales the real transform yields real coefficients
 #   with an oscillating amplitude and a binary phase, and the transform gives no
 #   orientation. A gradient of the real band can estimate it, with larger errors
