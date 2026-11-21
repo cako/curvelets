@@ -14,6 +14,11 @@ concurrency:
 env:
   FORCE_COLOR: 3
 
+# Third-party packages (test dependencies, pre-commit hooks) run in these jobs:
+# give their GITHUB_TOKEN read access only.
+permissions:
+  contents: read
+
 jobs:
   pre-commit:
     name: Format
@@ -22,6 +27,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
@@ -60,6 +66,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-python@v7
         with:
@@ -104,7 +111,33 @@ jobs:
         if: "!startsWith(matrix.python-version, 'pypy')"
         run: python -m pytest -ra --cov --cov-report=xml --cov-report=term --durations=20
 
-      - name: Upload coverage report
+      # The Codecov token is not exposed to this job, which runs third-party
+      # code; the report is uploaded by the coverage job below.
+      - name: Save coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.python-version }}-${{ matrix.runs-on }}
+          path: coverage.xml
+          if-no-files-found: ignore
+
+  coverage:
+    name: Upload coverage
+    needs: checks
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    # Installs and runs no Python packages: only this job sees CODECOV_TOKEN.
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          path: coverage-reports
+
+      - name: Upload coverage reports
         uses: codecov/codecov-action@v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          directory: coverage-reports
