@@ -226,7 +226,7 @@ plt.show()
 #    These typically occur at higher window_overlap values.
 #
 # 3. **Blue dashed lines** mark the default alpha values
-#    using 10% of the Nguyen & Chauris theoretical maximum.
+#    using 10% of the theoretical maximum of :cite:t:`Nguyen2010`.
 #
 # 4. **Green solid lines** mark the optimal alpha values that give
 #    the minimum reconstruction error for each configuration.
