@@ -58,7 +58,7 @@ Tips
 Saving a built transform
 ========================
 
-Creating a transform builds its windows, using all CPU cores: on a 4-core laptop CPU, this takes about 1.5 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5 s for :math:`128 \times 128 \times 128` with 3 scales. If you create the same transform often (in every run of a script, or in every worker of a pool), build it once and save it with :mod:`pickle`. A saved transform keeps everything it precomputed, and loads in about 0.2 s at :math:`2048 \times 2048`:
+Creating a transform builds its windows with ``fft_workers`` threads (by default, every CPU the process may use): on a 4-core laptop CPU, this takes about 1.5 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5 s for :math:`128 \times 128 \times 128` with 3 scales. If you create the same transform often (in every run of a script, or in every worker of a pool), build it once and save it with :mod:`pickle`. A saved transform keeps everything it precomputed, and loads in about 0.2 s at :math:`2048 \times 2048`:
 
 .. code-block:: python
 

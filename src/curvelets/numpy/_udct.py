@@ -12,7 +12,7 @@ import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
 from ._backward_transform_monogenic import _apply_backward_transform_monogenic
-from ._fft import FFTEngine, resolve_fft_engine
+from ._fft import FFTEngine, _resolve_workers, resolve_fft_engine
 from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_monogenic,
@@ -110,10 +110,11 @@ class UDCT:
         .. versionadded:: 1.3
     fft_workers : int, optional
         Number of threads used by the multithreaded FFT engines (``scipy``,
-        ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs available to
-        the process (respecting CPU affinity, e.g. in containers). Ignored by
-        ``numpy``, and by ``mkl_fft`` when ``mkl-service`` is not installed
-        (MKL then uses its own default).
+        ``fftw``, ``mkl_fft``), and to build the windows when the transform is
+        created. Default (``None``) uses all CPUs available to the process
+        (respecting CPU affinity, e.g. in containers). The FFTs ignore it
+        with ``numpy``, and with ``mkl_fft`` when ``mkl-service`` is not
+        installed (MKL then uses its own default).
 
         .. versionadded:: 1.3
 
@@ -201,7 +202,9 @@ class UDCT:
             window_threshold=params_dict["window_threshold"],
         )
 
-        # Calculate windows and attach periodized FFT index maps
+        # Calculate windows and attach periodized FFT index maps, with as many
+        # threads as the FFTs use
+        self._workers = _resolve_workers(fft_workers)
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
 
         # FFT engine, resolved once (an "auto" choice is benchmarked per shape)
@@ -507,7 +510,9 @@ class UDCT:
         tuple
             (windows, decimation_ratios, indices)
         """
-        window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
+        window_computer = UDCTWindow(
+            self.parameters, self.high_frequency_mode, workers=self._workers
+        )
         windows, decimation_ratios, indices = window_computer.compute()
         need_flip = self.transform_kind == "complex"
         # Real and monogenic transforms work on the rfftn half spectrum.
@@ -523,7 +528,7 @@ class UDCT:
                     ]
                 tasks.extend((window, dec) for window in direction_windows)
         # Each window's maps are independent NumPy work: build them in parallel
-        with ThreadPoolExecutor(max_workers=_window_workers()) as pool:
+        with ThreadPoolExecutor(max_workers=_window_workers(self._workers)) as pool:
             list(
                 pool.map(
                     lambda task: task[0].attach_periodized(

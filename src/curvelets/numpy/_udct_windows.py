@@ -2,7 +2,6 @@
 # Duplicate code with torch implementation is expected
 from __future__ import annotations
 
-import os
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -12,14 +11,15 @@ from math import ceil
 import numpy as np
 import numpy.typing as npt
 
+from ._fft import _usable_cpu_count
 from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT, circular_shift, meyer_window
 from .typing import _F, UDCTWindows, _IntegerNDArray, _IntpNDArray
 
 
-def _window_workers() -> int:
-    """Number of threads used to build windows."""
-    return min(32, os.cpu_count() or 1)
+def _window_workers(workers: int | None = None) -> int:
+    """Number of threads used to build windows: ``workers``, or every usable CPU."""
+    return workers if workers is not None else _usable_cpu_count()
 
 
 @dataclass
@@ -131,6 +131,9 @@ class UDCTWindow:
         "wavelet" creates a single ring-shaped window (bandpass filter only,
         no angular components) at the highest scale with decimation=1.
         Default is "curvelet".
+    workers : int | None, optional
+        Number of threads used to build the windows. Default None (every CPU
+        the process may use).
 
     Examples
     --------
@@ -161,7 +164,10 @@ class UDCTWindow:
     """
 
     def __init__(
-        self, parameters: ParamUDCT, high_frequency_mode: str = "curvelet"
+        self,
+        parameters: ParamUDCT,
+        high_frequency_mode: str = "curvelet",
+        workers: int | None = None,
     ) -> None:
         """
         Initialize UDCTWindow with parameters from ParamUDCT.
@@ -202,6 +208,7 @@ class UDCTWindow:
         self.window_overlap = parameters.window_overlap
         self.window_threshold = parameters.window_threshold
         self.high_frequency_mode = high_frequency_mode
+        self.workers = workers
 
     @staticmethod
     def _compute_angle_component(
@@ -711,6 +718,7 @@ class UDCTWindow:
         window_overlap: float,
         high_frequency_mode: str = "curvelet",
         grid_shift: tuple[int, ...] | None = None,
+        workers: int | None = None,
     ) -> tuple[
         dict[int, dict[tuple[int, int], list[_SparseAngleFunction]]],
         dict[int, dict[tuple[int, int], _IntegerNDArray]],
@@ -738,6 +746,8 @@ class UDCTWindow:
             (elementwise) angle functions are evaluated, so the returned angle
             functions are circularly shifted by the same amount. Default None
             (no shift).
+        workers : int | None, optional
+            Number of threads. Default None (every usable CPU).
 
         Returns
         -------
@@ -778,7 +788,7 @@ class UDCTWindow:
                 for scale_idx in range(num_scales - 1)
             ])
 
-        with ThreadPoolExecutor(max_workers=_window_workers()) as pool:
+        with ThreadPoolExecutor(max_workers=_window_workers(workers)) as pool:
             grid_futures: dict[tuple[int, int], Future[_SortedGrid]] = {}
             for pair_index, dimension_pair in enumerate(dimension_permutations):
                 angle_grids = UDCTWindow._create_angle_grids_from_frequency_grids(
@@ -846,6 +856,7 @@ class UDCTWindow:
         size: tuple[int, ...],
         dimension: int,
         num_scales: int,
+        workers: int | None = None,
     ) -> None:
         """
         Normalize windows in-place to ensure tight frame property.
@@ -860,6 +871,8 @@ class UDCTWindow:
             Dimensionality of the transform.
         num_scales : int
             Total number of scales (including lowpass scale).
+        workers : int | None, optional
+            Number of threads. Default None (every usable CPU).
         """
         # Phase 1: Compute sum of squares of all windows (including flipped versions)
         # This ensures the tight frame property: sum of squares equals 1 at each frequency
@@ -894,7 +907,7 @@ class UDCTWindow:
         # stay sequential, in the original order, so the sums are identical
         sum_squared_windows = np.zeros(size)
         sum_flat = sum_squared_windows.reshape(-1)
-        with ThreadPoolExecutor(max_workers=_window_workers()) as pool:
+        with ThreadPoolExecutor(max_workers=_window_workers(workers)) as pool:
             for idx_flat, squares, flipped in pool.map(contributions, tasks):
                 sum_flat[idx_flat] += squares
                 if flipped is not None:
@@ -1580,6 +1593,7 @@ class UDCTWindow:
             window_overlap=self.window_overlap,
             high_frequency_mode=self.high_frequency_mode,
             grid_shift=quarter_shift,
+            workers=self.workers,
         )
         shifted_bandpass_windows = {
             scale_key: circular_shift(bandpass, quarter_shift)
@@ -1605,7 +1619,7 @@ class UDCTWindow:
         # Generate windows for each high-frequency scale (scales 1 to num_scales-1)
         # Each scale contains multiple directions (one per dimension), and each
         # direction contains multiple wedges (windows with different angular orientations)
-        with ThreadPoolExecutor(max_workers=_window_workers()) as pool:
+        with ThreadPoolExecutor(max_workers=_window_workers(self.workers)) as pool:
             pending: list[
                 tuple[
                     int,
@@ -1711,6 +1725,7 @@ class UDCTWindow:
             size=self.shape,
             dimension=self.dimension,
             num_scales=self.num_scales,
+            workers=self.workers,
         )
 
         UDCTWindow._inplace_sort_windows(
