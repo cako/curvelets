@@ -1,7 +1,7 @@
 """
 Wavelet Transforms at the Highest Scale
 =============================================
-This example compares curvelet and wavelet transforms at the highest scale
+This example compares curvelet :cite:`Nguyen2010` and wavelet transforms at the highest scale
 (using a simple nscale=2) on a zone plate test image. It demonstrates the difference
 between directional curvelet windows and a ring-shaped highpass window,
 showing both frequency-domain windows and spatial coefficients.
@@ -266,3 +266,10 @@ for i, coeff in enumerate(wavelet_coeffs_scale1):
     energy = np.sum(np.abs(coeff) ** 2)
     max_val = np.abs(coeff).max()
     print(f"  Ring Window {i}: Energy={energy:.2e}, Max={max_val:.2e}")
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

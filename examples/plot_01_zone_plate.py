@@ -1,6 +1,9 @@
 """
 Zone Plate
 ==========
+
+This example decomposes a zone plate with the uniform discrete curvelet transform
+(UDCT) :cite:`Nguyen2010` and inspects its coefficients.
 """
 
 # sphinx_gallery_thumbnail_number = 2
@@ -165,3 +168,10 @@ im = ax.imshow(np.abs(np.concatenate(coeffs_img, axis=0))[:50, :].T, **opts)
 _, cb = create_colorbar(im=im, ax=ax)
 fmt = ticker.FuncFormatter(lambda x, _: f"{x:.0e}")
 cb.ax.yaxis.set_major_formatter(fmt)
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

@@ -1,9 +1,10 @@
 r"""
 Multiscale Direction Disks
 ==========================
-This example shows how to use the UDCT curvelets transform to visualize
+This example shows how to use the UDCT curvelets transform :cite:`Nguyen2010` to visualize
 multiscale preferrential directions in an image. Inspired by
-`Kymatio's Scattering disks <https://www.kymat.io/gallery_2d/plot_scattering_disk.html>`__.
+`Kymatio's Scattering disks <https://www.kymat.io/gallery_2d/plot_scattering_disk.html>`__
+:cite:`Andreux2019`.
 
 The UDCT partitions the frequency domain of the *array*, with no notion of
 physical sample spacing. We therefore plot everything in index (sample)
@@ -77,3 +78,10 @@ overlay_disk(
     linewidth=5,
 )
 ax.set(xlabel="Position [samples]", ylabel="Depth [samples]", title="Data")
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

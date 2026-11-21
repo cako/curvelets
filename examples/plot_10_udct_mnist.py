@@ -3,11 +3,11 @@ UDCT MNIST Classification
 =========================
 
 This example demonstrates how to use ``UDCT`` as a feature extractor
-for image classification on the MNIST dataset.
+for image classification on the MNIST dataset :cite:`LeCun1998`.
 
 Instead of using convolutional layers, this network:
 
-1. Applies the Uniform Discrete Curvelet Transform (UDCT) to each image
+1. Applies the Uniform Discrete Curvelet Transform (UDCT) :cite:`Nguyen2010` to each image
 2. Uses all curvelet coefficients as features (every pixel in every wedge)
 3. Passes features through a two-layer MLP to classify into 10 digit classes
 
@@ -437,3 +437,10 @@ for digit in range(10):
 plt.suptitle("Worst Loss Misclassified Examples by Digit Class", fontsize=14, y=1.02)
 plt.tight_layout()
 plt.show()
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames
