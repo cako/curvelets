@@ -9,7 +9,7 @@ Curvelab implements the fast discrete curvelet transforms (FDCT) of :cite:t:`Can
 Curvelet.jl
 ###########
 
-Curvelet.jl implements the UDCT :cite:p:`Nguyen2010` in Julia, for 2D signals. The repository is archived, and its last commit is from 2017.
+Curvelet.jl implements the UDCT :cite:p:`Nguyen2010` in Julia, for 2D signals. The repository has been archived and read-only since 10 September 2019, and its last commit is from 2017.
 
 Kymatio
 #######
