@@ -434,8 +434,8 @@ def test_default_workers_without_affinity_uses_cpu_count(monkeypatch):
 
 
 @pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])
-def test_transform_functions_default_to_auto_engine(transform_kind):
-    """The private transform functions resolve an engine when none is given."""
+def test_transform_functions_use_the_default_engine(transform_kind):
+    """The private transform functions use the default engine when none is given."""
     from curvelets.numpy._backward_transform import _apply_backward_transform
     from curvelets.numpy._backward_transform_monogenic import (
         _apply_backward_transform_monogenic,
@@ -555,3 +555,19 @@ def test_fftw_is_amd_checks_loaded_fftw_libraries(monkeypatch, tmp_path):
     monkeypatch.setattr(ctypes, "CDLL", unloadable)
     assert not _fft._fftw_is_amd(str(maps))
     assert not _fft._fftw_is_amd(str(tmp_path / "missing"))
+
+
+def test_udct_default_engine_is_scipy_without_timing(monkeypatch):
+    def fail(*_args: Any) -> None:
+        msg = "the default must not time engines"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(_fft, "_time_backend", fail)
+    assert UDCT(shape=(32, 32), num_scales=2).fft_engine == "scipy"
+
+
+def test_default_engine_falls_back_to_numpy_silently(monkeypatch, recwarn):
+    monkeypatch.setattr(_fft, "_load", lambda _name, _workers=1: None)
+    udct = UDCT(shape=(32, 32), num_scales=2)
+    assert udct.fft_engine == "numpy"
+    assert not [w for w in recwarn if "FFT engine" in str(w.message)]

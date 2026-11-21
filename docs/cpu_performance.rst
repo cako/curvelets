@@ -8,13 +8,13 @@ The NumPy transform (:class:`curvelets.numpy.UDCT`) spends most of its time in F
 Installation
 ============
 
-Install **Curvelets** with SciPy. This is the recommended setup on every CPU:
+Install **Curvelets** with SciPy. This is the recommended setup on every CPU, and nothing else is needed: when SciPy is installed, the transform uses it by default.
 
 .. code-block:: sh
 
     pip install curvelets[scipy]
 
-Optionally, add another FFT library. **Curvelets** compares the installed ones and uses the fastest:
+Optionally, add another FFT library; ``fft_engine="auto"`` (below) compares the installed ones and uses the fastest:
 
 .. code-block:: sh
 
@@ -24,23 +24,24 @@ Optionally, add another FFT library. **Curvelets** compares the installed ones a
 Usage
 =====
 
-Nothing changes in your code: with the default ``fft_engine="auto"``, creating a transform times the installed libraries on its shape (once per shape) and keeps the fastest.
+By default the transform uses SciPy when it is installed, and NumPy otherwise:
 
 .. code-block:: python
 
     from curvelets.numpy import UDCT
 
     udct = UDCT(shape=(512, 512))
-    udct.fft_engine  # the library in use, e.g. "scipy"
+    udct.fft_engine  # "scipy" if SciPy is installed, otherwise "numpy"
     coeffs = udct.forward(image)
 
-You can also choose the library and the number of threads yourself:
+To choose the library yourself, pass ``fft_engine``, for example ``UDCT(shape=(512, 512), fft_engine="mkl_fft")``. Or let **Curvelets** pick the fastest installed one with ``fft_engine="auto"``. It times the candidates when the first transform of a shape is created (a fraction of a second for most shapes), and reuses that choice afterwards:
 
 .. code-block:: python
 
-    udct = UDCT(shape=(512, 512), fft_engine="scipy", fft_workers=8)
+    udct = UDCT(shape=(512, 512), fft_engine="auto")
+    udct.fft_engine  # the library it chose, e.g. "scipy"
 
-* ``fft_engine``: ``"auto"`` (default), ``"numpy"``, ``"scipy"``, ``"mkl_fft"`` or ``"fftw"``. If the library is not installed, a warning is shown and NumPy is used.
+* ``fft_engine``: ``"scipy"``, ``"numpy"``, ``"mkl_fft"``, ``"fftw"`` or ``"auto"``. The default is ``"scipy"`` when SciPy is installed and ``"numpy"`` otherwise. If a library you name is not installed, a warning is shown and NumPy is used.
 * ``fft_workers``: number of threads. The default uses all the CPUs available to the process (in containers too).
 
 Tips
@@ -100,4 +101,4 @@ Compared with the previous, single-threaded NumPy implementation, on 32 vCPUs of
    * - 2D complex, 1024×1024, float64
      - 2.9× / 2.9×
 
-With only NumPy installed, it is 1.3–2.4 times faster than before. Speedups depend on the CPU, the shape and the number of cores.
+With NumPy's FFT alone (``fft_engine="numpy"``), it is 1.3–2.4 times faster than before. Speedups depend on the CPU, the shape and the number of cores.

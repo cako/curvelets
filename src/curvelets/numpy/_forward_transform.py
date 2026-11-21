@@ -200,7 +200,7 @@ def _apply_forward_transform_real(
     provides a more compact representation.
     """
     if fft is None:
-        fft = resolve_fft_engine("auto", parameters.shape)
+        fft = resolve_fft_engine(None, parameters.shape)
     # Real input: gather from the rfftn half spectrum (Hermitian symmetry).
     image_frequency = half_spectrum_source(fft.rfftn(image))
 
@@ -299,7 +299,7 @@ def _apply_forward_transform_complex(
     information.
     """
     if fft is None:
-        fft = resolve_fft_engine("auto", parameters.shape)
+        fft = resolve_fft_engine(None, parameters.shape)
     image_frequency = fft.fftn(image)
 
     scale_norm = float(
@@ -566,7 +566,7 @@ def _apply_forward_transform_monogenic(
     4
     """
     if fft is None:
-        fft = resolve_fft_engine("auto", parameters.shape)
+        fft = resolve_fft_engine(None, parameters.shape)
     # Real input: gather from the rfftn half spectrum (Hermitian symmetry).
     image_frequency = half_spectrum_source(fft.rfftn(image))
 

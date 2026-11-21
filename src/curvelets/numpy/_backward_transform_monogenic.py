@@ -136,7 +136,7 @@ def _apply_backward_transform_monogenic(
     complex_dtype = _to_complex_dtype(real_dtype)
     num_components = first_coeff.shape[-1] - 1
     if fft is None:
-        fft = resolve_fft_engine("auto", parameters.shape)
+        fft = resolve_fft_engine(None, parameters.shape)
 
     half_shape = half_spectrum_shape(parameters.shape)
     accumulators: list[_HalfAccumulator] = [

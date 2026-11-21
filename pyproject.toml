@@ -37,7 +37,8 @@ dependencies = ["numpy>=1.20", "typing_extensions; python_version<'3.12'"]
 
 [project.optional-dependencies]
 torch = ["torch"]
-# Faster FFT engines for the NumPy transform (UDCT(fft_engine=...)).
+# FFT engines for the NumPy transform (UDCT(fft_engine=...)). When SciPy is
+# installed, it is the default engine.
 scipy = ["scipy"]
 fftw = ["pyFFTW"]
 # Intel MKL wheels exist for Linux x86_64 and Windows x64 only. mkl-service
