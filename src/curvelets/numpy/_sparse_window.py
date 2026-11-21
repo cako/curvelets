@@ -155,6 +155,8 @@ class SparseWindow:
             real and monogenic transforms (otherwise built on first use).
             Default is False.
 
+            .. versionadded:: 1.3
+
         Examples
         --------
         >>> import numpy as np
@@ -291,6 +293,8 @@ class SparseWindow:
 
         Cached once the periodized maps are attached.
 
+        .. versionadded:: 1.3
+
         Parameters
         ----------
         decimation : array_like, optional
@@ -331,6 +335,8 @@ class SparseWindow:
     ) -> npt.NDArray[np.complexfloating]:
         """
         Weighted window samples ``scale * values * spectrum[indices]``.
+
+        .. versionadded:: 1.3
 
         Parameters
         ----------
@@ -386,6 +392,8 @@ class SparseWindow:
     ) -> npt.NDArray[np.complexfloating]:
         """
         Fold window samples (from :meth:`gather`) into the decimated grid.
+
+        .. versionadded:: 1.3
 
         Parameters
         ----------
@@ -457,8 +465,12 @@ class SparseWindow:
             Reusable output buffer (cleared before use).
         scale : float, optional
             Factor folded into the weights. Default is 1.
+
+            .. versionadded:: 1.3
         half : bool, optional
             If True, ``image_frequency`` is a half-spectrum source.
+
+            .. versionadded:: 1.3
 
         Returns
         -------
@@ -546,6 +558,8 @@ class SparseWindow:
         them into the half spectrum whose ``irfftn`` equals the ``ifftn(...).real``
         of the full-spectrum scatter.
 
+        .. versionadded:: 1.3
+
         Parameters
         ----------
         small_fft : ndarray of complex
@@ -608,8 +622,12 @@ class SparseWindow:
             Fallback when periodized maps are not attached.
         half : bool, optional
             If True, ``image_frequency`` is a half-spectrum source.
+
+            .. versionadded:: 1.3
         fft : FFTBackend, optional
             FFT implementation; defaults to ``numpy.fft``.
+
+            .. versionadded:: 1.3
 
         Returns
         -------
@@ -667,6 +685,8 @@ class SparseWindow:
         fft : FFTBackend, optional
             FFT implementation; defaults to ``numpy.fft``.
 
+            .. versionadded:: 1.3
+
         Examples
         --------
         >>> import numpy as np
@@ -700,6 +720,8 @@ class SparseWindow:
     ) -> None:
         """
         Half-spectrum backward wedge: small FFT → :meth:`scatter_half`.
+
+        .. versionadded:: 1.3
 
         Parameters
         ----------
