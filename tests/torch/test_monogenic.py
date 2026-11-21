@@ -264,3 +264,15 @@ def test_cuda_matches_cpu(shape: tuple[int, ...], high: HighFrequencyMode) -> No
     recon.pow(2).sum().backward()
     assert xc.grad is not None
     torch.testing.assert_close(xc.grad.cpu(), xg.grad)
+
+
+def test_layout_follows_the_device() -> None:
+    """The layout's index maps move to another device; a no-op on their own."""
+    udct, _ = _pair((32, 32))
+    layout = udct._get_monogenic_layout(torch.device("cpu"))  # pylint: disable=protected-access
+    assert layout.to(torch.device("cpu")) is layout
+    moved = layout.to(torch.device("meta"))
+    assert moved.perm.device.type == "meta"
+    assert moved.inverse.device.type == "meta"
+    assert (moved.num_channels, moved.ncoef) == (layout.num_channels, layout.ncoef)
+    assert moved.wedges is layout.wedges
