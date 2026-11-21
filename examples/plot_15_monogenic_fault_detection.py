@@ -637,6 +637,9 @@ for (title, _model, _gap), per_case in zip(smoothing_cases, smoothed, strict=Tru
 # ``testdata/make_thebe_tiles.py`` cuts them from the original volume. The labels
 # are fault zones a few samples wide; positives are pixels within 3 samples of a
 # labelled pixel and negatives those farther than 12.
+#
+# A larger check outside this example, on 113 tiles from ten sections of the same
+# volume, gave the same picture as these four tiles.
 
 tiles_path = Path("testdata/thebe_tiles.npz")
 if not tiles_path.exists():
@@ -712,16 +715,6 @@ plt.tight_layout()
 #   resolution; once the standard attribute is smoothed, it is nearly as good.
 # - **Dimming: no practical advantage**, for the same reason: with a few samples of
 #   smoothing the real band's energy is an envelope too.
-#
-# Real data
-# ---------
-#
-# The Thebe tiles above follow the same pattern. A larger check outside this
-# example, on 113 tiles of 256 by 256 samples from ten sections of the same volume,
-# gave the same picture: unsmoothed, monogenic wins clearly (mean AUC 0.65 against
-# 0.60 with ``num_scales=3``, better in 97% of the tiles); with 3 samples of
-# smoothing the lead is about 0.01 (0.709 against 0.701, better in 64% of the
-# tiles), and with ``num_scales=4`` it vanishes by 4 to 6 samples of smoothing.
 #
 # A one-sided truncation, with no reflectors at all on one side of the fault, is
 # not tested: a local attribute cannot tell a reflector-free half-plane from a very
