@@ -6,19 +6,23 @@ PyLops, the FFT implementation is chosen per transform with an ``engine``:
 
 - ``"numpy"``: :mod:`numpy.fft` (always available);
 - ``"scipy"``: :mod:`scipy.fft`, multithreaded with ``workers``;
-- ``"fftw"``: FFTW through ``pyFFTW``, multithreaded. Plans are made with
-  ``FFTW_MEASURE`` on the first transform of each shape (seconds; up to about
-  a minute for large 3D transforms) and kept for the life of the engine (see
-  :class:`_FFTWPlans`). ``FFTW_ESTIMATE`` plans instantly but, with the stock
-  FFTW, splits small FFTs over every thread and ran up to 100x slower on a
-  32-vCPU EPYC;
+- ``"fftw"``: FFTW through ``pyFFTW``, multithreaded. Plans are made on the
+  first transform of each shape and kept for the life of the engine (see
+  :class:`_FFTWPlans`). With the stock FFTW they use ``FFTW_MEASURE``
+  (seconds; up to about a minute for large 3D transforms): its
+  ``FFTW_ESTIMATE`` plans split small FFTs over every thread and ran up to
+  100x slower on a 32-vCPU EPYC. With AMD's FFTW (amd-fftw / AOCL, detected
+  at run time, see :func:`_fftw_is_amd`) they use ``FFTW_ESTIMATE``, which
+  plans almost instantly and performed well;
 - ``"mkl_fft"``: Intel MKL through ``mkl_fft``, multithreaded
   (:mod:`mkl_fft.interfaces.scipy_fft`, which needs ``mkl-service``; without
   it, :mod:`mkl_fft.interfaces.numpy_fft` with MKL's default thread count);
-- ``"auto"`` (default): ``numpy`` and whichever of ``scipy`` and ``mkl_fft``
-  are importable are timed once per transform shape on a wedge-sized proxy
-  problem, and the fastest is kept. ``fftw`` is never chosen automatically:
-  its planning cost would fall on every user with pyFFTW installed.
+- ``"auto"`` (default): ``numpy`` and the importable engines that plan
+  cheaply (``scipy``, ``mkl_fft``, and ``fftw`` when pyFFTW runs on AMD's
+  FFTW) are timed once per transform shape on a wedge-sized proxy problem, and
+  the fastest is kept. ``fftw`` on the stock FFTW is never chosen
+  automatically: its planning cost would fall on every user with pyFFTW
+  installed.
 
 ``workers`` sets the thread count of the multithreaded engines (default: all
 CPUs). A requested engine whose package is not installed falls back to
@@ -28,14 +32,17 @@ rounding.
 
 from __future__ import annotations
 
+import ctypes
 import functools
 import math
 import os
+import re
 import threading
 import time
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
@@ -65,6 +72,9 @@ class FFTBackend:
     ifftn: Callable[..., Any]
     rfftn: Callable[..., Any]
     irfftn: Callable[..., Any]
+    #: Whether a first transform costs about as much as later ones (no slow
+    #: planning), which makes the engine a candidate for ``"auto"``.
+    cheap_planning: bool = True
 
 
 def _from_scipy_like(name: str, module: Any, **kwargs: Any) -> FFTBackend:
@@ -105,10 +115,10 @@ class _FFTWPlans:
     their input and output) for the life of the engine.
     """
 
-    def __init__(self, pyfftw: Any, workers: int) -> None:
+    def __init__(self, pyfftw: Any, workers: int, effort: str = "FFTW_MEASURE") -> None:
         self._pyfftw = pyfftw
         self._workers = workers
-        self._effort = "FFTW_MEASURE"
+        self._effort = effort
         self._local = threading.local()
 
     def _plan(
@@ -153,11 +163,71 @@ class _FFTWPlans:
         return self._run("irfftn", x, s, axes)
 
 
+_FFTW_LIBRARY = re.compile(r"libfftw3[fl]?([-.]|$)")
+_AOCL_VERSION_SYMBOLS = ("fftw_aoclversion", "fftwf_aoclversion", "fftwl_aoclversion")
+
+
+def _fftw_is_amd(maps_path: str = "/proc/self/maps") -> bool:
+    """
+    Whether the FFTW that pyFFTW loaded is AMD's (amd-fftw, part of AOCL).
+
+    AMD's FFTW exports ``fftw_aoclversion``; the stock FFTW does not. The
+    libraries actually mapped into the process are checked (pyFFTW wheels
+    bundle their own FFTW, so a system-wide AMD FFTW must not count). Linux
+    only: elsewhere, and on any error, the stock FFTW is assumed.
+
+    Parameters
+    ----------
+    maps_path : str, optional
+        The process's memory map; a parameter for testing.
+
+    Returns
+    -------
+    bool
+        True when a loaded FFTW library exports an AOCL version symbol.
+
+    Examples
+    --------
+    >>> from curvelets.numpy._fft import _fftw_is_amd
+    >>> _fftw_is_amd("/nonexistent")
+    False
+    """
+    try:
+        with Path(maps_path).open(encoding="utf-8") as maps:
+            paths = {
+                line.split(maxsplit=5)[-1].strip()
+                for line in maps
+                if "libfftw3" in line and len(line.split()) == 6
+            }
+    except OSError:
+        return False
+    for path in sorted(paths):
+        if not _FFTW_LIBRARY.match(Path(path).name):
+            continue
+        try:
+            library = ctypes.CDLL(path)
+        except OSError:
+            continue
+        if any(hasattr(library, symbol) for symbol in _AOCL_VERSION_SYMBOLS):
+            return True
+    return False
+
+
 def _fftw_backend(workers: int) -> FFTBackend:
     import pyfftw.builders  # pylint: disable=import-outside-toplevel,import-error
 
-    plans = _FFTWPlans(pyfftw, workers)
-    return FFTBackend("fftw", plans.fftn, plans.ifftn, plans.rfftn, plans.irfftn)
+    amd = _fftw_is_amd()
+    plans = _FFTWPlans(
+        pyfftw, workers, effort="FFTW_ESTIMATE" if amd else "FFTW_MEASURE"
+    )
+    return FFTBackend(
+        "fftw",
+        plans.fftn,
+        plans.ifftn,
+        plans.rfftn,
+        plans.irfftn,
+        cheap_planning=amd,
+    )
 
 
 def _mkl_fft_backend(workers: int) -> FFTBackend:
@@ -259,8 +329,8 @@ def _time_backend(backend: FFTBackend, data: np.ndarray) -> float:
 def _auto_for_shape(shape: tuple[int, ...], workers: int) -> FFTBackend:
     candidates = [_numpy_backend()] + [
         backend
-        for backend in (_load(name, workers) for name in ("scipy", "mkl_fft"))
-        if backend is not None
+        for backend in (_load(name, workers) for name in ("scipy", "mkl_fft", "fftw"))
+        if backend is not None and backend.cheap_planning
     ]
     if len(candidates) == 1:
         return candidates[0]
@@ -281,8 +351,8 @@ def resolve_fft_engine(
     ----------
     engine : {"auto", "numpy", "scipy", "fftw", "mkl_fft"}
         Requested engine. ``"auto"`` picks the fastest of ``numpy`` and the
-        installed ``scipy`` / ``mkl_fft`` for this shape (timed once and
-        cached).
+        installed engines that plan cheaply (``scipy``, ``mkl_fft``, and
+        ``fftw`` on AMD's FFTW) for this shape (timed once and cached).
     shape : tuple of int
         Transform (image) shape.
     workers : int, optional
