@@ -33,7 +33,7 @@ Why do we need another curvelet transform library?
 Curvelet constructions
 **********************
 
-* **First-generation curvelets** apply ridgelet transforms to blocks of a band-pass (wavelet-like) decomposition :cite:`Starck2002`. In 3D, the BeamCurvelet and RidCurvelet transforms follow the same recipe, for filaments and sheets respectively :cite:`Woiselle2010`. These constructions are much more redundant than the later ones.
+* **First-generation curvelets** apply ridgelet transforms to blocks of a band-pass (wavelet-like) decomposition :cite:`Candes2000`; :cite:t:`Starck2002` gave their digital implementation. In 3D, the BeamCurvelet and RidCurvelet transforms follow the same recipe, for filaments and sheets respectively :cite:`Woiselle2010`. These constructions are much more redundant than the later ones.
 * **Second-generation curvelets** tile the frequency domain directly, with parabolic scaling (the width of a curvelet is about the square of its length), and form tight frames :cite:`Candes2004`. Their discretizations differ:
 
   * the **Fast Discrete Curvelet Transform (FDCT)**, in its "wrapping" and "USFFT" (unequally-spaced Fast Fourier Transform) versions :cite:`Candes2006a`;
