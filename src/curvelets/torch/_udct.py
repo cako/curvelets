@@ -1,6 +1,6 @@
 """Main UDCT class for PyTorch implementation."""
 
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,too-many-lines
 # Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
