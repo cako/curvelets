@@ -1,37 +1,26 @@
 name: CI
 
-# Changes that cannot affect the tests (documentation, the other workflows, the
-# release-build lock, Dependabot's config) skip the test matrix and the coverage
-# upload. The Format workflow (pre-commit, including the docs checks), the CD
-# workflow and the Read the Docs build still run. Changes to this file always
-# run it.
+# Changes that cannot affect the tests skip the test matrix and the coverage
+# upload: documentation, the other workflows, the release-build lock,
+# Dependabot's config, and Python changes that only touch docstrings or
+# comments. The `changes` job decides, with .github/scripts/code_changed.py
+# (which holds the list of ignored paths); it compares the syntax trees of
+# changed Python files, docstrings removed. CI does not run doctests, so
+# docstrings cannot change the test results. The Format workflow (pre-commit,
+# including the docs checks), the CD workflow and the Read the Docs build
+# always run.
 #
-# Changes to Python files that only touch docstrings or comments also skip the
-# test matrix and the coverage upload: the `changes` job compares the syntax
-# trees, docstrings removed, before and after (.github/scripts/code_changed.py).
-# CI does not run doctests, so docstrings cannot change the test results. Jobs
-# skipped this way count as passed, so the run still finishes green. Manual
-# runs, new branches and any error in the comparison run the tests.
+# The gate fails safe. It runs the script as it is on the base commit, so a pull
+# request cannot rewrite the rules that judge it. Manual runs, new branches, a
+# missing script and any error run the tests, and so does a failure of the
+# `changes` job itself: the test jobs skip only on an explicit "false". Jobs
+# skipped this way count as passed, so the run still finishes green.
 on:
   workflow_dispatch:
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - ".github/workflows/cd.yml"
-      - ".github/workflows/format.yml"
-      - ".github/requirements/**"
-      - ".github/dependabot.yml"
   push:
     branches:
       - main
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - ".github/workflows/cd.yml"
-      - ".github/workflows/format.yml"
-      - ".github/requirements/**"
-      - ".github/dependabot.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -61,18 +50,28 @@ jobs:
         with:
           python-version: "3.14"
 
-      # BASE is empty on workflow_dispatch, which counts as a code change.
+      # BASE is empty on workflow_dispatch and all zeros for a new branch; the
+      # script treats both as a code change. `python -I` keeps the checkout
+      # off the import path.
       - name: Compare with the base commit
         id: gate
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD: ${{ github.sha }}
-        run: python .github/scripts/code_changed.py "$BASE" "$HEAD"
+          SCRIPT: .github/scripts/code_changed.py
+        run: |
+          if [[ "$BASE" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$BASE:$SCRIPT" 2>/dev/null; then
+            git cat-file blob "$BASE:$SCRIPT" > "$RUNNER_TEMP/code_changed.py"
+            python -I "$RUNNER_TEMP/code_changed.py" "$BASE" "$HEAD"
+          else
+            echo "No gate script at the base commit ($BASE): treating as code change"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
 
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
     needs: changes
-    if: needs.changes.outputs.code == 'true'
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ${{ matrix.runs-on }}
     # PyPy: numpy only ships PyPy 3.11 wheels, up to 2.4.x; best-effort job.
     continue-on-error: ${{ startsWith(matrix.python-version, 'pypy') }}
@@ -147,7 +146,7 @@ jobs:
   coverage:
     name: Upload coverage
     needs: [changes, checks]
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
     runs-on: ubuntu-latest
     # Installs and runs no Python packages: only this job sees CODECOV_TOKEN.
     steps:

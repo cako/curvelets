@@ -8,12 +8,19 @@ also written there as the ``code`` step output.
 
 A change counts as code unless every changed file is either
 
-* matched by one of the CI workflow's ``paths-ignore`` patterns, or
-* an existing ``.py`` file whose syntax tree, with docstrings removed, is the
-  same before and after (only docstrings, comments or formatting changed).
+* matched by one of ``IGNORED_PATTERNS`` (and not in ``NEVER_IGNORED``), or
+* a regular ``.py`` file, modified in place, whose syntax tree with docstrings
+  removed is the same before and after (only docstrings, comments or layout
+  changed).
 
-Anything unexpected (an empty or all-zero BASE, a missing commit, a git
-error, a file that does not parse) counts as code, so the tests run.
+The script fails safe: anything unexpected counts as code, so the tests run.
+That covers a BASE or HEAD that is not a full commit SHA (manual runs, new
+branches), a git error, a file that does not parse, a rename, a mode or type
+change, and docstring changes while ``src/`` or ``tests/`` reads docstrings or
+source text at runtime.
+
+The CI workflow runs the copy of this script from the base commit, not the
+one under review, so a pull request cannot change the rules that judge it.
 """
 
 from __future__ import annotations
@@ -24,7 +31,8 @@ import re
 import subprocess
 import sys
 
-# Keep in sync with `paths-ignore` in .github/workflows/ci.yml.
+# Changes the tests cannot see. The test job installs docs/requirements.txt,
+# so it always counts.
 IGNORED_PATTERNS = (
     "docs/**",
     "**/*.md",
@@ -33,7 +41,18 @@ IGNORED_PATTERNS = (
     ".github/requirements/**",
     ".github/dependabot.yml",
 )
+NEVER_IGNORED = frozenset({"docs/requirements.txt"})
 
+# Only plain files can be compared as Python source; symlinks and submodules
+# count as code.
+_REGULAR_MODES = frozenset({"100644", "100755"})
+
+# If the code under test can see docstrings or source text, docstring and
+# comment changes can change test results.
+_SOURCE_READERS = r"__doc__|getdoc|getsource|getcomments|getsourcelines|linecache"
+_SOURCE_READER_PATHS = ("src", "tests")
+
+_SHA = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?\Z")
 _DOCSTRING_OWNERS = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
 
 
@@ -61,12 +80,15 @@ _IGNORED = tuple(_glob_to_regex(p) for p in IGNORED_PATTERNS)
 
 
 def is_ignored(path: str) -> bool:
+    if path in NEVER_IGNORED:
+        return False
     return any(regex.match(path) for regex in _IGNORED)
 
 
-def _git(*args: str) -> str:
+def _git(*args: str) -> bytes:
+    # No pager, external diff or textconv: the output is git's own.
     return subprocess.run(
-        ["git", *args], check=True, capture_output=True, text=True
+        ["git", "--no-pager", *args], check=True, capture_output=True
     ).stdout
 
 
@@ -85,8 +107,13 @@ def strip_docstrings(tree: ast.AST) -> ast.AST:
     return tree
 
 
-def same_code(old_source: str, new_source: str) -> bool:
-    """True if the sources differ only in docstrings, comments or layout."""
+def same_code(old_source: bytes, new_source: bytes) -> bool:
+    """True if the sources differ only in docstrings, comments or layout.
+
+    The sources are parsed as bytes so that a coding declaration or BOM is
+    honored exactly as the interpreter honors it: under ``# coding: utf-7``,
+    text that reads as a comment in UTF-8 can be code.
+    """
     old = strip_docstrings(ast.parse(old_source))
     new = strip_docstrings(ast.parse(new_source))
     return ast.dump(old, include_attributes=False) == ast.dump(
@@ -94,8 +121,28 @@ def same_code(old_source: str, new_source: str) -> bool:
     )
 
 
-def _file_reason(base: str, head: str, status: str, paths: list[str]) -> str | None:
+def _changes(base: str, head: str) -> list[tuple[str, str, str, list[str]]]:
+    """Return ``(old_mode, new_mode, status, paths)`` for each changed file."""
+    raw = _git(
+        "diff", "--raw", "-z", "-M", "--no-color", "--no-ext-diff",
+        "--no-textconv", "--no-abbrev", base, head, "--",
+    ).decode("utf-8", "surrogateescape")  # fmt: skip
+    fields = raw.split("\0")
+    changes = []
+    i = 0
+    while i < len(fields) and fields[i]:
+        old_mode, new_mode, _, _, status = fields[i].lstrip(":").split(" ")
+        n_paths = 2 if status[0] in "RC" else 1
+        changes.append((old_mode, new_mode, status[0], fields[i + 1 : i + 1 + n_paths]))
+        i += 1 + n_paths
+    return changes
+
+
+def _file_reason(
+    base: str, head: str, change: tuple[str, str, str, list[str]]
+) -> str | None:
     """Return why this change counts as code, or None if it does not."""
+    old_mode, new_mode, status, paths = change
     if all(is_ignored(p) for p in paths):
         return None
     path = paths[-1]
@@ -103,39 +150,62 @@ def _file_reason(base: str, head: str, status: str, paths: list[str]) -> str | N
         return "non-Python file"
     if status != "M":
         return f"Python file with status {status}"
+    if old_mode not in _REGULAR_MODES or new_mode not in _REGULAR_MODES:
+        return f"mode {old_mode} -> {new_mode}"
     try:
-        old = _git("show", f"{base}:{path}")
-        new = _git("show", f"{head}:{path}")
+        old = _git("cat-file", "blob", f"{base}:{path}")
+        new = _git("cat-file", "blob", f"{head}:{path}")
         if same_code(old, new):
             return None
-    except SyntaxError as exc:
-        return f"does not parse ({exc.msg}, line {exc.lineno})"
+    except (SyntaxError, ValueError) as exc:
+        return f"does not parse ({exc})"
     return "code differs"
 
 
+def _source_readers(head: str) -> list[str]:
+    """Files under src/ and tests/ that read docstrings or source at runtime."""
+    result = subprocess.run(
+        ["git", "--no-pager", "grep", "-l", "-E", _SOURCE_READERS, head, "--",
+         *_SOURCE_READER_PATHS],
+        capture_output=True, check=False,
+    )  # fmt: skip
+    if result.returncode not in {0, 1}:  # 1: no match
+        msg = f"git grep failed: {result.stderr!r}"
+        raise RuntimeError(msg)
+    lines = result.stdout.decode("utf-8", "surrogateescape").splitlines()
+    return [line.removeprefix(f"{head}:") for line in lines]
+
+
 def code_changed(base: str, head: str) -> bool:
-    if not base or set(base) == {"0"}:
-        print(f"no base commit ({base!r}): treating as code change")
-        return True
-    diff = _git("diff", "--name-status", "-M", "--no-color", base, head)
+    for name, sha in (("BASE", base), ("HEAD", head)):
+        if not _SHA.match(sha) or set(sha) == {"0"}:
+            print(f"{name} is not a commit SHA ({sha!r}): treating as code change")
+            return True
     changed = False
-    for line in diff.splitlines():
-        status, *paths = line.split("\t")
-        reason = _file_reason(base, head, status[0], paths)
+    docs_only_py = []
+    for change in _changes(base, head):
+        paths = change[3]
+        reason = _file_reason(base, head, change)
         label = " -> ".join(paths)
         if reason is None:
             print(f"  skip  {label}")
+            if paths[-1].endswith(".py") and not is_ignored(paths[-1]):
+                docs_only_py.append(label)
         else:
             print(f"  CODE  {label} ({reason})")
             changed = True
+    if docs_only_py and not changed and (readers := _source_readers(head)):
+        print(f"  CODE  docstring/comment changes, and {', '.join(readers)} reads")
+        print("        docstrings or source text at runtime")
+        changed = True
     return changed
 
 
 def main(argv: list[str]) -> int:
     base, head = [*argv, "", ""][:2]
     try:
-        changed = code_changed(base, head or "HEAD")
-    except Exception as exc:
+        changed = code_changed(base, head)
+    except Exception as exc:  # any failure must run the tests
         print(f"error ({exc!r}): treating as code change")
         changed = True
     result = f"code={'true' if changed else 'false'}"
