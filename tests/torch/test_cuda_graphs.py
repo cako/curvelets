@@ -11,7 +11,7 @@ import pytest
 import torch
 
 import curvelets.torch._cuda_graphs as cuda_graphs_module
-from curvelets.torch import UDCT, UDCTModule
+from curvelets.torch import UDCT
 from curvelets.torch._autograd import BackwardWithAdjoint, ForwardWithAdjoint
 
 Kind = Literal["real", "complex"]
@@ -98,15 +98,15 @@ def _image(
 
 # ---------------------------------------------------------------- everywhere
 def test_off_by_default_and_switchable() -> None:
-    """The flag defaults to off, can be toggled, and UDCTModule forwards it."""
+    """The flag defaults to off, can be set at construction and toggled."""
     udct = _udct()
     assert not udct.cuda_graphs
     udct.cuda_graphs = True
     assert udct.cuda_graphs
-    module = UDCTModule(shape=SHAPE, num_scales=3, cuda_graphs=True)
-    assert module.cuda_graphs
-    module.cuda_graphs = False
-    assert not module._udct.cuda_graphs  # pylint: disable=protected-access
+    udct = UDCT(shape=SHAPE, num_scales=3, cuda_graphs=True)
+    assert udct.cuda_graphs
+    udct.cuda_graphs = False
+    assert not udct.cuda_graphs
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
@@ -114,11 +114,11 @@ def test_cpu_tensors_run_as_usual(kind: Kind) -> None:
     """On CPU the flag changes nothing and captures nothing."""
     plain, graphed = _udct(kind), _udct(kind, cuda_graphs=True)
     x = _image(kind, (2,))
-    coeffs = plain._forward_vect(x)  # pylint: disable=protected-access
-    torch.testing.assert_close(graphed._forward_vect(x), coeffs)  # pylint: disable=protected-access
+    coeffs = plain.forward_vect(x)
+    torch.testing.assert_close(graphed.forward_vect(x), coeffs)
     torch.testing.assert_close(
-        graphed._backward_vect(coeffs),  # pylint: disable=protected-access
-        plain._backward_vect(coeffs),  # pylint: disable=protected-access
+        graphed.backward_vect(coeffs),
+        plain.backward_vect(coeffs),
     )
     assert len(graphed._graphs) == 0  # pylint: disable=protected-access
 
@@ -142,7 +142,7 @@ def test_adjoint_functions_gradcheck(kind: Kind) -> None:
         x = torch.complex(x, torch.randn_like(x))
     x.requires_grad_(True)
     assert torch.autograd.gradcheck(lambda t: ForwardWithAdjoint.apply(t, udct), (x,))
-    coeffs = udct._forward_vect(x.detach()).requires_grad_(True)  # pylint: disable=protected-access
+    coeffs = udct.forward_vect(x.detach()).requires_grad_(True)
     assert torch.autograd.gradcheck(
         lambda c: BackwardWithAdjoint.apply(c, udct), (coeffs,)
     )
@@ -160,11 +160,11 @@ def test_replay_matches_plain_calls(
     graphed = _udct(kind, dtype, cuda_graphs=True, device=device)
     for seed in range(2):  # fresh inputs: the static buffers are refilled
         x = _image(kind, batch, dtype, device, seed)
-        coeffs = plain._forward_vect(x)  # pylint: disable=protected-access
-        torch.testing.assert_close(graphed._forward_vect(x), coeffs)  # pylint: disable=protected-access
+        coeffs = plain.forward_vect(x)
+        torch.testing.assert_close(graphed.forward_vect(x), coeffs)
         torch.testing.assert_close(
-            graphed._backward_vect(coeffs),  # pylint: disable=protected-access
-            plain._backward_vect(coeffs),  # pylint: disable=protected-access
+            graphed.backward_vect(coeffs),
+            plain.backward_vect(coeffs),
         )
         nested = graphed.forward(x)
         torch.testing.assert_close(graphed.vect(nested), coeffs)
@@ -182,9 +182,9 @@ def test_results_survive_later_calls(device: str) -> None:
         _image("real", device=device, seed=1),
         _image("real", device=device, seed=2),
     )
-    first = udct._forward_vect(x1)  # pylint: disable=protected-access
+    first = udct.forward_vect(x1)
     expected = first.clone()
-    udct._forward_vect(x2)  # pylint: disable=protected-access
+    udct.forward_vect(x2)
     torch.testing.assert_close(first, expected)
 
 
@@ -193,11 +193,11 @@ def test_cache_is_bounded_and_cleared(device: str) -> None:
     udct = _udct(cuda_graphs=True, device=device)
     udct.cuda_graph_cache_size = 2
     for batch in (1, 2, 3):
-        udct._forward_vect(_image("real", (batch,), device=device))  # pylint: disable=protected-access
+        udct.forward_vect(_image("real", (batch,), device=device))
     assert len(udct._graphs) == 2  # pylint: disable=protected-access
     udct.apply_to_tensors(lambda t: t.to(device))
     assert len(udct._graphs) == 0  # pylint: disable=protected-access
-    udct._forward_vect(_image("real", device=device))  # pylint: disable=protected-access
+    udct.forward_vect(_image("real", device=device))
     udct.clear_cuda_graphs()
     assert len(udct._graphs) == 0  # pylint: disable=protected-access
 
@@ -220,11 +220,11 @@ def test_gradients_match_plain_autograd(kind: Kind, device: str) -> None:
         len(graphed._graphs) == 2
     )  # forward, and backward as its gradient  # pylint: disable=protected-access
 
-    coeffs = plain._forward_vect(x)  # pylint: disable=protected-access
+    coeffs = plain.forward_vect(x)
 
     def coeff_grad(udct: UDCT) -> torch.Tensor:
         cg = coeffs.clone().requires_grad_(True)
-        loss = udct._backward_vect(cg).abs().pow(2).sum()  # pylint: disable=protected-access
+        loss = udct.backward_vect(cg).abs().pow(2).sum()
         (grad,) = torch.autograd.grad(loss, cg)
         return grad
 
@@ -232,16 +232,16 @@ def test_gradients_match_plain_autograd(kind: Kind, device: str) -> None:
 
 
 def test_module_training_and_double_backward(device: str) -> None:
-    """UDCTModule gradients and second derivatives match without graphs."""
+    """Gradients and second derivatives match without graphs."""
     x = _image("real", (2,), device=device)
 
     def grads(cuda_graphs: bool) -> tuple[torch.Tensor, torch.Tensor]:
-        module = UDCTModule(
+        module = UDCT(
             shape=SHAPE, num_scales=3, dtype=torch.float64, cuda_graphs=cuda_graphs
         ).to(device)
         xg = x.clone().requires_grad_(True)
         (grad,) = torch.autograd.grad(
-            module(xg).abs().pow(2).sum(), xg, create_graph=True
+            module.forward_vect(xg).abs().pow(2).sum(), xg, create_graph=True
         )
         (second,) = torch.autograd.grad(grad.pow(2).sum(), xg)
         return grad.detach(), second
@@ -252,17 +252,17 @@ def test_module_training_and_double_backward(device: str) -> None:
 
 def test_module_gradcheck_with_graphs(device: str) -> None:
     """gradcheck holds with graph replays on CUDA (float64)."""
-    module = UDCTModule(
+    module = UDCT(
         shape=(16, 16), num_scales=2, dtype=torch.float64, cuda_graphs=True
     ).to(device)
     x = torch.randn(16, 16, dtype=torch.float64, device=device, requires_grad=True)
-    assert torch.autograd.gradcheck(module, (x,))
+    assert torch.autograd.gradcheck(module.forward_vect, (x,))
 
 
 def test_vmap_runs_without_graphs(device: str) -> None:
     """Under torch.vmap calls fall back to plain execution and still match."""
     udct = _udct(cuda_graphs=True, device=device)
     x = _image("real", (3,), device=device)
-    expected = _udct(device=device)._forward_vect(x)  # pylint: disable=protected-access
-    batched = torch.vmap(udct._forward_vect)(x)  # pylint: disable=protected-access
+    expected = _udct(device=device).forward_vect(x)
+    batched = torch.vmap(udct.forward_vect)(x)
     torch.testing.assert_close(batched, expected)

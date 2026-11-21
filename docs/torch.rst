@@ -5,32 +5,48 @@ PyTorch backend
 
 The :mod:`curvelets.torch` package provides the same transform as :mod:`curvelets.numpy` on PyTorch tensors, on the CPU or on a GPU, with autograd support. Install it with ``pip install curvelets[torch]``.
 
-Two classes are available:
+:class:`~curvelets.torch.UDCT` is the transform, and it is a :class:`torch.nn.Module` with no learnable parameters:
 
-* :class:`~curvelets.torch.UDCT` is the transform itself: ``forward`` returns the nested coefficient structure, ``vect`` flattens it to a single vector and ``struct`` does the opposite.
-* :class:`~curvelets.torch.UDCTModule` is a :class:`torch.nn.Module` that wraps a :class:`~curvelets.torch.UDCT`. It maps an image straight to the flat coefficient vector and back, and is differentiable, so it can be used inside a network.
+* ``udct(x)`` (:meth:`~curvelets.torch.UDCT.forward`) returns the nested coefficient structure and :meth:`~curvelets.torch.UDCT.backward` inverts it, as in :mod:`curvelets.numpy`; ``vect`` flattens the nested structure to a single tensor and ``struct`` does the opposite;
+* :meth:`~curvelets.torch.UDCT.forward_vect` and :meth:`~curvelets.torch.UDCT.backward_vect` go straight to and from the flat coefficient tensor, which is the convenient layout inside a network.
+
+.. _torch-gradients:
+
+Gradients
+=========
+
+.. versionchanged:: 1.3
+   :class:`~curvelets.torch.UDCT` takes its gradients from the adjoint transform in both layouts. Before, only :class:`~curvelets.torch.UDCTModule` did; :class:`~curvelets.torch.UDCT` recorded autograd through the whole transform.
+
+Every transform is differentiable, in both layouts. The UDCT is a tight frame, so the backward transform is the adjoint of the forward transform: the gradient of the forward transform is the backward transform of the incoming gradient, and vice versa. :class:`~curvelets.torch.UDCT` uses exactly that (through a custom :class:`torch.autograd.Function`) instead of recording every FFT, gather and fold in the autograd graph, which keeps gradients fast and memory-light. Second derivatives (``create_graph=True``), :func:`torch.vmap`, :mod:`torch.func` and :func:`torch.compile` work.
+
+.. note::
+
+   :class:`~curvelets.torch.UDCTModule` is deprecated. Instead of ``UDCTModule(shape, ..., transform_type=kind)(x)``, use ``UDCT(shape, ..., transform_kind=kind).forward_vect(x)``.
 
 Moving to a GPU
 ===============
 
-A :class:`~curvelets.torch.UDCTModule` moves like any other module:
+A :class:`~curvelets.torch.UDCT` moves like any other module, alone or as a submodule of a network:
 
 .. code-block:: python
 
     import torch
-    from curvelets.torch import UDCTModule
+    from curvelets.torch import UDCT
 
-    module = UDCTModule(shape=(512, 512)).to("cuda")
+    udct = UDCT(shape=(512, 512)).to("cuda")
     x = torch.randn(512, 512, device="cuda", requires_grad=True)
-    y = module(x)
+    y = udct.forward_vect(x)
     y.abs().sum().backward()  # gradients flow through the transform
+
+The windows are not registered as buffers, so ``state_dict()`` stays empty: they are rebuilt from the constructor arguments rather than stored in checkpoints.
 
 Moving a transform with ``.to(device)`` moves everything it holds: the windows, their precomputed periodized index maps (and, for the complex transform, the flipped maps), and the decimation ratios. The index maps are built once, when the transform is created, and are kept across device moves, so nothing is recomputed on the first call after ``.to("cuda")``.
 
 The integer metadata that determines the shape of the coefficients (:meth:`~curvelets.torch.UDCT.struct` and ``coefficient_shapes``) is kept in a private copy on the CPU, which has two consequences:
 
 * shapes are computed without touching the device, and
-* the backward pass of :class:`~curvelets.torch.UDCTModule`, which calls :meth:`~curvelets.torch.UDCT.struct`, works on CUDA devices.
+* gradients through the nested layout, which call :meth:`~curvelets.torch.UDCT.struct`, work on CUDA devices.
 
 The public ``decimation_ratios`` attribute still follows ``.to()``.
 
@@ -39,25 +55,30 @@ The public ``decimation_ratios`` attribute still follows ``.to()``.
 Batching
 ========
 
+.. versionadded:: 1.3
+
 Every transform accepts leading batch dimensions. For a transform of shape ``shape``:
 
 * :meth:`~curvelets.torch.UDCT.forward` maps ``(*batch, *shape)`` to coefficients whose arrays have shape ``(*batch, *wedge_shape)``;
 * :meth:`~curvelets.torch.UDCT.vect` maps those to a tensor of shape ``(*batch, ncoef)`` and :meth:`~curvelets.torch.UDCT.struct` goes back;
-* :meth:`~curvelets.torch.UDCT.backward` maps coefficients back to ``(*batch, *shape)``.
+* :meth:`~curvelets.torch.UDCT.backward` maps coefficients back to ``(*batch, *shape)``;
+* :meth:`~curvelets.torch.UDCT.forward_vect` and :meth:`~curvelets.torch.UDCT.backward_vect` map ``(*batch, *shape)`` to ``(*batch, ncoef)`` and back.
 
-:class:`~curvelets.torch.UDCTModule` transforms a whole batch in one call, so :func:`torch.vmap` is no longer needed (it still works). The trailing dimensions are checked against the transform's shape.
+A whole batch is transformed in one call (:func:`torch.vmap` also works). The trailing dimensions are checked against the transform's shape.
 
 .. code-block:: python
 
     import torch
-    from curvelets.torch import UDCTModule
+    from curvelets.torch import UDCT
 
-    module = UDCTModule(shape=(28, 28))
+    udct = UDCT(shape=(28, 28))
     images = torch.randn(64, 1, 28, 28)  # (batch, channel, height, width)
-    coefficients = module(images)  # (64, 1, ncoef)
+    coefficients = udct.forward_vect(images)  # (64, 1, ncoef)
 
 Filtering coefficients
 ----------------------
+
+.. versionadded:: 1.3
 
 :meth:`UDCT.filter(image, fn) <curvelets.torch.UDCT.filter>` is a shortcut for the forward transform, ``fn`` applied to the coefficients, and the backward transform. ``fn`` receives a single tensor of shape ``(*batch, ncoef)`` in :meth:`~curvelets.torch.UDCT.vect` order (call :meth:`~curvelets.torch.UDCT.struct` inside it for per-wedge access), and the nested coefficient lists are never built.
 
@@ -76,21 +97,19 @@ See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a traini
 Precision
 =========
 
+.. versionchanged:: 1.3
+   Transforms have a fixed precision; inputs of another precision raise instead of being cast.
+
 A transform has a fixed precision, set when it is created with ``dtype`` (``torch.float32`` or ``torch.float64``; the default is :func:`torch.get_default_dtype`). A complex dtype names the precision of its parts: ``torch.complex64`` means ``torch.float32`` and ``torch.complex128`` means ``torch.float64``. The windows are computed in double precision and stored once in that dtype, so nothing is cast on each call.
 
 .. code-block:: python
 
     import torch
-    from curvelets.torch import UDCT, UDCTModule
+    from curvelets.torch import UDCT
 
     transform = UDCT(shape=(256, 256), dtype=torch.float64)
-    module = UDCTModule(shape=(256, 256), dtype=torch.float64)
 
-Inputs and coefficients of another precision are not cast silently: they raise a :class:`TypeError` that names the fix. To change the precision of a :class:`~curvelets.torch.UDCTModule` afterwards, use ``.to(dtype)``, ``.float()`` or ``.double()``. ``.to(torch.complex64)`` keeps the windows real and sets the matching precision. :meth:`~curvelets.torch.UDCT.struct` no longer takes its dtype from the last forward call; it uses the transform's.
-
-.. note::
-
-   **Breaking change.** Previously, float64 inputs to a default-constructed transform were accepted and cast. They now raise a :class:`TypeError`. Either pass ``dtype=torch.float64`` when creating the transform, call ``.double()`` on the module, or cast the input to the transform's precision.
+Inputs and coefficients of another precision are not cast silently: they raise a :class:`TypeError` that names the fix. To change the precision of a :class:`~curvelets.torch.UDCT` afterwards, use ``.to(dtype)``, ``.float()`` or ``.double()``. ``.to(torch.complex64)`` keeps the windows real and sets the matching precision. :meth:`~curvelets.torch.UDCT.struct` returns views in the dtype of the vector it is given.
 
 .. _torch-performance:
 
@@ -106,24 +125,20 @@ Performance tips
 Saving a built transform
 ------------------------
 
-Creating a transform builds its windows on the CPU. :mod:`curvelets.torch` uses the same window builder as :mod:`curvelets.numpy`, so both backends build identical windows at the same cost: on a 4-core laptop CPU, about 2 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5 s for :math:`128 \times 128 \times 128` with 3 scales. Moving the transform to a GPU does not rebuild them.
-
-If you create the same transform often (in every run of a script, or in every data-loader worker), build it once and save it. A saved transform keeps everything it precomputed, and loads in about 0.1–0.2 s instead of 2 s at :math:`2048 \times 2048`:
+Creating a transform builds its windows on the CPU, with the same code as :mod:`curvelets.numpy`: on a 4-core laptop CPU, about 2 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5–1 s for :math:`128 \times 128 \times 128` with 3 scales. Moving the transform to a GPU does not rebuild them. If you create the same transform often (in every run of a script, or in every data-loader worker), build it once and save it with :func:`torch.save`. A saved transform keeps everything it precomputed, and loads in about 0.1–0.2 s at :math:`2048 \times 2048`:
 
 .. code-block:: python
 
-    import pickle
-
-    from curvelets.numpy import UDCT
+    import torch
+    from curvelets.torch import UDCT
 
     transform = UDCT(shape=(2048, 2048), num_scales=5)
-    with open("udct_2048.pkl", "wb") as f:
-        pickle.dump(transform, f)
+    torch.save(transform, "udct_2048.pt")
 
-    with open("udct_2048.pkl", "rb") as f:  # later, or in another process
-        transform = pickle.load(f)
+    # later, or in another process
+    transform = torch.load("udct_2048.pt", weights_only=False)
 
-For :mod:`curvelets.torch`, use :func:`torch.save` and :func:`torch.load` (with ``weights_only=False``) on a :class:`~curvelets.torch.UDCT` or :class:`~curvelets.torch.UDCTModule`; ``pickle`` works too. The file is large (about 110–130 MB at :math:`2048 \times 2048`), loading it runs code from the file (so only load files you created), and it is tied to the ``curvelets`` version that wrote it (rebuild it after upgrading).
+``pickle`` works too. The file is large (about 110 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of ``curvelets`` that wrote it, so rebuild it after upgrading. The same applies to :class:`curvelets.numpy.UDCT` (see :ref:`cpu-performance`).
 
 Measured numbers, and the scripts that produce them, are in ``benchmarks/`` (see :ref:`contributing`).
 
@@ -131,6 +146,8 @@ Measured numbers, and the scripts that produce them, are in ``benchmarks/`` (see
 
 CUDA graphs
 ===========
+
+.. versionadded:: 1.3
 
 For small and medium inputs on a GPU (up to about :math:`1024 \times 1024`), Python takes longer to launch the transform's kernels than the GPU takes to run them. Passing ``cuda_graphs=True`` records each transform once per input shape and replays it afterwards, which removes most of that overhead:
 
@@ -143,6 +160,6 @@ For small and medium inputs on a GPU (up to about :math:`1024 \times 1024`), Pyt
     x = torch.randn(512, 512, device="cuda")
     y = transform.forward(x)  # recorded on the first call, replayed afterwards
 
-It works with :class:`~curvelets.torch.UDCTModule`, :meth:`~curvelets.torch.UDCT.filter` and autograd, and has no effect on CPU tensors. Each recorded graph keeps some GPU memory; :meth:`~curvelets.torch.UDCT.clear_cuda_graphs` frees it.
+It works with every forward and backward entry point, :meth:`~curvelets.torch.UDCT.filter` and autograd, and has no effect on CPU tensors. Each recorded graph keeps some GPU memory; :meth:`~curvelets.torch.UDCT.clear_cuda_graphs` frees it.
 
 Use it for small inputs (on an RTX 4090, a :math:`512 \times 512` forward goes from 0.37 to 0.065 ms). For large inputs it can be slightly slower, so measure on your own sizes.

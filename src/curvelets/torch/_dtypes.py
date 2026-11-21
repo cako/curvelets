@@ -31,6 +31,6 @@ def check_dtype(tensor: torch.Tensor, dtype: torch.dtype, what: str) -> None:
     if what == "input" and tensor.dtype in SUPPORTED_DTYPES:
         msg += (
             f" Cast the input, or build the transform with dtype={tensor.dtype}"
-            " (UDCTModule: call .to(dtype))."
+            " (or call .to(dtype) on it)."
         )
     raise TypeError(msg)

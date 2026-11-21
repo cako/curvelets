@@ -7,7 +7,7 @@ import warnings
 import pytest
 import torch
 
-from curvelets.torch import UDCT, UDCTModule
+from curvelets.torch import UDCT
 from curvelets.torch._foldmap import GatherFold, ScatterFold
 from curvelets.torch._plan import UDCTPlan
 
@@ -69,9 +69,9 @@ def test_single_precision_matches_double(kind: str) -> None:
     gen = torch.Generator().manual_seed(0)
     x = torch.randn(SHAPE, generator=gen, dtype=torch.float64)
     single, double = _udct(torch.float32, kind), _udct(torch.float64, kind)
-    coeffs = single._forward_vect(x.float())  # pylint: disable=protected-access
+    coeffs = single.forward_vect(x.float())
     assert coeffs.dtype == torch.complex64
-    reference = double._forward_vect(x)  # pylint: disable=protected-access
+    reference = double.forward_vect(x)
     torch.testing.assert_close(
         coeffs, reference.to(torch.complex64), atol=1e-5, rtol=1e-4
     )
@@ -89,7 +89,7 @@ def test_mismatched_input_precision_raises() -> None:
     with pytest.raises(TypeError, match="float32"):
         udct.filter(x, lambda c: c)
     with pytest.raises(TypeError, match="float32"):
-        udct._forward_vect(x)  # pylint: disable=protected-access
+        udct.forward_vect(x)
     with pytest.raises(TypeError, match="integer|int64"):
         udct.forward(torch.ones(SHAPE, dtype=torch.int64))
 
@@ -101,7 +101,7 @@ def test_mismatched_coefficient_precision_raises() -> None:
     with pytest.raises(TypeError, match="complex128"):
         single.backward(coeffs)
     with pytest.raises(TypeError, match="complex128"):
-        single._backward_vect(double.vect(coeffs))  # pylint: disable=protected-access
+        single.backward_vect(double.vect(coeffs))
 
 
 def test_complex_transform_accepts_matching_complex_input() -> None:
@@ -121,32 +121,32 @@ def test_invalid_dtype_raises(dtype: torch.dtype) -> None:
 
 
 def test_module_to_dtype_changes_precision() -> None:
-    """``UDCTModule.to(dtype)`` / ``.double()`` switch the transform's precision."""
-    module = UDCTModule(
+    """``UDCT.to(dtype)`` / ``.double()`` switch the transform's precision."""
+    module = UDCT(
         shape=SHAPE, num_scales=3, wedges_per_direction=3, dtype=torch.float32
     )
     x = torch.randn(SHAPE, dtype=torch.float64)
     with pytest.raises(TypeError):
-        module(x)
-    assert module.float()(x.float()).dtype == torch.complex64
+        module.forward_vect(x)
+    assert module.float().forward_vect(x.float()).dtype == torch.complex64
     module = module.double()
     assert module.dtype == torch.float64
-    out = module(x)
+    out = module.forward_vect(x)
     assert out.dtype == torch.complex128
-    reference = UDCTModule(
+    reference = UDCT(
         shape=SHAPE, num_scales=3, wedges_per_direction=3, dtype=torch.float64
     )
-    torch.testing.assert_close(out, reference(x))
+    torch.testing.assert_close(out, reference.forward_vect(x))
     assert module.to(torch.float32).dtype == torch.float32
 
 
 def test_module_gradient_has_input_precision() -> None:
     """Gradients flow back in the transform's precision."""
-    module = UDCTModule(
+    module = UDCT(
         shape=SHAPE, num_scales=3, wedges_per_direction=3, dtype=torch.float32
     )
     x = torch.randn(SHAPE, requires_grad=True, dtype=torch.float32)
-    module(x).abs().sum().backward()
+    module.forward_vect(x).abs().sum().backward()
     assert x.grad is not None
     assert x.grad.dtype == torch.float32
 
@@ -165,35 +165,35 @@ def test_complex_dtype_means_its_real_precision(dtype: torch.dtype) -> None:
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 def test_module_to_complex_dtype_sets_real_precision(kind: str) -> None:
-    """``UDCTModule.to(torch.complex128)`` keeps the windows real, in float64."""
-    module = UDCTModule(
+    """``UDCT.to(torch.complex128)`` keeps the windows real, in float64."""
+    module = UDCT(
         shape=SHAPE,
         num_scales=3,
         wedges_per_direction=3,
-        transform_type=kind,  # type: ignore[arg-type]
+        transform_kind=kind,  # type: ignore[arg-type]
         dtype=torch.float32,
     )
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # torch warns that complex modules are new
         module = module.to(torch.complex128)
     assert module.dtype == torch.float64
-    windows = module._udct.windows  # pylint: disable=protected-access
+    windows = module.windows
     assert all(not w.values.is_complex() for s in windows for d in s for w in d)
     x = torch.randn(SHAPE, dtype=torch.float64)
-    assert module(x).dtype == torch.complex128
+    assert module.forward_vect(x).dtype == torch.complex128
 
 
 def test_complex_module_gradient_for_complex_input() -> None:
     """Complex inputs get complex gradients of the transform's precision."""
-    module = UDCTModule(
+    module = UDCT(
         shape=SHAPE,
         num_scales=3,
         wedges_per_direction=3,
-        transform_type="complex",
+        transform_kind="complex",
         dtype=torch.float32,
     )
     z = torch.randn(SHAPE, dtype=torch.complex64, requires_grad=True)
-    module(z).abs().sum().backward()
+    module.forward_vect(z).abs().sum().backward()
     assert z.grad is not None
     assert z.grad.dtype == torch.complex64
 
@@ -209,6 +209,6 @@ def test_monogenic_dtypes_and_unimplemented_paths() -> None:
     with pytest.raises(NotImplementedError):
         udct.backward([[[x]]])
     with pytest.raises(NotImplementedError):
-        udct._forward_vect(x)  # pylint: disable=protected-access
+        udct.forward_vect(x)
     with pytest.raises(ValueError, match="real-valued input"):
         udct.forward(x.to(torch.complex64))

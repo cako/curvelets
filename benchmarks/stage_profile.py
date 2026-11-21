@@ -35,7 +35,7 @@ from typing import Any, Literal, cast
 import torch
 from torch.profiler import ProfilerActivity, profile
 
-from curvelets.torch import UDCT, UDCTModule
+from curvelets.torch import UDCT
 from curvelets.torch._foldmap import GatherFold
 
 CONFIGS = {
@@ -252,17 +252,17 @@ def run(
     if kind == "complex":
         x = torch.complex(x, torch.randn_like(x))
     t0 = time.perf_counter()
-    vec = udct._forward_vect(x)  # pylint: disable=protected-access
+    vec = udct.forward_vect(x)
     torch.cuda.synchronize()
     plan_s = time.perf_counter() - t0
     plan = udct._get_plan()  # pylint: disable=protected-access
 
     # correctness of the replay
-    ref_f = udct._forward_vect(x).reshape(batch, -1)  # pylint: disable=protected-access
+    ref_f = udct.forward_vect(x).reshape(batch, -1)
     tl = Timeline()
     got_f = staged_forward(plan, x, tl)
     tl.result()
-    ref_b = udct._backward_vect(vec)  # pylint: disable=protected-access
+    ref_b = udct.backward_vect(vec)
     tl = Timeline()
     got_b = staged_backward(plan, vec.reshape(batch, -1), tl)
     tl.result()
@@ -282,24 +282,24 @@ def run(
     fwd = median_stages(fwd_runs)
     bwd = median_stages(bwd_runs)
 
-    f_dev, f_host = e2e(lambda: udct._forward_vect(x), 20)  # pylint: disable=protected-access
-    b_dev, b_host = e2e(lambda: udct._backward_vect(vec), 20)  # pylint: disable=protected-access
-    f_wall = wall(lambda: udct._forward_vect(x), 20)  # pylint: disable=protected-access
-    b_wall = wall(lambda: udct._backward_vect(vec), 20)  # pylint: disable=protected-access
+    f_dev, f_host = e2e(lambda: udct.forward_vect(x), 20)
+    b_dev, b_host = e2e(lambda: udct.backward_vect(vec), 20)
+    f_wall = wall(lambda: udct.forward_vect(x), 20)
+    b_wall = wall(lambda: udct.backward_vect(vec), 20)
     nested_wall = wall(lambda: udct.forward(x), 20)
     nested_bwd = udct.forward(x)
     nested_bwd_wall = wall(lambda: udct.backward(nested_bwd), 20)
 
-    # UDCTModule with autograd (training-style use)
-    mod = UDCTModule(
-        shape=shape, num_scales=ns, wedges_per_direction=wpd, transform_type=kind
+    # Flat path with autograd (training-style use)
+    mod = UDCT(
+        shape=shape, num_scales=ns, wedges_per_direction=wpd, transform_kind=kind
     ).to(dev)
     xg = x.clone().requires_grad_(True)
 
     def train_step() -> None:
-        mod(xg).abs().sum().backward()
+        mod.forward_vect(xg).abs().sum().backward()
 
-    mod_fwd_wall = wall(lambda: mod(x), 20)
+    mod_fwd_wall = wall(lambda: mod.forward_vect(x), 20)
     train_wall = wall(train_step, 20)
 
     nw = len(plan.layout)
@@ -318,15 +318,15 @@ def run(
         f"{[(lv.targets.numel(), lv.width) for lv in fm.levels]}"
     )
     print(
-        f"  kernels/call: fwd {kernel_count(lambda: udct._forward_vect(x))}, "  # pylint: disable=protected-access
-        f"bwd {kernel_count(lambda: udct._backward_vect(vec))}"  # pylint: disable=protected-access
+        f"  kernels/call: fwd {kernel_count(lambda: udct.forward_vect(x))}, "
+        f"bwd {kernel_count(lambda: udct.backward_vect(vec))}"
     )
     print_table("FORWARD", fwd, f_dev, f_host)
     print_table("INVERSE", bwd, b_dev, b_host)
     print(
         f"\n  wall (sync per call): fwd_vect {f_wall:.3f}  bwd_vect {b_wall:.3f}  "
         f"forward(nested) {nested_wall:.3f}  backward(nested) {nested_bwd_wall:.3f}  "
-        f"UDCTModule fwd {mod_fwd_wall:.3f}  fwd+autograd bwd {train_wall:.3f} ms"
+        f"forward_vect {mod_fwd_wall:.3f}  fwd+autograd bwd {train_wall:.3f} ms"
     )
     return {
         "name": name,

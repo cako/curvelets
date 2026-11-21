@@ -132,7 +132,7 @@ def _count(obj: Any) -> int:
 def build_curvelets(
     shape: tuple[int, ...], dev: str, *, cuda_graphs: bool, triton: bool = True
 ) -> Transform:
-    """``curvelets.torch.UDCT`` on the flat path that ``UDCTModule`` uses.
+    """``curvelets.torch.UDCT`` on the flat ``forward_vect``/``backward_vect`` path.
 
     On CUDA the folds run as fused Triton kernels when Triton is installed;
     ``triton=False`` sets ``CURVELETS_TRITON=0`` while the plan is built.
@@ -170,8 +170,8 @@ def _build_curvelets(
     )
     udct.apply_to_tensors(lambda t: t.to(dev))
     x = torch.randn(shape, device=dev, dtype=torch.float32)
-    forward = udct._forward_vect  # pylint: disable=protected-access
-    backward = udct._backward_vect  # pylint: disable=protected-access
+    forward = udct.forward_vect
+    backward = udct.backward_vect
     v = forward(x)
     return Transform(
         forward=lambda: forward(x),

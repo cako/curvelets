@@ -11,7 +11,7 @@ import pytest
 import torch
 from torch.profiler import ProfilerActivity, profile
 
-from curvelets.torch import UDCT, UDCTModule
+from curvelets.torch import UDCT
 from curvelets.torch._backward_transform import _apply_backward_transform
 from curvelets.torch._foldmap import MAX_LEVELS, GatherFold, ScatterFold
 from curvelets.torch._forward_transform import (
@@ -34,7 +34,7 @@ CONFIGS = [
 def _use_strategy(udct: UDCT, strategy: str) -> UDCTPlan:
     """Install a plan with a forced fold strategy (the default follows the device)."""
     plan = UDCTPlan.build(
-        udct._parameters,  # pylint: disable=protected-access
+        udct._params,  # pylint: disable=protected-access
         udct.windows,
         udct._decimation_ratios_cpu,  # pylint: disable=protected-access
         complex_mode=udct._transform_kind == "complex",  # pylint: disable=protected-access
@@ -73,7 +73,7 @@ def test_plan_matches_per_wedge_reference(
         high_frequency_mode=mode,
     )
     _use_strategy(udct, strategy)
-    params = udct._parameters  # pylint: disable=protected-access
+    params = udct._params  # pylint: disable=protected-access
     decim = udct._decimation_ratios_cpu  # pylint: disable=protected-access
     x = _input(kind, shape)
 
@@ -114,18 +114,20 @@ def test_plan_batched_matches_single(kind: Kind) -> None:
 
 
 def test_vect_fast_path_matches_vect_forward() -> None:
-    """``UDCT._forward_vect`` equals ``vect(forward(x))``."""
+    """``UDCT.forward_vect`` equals ``vect(forward(x))``."""
     udct = UDCT(shape=(48, 40), num_scales=3, wedges_per_direction=6)
     x = _input("real", (48, 40))
     torch.testing.assert_close(
-        udct._forward_vect(x),  # pylint: disable=protected-access
+        udct.forward_vect(x),
         udct.vect(udct.forward(x)),
     )
 
 
-def test_udct_module_vmap_matches_loop() -> None:
-    """``torch.vmap`` over ``UDCTModule`` still works with the fused plan."""
-    module = UDCTModule(shape=(28, 28), num_scales=2, wedges_per_direction=3)
+def test_forward_vect_vmap_matches_loop() -> None:
+    """``torch.vmap`` over ``forward_vect`` still works with the fused plan."""
+    module = UDCT(
+        shape=(28, 28), num_scales=2, wedges_per_direction=3, dtype=torch.float64
+    ).forward_vect
     batch = torch.randn(4, 28, 28, dtype=torch.float64)
     batched = torch.vmap(module)(batch)
     for i in range(4):
@@ -183,11 +185,11 @@ def test_small_cpu_chunks_match_gather(
     plan = _use_strategy(udct, "scatter")
     assert plan.cpu_chunks is not None
     assert len(plan.cpu_chunks) > len(plan.groups)
-    blocked = udct._forward_vect(x)  # pylint: disable=protected-access
-    blocked_back = udct._backward_vect(blocked)  # pylint: disable=protected-access
+    blocked = udct.forward_vect(x)
+    blocked_back = udct.backward_vect(blocked)
     _use_strategy(udct, "gather")
-    torch.testing.assert_close(blocked, udct._forward_vect(x))  # pylint: disable=protected-access
-    torch.testing.assert_close(blocked_back, udct._backward_vect(blocked))  # pylint: disable=protected-access
+    torch.testing.assert_close(blocked, udct.forward_vect(x))
+    torch.testing.assert_close(blocked_back, udct.backward_vect(blocked))
 
 
 @pytest.mark.parametrize("fold_cls", [GatherFold, ScatterFold])  # type: ignore[untyped-decorator]
@@ -414,7 +416,7 @@ def test_odd_shape_half_spectrum_matches_reference() -> None:
     """
     shape = (48, 51)
     udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=3)
-    params = udct._parameters  # pylint: disable=protected-access
+    params = udct._params  # pylint: disable=protected-access
     decim = udct._decimation_ratios_cpu  # pylint: disable=protected-access
     x = _input("real", shape)
     expected = _apply_forward_transform_real(x, params, udct.windows, decim)
@@ -453,21 +455,21 @@ def test_direct_and_autograd_paths_agree(kind: Kind) -> None:
         shape=(48, 40), num_scales=3, wedges_per_direction=6, transform_kind=kind
     )
     x = _input(kind, (48, 40))
-    fast = udct._forward_vect(x)  # pylint: disable=protected-access
-    slow = udct._forward_vect(x.clone().requires_grad_(True))  # pylint: disable=protected-access
+    fast = udct.forward_vect(x)
+    slow = udct.forward_vect(x.clone().requires_grad_(True))
     torch.testing.assert_close(slow.detach(), fast, rtol=0, atol=0)
-    back_fast = udct._backward_vect(fast)  # pylint: disable=protected-access
-    back_slow = udct._backward_vect(fast.clone().requires_grad_(True))  # pylint: disable=protected-access
+    back_fast = udct.backward_vect(fast)
+    back_slow = udct.backward_vect(fast.clone().requires_grad_(True))
     torch.testing.assert_close(back_slow.detach(), back_fast, rtol=0, atol=0)
 
 
 def test_backward_accepts_real_coefficients() -> None:
     """Real-valued coefficients (e.g. after taking .real) are promoted to complex."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    vec = udct._forward_vect(_input("real", (32, 32))).real  # pylint: disable=protected-access
+    vec = udct.forward_vect(_input("real", (32, 32))).real
     torch.testing.assert_close(
-        udct._backward_vect(vec),  # pylint: disable=protected-access
-        udct._backward_vect(vec.to(torch.complex128)),  # pylint: disable=protected-access
+        udct.backward_vect(vec),
+        udct.backward_vect(vec.to(torch.complex128)),
     )
 
 
@@ -476,13 +478,13 @@ def test_cpu_scratch_reuse_does_not_leak_between_calls() -> None:
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
     x1 = _input("real", (32, 32), seed=1)
     x2 = _input("real", (32, 32), seed=2)
-    first = udct._forward_vect(x1).clone()  # pylint: disable=protected-access
-    second = udct._forward_vect(x2)  # pylint: disable=protected-access
-    torch.testing.assert_close(udct._forward_vect(x1), first)  # pylint: disable=protected-access
+    first = udct.forward_vect(x1).clone()
+    second = udct.forward_vect(x2)
+    torch.testing.assert_close(udct.forward_vect(x1), first)
     fresh = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    torch.testing.assert_close(second, fresh._forward_vect(x2))  # pylint: disable=protected-access
+    torch.testing.assert_close(second, fresh.forward_vect(x2))
     batch = torch.stack([x1, x2])
-    torch.testing.assert_close(udct._forward_vect(batch)[0], first)  # pylint: disable=protected-access
+    torch.testing.assert_close(udct.forward_vect(batch)[0], first)
 
 
 def test_plan_rejects_unknown_strategy() -> None:
@@ -499,7 +501,7 @@ def test_plan_requires_periodized_maps() -> None:
     windows[1][0][0].out_shape = None
     with pytest.raises(ValueError, match="periodized maps"):
         UDCTPlan.build(
-            udct._parameters,  # pylint: disable=protected-access
+            udct._params,  # pylint: disable=protected-access
             windows,
             udct._decimation_ratios_cpu,  # pylint: disable=protected-access
             complex_mode=False,
@@ -509,7 +511,7 @@ def test_plan_requires_periodized_maps() -> None:
 def test_used_transform_can_be_copied_and_pickled() -> None:
     """A transform that has run (plan and CPU scratch built) can be deep-copied,
     pickled and saved with ``torch.save``."""
-    module = UDCTModule(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    module = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
     x = _input("real", (32, 32)).to(torch.get_default_dtype())
     expected = module(x)
     for clone in (
