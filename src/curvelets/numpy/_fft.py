@@ -6,8 +6,9 @@ PyLops, the FFT implementation is chosen per transform with an ``engine``:
 
 - ``"numpy"``: :mod:`numpy.fft` (always available);
 - ``"scipy"``: :mod:`scipy.fft`, multithreaded with ``workers``;
-- ``"fftw"``: FFTW through ``pyFFTW`` (:mod:`pyfftw.interfaces.scipy_fft`,
-  with its plan cache enabled), multithreaded;
+- ``"fftw"``: FFTW through ``pyFFTW``, multithreaded. Plans are made with
+  ``FFTW_MEASURE`` on the first transform of each shape and kept for the life
+  of the engine (see :class:`_FFTWPlans`);
 - ``"mkl_fft"``: Intel MKL through ``mkl_fft``, multithreaded
   (:mod:`mkl_fft.interfaces.scipy_fft`, which needs ``mkl-service``; without
   it, :mod:`mkl_fft.interfaces.numpy_fft` with MKL's default thread count);
@@ -27,6 +28,7 @@ from __future__ import annotations
 import functools
 import math
 import os
+import threading
 import time
 import warnings
 from collections.abc import Callable
@@ -82,16 +84,77 @@ def _scipy_backend(workers: int) -> FFTBackend:
     return _from_scipy_like("scipy", scipy.fft, workers=workers)
 
 
+class _FFTWPlans:
+    """
+    FFTW plans for one engine, made once per transform and kept.
+
+    ``pyfftw.interfaces`` caches plans for only 0.1 s by default and keys them on
+    the input's memory alignment, so a UDCT re-planned many of its FFTs on
+    every call (seconds per call for large 3D transforms with many threads).
+    Here a plan is keyed on what defines the transform (function, shape, dtype,
+    ``s``, ``axes``) and kept; it owns aligned input/output buffers, so the
+    caller's alignment does not matter. Plans are per thread, as executing one
+    FFTW plan from two threads at once is not safe.
+
+    ``FFTW_MEASURE`` makes the first transform of each shape slow (FFTW times
+    candidate algorithms, including how many of the ``workers`` threads to
+    use), and every later one fast. Plans hold their buffers (about the size of
+    their input and output) for the life of the engine.
+    """
+
+    def __init__(self, pyfftw: Any, workers: int) -> None:
+        self._pyfftw = pyfftw
+        self._workers = workers
+        self._effort = "FFTW_MEASURE"
+        self._local = threading.local()
+
+    def _plan(
+        self, func: str, x: np.ndarray, s: Any, axes: Any
+    ) -> Callable[[np.ndarray], np.ndarray]:
+        plans: dict[tuple[Any, ...], Any] = self._local.__dict__.setdefault("plans", {})
+        s_key = None if s is None else tuple(s)
+        axes_key = None if axes is None else tuple(axes)
+        key = (func, x.shape, x.dtype.str, s_key, axes_key)
+        plan = plans.get(key)
+        if plan is None:
+            # Plan on a scratch array: FFTW_MEASURE overwrites its input.
+            scratch = self._pyfftw.empty_aligned(x.shape, dtype=x.dtype)
+            plan = getattr(self._pyfftw.builders, func)(
+                scratch,
+                s=s_key,
+                axes=axes_key,
+                threads=self._workers,
+                planner_effort=self._effort,
+                avoid_copy=False,
+            )
+            plans[key] = plan
+        return plan  # type: ignore[no-any-return]
+
+    def _run(self, func: str, x: Any, s: Any = None, axes: Any = None) -> np.ndarray:
+        x = np.asarray(x)
+        # The plan copies x into its own buffer (the caller's array is never
+        # overwritten, even by c2r transforms), normalizes inverse transforms
+        # like numpy.fft, and returns its own output buffer: copy it out.
+        return self._plan(func, x, s, axes)(x).copy()
+
+    def fftn(self, x: Any, s: Any = None, axes: Any = None) -> np.ndarray:
+        return self._run("fftn", x, s, axes)
+
+    def ifftn(self, x: Any, s: Any = None, axes: Any = None) -> np.ndarray:
+        return self._run("ifftn", x, s, axes)
+
+    def rfftn(self, x: Any, s: Any = None, axes: Any = None) -> np.ndarray:
+        return self._run("rfftn", x, s, axes)
+
+    def irfftn(self, x: Any, s: Any = None, axes: Any = None) -> np.ndarray:
+        return self._run("irfftn", x, s, axes)
+
+
 def _fftw_backend(workers: int) -> FFTBackend:
-    # pylint: disable-next=import-outside-toplevel,import-error
-    import pyfftw.interfaces.cache
+    import pyfftw.builders  # pylint: disable=import-outside-toplevel,import-error
 
-    # pylint: disable-next=import-outside-toplevel,import-error
-    from pyfftw.interfaces import scipy_fft
-
-    # Keep FFTW plans alive between calls (the UDCT reuses the same shapes).
-    pyfftw.interfaces.cache.enable()
-    return _from_scipy_like("fftw", scipy_fft, workers=workers)
+    plans = _FFTWPlans(pyfftw, workers)
+    return FFTBackend("fftw", plans.fftn, plans.ifftn, plans.rfftn, plans.irfftn)
 
 
 def _mkl_fft_backend(workers: int) -> FFTBackend:
