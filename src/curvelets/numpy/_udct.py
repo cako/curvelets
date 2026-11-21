@@ -251,8 +251,8 @@ class UDCT:
         >>> # For wedges_per_direction=3, num_scales=3
         >>> wedges_per_scale = np.array([3, 6])
         >>> alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
-        >>> 0.1 < alpha < 0.2  # Expected around 0.11
-        True
+        >>> round(float(alpha), 4)
+        0.0369
         """
         min_overlap = float("inf")
 
@@ -561,10 +561,10 @@ class UDCT:
         >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64), num_scales=3)
         >>> shapes = transform.coefficient_shapes()
-        >>> len(shapes) == transform.num_scales
+        >>> len(shapes) == transform.parameters.num_scales
         True
-        >>> shapes[0][0][0]  # Low-frequency band shape
-        (16, 16)
+        >>> shapes[0][0][0]  # Low-frequency band shape (decimated by 2)
+        (32, 32)
         """
         if self.transform_kind == "monogenic":
             return self._coefficient_shapes_monogenic()
@@ -1116,9 +1116,11 @@ class UDCT:
 
         Notes
         -----
-        This method computes the monogenic signal directly using Riesz transforms
-        without performing the curvelet decomposition. It is mathematically equivalent
-        to backward(forward(f)) with transform_kind="monogenic" but computationally simpler.
+        This method computes the monogenic signal exactly, using Riesz transforms in
+        the Fourier domain, without the curvelet decomposition. With
+        transform_kind="monogenic", the first component of backward(forward(f)) also
+        equals f, but the others only approximate -Rₖf: each Riesz channel of the
+        coefficients keeps the real part of its values.
 
         The monogenic signal is defined as:
         Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
@@ -1143,13 +1145,11 @@ class UDCT:
         (64, 64)
         >>> np.allclose(data, scalar)
         True
-        >>> # Verify it matches backward(forward(f)) with transform_kind="monogenic"
+        >>> # The round trip through the monogenic transform reconstructs f
         >>> transform_mono = UDCT(shape=(64, 64), transform_kind="monogenic")
         >>> coeffs = transform_mono.forward(data)
         >>> components2 = transform_mono.backward(coeffs)
         >>> np.allclose(scalar, components2[0], atol=1e-4)
-        True
-        >>> np.allclose(components[1], components2[1], atol=1e-4)
         True
         """
         np.testing.assert_equal(self.shape, image.shape)

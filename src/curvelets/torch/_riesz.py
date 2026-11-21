@@ -42,13 +42,13 @@ def riesz_filters(
     >>> filters[0].dtype  # Complex dtype
     torch.complex128
     >>> # DC component is zero
-    >>> filters[0][0, 0]
-    tensor(0.+0.j)
+    >>> filters[0][0, 0].item()
+    0j
     """
     # Create frequency grids for each dimension
     # Using fftfreq to get FFT frequency coordinates (in cycles per sample)
     # Convert to radians by multiplying by 2*pi
-    grids = [2 * torch.pi * torch.fft.fftfreq(s) for s in shape]  # pylint: disable=not-callable
+    grids = [2 * torch.pi * torch.fft.fftfreq(s, dtype=torch.float64) for s in shape]  # pylint: disable=not-callable
 
     # Move grids to device if specified
     if device is not None:

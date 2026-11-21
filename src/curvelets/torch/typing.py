@@ -28,7 +28,7 @@ __all__ = [
 
 # Simple type aliases - every array is just a Tensor
 # Structure: coefficients[scale][direction][wedge] = Tensor
-# For monogenic transforms, each wedge tensor has shape (*wedge_shape, ndim+1)
+# For monogenic transforms, each wedge tensor has shape (*wedge_shape, ndim+2)
 UDCTCoefficients = list[list[list[torch.Tensor]]]
 
 if TYPE_CHECKING:

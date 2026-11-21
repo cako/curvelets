@@ -266,3 +266,32 @@ def test_vmap_runs_without_graphs(device: str) -> None:
     expected = _udct(device=device).forward_vect(x)
     batched = torch.vmap(udct.forward_vect)(x)
     torch.testing.assert_close(batched, expected)
+
+
+def test_monogenic_with_graphs(device: str) -> None:
+    """The monogenic transform replays the real plan's graphs and matches eager."""
+
+    def build(cuda_graphs: bool) -> UDCT:
+        udct = UDCT(
+            shape=SHAPE,
+            num_scales=3,
+            transform_kind="monogenic",
+            dtype=torch.float64,
+            cuda_graphs=cuda_graphs,
+        )
+        udct.to(device)
+        return udct
+
+    udct, eager = build(True), build(False)
+    x = _image("real", (2,), device=device)
+    vec = udct.forward_vect(x)
+    torch.testing.assert_close(vec, eager.forward_vect(x))
+    torch.testing.assert_close(udct.backward_vect(vec), eager.backward_vect(vec))
+    torch.testing.assert_close(udct.vect(udct(x)), vec)
+    assert len(udct._graphs) == 2  # pylint: disable=protected-access
+
+    xg = x.clone().requires_grad_(True)
+    (grad,) = torch.autograd.grad(udct.forward_vect(xg).pow(2).sum(), xg)
+    xe = x.clone().requires_grad_(True)
+    (expected,) = torch.autograd.grad(eager.forward_vect(xe).pow(2).sum(), xe)
+    torch.testing.assert_close(grad, expected)

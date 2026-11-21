@@ -25,7 +25,8 @@ def resolve_dtype(dtype: torch.dtype | None) -> torch.dtype:
 
 def check_dtype(tensor: torch.Tensor, dtype: torch.dtype, what: str) -> None:
     """Reject an ``input`` or ``coefficients`` tensor of another precision."""
-    if tensor.dtype in (dtype, dtype.to_complex()):
+    # promote_types gives dtype.to_complex(), which TorchDynamo cannot trace.
+    if tensor.dtype in (dtype, torch.promote_types(dtype, torch.complex64)):
         return
     msg = f"UDCT was built for {dtype} but got {tensor.dtype} {what}."
     if what == "input" and tensor.dtype in SUPPORTED_DTYPES:

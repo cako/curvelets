@@ -37,7 +37,7 @@ def riesz_filters(shape: tuple[int, ...]) -> list[npt.NDArray[np.complexfloating
     >>> filters[0].dtype  # Complex dtype
     dtype('complex128')
     >>> # DC component is zero
-    >>> filters[0][0, 0]
+    >>> complex(filters[0][0, 0])
     0j
     """
     # Create frequency grids for each dimension
