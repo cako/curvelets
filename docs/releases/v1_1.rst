@@ -1,0 +1,29 @@
+1.1
+===
+
+Released 2025-12-29. A friendlier PyTorch API and a worked classification example.
+
+PyTorch
+-------
+
+- ``curvelets.torch.UDCT`` is built from ``num_scales`` and ``wedges_per_direction``, with an optional ``angular_wedges_config``. The window overlap is computed automatically. (:pr:`47`)
+- ``UDCT.apply_to_tensors`` and ``UDCTModule._apply`` carry the internal windows and ratios along, so ``.to()``, ``.half()``, ``.float()`` and ``.double()`` work as expected.
+- The autograd bridge uses ``setup_context`` and works with ``torch.func.vmap``, so batches can be mapped efficiently.
+- ``MUDCTCoefficients`` is part of the typing; the monogenic transform is not yet available in PyTorch in this version.
+
+Examples
+--------
+
+- ``plot_10_udct_mnist.py``: an MNIST classifier that uses ``UDCTModule`` as a feature extractor, with training curves, a t-SNE view of the curvelet features and the worst misclassifications.
+
+Documentation
+-------------
+
+- README and FAQs refreshed; the related projects table gained language and invertibility columns and now lists Curvelet.jl. (:pr:`45`, :pr:`46`)
+- ``UDCTModule`` is part of the API reference.
+- Curvelab licensing notes clarified; copyright year updated.
+
+Testing
+-------
+
+- NumPy-to-PyTorch parity tests, struct/vect round trips and dtype-transfer tests for ``UDCTModule``.

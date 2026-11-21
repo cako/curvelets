@@ -1,0 +1,31 @@
+1.0
+===
+
+The first stable release. It adds the PyTorch backend and settles the NumPy API.
+
+1.0.0 (2025-12-29)
+------------------
+
+**PyTorch backend.** (:pr:`40`)
+
+- New ``curvelets.torch`` package with ``UDCT`` (forward and backward) and ``UDCTModule``, an ``nn.Module`` whose gradients come from the adjoint transform.
+- Meyer wavelet and Riesz filters, windowing and typing helpers in PyTorch.
+- ``transform_kind`` (``"real"``, ``"complex"`` or ``"monogenic"``) selects the transform on the NumPy ``UDCT`` and replaces ``use_complex_transform``. The monogenic forward and backward transforms are part of the same interface.
+- Install the backend with ``pip install curvelets[torch]``.
+- New gradcheck example for ``UDCTModule``, monogenic examples, and a features table and Getting Started section in the README.
+- Read the Docs configuration and project metadata updates. (:pr:`41`, :pr:`42`)
+
+1.0.1 (2025-12-29)
+------------------
+
+Documentation fixes. (:pr:`43`)
+
+1.0.2 (2025-12-29)
+------------------
+
+No source changes since 1.0.1.
+
+1.0.3 (2025-12-29)
+------------------
+
+README cleanup: the conda badge and link were removed. (:pr:`44`)

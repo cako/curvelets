@@ -1,0 +1,24 @@
+1.2
+===
+
+Released 2026-07-19. A shared sparse window type, faster FFTs and a denoising example.
+
+Transform
+---------
+
+- ``SparseWindow`` replaces the tuple-based sparse windows in both the NumPy and PyTorch backends. It provides ``to_dense``, ``multiply_extract``, ``multiply_at_indices`` and ``scatter_add``, and the forward and backward transforms (real, complex and monogenic) use it. (:pr:`48`)
+- Optimized FFTs for both backends, and view-based indexing that lowers memory use. (:pr:`63`)
+- The window API is the same on both backends.
+- The transform type is detected automatically, and coefficient shapes for scattering transforms are computed in constant time.
+
+Examples
+--------
+
+- ``plot_11_udct_denoise.py``: denoise an image by keeping a percentage of the strongest curvelet coefficients. Contributed by `@mrava87 <https://github.com/mrava87>`_ in his first contribution. (:pr:`50`)
+
+Project
+-------
+
+- A contributing guide. (:pr:`56`)
+- Dependency groups follow PEP 735 (:pr:`53`), and type checking also runs with ``ty`` (:pr:`57`).
+- Python 3.9 is still supported in this release.
