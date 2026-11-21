@@ -1,11 +1,20 @@
 name: CI
 
+# Documentation-only changes skip the test matrix and the coverage upload; the
+# Format workflow (pre-commit, including the docs checks) and the Read the Docs
+# build still run.
 on:
   workflow_dispatch:
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
   push:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,39 +23,12 @@ concurrency:
 env:
   FORCE_COLOR: 3
 
-# Third-party packages (test dependencies, pre-commit hooks) run in these jobs:
+# Third-party packages (test dependencies) run in these jobs:
 # give their GITHUB_TOKEN read access only.
 permissions:
   contents: read
 
 jobs:
-  pre-commit:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - name: Cache pre-commit hooks
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pre-commit
-          key: pre-commit|${{ env.pythonLocation }}|${{ hashFiles('.pre-commit-config.yaml') }}
-      - name: Install uv
-        run: |
-          pip install uv
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: Run pre-commit
-        run: uvx pre-commit run --hook-stage manual --all-files --show-diff-on-failure --color=always
-      - name: Run PyLint
-        run: |
-          echo "::add-matcher::$GITHUB_WORKSPACE/.github/matchers/pylint.json"
-          pipx run nox -s pylint
-
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
     runs-on: ${{ matrix.runs-on }}
