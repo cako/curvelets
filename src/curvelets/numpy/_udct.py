@@ -93,7 +93,8 @@ class UDCT:
         warning. All engines give the same result up to rounding.
     fft_workers : int, optional
         Number of threads used by the multithreaded FFT engines (``scipy``,
-        ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs. Ignored by
+        ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs available to
+        the process (respecting CPU affinity, e.g. in containers). Ignored by
         ``numpy``, and by ``mkl_fft`` when ``mkl-service`` is not installed
         (MKL then uses its own default).
 
