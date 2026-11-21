@@ -94,17 +94,21 @@ Inputs and coefficients of another precision are not cast silently: they raise a
 
 .. _torch-performance:
 
-Performance
-===========
+Performance tips
+================
 
-The transform is designed to keep a GPU busy instead of waiting on the Python process. This section describes what the implementation does; measured numbers and the hardware they come from are in ``benchmarks/GPU_PERFORMANCE.md`` (see :ref:`contributing` for how to reproduce them).
+* **Create the transform once and reuse it.** Building the windows takes up to a few seconds for large inputs; across processes, save the built transform (see `Saving a built transform`_). The first call on a device builds an execution plan (a few launches run the whole transform, whatever the number of wedges); later calls reuse it. Moving the transform with ``.to()`` rebuilds it for the new device.
+* **Batch your inputs.** Pass a ``(batch, *shape)`` tensor rather than looping over images in Python (see `Batching`_).
+* **Use float32 unless you need float64.** It is the default, and is much faster on most GPUs.
+* **Avoid synchronizing in your own loop.** The transform itself never waits on the GPU; calls such as ``.item()`` or ``.cpu()`` between transforms do, and leave the GPU idle.
+* ``torch.compile`` and :func:`torch.vmap` work with the transform.
 
-Building a transform
---------------------
+Saving a built transform
+------------------------
 
-Creating a transform builds its windows, once, on the CPU. :mod:`curvelets.torch` uses the same window builder as :mod:`curvelets.numpy` and converts the result to tensors, so both backends build identical windows at the same cost. The builder evaluates each window only where it can be nonzero and spreads the work over the CPU cores with threads. On a 4-core laptop CPU (Intel i7-8565U), building a :math:`2048 \times 2048` transform with 5 scales takes about 2 s, and a :math:`128 \times 128 \times 128` transform with 3 scales about 0.5 s. Moving the transform to a GPU afterwards does not rebuild anything.
+Creating a transform builds its windows on the CPU. :mod:`curvelets.torch` uses the same window builder as :mod:`curvelets.numpy`, so both backends build identical windows at the same cost: on a 4-core laptop CPU, about 2 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5 s for :math:`128 \times 128 \times 128` with 3 scales. Moving the transform to a GPU does not rebuild them.
 
-If you create the same transform repeatedly, for example in every run of a script or in every worker of a data loader, build it once and save it. Transforms pickle with everything they precompute, and loading one takes a fraction of the time it takes to build it (about 0.1–0.2 s instead of 2 s for the :math:`2048 \times 2048` transform above):
+If you create the same transform often (in every run of a script, or in every data-loader worker), build it once and save it. A saved transform keeps everything it precomputed, and loads in about 0.1–0.2 s instead of 2 s at :math:`2048 \times 2048`:
 
 .. code-block:: python
 
@@ -116,90 +120,19 @@ If you create the same transform repeatedly, for example in every run of a scrip
     with open("udct_2048.pkl", "wb") as f:
         pickle.dump(transform, f)
 
-    # later, or in another process
-    with open("udct_2048.pkl", "rb") as f:
+    with open("udct_2048.pkl", "rb") as f:  # later, or in another process
         transform = pickle.load(f)
 
-For :mod:`curvelets.torch`, :func:`torch.save` and :func:`torch.load` (with ``weights_only=False``) work the same way for a :class:`~curvelets.torch.UDCT` and a :class:`~curvelets.torch.UDCTModule`; ``pickle`` works too.
+For :mod:`curvelets.torch`, use :func:`torch.save` and :func:`torch.load` (with ``weights_only=False``) on a :class:`~curvelets.torch.UDCT` or :class:`~curvelets.torch.UDCTModule`; ``pickle`` works too. The file is large (about 110–130 MB at :math:`2048 \times 2048`), loading it runs code from the file (so only load files you created), and it is tied to the ``curvelets`` version that wrote it (rebuild it after upgrading).
 
-Keep in mind that:
-
-* the file holds the windows and their index maps, so it is large: about 110–130 MB for the :math:`2048 \times 2048` transform above;
-* unpickling runs code from the file, so only load files you created yourself;
-* a saved transform is tied to the version of ``curvelets`` that created it, so rebuild it after upgrading.
-
-No device-to-host synchronizations
-----------------------------------
-
-A blocking copy from the GPU to the CPU (``.item()``, ``.tolist()``, ``.cpu()`` on a CUDA tensor) stalls the host until all queued kernels finish, so the GPU then sits idle while Python enqueues the next ones. The forward and backward transforms issue none:
-
-* the per-wedge scale factors are computed from a CPU copy of the decimation ratios, and
-* the normalization of the lowpass band is computed with plain Python ``math``, not with a device tensor.
-
-You can verify this on your own setup. The call below raises if anything in the transform synchronizes with the device:
-
-.. code-block:: python
-
-    import torch
-    from curvelets.torch import UDCT
-
-    transform = UDCT(shape=(512, 512)).to("cuda")
-    x = torch.randn(512, 512, device="cuda")
-    transform.forward(x)  # warm up
-    torch.cuda.set_sync_debug_mode("error")
-    transform.forward(x)
-    torch.cuda.set_sync_debug_mode("default")
-
-Fused execution plan
---------------------
-
-Applying the transform wedge by wedge launches a handful of tiny kernels per wedge, so the cost grows with the number of wedges. :class:`~curvelets.torch.UDCT` instead builds, lazily and on first use, an execution plan that runs the whole transform in a fixed number of steps:
-
-* **forward**: one full-size FFT, one gather of every window sample, one fold into a flat buffer in :meth:`~curvelets.torch.UDCT.vect` order, and one batched inverse FFT per run of consecutive wedges with the same shape;
-* **backward**: batched FFTs per group, one gather, one scatter and one inverse FFT.
-
-The number of kernel launches therefore no longer depends on the number of wedges (for a :math:`2048 \times 2048` input with 181 wedges, a forward went from about 1450 launches to 38). All operations are out-of-place and differentiable, so autograd and :func:`torch.vmap` keep working, and the plan is rebuilt when the transform is moved to another device.
-
-:class:`~curvelets.torch.UDCTModule` goes straight to and from the flat :meth:`~curvelets.torch.UDCT.vect` layout. The straightforward per-wedge functions are kept as the reference implementation that the plan is tested against (real and complex transforms, curvelet and wavelet modes, 2D and 3D, non-square shapes), so the public API and the numerical results are unchanged.
-
-Device-specific folds
----------------------
-
-The *fold* step turns window samples into the coefficient spectra (and back). It has one implementation per device class, chosen from the device of the transform:
-
-* **GPUs and other accelerators** use a gather-only fold: deterministic (no atomics, so results are bitwise reproducible), with few launches, followed by batched FFTs.
-* **CPUs** use sorted scatter-adds applied row by row, which avoids the redundant arithmetic a gather would cost there. The forward folds all wedges at once. The backward is cache-blocked: chunks of about 2\ :sup:`19` coefficients are transformed and folded into the spectrum while they are still in cache, so the buffer holding all coefficient spectra never exists.
-
-For the real transform the FFT is a half-spectrum transform (``rfftn``), and the backward reconstructs the result with ``irfftn``, which halves the FFT work and memory. Indices use 32 bits, and the per-wedge scale factors are folded into the fold weights.
-
-Moving a module between devices with ``.to()`` rebuilds the plan with the fold that suits the new device; you do not select it yourself.
-
-Real-arithmetic folds and ``torch.compile``
--------------------------------------------
-
-On accelerators, the gather fold works on the real view of complex data (:func:`torch.view_as_real`) with a pair of weights per contribution, applied to the real and imaginary parts. A term can therefore enter conjugated without materializing a conjugate. For the real transform this means:
-
-* the forward gathers straight from the ``rfftn`` half spectrum, so the ``[F, conj F]`` buffer, as large as a full complex spectrum, is gone;
-* the plain and conjugated backward folds are merged into one, removing the extra ``A + conj(B)`` pass;
-* the ``1/size`` normalization of each wedge's inverse FFT is folded into the forward weights, and the inverse FFT runs with ``norm="forward"``.
-
-Every step is a real gather, multiply or sum. This avoids the slow complex-by-real multiply kernel and lets TorchInductor fuse the fold into Triton kernels. The accelerator path of the fused plan's flat forward and backward transforms traces into a single graph, without graph breaks (checked in the test suite for the real and complex transforms). The FFTs themselves remain cuFFT calls. CPU scatter folds are unchanged.
-
-Batches that exceed the L2 cache
---------------------------------
-
-When the working set of a batch spills out of the GPU's L2 cache, every stage of the transform runs at DRAM bandwidth. For inputs whose single row is already larger than the L2 budget (for example :math:`2048 \times 2048` in 2D or :math:`128 \times 128 \times 128` in 3D on an RTX 4090, with 72 MB of L2), running the rows one at a time is 30–44% faster than one batch of 8, because each row has enough GPU work to hide its kernel launches.
-
-On accelerators with a known L2 size, the execution plan records a working-set budget (``UDCTPlan.batch_chunk_bytes``, set to the L2 size when the plan is built; ``None`` on CPUs and on devices with an unknown L2 size). When one row's working set (one spectrum and two coefficient vectors) is larger than the budget, the forward and backward transforms run the batch row by row, writing every row into one preallocated output. Under autograd, :func:`torch.vmap` or ``torch.compile`` the pieces are concatenated instead. Every other batch runs whole: splitting batches whose rows fit in L2 was measured to be slower, since each extra piece costs a full set of kernel launches.
-
-This is automatic and does not change the results.
+Measured numbers, and the scripts that produce them, are in ``benchmarks/`` (see :ref:`contributing`).
 
 .. _torch-cuda-graphs:
 
 CUDA graphs
 ===========
 
-For single transforms up to about :math:`1024 \times 1024`, and for the backward at larger sizes, the transform is *launch-bound*: Python takes longer to enqueue a few dozen kernels than the GPU takes to run them. Passing ``cuda_graphs=True`` to :class:`~curvelets.torch.UDCT` or :class:`~curvelets.torch.UDCTModule` captures each flat transform once per input shape and dtype as a CUDA graph, and replays it afterwards: one copy into a static input buffer, one graph launch, and one copy out of the static output buffer.
+For small and medium inputs on a GPU (up to about :math:`1024 \times 1024`), Python takes longer to launch the transform's kernels than the GPU takes to run them. Passing ``cuda_graphs=True`` records each transform once per input shape and replays it afterwards, which removes most of that overhead:
 
 .. code-block:: python
 
@@ -208,16 +141,8 @@ For single transforms up to about :math:`1024 \times 1024`, and for the backward
 
     transform = UDCT(shape=(512, 512), cuda_graphs=True).to("cuda")
     x = torch.randn(512, 512, device="cuda")
-    y = transform.forward(x)  # captured on the first call, replayed afterwards
+    y = transform.forward(x)  # recorded on the first call, replayed afterwards
 
-Details:
+It works with :class:`~curvelets.torch.UDCTModule`, :meth:`~curvelets.torch.UDCT.filter` and autograd, and has no effect on CPU tensors. Each recorded graph keeps some GPU memory; :meth:`~curvelets.torch.UDCT.clear_cuda_graphs` frees it.
 
-* It applies to every forward and backward entry point, to :meth:`~curvelets.torch.UDCT.filter` and to :class:`~curvelets.torch.UDCTModule`. The ``cuda_graphs`` attribute can be switched at any time.
-* Calls that need gradients work too: the gradient of either transform is the other one (the transform is a tight frame), so both the forward and the backward pass replay.
-* Under :func:`torch.vmap` or ``torch.compile``, inside another stream capture, and for CPU tensors, calls run as usual.
-* The most recently used ``cuda_graph_cache_size`` graphs are kept (default 8; each graph holds a private memory pool of about one call's intermediates). :meth:`~curvelets.torch.UDCT.clear_cuda_graphs` drops all of them and frees that memory. Copies and pickles of a transform start with an empty cache.
-
-When to use it
---------------
-
-Use it for small and medium inputs, where launches dominate: on an RTX 4090, a single :math:`512 \times 512` forward drops from 0.37 to 0.065 ms and the backward from 0.55 to 0.087 ms. For large inputs the GPU work dominates and the copies in and out of the graph buffers make replay slower (6.7 ms against 5.5 ms for a :math:`2048 \times 2048` forward with a batch of 8). Measure on your own sizes with ``benchmarks/compile_experiments.py``.
+Use it for small inputs (on an RTX 4090, a :math:`512 \times 512` forward goes from 0.37 to 0.065 ms). For large inputs it can be slightly slower, so measure on your own sizes.
