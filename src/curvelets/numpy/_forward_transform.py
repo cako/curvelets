@@ -5,6 +5,8 @@ from typing import Literal, overload
 import numpy as np
 import numpy.typing as npt
 
+from ._fft import FFTBackend, resolve_fft_engine
+from ._periodized_fft import half_spectrum_source
 from ._riesz import riesz_filters
 from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT
@@ -34,6 +36,7 @@ def _process_wedge_real(
     window: SparseWindow,
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
+    fft: FFTBackend | None = None,
 ) -> npt.NDArray[np.complexfloating]:
     """
     Process a single wedge for real transform mode.
@@ -48,7 +51,10 @@ def _process_wedge_real(
     decimation_ratio : npt.NDArray[np.int_]
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : npt.NDArray[np.complexfloating]
-        Input image in frequency domain (from FFT).
+        Half-spectrum source of the input image (``half_spectrum_source`` of
+        its ``rfftn``).
+    fft : FFTBackend, optional
+        FFT implementation; defaults to ``numpy.fft``.
 
     Returns
     -------
@@ -67,6 +73,8 @@ def _process_wedge_real(
         image_frequency,
         _wedge_analyze_scale(decimation_ratio),
         decimation=decimation_ratio,
+        half=True,
+        fft=fft,
     )
 
 
@@ -75,6 +83,7 @@ def _process_wedge_complex(
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     flip_window: bool = False,
+    fft: FFTBackend | None = None,
 ) -> npt.NDArray[np.complexfloating]:
     """
     Process a single wedge for complex transform mode.
@@ -93,6 +102,8 @@ def _process_wedge_complex(
     flip_window : bool, optional
         If True, flip the window for negative frequency processing.
         Default is False.
+    fft : FFTBackend, optional
+        FFT implementation; defaults to ``numpy.fft``.
 
     Returns
     -------
@@ -110,6 +121,7 @@ def _process_wedge_complex(
         _wedge_analyze_scale(decimation_ratio, complex_mode=True),
         flip=flip_window,
         decimation=decimation_ratio,
+        fft=fft,
     )
 
 
@@ -118,6 +130,9 @@ def _forward_lowpass_periodized(
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     scale_norm: float,
+    *,
+    half: bool = False,
+    fft: FFTBackend | None = None,
 ) -> npt.NDArray[np.complexfloating]:
     """Lowpass forward via folded sparse IFFT (no wedge ``sqrt(2)`` factor)."""
     scale = scale_norm / float(np.prod(decimation_ratio))
@@ -125,6 +140,8 @@ def _forward_lowpass_periodized(
         image_frequency,
         scale,
         decimation=decimation_ratio,
+        half=half,
+        fft=fft,
     )
 
 
@@ -133,6 +150,7 @@ def _apply_forward_transform_real(
     parameters: ParamUDCT,
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
+    fft: FFTBackend | None = None,
 ) -> UDCTCoefficients[np.complexfloating]:
     """
     Apply forward Uniform Discrete Curvelet Transform in real mode.
@@ -181,7 +199,10 @@ def _apply_forward_transform_real(
     in real-valued coefficients. This is suitable for real-valued inputs and
     provides a more compact representation.
     """
-    image_frequency = np.fft.fftn(image)
+    if fft is None:
+        fft = resolve_fft_engine("auto", parameters.shape)
+    # Real input: gather from the rfftn half spectrum (Hermitian symmetry).
+    image_frequency = half_spectrum_source(fft.rfftn(image))
 
     scale_norm = float(
         np.sqrt(
@@ -195,6 +216,8 @@ def _apply_forward_transform_real(
         decimation_ratios[0][0],
         image_frequency,
         scale_norm,
+        half=True,
+        fft=fft,
     )
 
     coefficients: UDCTCoefficients[np.complexfloating] = [[[low_freq_coeff]]] + [
@@ -206,6 +229,7 @@ def _apply_forward_transform_real(
                     if decimation_ratios[scale_idx].shape[0] == 1
                     else decimation_ratios[scale_idx][direction_idx, :],
                     image_frequency,
+                    fft,
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
@@ -221,6 +245,7 @@ def _apply_forward_transform_complex(
     parameters: ParamUDCT,
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
+    fft: FFTBackend | None = None,
 ) -> UDCTCoefficients[np.complexfloating]:
     """
     Apply forward Uniform Discrete Curvelet Transform in complex mode.
@@ -273,7 +298,9 @@ def _apply_forward_transform_complex(
     This mode is required for complex-valued inputs and provides full frequency
     information.
     """
-    image_frequency = np.fft.fftn(image)
+    if fft is None:
+        fft = resolve_fft_engine("auto", parameters.shape)
+    image_frequency = fft.fftn(image)
 
     scale_norm = float(
         np.sqrt(
@@ -287,6 +314,7 @@ def _apply_forward_transform_complex(
         decimation_ratios[0][0],
         image_frequency,
         scale_norm,
+        fft=fft,
     )
 
     coefficients: UDCTCoefficients[np.complexfloating] = [[[low_freq_coeff]]]
@@ -305,6 +333,7 @@ def _apply_forward_transform_complex(
                     ],
                     image_frequency,
                     flip_window=False,
+                    fft=fft,
                 )
                 for wedge_idx in range(
                     len(
@@ -329,6 +358,7 @@ def _apply_forward_transform_complex(
                     ],
                     image_frequency,
                     flip_window=True,
+                    fft=fft,
                 )
                 for wedge_idx in range(
                     len(
@@ -344,11 +374,42 @@ def _apply_forward_transform_complex(
     ]
 
 
+def _monogenic_channels(
+    window: SparseWindow,
+    decimation_ratio: _IntegerNDArray,
+    image_frequency: npt.NDArray[np.complexfloating],
+    riesz_filters_list: list[npt.NDArray[np.complexfloating]],
+    scale: float,
+    *,
+    half: bool,
+    fft: FFTBackend | None,
+) -> npt.NDArray[np.floating]:
+    """Scalar (2 channels) and Riesz channels of one band, gathering once."""
+    ifftn = np.fft.ifftn if fft is None else fft.ifftn
+    samples = window.gather(
+        image_frequency, scale=scale, half=half, decimation=decimation_ratio
+    )
+    real_dtype = samples.real.dtype
+    coeff_scalar = ifftn(window.fold(samples, decimation=decimation_ratio))
+    channels = [coeff_scalar.real, coeff_scalar.imag]
+    for riesz_filter in riesz_filters_list:
+        riesz_at_indices = riesz_filter.reshape(-1)[window.indices]
+        folded = window.fold(
+            samples * riesz_at_indices.astype(samples.dtype, copy=False),
+            decimation=decimation_ratio,
+        )
+        channels.append(ifftn(folded).real)
+    return np.stack(channels, axis=-1).astype(real_dtype, copy=False)
+
+
 def _process_wedge_monogenic(
     window: SparseWindow,
     decimation_ratio: _IntegerNDArray,
     image_frequency: npt.NDArray[np.complexfloating],
     riesz_filters_list: list[npt.NDArray[np.complexfloating]],
+    fft: FFTBackend | None = None,
+    *,
+    half: bool = False,
 ) -> npt.NDArray[np.floating]:
     """
     Process a single wedge for monogenic transform.
@@ -363,10 +424,15 @@ def _process_wedge_monogenic(
         Decimation ratio for this wedge (1D array with length equal to dimensions).
         Uses _IntegerNDArray type alias from typing.py.
     image_frequency : npt.NDArray[np.complexfloating]
-        Input image in frequency domain (from FFT).
+        Input image in frequency domain (from FFT), or its half-spectrum
+        source when ``half=True``.
     riesz_filters_list : list[npt.NDArray[np.complexfloating]]
         Riesz transform filters R_1, R_2, ... R_ndim from riesz_filters().
-        Each filter has shape matching image_frequency.
+        Each filter has the full image shape.
+    fft : FFTBackend, optional
+        FFT implementation; defaults to ``numpy.fft``.
+    half : bool, optional
+        If True, ``image_frequency`` is a half-spectrum source.
 
     Returns
     -------
@@ -387,34 +453,14 @@ def _process_wedge_monogenic(
     All components use the same decimation ratios and normalization factors
     as the standard UDCT transform.
     """
-    scale = _wedge_analyze_scale(decimation_ratio)
-    complex_dtype = image_frequency.dtype
-    real_dtype = np.real(np.empty(0, dtype=complex_dtype)).dtype
-
-    coeff_scalar = window.analyze(
+    return _monogenic_channels(
+        window,
+        decimation_ratio,
         image_frequency,
-        scale,
-        decimation=decimation_ratio,
-    )
-
-    indices, _ = window.resolve_indices(decimation=decimation_ratio)
-    riesz_coeffs: list[npt.NDArray[np.floating]] = []
-    for riesz_filter in riesz_filters_list:
-        coeff_riesz = window.analyze(
-            image_frequency,
-            scale,
-            extra_at_indices=riesz_filter.flat[indices],
-            decimation=decimation_ratio,
-        )
-        riesz_coeffs.append(coeff_riesz.real.astype(real_dtype))
-
-    return np.stack(
-        [
-            coeff_scalar.real.astype(real_dtype),
-            coeff_scalar.imag.astype(real_dtype),
-            *riesz_coeffs,
-        ],
-        axis=-1,
+        riesz_filters_list,
+        _wedge_analyze_scale(decimation_ratio),
+        half=half,
+        fft=fft,
     )
 
 
@@ -424,6 +470,7 @@ def _apply_forward_transform_monogenic(
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[_IntegerNDArray],
     riesz_filters_list: list[npt.NDArray[np.complexfloating]] | None = None,
+    fft: FFTBackend | None = None,
 ) -> UDCTCoefficients[np.floating]:
     """
     Apply forward monogenic curvelet transform.
@@ -518,8 +565,10 @@ def _apply_forward_transform_monogenic(
     >>> coeffs[0][0][0].shape[-1]  # Last dimension has ndim+2 channels (4 for 2D)
     4
     """
-    image_frequency = np.fft.fftn(image)
-    complex_dtype = image_frequency.dtype
+    if fft is None:
+        fft = resolve_fft_engine("auto", parameters.shape)
+    # Real input: gather from the rfftn half spectrum (Hermitian symmetry).
+    image_frequency = half_spectrum_source(fft.rfftn(image))
 
     if riesz_filters_list is None:
         riesz_filters_list = riesz_filters(parameters.shape)
@@ -531,35 +580,15 @@ def _apply_forward_transform_monogenic(
             )
         )
     )
-    real_dtype = np.real(np.empty(0, dtype=complex_dtype)).dtype
-
-    window0 = windows[0][0][0]
     dec0 = decimation_ratios[0][0]
-    low_scale = scale_norm / float(np.prod(dec0))
-    low_freq_coeff_scalar = window0.analyze(
+    low_freq_coeff = _monogenic_channels(
+        windows[0][0][0],
+        dec0,
         image_frequency,
-        low_scale,
-        decimation=dec0,
-    )
-
-    indices0, _ = window0.resolve_indices(decimation=dec0)
-    low_freq_riesz_coeffs: list[npt.NDArray[np.floating]] = []
-    for riesz_filter in riesz_filters_list:
-        low_freq_coeff_riesz = window0.analyze(
-            image_frequency,
-            low_scale,
-            extra_at_indices=riesz_filter.flat[indices0],
-            decimation=dec0,
-        )
-        low_freq_riesz_coeffs.append(low_freq_coeff_riesz.real.astype(real_dtype))
-
-    low_freq_coeff = np.stack(
-        [
-            low_freq_coeff_scalar.real.astype(real_dtype),
-            low_freq_coeff_scalar.imag.astype(real_dtype),
-            *low_freq_riesz_coeffs,
-        ],
-        axis=-1,
+        riesz_filters_list,
+        scale_norm / float(np.prod(dec0)),
+        half=True,
+        fft=fft,
     )
 
     coefficients: UDCTCoefficients[np.floating] = [[[low_freq_coeff]]] + [
@@ -572,6 +601,8 @@ def _apply_forward_transform_monogenic(
                     else decimation_ratios[scale_idx][direction_idx, :],
                     image_frequency,
                     riesz_filters_list,
+                    fft,
+                    half=True,
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
@@ -589,6 +620,7 @@ def _apply_forward_transform(
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[False] = False,
+    fft: FFTBackend | None = None,
 ) -> UDCTCoefficients[np.complex64]: ...
 
 
@@ -599,6 +631,7 @@ def _apply_forward_transform(
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: Literal[True],
+    fft: FFTBackend | None = None,
 ) -> UDCTCoefficients[np.complex64]: ...
 
 
@@ -608,6 +641,7 @@ def _apply_forward_transform(
     windows: UDCTWindows[np.floating],
     decimation_ratios: list[npt.NDArray[np.int_]],
     use_complex_transform: bool = False,
+    fft: FFTBackend | None = None,
 ) -> UDCTCoefficients[np.complexfloating]:
     """
     Apply forward Uniform Discrete Curvelet Transform (decomposition).
@@ -674,18 +708,15 @@ def _apply_forward_transform(
     if use_complex_transform:
         if np.iscomplexobj(image):
             return _apply_forward_transform_complex(
-                image, parameters, windows, decimation_ratios
+                image, parameters, windows, decimation_ratios, fft
             )
         return _apply_forward_transform_complex(
-            image,
-            parameters,
-            windows,
-            decimation_ratios,
+            image, parameters, windows, decimation_ratios, fft
         )
 
     if not np.iscomplexobj(image):
         return _apply_forward_transform_real(
-            image, parameters, windows, decimation_ratios
+            image, parameters, windows, decimation_ratios, fft
         )
 
     error_msg = (
