@@ -1,9 +1,9 @@
 name: CI
 
 # Changes that cannot affect the tests skip the test matrix and the coverage
-# upload: documentation, the gallery examples (examples/), the other workflows,
-# the release-build lock, Dependabot's config, and Python changes that only touch
-# docstrings or comments. The `changes` job decides, with .github/scripts/code_changed.py
+# upload: documentation, the gallery examples (examples/) and their data
+# (testdata/), the other workflows, the release-build lock, Dependabot's config,
+# and Python changes that only touch docstrings or comments. The `changes` job decides, with .github/scripts/code_changed.py
 # (which holds the list of ignored paths); it compares the syntax trees of
 # changed Python files, docstrings removed. CI does not run doctests, so
 # docstrings cannot change the test results. The Format workflow (pre-commit,
