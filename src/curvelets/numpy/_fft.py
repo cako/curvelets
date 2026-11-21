@@ -105,8 +105,9 @@ class _FFTWPlans:
     FFTW plans for one engine, made once per transform and kept.
 
     ``pyfftw.interfaces`` caches plans for only 0.1 s by default and keys them on
-    the input's memory alignment, so a UDCT re-planned many of its FFTs on
-    every call (seconds per call for large 3D transforms with many threads).
+    the input's memory alignment, which would make a UDCT re-plan many of its
+    FFTs on every call (seconds per call for large 3D transforms with many
+    threads).
     Here a plan is keyed on what defines the transform (function, shape, dtype,
     ``s``, ``axes``) and kept; it owns aligned input/output buffers, so the
     caller's alignment does not matter. Plans are per thread, as executing one

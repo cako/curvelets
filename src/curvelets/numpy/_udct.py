@@ -38,6 +38,11 @@ class UDCT:
     This class provides forward and backward curvelet transforms with support
     for both real and complex transforms.
 
+    .. versionchanged:: 1.3
+       The FFT library is selectable (``fft_engine``, ``fft_workers``); SciPy's
+       multithreaded FFT is used by default when SciPy is installed. The
+       coefficients are the same up to floating-point rounding.
+
     Parameters
     ----------
     shape : tuple[int, ...]
@@ -101,12 +106,16 @@ class UDCT:
 
         A requested engine whose package is not installed falls back to
         NumPy with a warning. All engines give the same result up to rounding.
+
+        .. versionadded:: 1.3
     fft_workers : int, optional
         Number of threads used by the multithreaded FFT engines (``scipy``,
         ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs available to
         the process (respecting CPU affinity, e.g. in containers). Ignored by
         ``numpy``, and by ``mkl_fft`` when ``mkl-service`` is not installed
         (MKL then uses its own default).
+
+        .. versionadded:: 1.3
 
     Attributes
     ----------
@@ -119,6 +128,8 @@ class UDCT:
     fft_engine : str
         FFT engine in use ("numpy", "scipy", "fftw" or "mkl_fft"), after
         resolving "auto" and fallbacks.
+
+        .. versionadded:: 1.3
     parameters : ParamUDCT
         Internal UDCT parameters.
     windows : UDCTWindows

@@ -38,17 +38,17 @@ GRAPH_DEVICE_TYPES = frozenset({"cuda"})
 
 
 def _replay_possible(tensor: torch.Tensor) -> bool:
-    """A graph device, and not in a functorch transform, a trace, or a capture."""
+    """A graph device, and not in a functorch transform, a trace, or a capture.
+
+    Graphs record no autograd history; callers check this only for calls that
+    cannot need gradients (see :func:`_may_need_grad`).
+    """
     return (
         tensor.device.type in GRAPH_DEVICE_TYPES
         and not torch.compiler.is_compiling()
         and not _functorch_wrapped(tensor)
         and not (tensor.is_cuda and torch.cuda.is_current_stream_capturing())
     )
-
-
-def _needs_grad(tensor: torch.Tensor) -> bool:
-    return bool(torch.is_grad_enabled() and tensor.requires_grad)
 
 
 def _may_need_grad(tensor: torch.Tensor) -> bool:
@@ -60,14 +60,6 @@ def _may_need_grad(tensor: torch.Tensor) -> bool:
     return bool(
         torch.is_grad_enabled() and (tensor.requires_grad or _functorch_wrapped(tensor))
     )
-
-
-def graphable(tensor: torch.Tensor) -> bool:
-    """Whether a call on ``tensor`` can be replayed from a graph as it is.
-
-    Graphs record no autograd history, so the call must not need gradients.
-    """
-    return _replay_possible(tensor) and not _needs_grad(tensor)
 
 
 def _capture(  # pragma: no cover - needs a CUDA device (tests/torch/test_cuda_graphs.py)
@@ -192,7 +184,7 @@ class CudaGraphsMixin:
             # Runs _forward_flat again without gradients, so from graphs too.
             return ForwardWithAdjoint.apply(image, self)
         forward: Callable[[torch.Tensor], torch.Tensor] = self._get_plan().forward_flat
-        if self._cuda_graphs and graphable(image):
+        if self._cuda_graphs and _replay_possible(image):
             return self._graphs.run("forward", forward, image)
         return forward(image)
 
@@ -203,6 +195,6 @@ class CudaGraphsMixin:
         backward: Callable[[torch.Tensor], torch.Tensor] = (
             self._get_plan().backward_flat
         )
-        if self._cuda_graphs and graphable(vector):
+        if self._cuda_graphs and _replay_possible(vector):
             return self._graphs.run("backward", backward, vector)
         return backward(vector)
