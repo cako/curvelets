@@ -48,7 +48,7 @@
 pip install curvelets
 ```
 
-For a faster, multithreaded NumPy transform, add an FFT library: `curvelets[scipy]`, `curvelets[fftw]` (FFTW) or `curvelets[mkl]` (Intel MKL; Linux x86_64 and Windows x64). `UDCT(..., fft_engine="auto")`, the default, uses MKL when installed, otherwise the faster of NumPy and SciPy; `fft_workers` sets the thread count.
+For a faster, multithreaded NumPy transform, add an FFT library: `curvelets[scipy]`, `curvelets[fftw]` (FFTW) or `curvelets[mkl]` (Intel MKL; Linux x86_64 and Windows x64). `UDCT(..., fft_engine="auto")`, the default, times NumPy and the installed SciPy and MKL engines once per shape and uses the fastest; `fft_workers` sets the thread count.
 
 **Curvelets** supports Python 3.11 and above, NumPy 1.20 and above.
 

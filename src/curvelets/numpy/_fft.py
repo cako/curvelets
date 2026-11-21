@@ -11,10 +11,10 @@ PyLops, the FFT implementation is chosen per transform with an ``engine``:
 - ``"mkl_fft"``: Intel MKL through ``mkl_fft``, multithreaded
   (:mod:`mkl_fft.interfaces.scipy_fft`, which needs ``mkl-service``; without
   it, :mod:`mkl_fft.interfaces.numpy_fft` with MKL's default thread count);
-- ``"auto"`` (default): ``mkl_fft`` when importable; otherwise ``numpy`` and
-  ``scipy`` are timed once per transform shape on a wedge-sized proxy problem
-  and the faster one is kept. ``fftw`` is never chosen automatically: its first
-  call for each shape pays for planning.
+- ``"auto"`` (default): ``numpy`` and whichever of ``scipy`` and ``mkl_fft``
+  are importable are timed once per transform shape on a wedge-sized proxy
+  problem, and the fastest is kept. ``fftw`` is never chosen automatically: its
+  first call for each shape pays for planning.
 
 ``workers`` sets the thread count of the multithreaded engines (default: all
 CPUs). A requested engine whose package is not installed falls back to
@@ -174,20 +174,17 @@ def _time_backend(backend: FFTBackend, data: np.ndarray) -> float:
 
 @functools.cache
 def _auto_for_shape(shape: tuple[int, ...], workers: int) -> FFTBackend:
-    mkl = _load("mkl_fft", workers)
-    if mkl is not None:
-        return mkl
-    numpy_backend = _numpy_backend()
-    scipy_backend = _load("scipy", workers)
-    if scipy_backend is None:
-        return numpy_backend
+    candidates = [_numpy_backend()] + [
+        backend
+        for backend in (_load(name, workers) for name in ("scipy", "mkl_fft"))
+        if backend is not None
+    ]
+    if len(candidates) == 1:
+        return candidates[0]
     rng = np.random.default_rng(0)
     proxy = _proxy_shape(shape)
     data = rng.standard_normal(proxy) + 1j * rng.standard_normal(proxy)
-    timings = {
-        backend: _time_backend(backend, data)
-        for backend in (numpy_backend, scipy_backend)
-    }
+    timings = {backend: _time_backend(backend, data) for backend in candidates}
     return min(timings, key=timings.__getitem__)
 
 
@@ -200,8 +197,8 @@ def resolve_fft_engine(
     Parameters
     ----------
     engine : {"auto", "numpy", "scipy", "fftw", "mkl_fft"}
-        Requested engine. ``"auto"`` picks ``mkl_fft`` if installed, otherwise
-        the faster of ``numpy`` and ``scipy`` for this shape (timed once and
+        Requested engine. ``"auto"`` picks the fastest of ``numpy`` and the
+        installed ``scipy`` / ``mkl_fft`` for this shape (timed once and
         cached).
     shape : tuple of int
         Transform (image) shape.

@@ -44,7 +44,7 @@ The NumPy transform is FFT-bound. It runs on :mod:`numpy.fft` by default, and ca
     pip install curvelets[fftw]   # FFTW via pyFFTW
     pip install curvelets[mkl]    # Intel MKL via mkl_fft (Linux x86_64 and Windows x64)
 
-With the default ``fft_engine="auto"``, MKL is used when installed, otherwise the faster of NumPy and SciPy.
+With the default ``fft_engine="auto"``, NumPy and the installed SciPy and MKL engines are timed once per transform shape, and the fastest is used.
 
 **Curvelets** supports Python 3.11 and above, NumPy 1.20 and above.
 
