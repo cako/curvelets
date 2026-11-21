@@ -54,7 +54,7 @@ The UDCT was first implemented in MATLAB (`ucurvmd <https://github.com/nttruong7
 
 **This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing support for complex signals, monogenic curvelets for real signals :cite:`Storath2010`, and a wavelet transform at the highest scale.
 
-Other constructions have few or no implementations available. The implementation of the LR-FCT, `F-CUR3D <https://www.cosmostat.org/software/f-cur3d>`__, is unavailable. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
+Other constructions have few or no implementations available. The implementation of the LR-FCT, `F-CUR3D <https://www.cosmostat.org/software/f-cur3d>`__, is unavailable. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package, licensed under the GPL-3.0, implements curvelets on the sphere :cite:`Chan2017`.
 
 Similar transforms
 ******************
