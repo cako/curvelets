@@ -3,6 +3,7 @@ from __future__ import annotations
 # pylint: disable=duplicate-code,too-many-lines
 # Duplicate code with torch implementation is expected
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from math import prod
 from typing import Any, Literal
 
@@ -18,7 +19,8 @@ from ._forward_transform import (
     _apply_forward_transform_real,
 )
 from ._riesz import riesz_filters
-from ._udct_windows import UDCTWindow
+from ._sparse_window import SparseWindow
+from ._udct_windows import UDCTWindow, _window_workers
 from ._utils import ParamUDCT
 from .typing import (
     _C,
@@ -510,6 +512,7 @@ class UDCT:
         need_flip = self.transform_kind == "complex"
         # Real and monogenic transforms work on the rfftn half spectrum.
         need_half = not need_flip
+        tasks: list[tuple[SparseWindow, npt.NDArray[np.int_]]] = []
         for scale_idx, scale_windows in enumerate(windows):
             for direction_idx, direction_windows in enumerate(scale_windows):
                 if decimation_ratios[scale_idx].shape[0] == 1:
@@ -518,10 +521,17 @@ class UDCT:
                     dec = decimation_ratios[scale_idx][
                         min(direction_idx, decimation_ratios[scale_idx].shape[0] - 1)
                     ]
-                for window in direction_windows:
-                    window.attach_periodized(
-                        dec, with_flip=need_flip, half_spectrum=need_half
-                    )
+                tasks.extend((window, dec) for window in direction_windows)
+        # Each window's maps are independent NumPy work: build them in parallel
+        with ThreadPoolExecutor(max_workers=_window_workers()) as pool:
+            list(
+                pool.map(
+                    lambda task: task[0].attach_periodized(
+                        task[1], with_flip=need_flip, half_spectrum=need_half
+                    ),
+                    tasks,
+                )
+            )
         return windows, decimation_ratios, indices
 
     def _get_riesz_filters(self) -> list[npt.NDArray[np.complexfloating]]:
