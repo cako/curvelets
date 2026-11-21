@@ -7,8 +7,14 @@ standard curvelets, because a reflector that is cut or offset by a fault changes
 abruptly along its length, and the extra Riesz components (the "inverted phase")
 describe that change better than a single coefficient can.
 
+In real sections faults are rarely sharp. Steeply dipping reflectors and fault
+planes are poorly imaged without wide offsets, and what is recovered there is
+already lower in frequency, so a fault often appears as a *gap*: a zone of dim,
+low-frequency, incoherent energy between the two sides.
+
 This example tests the hypothesis on a synthetic folded model with a fault of
-known position, and reports where it holds and where it does not.
+known position, first as a sharp fault and then as a fault zone with a gap, and
+reports where it holds and where it does not.
 
 What the experiment measures
 ----------------------------
@@ -58,9 +64,10 @@ from curvelets.plot import create_colorbar, despine
 # ###################################
 #
 # Reflectors follow a sigmoid-shaped fold, and each carries a Ricker wavelet. A
-# fault plane dips through the model. Either the right-hand side is displaced
-# vertically by a *throw* (the reflectors are offset), or the reflectors are cut
-# abruptly by the fault with no displacement (a *truncation*).
+# fault plane dips through the model, and the right-hand side is displaced
+# vertically by a *throw*. A fault zone replaces the reflectors within a distance
+# ``gap / 2`` of the fault plane by weak, low-frequency, incoherent energy, with the
+# reflectors tapering off on both sides.
 
 shape = (200, 256)
 PAD = 48  # reflect-padding around the image, to avoid FFT wrap-around artifacts
@@ -89,15 +96,29 @@ def ricker(t: npt.NDArray[np.float64], width: float = 7.0) -> npt.NDArray[np.flo
     return (1 - 2 * a) * np.exp(-a)
 
 
-def make_model(throw: float = 0.0, truncate: bool = False) -> npt.NDArray[np.float64]:
-    """Folded reflectors, offset by ``throw`` or cut by the fault (``truncate``)."""
+def make_model(throw: float = 0.0) -> npt.NDArray[np.float64]:
+    """Folded reflectors, offset by ``throw`` samples across the fault."""
     right = x > x_fault
     model = np.zeros(shape)
     for depth, amplitude in zip(depths, amplitudes, strict=True):
         model += amplitude * ricker(z - depth - fold - throw * right)
-    if truncate:
-        model *= ~right
     return model
+
+
+def make_fault_zone(
+    throw: float, gap: float, fill: float = 0.3
+) -> npt.NDArray[np.float64]:
+    """Fault zone of width ``gap``: reflectors taper off on both sides, and the zone
+    holds low-frequency incoherent energy (``fill`` times the reflector RMS)."""
+    model = make_model(throw)
+    if gap == 0:
+        return model
+    keep = 0.5 * (1 + np.tanh((distance - gap / 2) / 2))  # 0 in the zone, 1 outside
+    incoherent: npt.NDArray[np.float64] = gaussian_filter(
+        np.random.default_rng(123).standard_normal(shape), 3
+    )
+    incoherent *= fill * model.std() / incoherent.std()
+    return keep * model + (1 - keep) * incoherent
 
 
 # One normalisation for all models, so that noise levels mean the same thing.
@@ -117,7 +138,7 @@ for ax, (title, data) in zip(
     (
         ("Offset by a throw of 4 samples", make_model(4.0) / scale),
         ("Same, with noise ($\\sigma = 0.5$)", noisy(make_model(4.0), 0.5, 0)),
-        ("Truncated by the fault", make_model(truncate=True) / scale),
+        ("Fault zone with a gap of 16 samples", make_fault_zone(4.0, 16) / scale),
     ),
     strict=True,
 ):
@@ -295,17 +316,12 @@ plt.tight_layout()
 # Sweep over throw and noise
 # ##########################
 #
-# For each case (three throws and a truncation), noise level and noise seed, the
-# four attributes are scored. Lines are the mean over the seeds.
+# For each throw, noise level and noise seed, the four attributes are scored.
+# Lines are the mean over the seeds.
 
 noise_levels = [0.25, 0.5, 1.0, 2.0]
 n_seeds = 3
-cases: list[tuple[str, dict[str, float | bool]]] = [
-    ("Throw 2", {"throw": 2.0}),
-    ("Throw 4", {"throw": 4.0}),
-    ("Throw 8", {"throw": 8.0}),
-    ("Truncation", {"truncate": True}),
-]
+cases: list[tuple[str, float]] = [("Throw 2", 2.0), ("Throw 4", 4.0), ("Throw 8", 8.0)]
 names = (
     "directional standard",
     "directional monogenic",
@@ -313,8 +329,8 @@ names = (
     "isotropic monogenic",
 )
 scores = np.zeros((len(cases), len(noise_levels), len(names), n_seeds))
-for i, (_, kwargs) in enumerate(cases):
-    model = make_model(**kwargs)  # type: ignore[arg-type]
+for i, (_, throw) in enumerate(cases):
+    model = make_model(throw)
     for j, noise in enumerate(noise_levels):
         for seed in range(n_seeds):
             f = spectrum(noisy(model, noise, seed))
@@ -330,9 +346,9 @@ mean_scores = scores.mean(axis=-1)
 # Mean AUC against noise, per case. Solid lines are monogenic, dashed are standard;
 # the two directional lines (grey) overlap.
 
-fig, axs = plt.subplots(1, len(cases), figsize=(16, 3.8), sharey=True)
+fig, axs = plt.subplots(1, len(cases), figsize=(13, 3.8), sharey=True)
 styles = (("0.55", "--"), ("0.25", "-"), ("C0", "--"), ("C3", "-"))
-for ax, (case_name, _kwargs), per_case in zip(axs, cases, mean_scores, strict=True):
+for ax, (case_name, _throw), per_case in zip(axs, cases, mean_scores, strict=True):
     for k, (name, (color, ls)) in enumerate(zip(names, styles, strict=True)):
         ax.plot(
             noise_levels, per_case[:, k], color=color, ls=ls, marker="o", label=name
@@ -347,7 +363,7 @@ plt.tight_layout()
 
 print("Mean AUC (over seeds). Rows: case / noise; columns: attributes")
 print(f"{'':>20}" + "".join(f"{n:>24}" for n in names))
-for (case_name, _kwargs), per_case in zip(cases, mean_scores, strict=True):
+for (case_name, _throw), per_case in zip(cases, mean_scores, strict=True):
     for noise, row in zip(noise_levels, per_case, strict=True):
         print(f"{case_name:>12} {noise:>6.2f}" + "".join(f"{v:>24.2f}" for v in row))
 
@@ -395,6 +411,132 @@ ax.legend()
 plt.tight_layout()
 
 # %%
+# Faults as a gap
+# ###############
+#
+# Now the fault is a zone of width ``gap`` (see the third panel of the first
+# figure). Two effects could change the picture. The attribute at the isotropic
+# scale sees about one dominant wavelength, so once the gap is wider than that, the
+# two sides no longer meet and there is no phase jump to see; what is left is two
+# sets of terminations and a zone of incoherent energy. And a dim zone suggests a
+# different attribute: *dimming*, the local envelope energy relative to its
+# surroundings, where the smooth monogenic envelope might beat the oscillating real
+# band.
+#
+# The attributes are scored against the whole zone: positives within
+# ``gap / 2 + 3`` samples of the fault plane, negatives beyond ``gap / 2 + 14``.
+
+
+def dimming(
+    image_freq: Spectrum, channels: Literal[1, 3], local: float = 1.0
+) -> npt.NDArray[np.float64]:
+    """Log ratio of the surrounding to the local energy of the isotropic band."""
+    band = iso_window * image_freq
+    fields = (
+        [band] if channels == 1 else [band, 1j * riesz[0] * band, 1j * riesz[1] * band]
+    )
+    e = energy(fields)
+    near_e: npt.NDArray[np.float64] = gaussian_filter(e, local)
+    around: npt.NDArray[np.float64] = gaussian_filter(e, 15)
+    floor = 1e-6 * around.max()
+    return crop(np.log((around + floor) / (near_e + floor)))
+
+
+def zone_auc(score: npt.NDArray[np.float64], gap: float) -> float:
+    return auc(score, near=gap / 2 + 3, far=gap / 2 + 14)
+
+
+zone = spectrum(noisy(make_fault_zone(4.0, 16), 0.5, 0))
+zone_maps = {
+    "Change, standard": isotropic_attribute(zone, 1, "gradient"),
+    "Change, monogenic": isotropic_attribute(zone, 3, "riesz"),
+    "Dimming, standard": dimming(zone, 1),
+    "Dimming, monogenic": dimming(zone, 3),
+}
+
+fig, axs = plt.subplots(1, 4, figsize=(16, 4))
+for ax, (title, attribute) in zip(axs, zone_maps.items(), strict=True):
+    im = ax.imshow(attribute, aspect="auto", vmax=np.percentile(attribute, 99))
+    create_colorbar(im=im, ax=ax)
+    ax.set(
+        title=f"{title} (isotropic)\nAUC = {zone_auc(attribute, 16):.2f}",
+        xlim=(0, shape[1] - 1),
+        ylim=(shape[0] - 1, 0),
+    )
+    despine(ax)
+plt.tight_layout()
+
+# %%
+# Sweep over the gap width, with and without a throw (noise :math:`\sigma = 0.5`).
+
+gaps = [4, 8, 16, 32]
+zone_names = (
+    "change standard",
+    "change monogenic",
+    "dimming standard",
+    "dimming monogenic",
+)
+zone_throws = (0.0, 4.0)
+zone_scores = np.zeros((len(zone_throws), len(gaps), len(zone_names)))
+for i, throw in enumerate(zone_throws):
+    for j, gap in enumerate(gaps):
+        per_seed = []
+        for seed in range(n_seeds):
+            f = spectrum(noisy(make_fault_zone(throw, gap), 0.5, seed))
+            per_seed.append([
+                zone_auc(isotropic_attribute(f, 1, "gradient"), gap),
+                zone_auc(isotropic_attribute(f, 3, "riesz"), gap),
+                zone_auc(dimming(f, 1), gap),
+                zone_auc(dimming(f, 3), gap),
+            ])
+        zone_scores[i, j] = np.mean(per_seed, axis=0)
+
+fig, axs = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
+zone_styles = (("C0", "--"), ("C3", "-"), ("C2", "--"), ("C1", "-"))
+for ax, throw, per_throw in zip(axs, zone_throws, zone_scores, strict=True):
+    for k, (name, (color, ls)) in enumerate(zip(zone_names, zone_styles, strict=True)):
+        ax.plot(gaps, per_throw[:, k], color=color, ls=ls, marker="o", label=name)
+    ax.axhline(0.5, color="k", lw=0.5)
+    ax.set(
+        title=f"Fault zone, throw {throw:g}",
+        xlabel="gap width (samples)",
+        xscale="log",
+        ylim=(0.45, 1.0),
+    )
+    ax.set_xticks(gaps, [str(g) for g in gaps])
+    ax.minorticks_off()
+axs[0].set_ylabel("AUC")
+axs[0].legend(fontsize=8)
+plt.tight_layout()
+
+print("Mean AUC for fault zones (isotropic band, noise 0.5)")
+print(f"{'':>16}" + "".join(f"{n:>20}" for n in zone_names))
+for throw, per_throw in zip(zone_throws, zone_scores, strict=True):
+    for gap, row in zip(gaps, per_throw, strict=True):
+        print(f"throw {throw:g} gap {gap:>2}" + "".join(f"{v:>20.2f}" for v in row))
+
+# %%
+# The dimming attribute depends on how much the local energy is smoothed. Without
+# smoothing, the real band's energy :math:`\beta^2` oscillates and the monogenic
+# envelope helps; with a few samples of smoothing, :math:`\beta^2` becomes an
+# envelope itself and the two agree (gap of 16 samples, throw of 4).
+
+print("Dimming AUC against the local smoothing (samples)")
+for local in (0.5, 1.0, 2.0, 5.0):
+    pair = np.mean(
+        [
+            [
+                zone_auc(dimming(f, c, local), 16)
+                for c in (1, 3)
+                for f in [spectrum(noisy(make_fault_zone(4.0, 16), 0.5, seed))]
+            ]
+            for seed in range(n_seeds)
+        ],
+        axis=0,
+    )
+    print(f"  {local:>4}: standard {pair[0]:.2f}, monogenic {pair[1]:.2f}")
+
+# %%
 # Conclusions
 # ###########
 #
@@ -412,10 +554,21 @@ plt.tight_layout()
 #   depend on where in the oscillation a pixel sits, while a lone real coefficient
 #   loses sensitivity near its zero crossings. A phase jump across the fault is
 #   therefore seen everywhere with the former and only partly with the latter.
-# - **Abrupt truncation: no advantage.** Standard and monogenic attributes score
-#   alike, and poorly. The idea that monogenic curvelets "stop" a reflector better
-#   is not supported here. The benefit is in handling the phase shift of an offset,
-#   not in the termination itself.
+# - **Fault zones with a gap: monogenic is better, and not only because of the
+#   phase jump.** The change attribute detects the zone better with monogenic
+#   channels at every gap width, with or without a throw (for a 16-sample gap and
+#   no throw, about 0.85 against 0.74). Where the reflectors stop, the attribute
+#   acts as a coherence measure, and the phase-invariant monogenic measure is more
+#   uniform on intact reflectors than the real band, which fluctuates with the phase.
+#   This is the closest this test comes to the original hypothesis that monogenic
+#   curvelets handle reflectors that stop.
+# - **Dimming: no practical advantage.** The monogenic envelope helps only when the
+#   local energy is not smoothed. With a few samples of smoothing the real band does
+#   as well, and both score better than without smoothing.
+#
+# A one-sided truncation, with no reflectors at all on one side of the fault, is
+# not tested: a local attribute cannot tell a reflector-free half-plane from a very
+# wide gap, so scoring it against a line would be ill-posed.
 #
 # Caveats: one synthetic model and an attribute chosen for this test. The advantage
 # also depends on how much of the signal the isotropic band holds, and it reverses
@@ -426,5 +579,5 @@ plt.tight_layout()
 # 0.71 (standard) at :math:`\sigma = 0.5`. A plausible but untested reason is that
 # the Riesz transform of a band containing the zero frequency is non-local, which
 # blurs the fault. So the result is not that monogenic curvelets are better in
-# general, but that phase invariance helps detect offsets when the isotropic band
-# contains the reflectors.
+# general, but that phase invariance helps detect offsets and fault zones when the
+# isotropic band contains the reflectors.
