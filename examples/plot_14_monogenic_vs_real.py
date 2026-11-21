@@ -75,11 +75,23 @@ p2, env2 = wavepacket(170, 160, 0.20, 1.2, 26, 0.8)
 image_gabor = p1 + p2
 true_envelope = np.maximum(env1, env2)
 
+fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+vmax = np.abs(image_gabor).max()
+im = axs[0].imshow(image_gabor.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
+create_colorbar(im=im, ax=axs[0])
+axs[0].set(title="Test image")
+im = axs[1].imshow(true_envelope.T, aspect="equal", cmap="magma", vmin=0)
+create_colorbar(im=im, ax=axs[1])
+axs[1].set(title="True envelope")
+for ax in axs:
+    despine(ax)
+plt.tight_layout()
+
 # %%
 # Transforms of the wavepackets
 # -----------------------------
 #
-# Same parameters for all three; only ``transform_kind`` changes.
+# Same parameters for both; only ``transform_kind`` changes.
 
 bands_gabor = {}
 for kind in kinds:
@@ -331,6 +343,26 @@ for cx, cy, k, theta, sigma in packet_params:
     closer = env > best
     theta_true[closer] = theta % np.pi
     best = np.maximum(best, env)
+
+fig, axs = plt.subplots(1, 2, figsize=(8, 4))
+vmax = np.abs(image_packets).max()
+im = axs[0].imshow(
+    image_packets.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax
+)
+create_colorbar(im=im, ax=axs[0])
+axs[0].set(title="Test image")
+im = axs[1].imshow(
+    np.ma.masked_where(best < 0.5, theta_true).T,
+    aspect="equal",
+    cmap="hsv",
+    vmin=0,
+    vmax=np.pi,
+)
+create_colorbar(im=im, ax=axs[1])
+axs[1].set(title=r"True orientation $\theta$")
+for ax in axs:
+    despine(ax)
+plt.tight_layout()
 
 # %%
 # Low-band coefficients
