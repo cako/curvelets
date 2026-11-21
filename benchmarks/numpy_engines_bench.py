@@ -19,6 +19,7 @@ Results from a 32-vCPU AMD EPYC 9575F are in
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import time
 from collections.abc import Callable
@@ -90,8 +91,10 @@ def main() -> None:
                     "engine": engine,
                     "resolved": getattr(udct, "fft_engine", "numpy"),
                     "workers": args.workers,
-                    "fwd_ms": round(best_ms(lambda u=udct: u.forward(x)), 2),
-                    "bwd_ms": round(best_ms(lambda u=udct, c=coeffs: u.backward(c)), 2),
+                    "fwd_ms": round(best_ms(functools.partial(udct.forward, x)), 2),
+                    "bwd_ms": round(
+                        best_ms(functools.partial(udct.backward, coeffs)), 2
+                    ),
                 }
                 print(json.dumps(row), flush=True)
 
