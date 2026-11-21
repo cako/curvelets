@@ -368,7 +368,7 @@ axs[0].set(title="Test image (noisy)")
 im = axs[1].imshow(
     np.ma.masked_where(best < 0.5, theta_true).T,
     aspect="equal",
-    cmap="hsv",
+    cmap="twilight_shifted",
     vmin=0,
     vmax=180,
 )
@@ -464,7 +464,7 @@ im = axs[0].imshow(real_packets.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vm
 create_colorbar(im=im, ax=axs[0])
 axs[0].set(title="Real low band")
 
-opts = {"aspect": "equal", "cmap": "hsv", "vmin": 0, "vmax": 180}
+opts = {"aspect": "equal", "cmap": "twilight_shifted", "vmin": 0, "vmax": 180}
 panels = [
     (theta_ref, r"True orientation $\theta$ (°)"),
     (theta_real, "Real band: gradient estimate (°)"),
