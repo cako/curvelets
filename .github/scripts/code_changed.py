@@ -35,6 +35,7 @@ import sys
 # so it always counts.
 IGNORED_PATTERNS = (
     "docs/**",
+    "examples/**",
     "**/*.md",
     ".github/workflows/cd.yml",
     ".github/workflows/format.yml",
