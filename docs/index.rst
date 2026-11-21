@@ -36,6 +36,16 @@ or, if you want to use the PyTorch backend, you can install the ``torch`` option
 
     pip install curvelets[torch]
 
+The NumPy transform is FFT-bound. It runs on :mod:`numpy.fft` by default, and can use a faster, multithreaded FFT library when one is installed (selected with ``UDCT(..., fft_engine=..., fft_workers=...)``):
+
+.. code-block:: sh
+
+    pip install curvelets[scipy]  # scipy.fft
+    pip install curvelets[fftw]   # FFTW via pyFFTW
+    pip install curvelets[mkl]    # Intel MKL via mkl_fft (Linux x86_64 and Windows x64)
+
+With the default ``fft_engine="auto"``, MKL is used when installed, otherwise the faster of NumPy and SciPy.
+
 **Curvelets** supports Python 3.11 and above, NumPy 1.20 and above.
 
 First Steps
