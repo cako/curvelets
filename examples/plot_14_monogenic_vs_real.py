@@ -3,14 +3,15 @@ Monogenic vs. Real Transform
 ============================
 
 Three cases where the monogenic curvelet transform :cite:`Storath2010,Storath2011`
-gives meaningful results at the coarse, **isotropic** scales and the real and
-real transform does not.
+gives meaningful results at the coarse, **isotropic** scales and the real transform
+does not.
 
 The curvelet tiling is directional only at the fine scales. The isotropic
 low-frequency band is symmetric in frequency, so its coefficients are real in every
-mode, so it has no analytic signal and no orientation information: it is one
-real scalar array. (The ``"complex"`` transform, meant for complex input, does not
-change this: its isotropic band is the same real array.) The monogenic transform adds the Riesz transforms of each band, giving
+mode: there is no analytic signal, and the transform itself outputs a single real
+scalar array per band, with no orientation. (The ``"complex"`` transform, meant for
+complex input, does not change this: its isotropic band is the same real array.)
+The monogenic transform adds the Riesz transforms of each band, giving
 
 .. math::
    A = \\sqrt{\\beta^2 + (\\mathcal{R}_1\\beta)^2 + (\\mathcal{R}_2\\beta)^2},
@@ -22,7 +23,8 @@ and a local orientation at every scale. The parts below are:
 
 1. **Amplitude and phase** of oscillatory events: smooth envelope and continuous phase.
 2. **Regularity estimation** from the decay of amplitudes across scales.
-3. **Local orientation** from the Riesz components.
+3. **Local orientation** from the Riesz components, compared with a gradient-based
+   estimate computed from the real band.
 """
 
 from __future__ import annotations
@@ -120,8 +122,10 @@ amp_mono = np.sqrt(beta**2 + r1_g**2 + r2_g**2)
 
 # Phase is only meaningful where there is signal, so mask the background.
 signal_gabor = amp_mono > 0.05 * amp_mono.max()
-phase_real = np.ma.masked_where(~signal_gabor, np.where(real_band >= 0, 0.0, np.pi))
-phase_mono = np.ma.masked_where(~signal_gabor, np.arctan2(np.hypot(r1_g, r2_g), beta))
+phase_real = np.ma.masked_where(~signal_gabor, np.where(real_band >= 0, 0.0, 180.0))
+phase_mono = np.ma.masked_where(
+    ~signal_gabor, np.degrees(np.arctan2(np.hypot(r1_g, r2_g), beta))
+)
 
 # %%
 # Amplitude
@@ -174,23 +178,24 @@ for name, a in (
 # Phase
 # -----
 #
-# The real phase is a 0/:math:`\pi` step function that flips at every zero crossing.
+# The real phase is a 0°/180° step function that flips at every zero crossing.
 # The monogenic phase varies continuously across the oscillations of each wavepacket.
-# The phase lies in :math:`[0, \pi]`, so a diverging colormap is used: orange
-# is the positive lobe (0), white the zero crossing (:math:`\pi/2`), purple the
-# negative lobe (:math:`\pi`).
+# The phase lies in [0°, 180°], so a diverging colormap is used: orange is the
+# positive lobe (0°), white the zero crossing (90°), purple the negative lobe (180°).
 
 fig, axs = plt.subplots(1, 3, figsize=(12, 4))
 vmax = np.abs(real_band).max()
 im = axs[0].imshow(real_band.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
 create_colorbar(im=im, ax=axs[0])
 axs[0].set(title=r"Low band $\beta$")
-im = axs[1].imshow(phase_real.T, aspect="equal", cmap="PuOr", vmin=0, vmax=np.pi)
-create_colorbar(im=im, ax=axs[1])
-axs[1].set(title="Real phase\n(0 / $\\pi$ only)")
-im = axs[2].imshow(phase_mono.T, aspect="equal", cmap="PuOr", vmin=0, vmax=np.pi)
-create_colorbar(im=im, ax=axs[2])
-axs[2].set(title="Monogenic phase")
+im = axs[1].imshow(phase_real.T, aspect="equal", cmap="PuOr", vmin=0, vmax=180)
+_, cb = create_colorbar(im=im, ax=axs[1])
+cb.set_ticks([0, 45, 90, 135, 180])
+axs[1].set(title="Real phase (°)\n(0° / 180° only)")
+im = axs[2].imshow(phase_mono.T, aspect="equal", cmap="PuOr", vmin=0, vmax=180)
+_, cb = create_colorbar(im=im, ax=axs[2])
+cb.set_ticks([0, 45, 90, 135, 180])
+axs[2].set(title="Monogenic phase (°)")
 for ax in axs:
     despine(ax)
 plt.tight_layout()
@@ -320,15 +325,18 @@ for kind in kinds:
 # Part 3: Local orientation
 # #########################
 #
-# The Riesz components give an orientation estimate where the real band
-# have none.
+# The Riesz components give an orientation estimate in the isotropic band. The real
+# transform has no such output; the closest real-only alternative is to differentiate
+# the real band and take the structure tensor of its gradient. That is not part of
+# the transform, but it is the natural baseline, and we compare against it.
 
 # %%
 # Test image with known orientations
 # ----------------------------------
 #
 # Three wavepackets whose carriers have different wave vector directions
-# :math:`\theta` (in radians, measured in the array index plane).
+# :math:`\theta` (in degrees, measured in the array index plane). Noise is added
+# to make the comparison informative.
 
 
 packet_params = [  # (cx, cy, wavenumber, theta, sigma)
@@ -344,8 +352,11 @@ for cx, cy, k, theta, sigma in packet_params:
     env = np.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * sigma**2))
     image_packets += env * np.cos(k * u)
     closer = env > best
-    theta_true[closer] = theta % np.pi
+    theta_true[closer] = np.degrees(theta) % 180
     best = np.maximum(best, env)
+
+noise_std = 1.0  # relative to unit-amplitude wavepackets
+image_packets += noise_std * np.random.default_rng(0).standard_normal(shape)
 
 fig, axs = plt.subplots(1, 2, figsize=(8, 4))
 vmax = np.abs(image_packets).max()
@@ -353,16 +364,17 @@ im = axs[0].imshow(
     image_packets.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax
 )
 create_colorbar(im=im, ax=axs[0])
-axs[0].set(title="Test image")
+axs[0].set(title="Test image (noisy)")
 im = axs[1].imshow(
     np.ma.masked_where(best < 0.5, theta_true).T,
     aspect="equal",
     cmap="hsv",
     vmin=0,
-    vmax=np.pi,
+    vmax=180,
 )
-create_colorbar(im=im, ax=axs[1])
-axs[1].set(title=r"True orientation $\theta$")
+_, cb = create_colorbar(im=im, ax=axs[1])
+cb.set_ticks([0, 45, 90, 135, 180])
+axs[1].set(title=r"True orientation $\theta$ (°)")
 for ax in axs:
     despine(ax)
 plt.tight_layout()
@@ -385,22 +397,35 @@ print("Low band shapes (real, monogenic):")
 print(f"  {bands_packets['real'].shape}, {bands_packets['monogenic'].shape}")
 
 # %%
-# Orientation from the Riesz components
-# -------------------------------------
+# Orientation estimates
+# ---------------------
+#
+# Both estimators use the same structure tensor of a two-component field,
+# averaged over about one wavelength: the Riesz vector :math:`(\mathcal{R}_1\beta,
+# \mathcal{R}_2\beta)` for the monogenic band, and the finite-difference gradient
+# :math:`\nabla\beta` for the real band. Without averaging, the Riesz vector's
+# direction is noise at the zero crossings of the carrier.
+
+sigma_avg = 4  # in low-band samples
+
+
+def structure_orientation(
+    a: npt.NDArray[np.float64], b: npt.NDArray[np.float64]
+) -> npt.NDArray[np.float64]:
+    """Dominant orientation (degrees, mod 180) of the two-component field (a, b)."""
+    t11: npt.NDArray[np.float64] = gaussian_filter(a * a, sigma_avg)
+    t22: npt.NDArray[np.float64] = gaussian_filter(b * b, sigma_avg)
+    t12: npt.NDArray[np.float64] = gaussian_filter(a * b, sigma_avg)
+    return np.degrees(0.5 * np.arctan2(2 * t12, t11 - t22)) % 180
+
 
 mono_packets = bands_packets["monogenic"]
-r1_p, r2_p = mono_packets[..., 2], mono_packets[..., 3]
+theta_mono = structure_orientation(mono_packets[..., 2], mono_packets[..., 3])
 
-# The Riesz vector of an oscillating pattern vanishes at the zero crossings of the
-# carrier, where its direction is noise. Averaging the products over about one
-# wavelength (a structure tensor of the Riesz vector) gives a robust estimate.
-sigma_avg = 4  # in low-band samples
-t11: npt.NDArray[np.float64] = gaussian_filter(r1_p * r1_p, sigma_avg)
-t22: npt.NDArray[np.float64] = gaussian_filter(r2_p * r2_p, sigma_avg)
-t12: npt.NDArray[np.float64] = gaussian_filter(r1_p * r2_p, sigma_avg)
-theta_est = (0.5 * np.arctan2(2 * t12, t11 - t22)) % np.pi
+real_packets = bands_packets["real"].real
+theta_real = structure_orientation(*np.gradient(real_packets))
+
 amp_packets = np.sqrt((mono_packets**2).sum(axis=-1))
-
 step_packets = shape[0] // mono_packets.shape[0]
 theta_ref = theta_true[::step_packets, ::step_packets]
 weight = best[::step_packets, ::step_packets]
@@ -410,50 +435,66 @@ signal_packets = (weight > 0.5) & (amp_packets > 0.1 * amp_packets.max())
 def angular_error(
     est: npt.NDArray[np.float64], ref: npt.NDArray[np.float64]
 ) -> npt.NDArray[np.float64]:
-    """Smallest difference between orientations (period :math:`\\pi`)."""
-    d = np.abs(est - ref) % np.pi
-    return np.minimum(d, np.pi - d)
+    """Smallest difference between orientations in degrees (period 180)."""
+    d = np.abs(est - ref) % 180
+    return np.minimum(d, 180 - d)
 
 
-err_packets = angular_error(theta_est, theta_ref)
-print(
-    f"Orientation error where the envelope > 0.5 "
-    f"(median / 95th percentile): {np.degrees(np.median(err_packets[signal_packets])):.2f} / "
-    f"{np.degrees(np.percentile(err_packets[signal_packets], 95)):.2f} degrees"
-)
+err_mono = angular_error(theta_mono, theta_ref)
+err_real = angular_error(theta_real, theta_ref)
+print("Orientation error in degrees where the envelope > 0.5:")
+print(f"{'':>20} {'median':>8} {'95th pct':>9}")
+for name, e in (("real (gradient)", err_real), ("monogenic (Riesz)", err_mono)):
+    print(
+        f"{name:>20} {np.median(e[signal_packets]):>8.2f} "
+        f"{np.percentile(e[signal_packets], 95):>9.2f}"
+    )
 
 # %%
 # Results
 # -------
+#
+# The real band itself shows no orientation. The gradient of the real band does,
+# but is noisier than the Riesz vector, whose multiplier has unit modulus and so does
+# not amplify high-frequency noise the way a derivative does.
 
 fig, axs = plt.subplots(1, 4, figsize=(16, 4))
-vmax = np.abs(bands_packets["real"]).max()
-im = axs[0].imshow(
-    bands_packets["real"].real.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax
-)
+vmax = np.abs(real_packets).max()
+im = axs[0].imshow(real_packets.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
 create_colorbar(im=im, ax=axs[0])
-axs[0].set(title="Real low band\n(no orientation information)")
+axs[0].set(title="Real low band")
 
-opts = {"aspect": "equal", "cmap": "hsv", "vmin": 0, "vmax": np.pi}
-im = axs[1].imshow(np.ma.masked_where(~signal_packets, theta_ref).T, **opts)
-create_colorbar(im=im, ax=axs[1])
-axs[1].set(title=r"True orientation $\theta$")
-
-im = axs[2].imshow(np.ma.masked_where(~signal_packets, theta_est).T, **opts)
-create_colorbar(im=im, ax=axs[2])
-axs[2].set(title=r"Monogenic estimate $\hat\theta$")
-
-im = axs[3].imshow(
-    np.degrees(np.ma.masked_where(~signal_packets, err_packets)).T,
-    aspect="equal",
-    cmap="magma",
-    vmin=0,
-    vmax=10,
-)
-create_colorbar(im=im, ax=axs[3])
-axs[3].set(title="Error (degrees)")
+opts = {"aspect": "equal", "cmap": "hsv", "vmin": 0, "vmax": 180}
+panels = [
+    (theta_ref, r"True orientation $\theta$ (°)"),
+    (theta_real, "Real band: gradient estimate (°)"),
+    (theta_mono, "Monogenic: Riesz estimate (°)"),
+]
+for ax, (data, title) in zip(axs[1:], panels, strict=True):
+    im = ax.imshow(np.ma.masked_where(~signal_packets, data).T, **opts)
+    _, cb = create_colorbar(im=im, ax=ax)
+    cb.set_ticks([0, 45, 90, 135, 180])
+    ax.set(title=title)
 for ax in axs:
     despine(ax)
+plt.tight_layout()
+
+fig, axs = plt.subplots(1, 2, figsize=(9.5, 4.2))
+for ax, (err, title) in zip(
+    axs,
+    ((err_real, "Real gradient: error (°)"), (err_mono, "Monogenic: error (°)")),
+    strict=True,
+):
+    im = ax.imshow(
+        np.ma.masked_where(~signal_packets, err).T,
+        aspect="equal",
+        cmap="magma",
+        vmin=0,
+        vmax=20,
+    )
+    create_colorbar(im=im, ax=ax)
+    despine(ax)
+    ax.set(title=title)
 plt.tight_layout()
 
 # %%
@@ -463,7 +504,9 @@ plt.tight_layout()
 # - At the fine, directional scales the real and monogenic amplitudes agree
 #   :cite:p:`Storath2011`.
 # - At the isotropic scales the real transform yields real coefficients
-#   with an oscillating amplitude, a binary phase and no orientation.
+#   with an oscillating amplitude and a binary phase, and the transform gives no
+#   orientation. A gradient of the real band can estimate it, with larger errors
+#   under noise.
 # - The monogenic transform gives a smooth envelope, a continuous phase and a local
 #   orientation at every scale, which stabilises multiscale analyses such as
 #   regularity estimation from coefficient decay.
