@@ -624,6 +624,8 @@ class SparseWindow:
         recompute them on every call. ``decimation`` is small integer metadata
         and stays where it is (normally the CPU).
 
+        .. versionadded:: 1.3
+
         Parameters
         ----------
         fn : Callable[[torch.Tensor], torch.Tensor]
