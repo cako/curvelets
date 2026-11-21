@@ -37,6 +37,16 @@ dependencies = ["numpy>=1.20", "typing_extensions; python_version<'3.12'"]
 
 [project.optional-dependencies]
 torch = ["torch"]
+# FFT engines for the NumPy transform (UDCT(fft_engine=...)). When SciPy is
+# installed, it is the default engine.
+scipy = ["scipy"]
+fftw = ["pyFFTW"]
+# Intel MKL wheels exist for Linux x86_64 and Windows x64 only. mkl-service
+# enables the SciPy-style interface, so fft_workers applies to MKL too.
+mkl = [
+  "mkl_fft; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
+  "mkl-service; (sys_platform == 'linux' and platform_machine == 'x86_64') or (sys_platform == 'win32' and platform_machine == 'AMD64')",
+]
 
 [dependency-groups]
 test = [
@@ -45,6 +55,8 @@ test = [
   "pytest-timeout>=2.0",
   "coverage>=7.7.0",
   "matplotlib",
+  # Exercises the NumPy transform's SciPy FFT engine and fft_engine="auto".
+  "scipy",
   "torch",
   # Fused fold kernel tests (Triton's CPU interpreter in CPU-only CI). CPU torch
   # wheels do not pull it in; wheels exist for Linux x86_64 only.
@@ -136,7 +148,7 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
-module = ["matplotlib.*", "mpl_toolkits.*", "numpy.*"]
+module = ["matplotlib.*", "mpl_toolkits.*", "numpy.*", "mkl_fft.*", "pyfftw.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -222,6 +234,7 @@ isort.required-imports = ["from __future__ import annotations"]
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
 "examples/**" = ["T20"]
+".github/scripts/**" = ["T20"]
 "benchmarks/**" = ["T20", "BLE001", "PLC0415", "SLF001", "N806"]
 
 

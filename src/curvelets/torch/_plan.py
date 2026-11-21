@@ -41,7 +41,7 @@ L2, and each row still has enough GPU work to hide its kernel launches.
 Batches of smaller inputs run whole: for them, more launches would cost more
 than the cache saves.
 
-The launch count no longer grows with the number of wedges. Every op is
+The launch count does not grow with the number of wedges. Every op is
 out-of-place and differentiable, so the plan works under autograd and
 ``torch.vmap``, and it accepts arbitrary leading batch dimensions. The gather
 path traces into a single graph under ``torch.compile``.
@@ -149,6 +149,10 @@ class UDCTPlan:
     # Accelerators: the device's L2 size. Batches whose rows each need more
     # working memory than this run row by row; None runs every batch whole.
     batch_chunk_bytes: int | None = None
+    # Device the plan was built for: its fold strategy, Triton kernels and
+    # batch chunking are chosen for it. ``torch.load(map_location=...)`` moves
+    # the tensors but not these choices, so the owner rebuilds on a mismatch.
+    device: torch.device | None = None
     # CPU forward scratch space ([F, conj F]), reused across calls per thread.
     # Freshly allocated large buffers cost about as much as the FFTs on CPUs,
     # because every page is faulted in again; GPU memory is recycled by PyTorch.
@@ -294,6 +298,7 @@ class UDCTPlan:
             batch_chunk_bytes=(
                 _l2_cache_bytes(fwd_idx.device) if strategy == "gather" else None
             ),
+            device=fwd_idx.device,
         )
 
     # Thread-local scratch cannot be pickled or deep-copied (``copy.deepcopy``,
