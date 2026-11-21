@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import Any
 
 import numpy as np
@@ -65,7 +66,7 @@ def test_engines_agree_with_numpy(engine, transform_kind, dtype):
 
 def test_unknown_engine_raises():
     with pytest.raises(ValueError, match="fft_engine must be one of"):
-        UDCT(shape=(32, 32), num_scales=2, fft_engine="cufft")
+        UDCT(shape=(32, 32), num_scales=2, fft_engine="cufft")  # type: ignore[arg-type]
 
 
 def test_missing_engine_falls_back_to_numpy(monkeypatch):
@@ -91,8 +92,10 @@ def test_fft_workers_is_passed_to_engine(engine):
     one = UDCT(shape=(40, 48), num_scales=3, fft_engine=engine, fft_workers=1)
     two = UDCT(shape=(40, 48), num_scales=3, fft_engine=engine, fft_workers=2)
     if engine != "mkl_fft":  # mkl_fft without mkl-service has no workers
-        assert one._fft.fftn.keywords["workers"] == 1
-        assert two._fft.fftn.keywords["workers"] == 2
+        for udct, workers in ((one, 1), (two, 2)):
+            fftn = udct._fft.fftn
+            assert isinstance(fftn, functools.partial)
+            assert fftn.keywords["workers"] == workers
     np.testing.assert_allclose(
         two.backward(two.forward(data)), one.backward(one.forward(data)), atol=1e-12
     )
@@ -207,7 +210,9 @@ def test_fold_with_collisions_accumulates():
     window.attach_periodized([2])
     samples: npt.NDArray[np.complex128] = np.arange(1, 6, dtype=np.complex128)
     folded = window.fold(samples)
-    expected = np.zeros(window.out_shape, dtype=np.complex128)
+    expected: npt.NDArray[np.complex128] = np.zeros(
+        window.out_shape, dtype=np.complex128
+    )
     np.add.at(expected, window.folded_indices, samples)
     np.testing.assert_array_equal(folded, expected)
 
