@@ -403,6 +403,17 @@ def meyer_window(
     >>> window.shape == frequency.shape
     True
     """
+    output: npt.NDArray[_F] = np.zeros(frequency.shape, dtype=frequency.dtype)
+
+    # Every region below lies inside [lo, hi]; evaluate only there, since the
+    # window is typically supported on a small fraction of a large grid.
+    lo = min(transition_start, plateau_start, plateau_end, transition_end)
+    hi = max(transition_start, plateau_start, plateau_end, transition_end)
+    frequency_flat: npt.NDArray[_F] = frequency.reshape(-1)
+    support = np.flatnonzero((frequency_flat >= lo) & (frequency_flat <= hi))
+    if support.size == 0:
+        return output
+    frequency = frequency_flat[support]
     window_values = np.zeros_like(frequency)
 
     # Region 1: Rising transition from transition_start to plateau_start
@@ -440,7 +451,8 @@ def meyer_window(
     # If plateau_end == transition_end, frequencies at that boundary
     # remain 0 (already set by initialization)
 
-    return window_values
+    output.reshape(-1)[support] = window_values
+    return output
 
 
 def upsample(

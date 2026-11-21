@@ -238,7 +238,16 @@ def meyer_window(
     original_device = frequency.device
     original_dtype = frequency.dtype
     # Move to CPU for NumPy conversion (required for GPU tensors)
-    freq_np = frequency.cpu().numpy()
+    freq_full = frequency.cpu().numpy()
+    output = np.zeros(freq_full.shape, dtype=freq_full.dtype)
+
+    # Every region below lies inside [lo, hi]; evaluate only there, since the
+    # window is typically supported on a small fraction of a large grid.
+    lo = min(transition_start, plateau_start, plateau_end, transition_end)
+    hi = max(transition_start, plateau_start, plateau_end, transition_end)
+    freq_flat = freq_full.reshape(-1)
+    support = np.flatnonzero((freq_flat >= lo) & (freq_flat <= hi))
+    freq_np = freq_flat[support]
     window_values = np.zeros_like(freq_np)
 
     poly_coeffs = np.array([-20.0, 70.0, -84.0, 35.0, 0.0, 0.0, 0.0, 0.0])
@@ -265,6 +274,5 @@ def meyer_window(
             )
             window_values[falling_mask] = np.polyval(poly_coeffs, normalized_freq)
 
-    return torch.from_numpy(window_values).to(
-        dtype=original_dtype, device=original_device
-    )
+    output.reshape(-1)[support] = window_values
+    return torch.from_numpy(output).to(dtype=original_dtype, device=original_device)
