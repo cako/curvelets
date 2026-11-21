@@ -11,6 +11,7 @@ import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
 from ._backward_transform_monogenic import _apply_backward_transform_monogenic
+from ._fft import FFTEngine, resolve_fft_engine
 from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_monogenic,
@@ -77,6 +78,33 @@ class UDCT:
         - "monogenic": Monogenic transform that extends the curvelet transform
           by applying Riesz transforms, producing ndim+2 channels per band
           (scalar as 2 real channels plus all Riesz components).
+    fft_engine : {"scipy", "numpy", "auto", "fftw", "mkl_fft"}, optional
+        FFT implementation, chosen once when the transform is created.
+        Default (``None``): SciPy when it is installed
+        (``pip install curvelets[scipy]``), NumPy otherwise.
+
+        - "scipy": :mod:`scipy.fft`, multithreaded. Keeps float32 inputs in
+          single precision on every NumPy version.
+        - "numpy": :mod:`numpy.fft` (single-threaded).
+        - "auto": the fastest of NumPy and the installed engines that plan
+          cheaply (SciPy, ``mkl_fft``, and FFTW when pyFFTW runs on AMD's
+          FFTW) for this shape. They are timed when the first transform of
+          each shape is created (cached afterwards), which adds to its
+          creation time.
+        - "fftw": FFTW via ``pyFFTW``, multithreaded. Plans are cached; with
+          the stock FFTW the first transform of each shape plans with
+          ``FFTW_MEASURE`` (seconds), with AMD's FFTW with the much faster
+          ``FFTW_ESTIMATE``.
+        - "mkl_fft": Intel MKL via ``mkl_fft``, multithreaded.
+
+        A requested engine whose package is not installed falls back to
+        NumPy with a warning. All engines give the same result up to rounding.
+    fft_workers : int, optional
+        Number of threads used by the multithreaded FFT engines (``scipy``,
+        ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs available to
+        the process (respecting CPU affinity, e.g. in containers). Ignored by
+        ``numpy``, and by ``mkl_fft`` when ``mkl-service`` is not installed
+        (MKL then uses its own default).
 
     Attributes
     ----------
@@ -86,6 +114,9 @@ class UDCT:
         High frequency mode.
     transform_kind : str
         Type of transform being used ("real", "complex", or "monogenic").
+    fft_engine : str
+        FFT engine in use ("numpy", "scipy", "fftw" or "mkl_fft"), after
+        resolving "auto" and fallbacks.
     parameters : ParamUDCT
         Internal UDCT parameters.
     windows : UDCTWindows
@@ -124,6 +155,8 @@ class UDCT:
         window_threshold: float = 1e-5,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
+        fft_engine: FFTEngine | None = None,
+        fft_workers: int | None = None,
     ) -> None:
         # Validate transform_kind
         if transform_kind not in ("real", "complex", "monogenic"):
@@ -157,6 +190,12 @@ class UDCT:
 
         # Calculate windows and attach periodized FFT index maps
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
+
+        # FFT engine, resolved once (an "auto" choice is benchmarked per shape)
+        self._fft = resolve_fft_engine(
+            fft_engine, self.parameters.shape, workers=fft_workers
+        )
+        self.fft_engine: str = self._fft.name
 
         # Cache Riesz filters for monogenic transforms (and .monogenic())
         self._riesz_filters: list[npt.NDArray[np.complexfloating]] | None = None
@@ -458,6 +497,8 @@ class UDCT:
         window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
         windows, decimation_ratios, indices = window_computer.compute()
         need_flip = self.transform_kind == "complex"
+        # Real and monogenic transforms work on the rfftn half spectrum.
+        need_half = not need_flip
         for scale_idx, scale_windows in enumerate(windows):
             for direction_idx, direction_windows in enumerate(scale_windows):
                 if decimation_ratios[scale_idx].shape[0] == 1:
@@ -467,7 +508,9 @@ class UDCT:
                         min(direction_idx, decimation_ratios[scale_idx].shape[0] - 1)
                     ]
                 for window in direction_windows:
-                    window.attach_periodized(dec, with_flip=need_flip)
+                    window.attach_periodized(
+                        dec, with_flip=need_flip, half_spectrum=need_half
+                    )
         return windows, decimation_ratios, indices
 
     def _get_riesz_filters(self) -> list[npt.NDArray[np.complexfloating]]:
@@ -891,6 +934,7 @@ class UDCT:
             self.parameters,
             self.windows,
             self.decimation_ratios,
+            self._fft,
         )
 
     def _forward_complex(
@@ -906,6 +950,7 @@ class UDCT:
             self.parameters,
             self.windows,
             self.decimation_ratios,
+            self._fft,
         )
 
     def _forward_monogenic(
@@ -918,6 +963,7 @@ class UDCT:
             self.windows,
             self.decimation_ratios,
             riesz_filters_list=self._get_riesz_filters(),
+            fft=self._fft,
         )
 
     def backward(
@@ -985,6 +1031,7 @@ class UDCT:
             self.windows,
             self.decimation_ratios,
             use_complex_transform=False,
+            fft=self._fft,
         )
 
     def _backward_complex(self, coefficients: UDCTCoefficients[_C]) -> np.ndarray:
@@ -995,6 +1042,7 @@ class UDCT:
             self.windows,
             self.decimation_ratios,
             use_complex_transform=True,
+            fft=self._fft,
         )
 
     def _backward_monogenic(
@@ -1003,7 +1051,11 @@ class UDCT:
     ) -> tuple[npt.NDArray[_F], ...]:
         """Private method for monogenic backward transform (no input validation)."""
         return _apply_backward_transform_monogenic(
-            coefficients, self.parameters, self.windows, self.decimation_ratios
+            coefficients,
+            self.parameters,
+            self.windows,
+            self.decimation_ratios,
+            fft=self._fft,
         )
 
     def monogenic(self, image: npt.NDArray[_F]) -> tuple[npt.NDArray[_F], ...]:
@@ -1092,7 +1144,8 @@ class UDCT:
         riesz_filters_list = self._get_riesz_filters()
 
         # Compute FFT of input
-        image_frequency = np.fft.fftn(image)
+        fft = self._fft
+        image_frequency = fft.fftn(image)
 
         # Preserve input dtype
         real_dtype = image.dtype
@@ -1100,7 +1153,7 @@ class UDCT:
         # Compute all Riesz components: -Rₖf for k = 1, 2, ..., ndim
         riesz_components: list[npt.NDArray[_F]] = []
         for riesz_filter in riesz_filters_list:
-            riesz_k = -np.fft.ifftn(image_frequency * riesz_filter).real
+            riesz_k = -fft.ifftn(image_frequency * riesz_filter).real
             riesz_components.append(riesz_k.astype(real_dtype))
 
         return (image.copy(), *tuple(riesz_components))

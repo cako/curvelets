@@ -4,8 +4,9 @@ The UDCT is a tight frame: the backward (inverse) transform is the adjoint of
 the forward transform, and vice versa. So the gradient of either transform is
 the other transform applied to the incoming gradient, with no autograd graph
 through the fused plan. Both directions are then plain calls without
-gradients, which :class:`~curvelets.torch.UDCTModule` relies on for speed
-and ``UDCT(cuda_graphs=True)`` for replaying both from CUDA graphs.
+gradients: :class:`~curvelets.torch.UDCT` routes every differentiable call
+through these Functions for speed, and ``UDCT(cuda_graphs=True)`` replays
+both directions from CUDA graphs.
 """
 
 from __future__ import annotations
@@ -16,6 +17,19 @@ import torch
 
 if typing.TYPE_CHECKING:
     from ._udct import UDCT
+
+
+def _match_input(
+    ctx: torch.autograd.function.FunctionCtx, grad: torch.Tensor
+) -> torch.Tensor:
+    """Real part of a complex gradient for a real input (PyTorch's convention).
+
+    E.g. a real image through the complex transform, or real coefficients
+    through the backward transform.
+    """
+    if ctx.real_input and grad.is_complex():  # ty: ignore[unresolved-attribute]
+        return grad.real
+    return grad
 
 
 class ForwardWithAdjoint(torch.autograd.Function):  # type: ignore[misc]  # pylint: disable=abstract-method
@@ -49,8 +63,9 @@ class ForwardWithAdjoint(torch.autograd.Function):  # type: ignore[misc]  # pyli
         inputs: tuple[torch.Tensor, UDCT],
         output: torch.Tensor,  # noqa: ARG004
     ) -> None:
-        """Keep the transform for the backward pass."""
+        """Keep the transform, and whether the input was real, for the backward pass."""
         ctx.udct = inputs[1]  # ty: ignore[unresolved-attribute]
+        ctx.real_input = not inputs[0].is_complex()  # ty: ignore[unresolved-attribute]
 
     @staticmethod
     def backward(
@@ -58,7 +73,8 @@ class ForwardWithAdjoint(torch.autograd.Function):  # type: ignore[misc]  # pyli
     ) -> tuple[torch.Tensor, None]:
         """Gradient w.r.t. the image: the backward transform of the gradient."""
         udct = ctx.udct  # ty: ignore[unresolved-attribute]
-        return udct._backward_flat(grad_outputs[0]), None  # pylint: disable=protected-access
+        grad = udct._backward_flat(grad_outputs[0])  # pylint: disable=protected-access
+        return _match_input(ctx, grad), None
 
 
 class BackwardWithAdjoint(torch.autograd.Function):  # type: ignore[misc]  # pylint: disable=abstract-method
@@ -91,8 +107,9 @@ class BackwardWithAdjoint(torch.autograd.Function):  # type: ignore[misc]  # pyl
         inputs: tuple[torch.Tensor, UDCT],
         output: torch.Tensor,  # noqa: ARG004
     ) -> None:
-        """Keep the transform for the backward pass."""
+        """Keep the transform, and whether the input was real, for the backward pass."""
         ctx.udct = inputs[1]  # ty: ignore[unresolved-attribute]
+        ctx.real_input = not inputs[0].is_complex()  # ty: ignore[unresolved-attribute]
 
     @staticmethod
     def backward(
@@ -100,4 +117,5 @@ class BackwardWithAdjoint(torch.autograd.Function):  # type: ignore[misc]  # pyl
     ) -> tuple[torch.Tensor, None]:
         """Gradient w.r.t. the coefficients: the forward transform of the gradient."""
         udct = ctx.udct  # ty: ignore[unresolved-attribute]
-        return udct._forward_flat(grad_outputs[0]), None  # pylint: disable=protected-access
+        grad = udct._forward_flat(grad_outputs[0])  # pylint: disable=protected-access
+        return _match_input(ctx, grad), None

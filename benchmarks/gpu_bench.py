@@ -3,7 +3,7 @@
 Compares, per configuration:
 
 - ``library``   : the checked-out library code path (nested-list API) (``UDCT`` + ``apply_to_tensors(cuda)``, i.e. what
-                  ``UDCTModule.to("cuda")`` does), forward = ``vect(forward(x))``,
+                  ``UDCT.to("cuda")`` does), forward = ``vect(forward(x))``,
                   backward = ``backward(c)``. (Reported as ``base`` in older results.)
 - ``fix_maps``  : same, but re-attach the periodized index maps that
                   ``apply_to_tensors`` drops.
@@ -166,7 +166,7 @@ class FusedUDCT:
     """
 
     def __init__(self, udct: UDCT, dev: torch.device, real_dtype: torch.dtype):
-        p = udct._parameters
+        p = udct._params
         self.shape = tuple(p.shape)
         self.ndim = len(self.shape)
         self.N = math.prod(self.shape)
@@ -354,9 +354,9 @@ def run_config(
         v = u.vect(c)
         err = (v.cpu() - v_ref).abs().max().item() / v_ref.abs().max().item()
         if vname == "library_vect":
-            # Flat path used by UDCTModule (no nested-list round trip).
-            fwd = lambda u=u: u._forward_vect(x)  # noqa: E731
-            bwd = lambda u=u, v=v: u._backward_vect(v)  # noqa: E731
+            # Flat path (forward_vect/backward_vect, no nested-list round trip).
+            fwd = lambda u=u: u.forward_vect(x)  # noqa: E731
+            bwd = lambda u=u, v=v: u.backward_vect(v)  # noqa: E731
         else:
             fwd = lambda u=u: u.vect(u.forward(x))  # noqa: E731
             # NB: backward is fed the nested coefficients directly; before the P0
@@ -382,19 +382,17 @@ def run_config(
         )
         del u
 
-    # Does backprop through UDCTModule work on this device?
+    # Does backprop through UDCT work on this device?
     try:
-        from curvelets.torch import UDCTModule
-
-        m = UDCTModule(
-            shape=shape, num_scales=ns, wedges_per_direction=wpd, dtype=dtype
-        ).to(dev)
+        m = UDCT(shape=shape, num_scales=ns, wedges_per_direction=wpd, dtype=dtype).to(
+            dev
+        )
         xg = x.clone().requires_grad_(True)
-        m(xg).abs().sum().backward()
+        m.forward_vect(xg).abs().sum().backward()
         res["udctmodule_autograd"] = "ok"
     except Exception as e:
         res["udctmodule_autograd"] = repr(e)[:200]
-    print(f"  UDCTModule autograd on {dev}: {res['udctmodule_autograd']}", flush=True)
+    print(f"  UDCT autograd on {dev}: {res['udctmodule_autograd']}", flush=True)
 
     # fused prototype
     fu = FusedUDCT(ref, dev, dtype)
@@ -485,7 +483,7 @@ def run_config(
             )
             / B
         )
-        # vmap via UDCTModule-style path
+        # vmap via the forward_vect path
         try:
             vm = torch.vmap(lambda xi: u_keep.vect(u_keep.forward(xi)))
             vm(xb_b)
