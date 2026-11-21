@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import functools
 import os
+import sys
+import types
 from typing import Any
 
 import numpy as np
@@ -240,3 +242,170 @@ def test_scatter_tiled_non_contiguous_target():
     )
     window.scatter_tiled(small, fortran, 2.0)
     np.testing.assert_array_equal(fortran, contiguous)
+
+
+def _fake_scipy_fft_module(
+    name: str,
+) -> tuple[types.ModuleType, list[tuple[str, int | None]]]:
+    """A stand-in SciPy-style FFT interface, and the log of its calls' ``workers``."""
+    module = types.ModuleType(name)
+    calls: list[tuple[str, int | None]] = []
+    for fn_name in ("fftn", "ifftn", "rfftn", "irfftn"):
+        numpy_fn = getattr(np.fft, fn_name)
+
+        def fn(
+            x: Any,
+            *args: Any,
+            _name: str = fn_name,
+            _np: Any = numpy_fn,
+            workers: int | None = None,
+            **kwargs: Any,
+        ) -> Any:
+            calls.append((_name, workers))
+            return _np(x, *args, **kwargs)
+
+        setattr(module, fn_name, fn)
+    return module, calls
+
+
+def _install_fake_modules(
+    monkeypatch: pytest.MonkeyPatch, modules: dict[str, types.ModuleType]
+) -> None:
+    for name, module in modules.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    _fft._load.cache_clear()
+
+
+@pytest.fixture
+def clear_engine_cache():
+    _fft._load.cache_clear()
+    yield
+    _fft._load.cache_clear()
+
+
+@pytest.mark.usefixtures("clear_engine_cache")
+def test_fftw_engine_wiring_with_fake_pyfftw(monkeypatch):
+    scipy_fft, calls = _fake_scipy_fft_module("pyfftw.interfaces.scipy_fft")
+    enabled: list[bool] = []
+    cache = types.ModuleType("pyfftw.interfaces.cache")
+    setattr(cache, "enable", lambda: enabled.append(True))  # noqa: B010
+    interfaces = types.ModuleType("pyfftw.interfaces")
+    setattr(interfaces, "cache", cache)  # noqa: B010
+    setattr(interfaces, "scipy_fft", scipy_fft)  # noqa: B010
+    pyfftw = types.ModuleType("pyfftw")
+    setattr(pyfftw, "interfaces", interfaces)  # noqa: B010
+    _install_fake_modules(
+        monkeypatch,
+        {
+            "pyfftw": pyfftw,
+            "pyfftw.interfaces": interfaces,
+            "pyfftw.interfaces.cache": cache,
+            "pyfftw.interfaces.scipy_fft": scipy_fft,
+        },
+    )
+    udct = UDCT(shape=(32, 32), num_scales=2, fft_engine="fftw", fft_workers=3)
+    assert udct.fft_engine == "fftw"
+    assert enabled == [True]
+    data = np.random.default_rng(0).standard_normal((32, 32))
+    np.testing.assert_allclose(udct.backward(udct.forward(data)), data, atol=1e-10)
+    assert calls
+    assert {w for _, w in calls} == {3}
+
+
+@pytest.mark.usefixtures("clear_engine_cache")
+@pytest.mark.parametrize("with_mkl_service", [True, False])
+def test_mkl_fft_engine_wiring_with_fake_mkl_fft(monkeypatch, with_mkl_service):
+    scipy_fft, scipy_calls = _fake_scipy_fft_module("mkl_fft.interfaces.scipy_fft")
+    numpy_fft, numpy_calls = _fake_scipy_fft_module("mkl_fft.interfaces.numpy_fft")
+    interfaces = types.ModuleType("mkl_fft.interfaces")
+    setattr(interfaces, "numpy_fft", numpy_fft)  # noqa: B010
+    package = types.ModuleType("mkl_fft")
+    setattr(package, "interfaces", interfaces)  # noqa: B010
+    modules = {
+        "mkl_fft": package,
+        "mkl_fft.interfaces": interfaces,
+        "mkl_fft.interfaces.numpy_fft": numpy_fft,
+    }
+    if with_mkl_service:
+        setattr(interfaces, "scipy_fft", scipy_fft)  # noqa: B010
+        modules["mkl_fft.interfaces.scipy_fft"] = scipy_fft
+    else:
+        # The SciPy interface imports mkl-service; simulate it being missing.
+        def missing(name: str) -> types.ModuleType:
+            if name == "scipy_fft":
+                msg = "No module named 'mkl'"
+                raise ImportError(msg)
+            raise AttributeError(name)
+
+        setattr(interfaces, "__getattr__", missing)  # noqa: B010
+    _install_fake_modules(monkeypatch, modules)
+
+    udct = UDCT(shape=(32, 32), num_scales=2, fft_engine="mkl_fft", fft_workers=2)
+    assert udct.fft_engine == "mkl_fft"
+    data = np.random.default_rng(0).standard_normal((32, 32))
+    np.testing.assert_allclose(udct.backward(udct.forward(data)), data, atol=1e-10)
+    used = scipy_calls if with_mkl_service else numpy_calls
+    unused = numpy_calls if with_mkl_service else scipy_calls
+    assert used
+    assert not unused
+    assert {w for _, w in used} == ({2} if with_mkl_service else {None})
+
+
+def test_default_workers_without_affinity_uses_cpu_count(monkeypatch):
+    monkeypatch.delattr(os, "process_cpu_count", raising=False)
+    monkeypatch.delattr(os, "sched_getaffinity", raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 6)
+    assert _fft._resolve_workers(None) == 6
+    monkeypatch.setattr(os, "cpu_count", lambda: None)
+    assert _fft._resolve_workers(None) == 1
+
+
+@pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])
+def test_transform_functions_default_to_auto_engine(transform_kind):
+    """The private transform functions resolve an engine when none is given."""
+    from curvelets.numpy._backward_transform import _apply_backward_transform
+    from curvelets.numpy._backward_transform_monogenic import (
+        _apply_backward_transform_monogenic,
+    )
+    from curvelets.numpy._forward_transform import (
+        _apply_forward_transform_complex,
+        _apply_forward_transform_monogenic,
+        _apply_forward_transform_real,
+    )
+
+    shape = (32, 32)
+    udct = UDCT(shape=shape, num_scales=2, transform_kind=transform_kind)
+    args = (udct.parameters, udct.windows, udct.decimation_ratios)
+    data = np.random.default_rng(0).standard_normal(shape)
+    if transform_kind == "real":
+        coeffs = _apply_forward_transform_real(data, *args)
+        recon = _apply_backward_transform(coeffs, *args)
+        np.testing.assert_allclose(recon, data, atol=1e-10)
+    elif transform_kind == "complex":
+        cdata = data + 1j * data
+        coeffs = _apply_forward_transform_complex(cdata, *args)
+        recon = _apply_backward_transform(coeffs, *args, use_complex_transform=True)
+        np.testing.assert_allclose(recon, cdata, atol=1e-10)
+    else:
+        coeffs = _apply_forward_transform_monogenic(data, *args)
+        components = _apply_backward_transform_monogenic(coeffs, *args)
+        np.testing.assert_allclose(components[0], data, atol=1e-10)
+
+
+def test_gather_rejects_flip_with_half_spectrum():
+    window = SparseWindow.from_dense(np.ones((4, 4)), threshold=0.5)
+    window.attach_periodized([2, 2])
+    source = half_spectrum_source(np.fft.rfftn(np.ones((4, 4))))
+    with pytest.raises(ValueError, match="flip is not supported"):
+        window.gather(source, flip=True, half=True)
+
+
+def test_fold_product_applies_extra_weights():
+    window = SparseWindow.from_dense(np.ones((4, 4)), threshold=0.5)
+    window.attach_periodized([2, 2])
+    spectrum: npt.NDArray[np.complex128] = np.ones((4, 4), dtype=np.complex128)
+    extra = np.full(window.size, 3.0)
+    np.testing.assert_allclose(
+        window.fold_product(spectrum, extra_at_indices=extra),
+        3.0 * window.fold_product(spectrum),
+    )
