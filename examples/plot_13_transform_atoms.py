@@ -260,7 +260,7 @@ if registered is not None:
 
 # %%
 # References
-# ##########
+# ==========
 #
 # .. bibliography::
 #    :filter: docname in docnames
