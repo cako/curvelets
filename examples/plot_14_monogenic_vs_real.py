@@ -176,16 +176,19 @@ for name, a in (
 #
 # The real phase is a 0/:math:`\pi` step function that flips at every zero crossing.
 # The monogenic phase varies continuously across the oscillations of each wavepacket.
+# The phase lies in :math:`[0, \pi]`, so a diverging colormap is used: orange
+# is the positive lobe (0), white the zero crossing (:math:`\pi/2`), purple the
+# negative lobe (:math:`\pi`).
 
 fig, axs = plt.subplots(1, 3, figsize=(12, 4))
 vmax = np.abs(real_band).max()
 im = axs[0].imshow(real_band.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
 create_colorbar(im=im, ax=axs[0])
 axs[0].set(title=r"Low band $\beta$")
-im = axs[1].imshow(phase_real.T, aspect="equal", cmap="viridis", vmin=0, vmax=np.pi)
+im = axs[1].imshow(phase_real.T, aspect="equal", cmap="PuOr", vmin=0, vmax=np.pi)
 create_colorbar(im=im, ax=axs[1])
 axs[1].set(title="Real phase\n(0 / $\\pi$ only)")
-im = axs[2].imshow(phase_mono.T, aspect="equal", cmap="viridis", vmin=0, vmax=np.pi)
+im = axs[2].imshow(phase_mono.T, aspect="equal", cmap="PuOr", vmin=0, vmax=np.pi)
 create_colorbar(im=im, ax=axs[2])
 axs[2].set(title="Monogenic phase")
 for ax in axs:
@@ -196,7 +199,7 @@ plt.tight_layout()
 # Part 2: Regularity estimation
 # #############################
 #
-# Following Section 7 of :cite:`Storath2011`: decay rates of amplitudes across
+# Following Section 7 of :cite:t:`Storath2011`: decay rates of amplitudes across
 # scales, with the isotropic band as an extra data point.
 
 # %%
@@ -458,7 +461,7 @@ plt.tight_layout()
 # #########
 #
 # - At the fine, directional scales the real and monogenic amplitudes agree
-#   :cite:`Storath2011`.
+#   :cite:p:`Storath2011`.
 # - At the isotropic scales the real transform yields real coefficients
 #   with an oscillating amplitude, a binary phase and no orientation.
 # - The monogenic transform gives a smooth envelope, a continuous phase and a local
