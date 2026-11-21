@@ -268,26 +268,25 @@ class TestCoefficientShapes:
         assert predicted_shapes == actual_shapes
 
     @pytest.mark.parametrize("transform_type", ["real", "complex"])
-    def test_coefficient_shapes_udct_module(self, transform_type):
+    def test_coefficient_shapes_forward_vect(self, transform_type):
         """
-        Test that UDCTModule.coefficient_shapes() delegates and matches actual forward output.
+        Test that coefficient_shapes() matches struct(forward_vect(x)).
 
         Parameters
         ----------
         transform_type : str
             Transform type ("real" or "complex").
         """
-        from curvelets.torch import UDCTModule
-
         shape = (64, 64)
-        module = UDCTModule(
+        module = UDCT(
             shape=shape,
             num_scales=3,
             wedges_per_direction=3,
-            transform_type=transform_type,
+            transform_kind=transform_type,
+            dtype=torch.float64,
         )
         predicted_shapes = module.coefficient_shapes()
-        actual_vec = module.forward(torch.zeros(shape, dtype=torch.float64))
+        actual_vec = module.forward_vect(torch.zeros(shape, dtype=torch.float64))
         actual_coeffs = module.struct(actual_vec)
         actual_shapes = [
             [[tuple(wedge.shape) for wedge in direction] for direction in scale]

@@ -43,7 +43,7 @@ A third flavor is the **Uniform Discrete Curvelet Transform (UDCT)** which does 
 Can I use the **Curvelets** package for deep learning?
 ######################################################
 
-Yes! The package provides a PyTorch module, :class:`~curvelets.torch.UDCTModule`, which can be used to train deep networks.
+Yes! The PyTorch transform, :class:`~curvelets.torch.UDCT`, is a differentiable ``torch.nn.Module`` that can be used to train deep networks.
 
 Should I use curvelets for deep learning?
 #########################################

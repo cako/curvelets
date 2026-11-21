@@ -176,7 +176,7 @@ Benchmarking the PyTorch backend
 
 Performance work on :mod:`curvelets.torch` is measured, not guessed. The scripts live in ``benchmarks/`` and need a machine with a CUDA GPU for the GPU numbers (the CPU numbers run anywhere):
 
-* ``benchmarks/gpu_bench.py`` times the torch :class:`~curvelets.torch.UDCT` for several 2D and 3D sizes, compares the current path against reference variants, counts kernel launches and device-to-host synchronizations with ``torch.profiler``, reports peak memory, and checks that :class:`~curvelets.torch.UDCTModule` backpropagates on the device.
+* ``benchmarks/gpu_bench.py`` times the torch :class:`~curvelets.torch.UDCT` for several 2D and 3D sizes, compares the current path against reference variants, counts kernel launches and device-to-host synchronizations with ``torch.profiler``, reports peak memory, and checks that :class:`~curvelets.torch.UDCT` backpropagates on the device.
 * ``benchmarks/gpu_check.py`` runs the torch test suite first and the benchmark afterwards. It exits with a non-zero status if the tests fail (the benchmark still runs, for diagnosis).
 
 .. code-block:: bash

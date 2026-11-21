@@ -59,7 +59,7 @@ def _udct(
 def _plan(udct: UDCT) -> UDCTPlan:
     """Build a gather plan (with the current environment) and install it on ``udct``."""
     plan = UDCTPlan.build(
-        udct._parameters,  # pylint: disable=protected-access
+        udct._params,  # pylint: disable=protected-access
         udct.windows,
         udct._decimation_ratios_cpu,  # pylint: disable=protected-access
         complex_mode=udct._transform_kind == "complex",  # pylint: disable=protected-access
