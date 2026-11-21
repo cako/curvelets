@@ -13,7 +13,7 @@ The heatmap displays:
 - Blue dashed line: default alpha (10% of theoretical max)
 - Green solid line: optimal alpha (minimum reconstruction error)
 
-The default window_overlap is computed using the Nguyen & Chauris (2010) constraint:
+The default window_overlap is computed using the constraint of :cite:t:`Nguyen2010`:
 
 .. math::
 
@@ -41,7 +41,7 @@ from curvelets.plot import despine
 # ####################
 #
 # Define functions to compute the theoretical maximum and default
-# window_overlap using the Nguyen & Chauris (2010) constraint formula.
+# window_overlap using the constraint formula of :cite:t:`Nguyen2010`.
 
 
 def compute_theoretical_max(num_scales: int, wedges_per_direction: int) -> float:
@@ -226,10 +226,17 @@ plt.show()
 #    These typically occur at higher window_overlap values.
 #
 # 3. **Blue dashed lines** mark the default alpha values
-#    using 10% of the Nguyen & Chauris theoretical maximum.
+#    using 10% of the theoretical maximum of :cite:t:`Nguyen2010`.
 #
 # 4. **Green solid lines** mark the optimal alpha values that give
 #    the minimum reconstruction error for each configuration.
 #
 # 5. The optimal alpha **increases with wedges_per_direction** because
 #    more wedges provide a looser constraint on the window overlap.
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

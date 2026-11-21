@@ -204,7 +204,7 @@ plt.tight_layout()
 # Part 2: Regularity estimation
 # #############################
 #
-# Following Section 7 of Storath (2011): decay rates of amplitudes across
+# Following Section 7 of :cite:t:`Storath2011`: decay rates of amplitudes across
 # scales, with the isotropic band as an extra data point.
 
 # %%
@@ -458,11 +458,13 @@ for name, e in (("real (gradient)", err_real), ("monogenic (Riesz)", err_mono)):
 # but is noisier than the Riesz vector, whose multiplier has unit modulus and so does
 # not amplify high-frequency noise the way a derivative does.
 
-fig, axs = plt.subplots(1, 4, figsize=(16, 4))
+fig, axs = plt.subplots(2, 2, figsize=(9, 8))
 vmax = np.abs(real_packets).max()
-im = axs[0].imshow(real_packets.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
-create_colorbar(im=im, ax=axs[0])
-axs[0].set(title="Real low band")
+im = axs[0, 0].imshow(
+    real_packets.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax
+)
+create_colorbar(im=im, ax=axs[0, 0])
+axs[0, 0].set(title="Real low band")
 
 opts = {"aspect": "equal", "cmap": "twilight_shifted", "vmin": 0, "vmax": 180}
 panels = [
@@ -470,12 +472,12 @@ panels = [
     (theta_real, "Real band: gradient estimate (°)"),
     (theta_mono, "Monogenic: Riesz estimate (°)"),
 ]
-for ax, (data, title) in zip(axs[1:], panels, strict=True):
+for ax, (data, title) in zip(axs.flat[1:], panels, strict=True):
     im = ax.imshow(np.ma.masked_where(~signal_packets, data).T, **opts)
     _, cb = create_colorbar(im=im, ax=ax)
     cb.set_ticks([0, 45, 90, 135, 180])
     ax.set(title=title)
-for ax in axs:
+for ax in axs.flat:
     despine(ax)
 plt.tight_layout()
 
@@ -508,7 +510,7 @@ plt.tight_layout()
 # #########
 #
 # - At the fine, directional scales the real and monogenic amplitudes agree
-#   (Storath, 2011).
+#   :cite:p:`Storath2011`.
 # - At the isotropic scales the real transform yields real coefficients
 #   with an oscillating amplitude and a binary phase, and the transform gives no
 #   orientation. A gradient of the real band can estimate it, with larger errors
@@ -516,3 +518,10 @@ plt.tight_layout()
 # - The monogenic transform gives a smooth envelope, a continuous phase and a local
 #   orientation at every scale, which stabilises multiscale analyses such as
 #   regularity estimation from coefficient decay.
+
+# %%
+# References
+# ----------
+#
+# .. bibliography::
+#    :filter: docname in docnames

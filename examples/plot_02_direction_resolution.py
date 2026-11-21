@@ -1,7 +1,7 @@
 r"""
 Asymmetric Directional Resolution
 =================================
-One of the features of the UDCT is that it is able to specify different
+One of the features of the UDCT :cite:`Nguyen2010` is that it is able to specify different
 resolutions for different quadrants of the Fourier space. This allows
 one to target finer details with more division, and coarser scales with
 fewer.
@@ -303,3 +303,10 @@ ax1.set(
 )
 plot_colorbars(C.windows, [ax3, ax4], cmaps=cmaps)
 plot_disk(C, ax2, cmaps_dir=cmaps, color_low=color_low, color_bg=color_bg)
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

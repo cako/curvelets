@@ -1,7 +1,7 @@
 """
 Meyer Wavelet Transform
 ========================
-This example demonstrates the Meyer wavelet transform using a zone plate
+This example demonstrates the Meyer wavelet transform :cite:`Daubechies1992` using a zone plate
 test image. The Meyer wavelet decomposes a 2D signal into 4 subbands:
 1 lowpass subband and 3 highpass subbands (horizontal low-high, vertical high-low, and
 diagonal high-high). The transform is perfectly invertible, allowing exact
@@ -238,3 +238,10 @@ print("\nReconstruction Quality:")
 print(f"Max absolute error: {error_max:.2e}")
 print(f"Relative error: {error_max / np.abs(zone_plate).max():.2e}")
 print(f"RMSE: {np.sqrt(np.mean(error**2)):.2e}")
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

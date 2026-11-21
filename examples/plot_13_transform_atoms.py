@@ -4,10 +4,11 @@ Comparison of Transform Atoms
 
 An *atom* of an invertible transform is the image that a single coefficient
 stands for: set one coefficient to one, all the others to zero, and invert the
-transform. This example compares the atoms of the UDCT (this package) with the
-ones of the discrete wavelet transform (DWT) and the dual-tree complex wavelet
-transform (DTCWT), and with the images that excite one coefficient of Kymatio's
-scattering transform the most (the scattering transform is not invertible, so it
+transform. This example compares the atoms of the UDCT :cite:`Nguyen2010` (this
+package) with the ones of the discrete wavelet transform (DWT) and the dual-tree
+complex wavelet transform (DTCWT) :cite:`Kingsbury2001`, and with the images that
+excite one coefficient of Kymatio's scattering transform :cite:`Bruna2013,Andreux2019`
+the most (the scattering transform is not invertible, so it
 has no atoms). It closes with the redundancy of each transform.
 """
 
@@ -256,3 +257,10 @@ if registered is not None:
         color="0.35",
     )
     plt.show()
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames
