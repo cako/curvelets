@@ -138,7 +138,7 @@ Creating a transform builds its windows on the CPU, with the same code as :mod:`
     # later, or in another process
     transform = torch.load("udct_2048.pt", weights_only=False)
 
-``pickle`` works too. The file is large (about 110 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of ``curvelets`` that wrote it, so rebuild it after upgrading. The same applies to :class:`curvelets.numpy.UDCT` (see :ref:`cpu-performance`).
+``pickle`` works too. The file is large (about 100 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of ``curvelets`` that wrote it, so rebuild it after upgrading. The same applies to :class:`curvelets.numpy.UDCT` (see :ref:`cpu-performance`).
 
 Measured numbers, and the scripts that produce them, are in ``benchmarks/`` (see :ref:`contributing`).
 

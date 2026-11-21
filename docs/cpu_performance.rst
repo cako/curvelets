@@ -70,7 +70,7 @@ Creating a transform builds its windows, using all CPU cores: on a 4-core laptop
     with open("udct_2048.pkl", "rb") as f:  # later, or in another process
         transform = pickle.load(f)
 
-The file is large (about 130 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of **Curvelets** that wrote it, so rebuild it after upgrading.
+The file is large (about 280 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of **Curvelets** that wrote it, so rebuild it after upgrading.
 
 AMD CPUs
 ========
