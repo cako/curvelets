@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import os
 from typing import Any
 
 import numpy as np
@@ -99,6 +100,17 @@ def test_fft_workers_is_passed_to_engine(engine):
     np.testing.assert_allclose(
         two.backward(two.forward(data)), one.backward(one.forward(data)), atol=1e-12
     )
+
+
+def test_default_workers_respect_cpu_affinity(monkeypatch):
+    monkeypatch.setattr(os, "cpu_count", lambda: 128)
+    monkeypatch.setattr(os, "process_cpu_count", lambda: 32, raising=False)
+    assert _fft._resolve_workers(None) == 32
+    monkeypatch.delattr(os, "process_cpu_count", raising=False)
+    monkeypatch.setattr(
+        os, "sched_getaffinity", lambda _pid: set(range(8)), raising=False
+    )
+    assert _fft._resolve_workers(None) == 8
 
 
 def test_engine_is_resolved_once_at_construction(monkeypatch):

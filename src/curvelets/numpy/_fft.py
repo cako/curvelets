@@ -125,9 +125,26 @@ def _load(name: str, workers: int = 1) -> FFTBackend | None:
         return None
 
 
+def _usable_cpu_count() -> int:
+    """
+    CPUs this process may run on.
+
+    ``os.cpu_count()`` counts the whole machine, which over-subscribes threads
+    in containers and under CPU affinity (e.g. 128 reported, 32 usable).
+    """
+    process_cpu_count = getattr(os, "process_cpu_count", None)  # Python >= 3.13
+    if process_cpu_count is not None:
+        count = process_cpu_count()
+    elif hasattr(os, "sched_getaffinity"):
+        count = len(os.sched_getaffinity(0))
+    else:
+        count = os.cpu_count()
+    return count or 1
+
+
 def _resolve_workers(workers: object) -> int:
     if workers is None:
-        return os.cpu_count() or 1
+        return _usable_cpu_count()
     if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
         msg = f"fft_workers must be a positive integer or None, got {workers!r}"
         raise ValueError(msg)
@@ -203,7 +220,8 @@ def resolve_fft_engine(
     shape : tuple of int
         Transform (image) shape.
     workers : int, optional
-        Threads for the multithreaded engines (``None``: all CPUs). Ignored by
+        Threads for the multithreaded engines (``None``: all CPUs this
+        process may use). Ignored by
         ``numpy``.
 
     Returns
