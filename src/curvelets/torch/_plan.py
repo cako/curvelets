@@ -149,6 +149,10 @@ class UDCTPlan:
     # Accelerators: the device's L2 size. Batches whose rows each need more
     # working memory than this run row by row; None runs every batch whole.
     batch_chunk_bytes: int | None = None
+    # Device the plan was built for: its fold strategy, Triton kernels and
+    # batch chunking are chosen for it. ``torch.load(map_location=...)`` moves
+    # the tensors but not these choices, so the owner rebuilds on a mismatch.
+    device: torch.device | None = None
     # CPU forward scratch space ([F, conj F]), reused across calls per thread.
     # Freshly allocated large buffers cost about as much as the FFTs on CPUs,
     # because every page is faulted in again; GPU memory is recycled by PyTorch.
@@ -294,6 +298,7 @@ class UDCTPlan:
             batch_chunk_bytes=(
                 _l2_cache_bytes(fwd_idx.device) if strategy == "gather" else None
             ),
+            device=fwd_idx.device,
         )
 
     # Thread-local scratch cannot be pickled or deep-copied (``copy.deepcopy``,

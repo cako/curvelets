@@ -127,6 +127,21 @@ def test_deprecated_udct_module_copies(how: str) -> None:
     torch.testing.assert_close(clone(x), module(x))
 
 
+def test_plan_for_another_device_is_rebuilt() -> None:
+    """A plan built for another device than the windows' (as after
+    ``torch.load(map_location=...)``) is rebuilt before use, so no
+    device-specific choice (fold strategy, Triton kernels) carries over."""
+    udct = _udct()
+    x = _image(batch=(2,))
+    expected = udct.forward_vect(x)
+    stale = udct._get_plan()  # pylint: disable=protected-access
+    stale.device = torch.device("meta")  # as if built on another device
+    torch.testing.assert_close(udct.forward_vect(x), expected)
+    plan = udct._get_plan()  # pylint: disable=protected-access
+    assert plan is not stale
+    assert plan.device == torch.device("cpu")
+
+
 @needs_cuda  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 def test_cuda_transform_copies_and_loads_on_cpu(kind: Kind) -> None:

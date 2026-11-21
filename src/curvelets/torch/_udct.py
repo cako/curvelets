@@ -920,15 +920,22 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         return self.backward_vect(fn(self.forward_vect(image)))
 
     def _get_plan(self) -> UDCTPlan:
-        """Fused plan for the real/complex transform (built on first use)."""
-        if self._plan is None:
-            self._plan = UDCTPlan.build(
+        """Fused plan for the real/complex transform (built on first use).
+
+        Also rebuilt when the windows are on another device than the plan was
+        built for, e.g. after ``torch.load(..., map_location=...)``, which moves
+        tensors without going through :meth:`apply_to_tensors`.
+        """
+        plan = self._plan
+        if plan is None or plan.device != self._windows[0][0][0].values.device:
+            self._graphs.clear()
+            plan = self._plan = UDCTPlan.build(
                 self._params,
                 self._windows,
                 self._decimation_ratios_cpu,
                 complex_mode=self._transform_kind == "complex",
             )
-        return self._plan
+        return plan
 
     def forward_vect(self, image: torch.Tensor) -> torch.Tensor:
         """
