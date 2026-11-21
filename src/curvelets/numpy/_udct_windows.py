@@ -2,11 +2,12 @@
 # Duplicate code with torch implementation is expected
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from itertools import combinations
-from math import ceil
+from math import ceil, lcm
 
 import numpy as np
 import numpy.typing as npt
@@ -1734,4 +1735,36 @@ class UDCTWindow:
             num_scales=self.num_scales,
         )
 
+        self._check_shape_compatible(decimation_ratios)
+
         return windows, decimation_ratios, indices
+
+    def _check_shape_compatible(self, decimation_ratios: list[_IntegerNDArray]) -> None:
+        """
+        Warn when an axis length is not a multiple of its decimation ratios.
+
+        The periodized fold maps frequency ``k`` to ``k mod (n // d)``, which is
+        a true periodization only when ``d`` divides ``n``. In practice the
+        axis length must also be a multiple of 4, otherwise the radial and
+        angular windows no longer form a partition of unity on the grid. Either
+        way the round trip loses ~1e-2 or more. Forward-only use still works,
+        so this is a warning rather than an error.
+        """
+        for axis, length in enumerate(self.shape):
+            divisor = lcm(
+                4, *(int(r[axis]) for ratios in decimation_ratios for r in ratios)
+            )
+            if length % divisor:
+                below = length - length % divisor
+                logging.warning(
+                    "shape[%d]=%d is not a multiple of %d (needed for "
+                    "num_scales=%d and these wedges), so the transform will not "
+                    "reconstruct to machine precision. Nearest valid sizes: %d "
+                    "or %d.",
+                    axis,
+                    length,
+                    divisor,
+                    self.num_scales,
+                    max(below, divisor),
+                    below + divisor,
+                )

@@ -598,3 +598,21 @@ def test_apply_forward_transform_complex_branches(rng):
         use_complex_transform=True,
     )
     assert len(coeffs_complex) > 0
+
+
+@pytest.mark.parametrize(
+    ("shape", "num_scales"), [((250, 250), 3), ((66, 66), 2), ((128, 126), 3)]
+)
+def test_incompatible_shape_warns(caplog, shape, num_scales):
+    """Shapes that cannot reconstruct are reported instead of failing silently."""
+    with caplog.at_level("WARNING"):
+        UDCT(shape=shape, num_scales=num_scales, window_overlap=0.05)
+    assert any("will not reconstruct" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize(("shape", "num_scales"), [((64, 64), 2), ((252, 100), 3)])
+def test_compatible_shape_does_not_warn(caplog, shape, num_scales):
+    """Compatible shapes log nothing."""
+    with caplog.at_level("WARNING"):
+        UDCT(shape=shape, num_scales=num_scales, window_overlap=0.05)
+    assert not any("will not reconstruct" in r.message for r in caplog.records)
