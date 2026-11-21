@@ -5,7 +5,9 @@ from __future__ import annotations
 import functools
 import os
 import sys
+import threading
 import types
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -97,8 +99,12 @@ def test_fft_workers_is_passed_to_engine(engine):
     if engine != "mkl_fft":  # mkl_fft without mkl-service has no workers
         for udct, workers in ((one, 1), (two, 2)):
             fftn = udct._fft.fftn
-            assert isinstance(fftn, functools.partial)
-            assert fftn.keywords["workers"] == workers
+            if engine == "fftw":  # bound method of the engine's plan cache
+                assert isinstance(fftn.__self__, _fft._FFTWPlans)  # type: ignore[attr-defined]
+                assert fftn.__self__._workers == workers  # type: ignore[attr-defined]
+            else:
+                assert isinstance(fftn, functools.partial)
+                assert fftn.keywords["workers"] == workers
     np.testing.assert_allclose(
         two.backward(two.forward(data)), one.backward(one.forward(data)), atol=1e-12
     )
@@ -283,33 +289,90 @@ def clear_engine_cache():
     _fft._load.cache_clear()
 
 
-@pytest.mark.usefixtures("clear_engine_cache")
-def test_fftw_engine_wiring_with_fake_pyfftw(monkeypatch):
-    scipy_fft, calls = _fake_scipy_fft_module("pyfftw.interfaces.scipy_fft")
-    enabled: list[bool] = []
-    cache = types.ModuleType("pyfftw.interfaces.cache")
-    setattr(cache, "enable", lambda: enabled.append(True))  # noqa: B010
-    interfaces = types.ModuleType("pyfftw.interfaces")
-    setattr(interfaces, "cache", cache)  # noqa: B010
-    setattr(interfaces, "scipy_fft", scipy_fft)  # noqa: B010
+def _fake_pyfftw() -> tuple[types.ModuleType, list[dict[str, Any]]]:
+    """
+    A stand-in pyFFTW: ``builders.<func>`` returns a plan that, like a real one,
+    writes into its own output buffer and returns that buffer on every call.
+    """
+    plans: list[dict[str, Any]] = []
+
+    def builder(func: str) -> Callable[..., Callable[[np.ndarray], np.ndarray]]:
+        def build(
+            scratch: np.ndarray,
+            *,
+            s: Any,
+            axes: Any,
+            threads: int,
+            planner_effort: str,
+            avoid_copy: bool,
+        ) -> Callable[[np.ndarray], np.ndarray]:
+            info = {
+                "func": func,
+                "shape": scratch.shape,
+                "threads": threads,
+                "effort": planner_effort,
+                "avoid_copy": avoid_copy,
+                "thread": threading.get_ident(),
+                "runs": 0,
+            }
+            plans.append(info)
+            buffer: dict[str, np.ndarray] = {}
+
+            def run(x: np.ndarray) -> np.ndarray:
+                info["runs"] += 1
+                result = getattr(np.fft, func)(x, s=s, axes=axes)
+                out = buffer.setdefault("out", np.empty_like(result))
+                out[...] = result
+                return out
+
+            return run
+
+        return build
+
+    builders = types.ModuleType("pyfftw.builders")
+    for func in ("fftn", "ifftn", "rfftn", "irfftn"):
+        setattr(builders, func, builder(func))
     pyfftw = types.ModuleType("pyfftw")
-    setattr(pyfftw, "interfaces", interfaces)  # noqa: B010
+    setattr(pyfftw, "builders", builders)  # noqa: B010
+    setattr(pyfftw, "empty_aligned", np.empty)  # noqa: B010
+    return pyfftw, plans
+
+
+@pytest.mark.usefixtures("clear_engine_cache")
+def test_fftw_engine_plans_once_and_copies_out(monkeypatch):
+    pyfftw, plans = _fake_pyfftw()
     _install_fake_modules(
-        monkeypatch,
-        {
-            "pyfftw": pyfftw,
-            "pyfftw.interfaces": interfaces,
-            "pyfftw.interfaces.cache": cache,
-            "pyfftw.interfaces.scipy_fft": scipy_fft,
-        },
+        monkeypatch, {"pyfftw": pyfftw, "pyfftw.builders": pyfftw.builders}
     )
-    udct = UDCT(shape=(32, 32), num_scales=2, fft_engine="fftw", fft_workers=3)
+    udct = UDCT(shape=(32, 32), num_scales=3, fft_engine="fftw", fft_workers=3)
     assert udct.fft_engine == "fftw"
-    assert enabled == [True]
     data = np.random.default_rng(0).standard_normal((32, 32))
-    np.testing.assert_allclose(udct.backward(udct.forward(data)), data, atol=1e-10)
-    assert calls
-    assert {w for _, w in calls} == {3}
+
+    coeffs = udct.forward(data)
+    first = [c.copy() for s in coeffs for d in s for c in d]
+    np.testing.assert_allclose(udct.backward(coeffs), data, atol=1e-10)
+    planned = len(plans)
+    assert planned > 0
+    assert {p["threads"] for p in plans} == {3}
+    assert {p["effort"] for p in plans} == {"FFTW_MEASURE"}
+    assert not any(p["avoid_copy"] for p in plans)
+
+    # Later transforms reuse the plans; outputs are copies, not plan buffers.
+    coeffs2 = udct.forward(data)
+    np.testing.assert_allclose(udct.backward(coeffs2), data, atol=1e-10)
+    assert len(plans) == planned
+    again = [c for s in coeffs2 for d in s for c in d]
+    for a, b in zip(first, again, strict=True):
+        np.testing.assert_array_equal(a, b)
+    flat = [c for s in coeffs for d in s for c in d]
+    assert len({id(c) for c in flat}) == len(flat)
+
+    # Another thread gets its own plans (FFTW plans are not thread-safe).
+    worker = threading.Thread(target=lambda: udct.backward(udct.forward(data)))
+    worker.start()
+    worker.join()
+    assert len(plans) == 2 * planned
+    assert len({p["thread"] for p in plans}) == 2
 
 
 @pytest.mark.usefixtures("clear_engine_cache")
