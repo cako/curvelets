@@ -1,0 +1,52 @@
+<div class="cv-fig">
+<svg viewBox="0 0 800 330" role="img" aria-label="Left: 1.2 runs gather, multiply, inverse FFT and copy once per wedge, about 1,450 launches. Right: 1.3 runs one FFT, one gather, one fold and one batched inverse FFT per run of equal-shape wedges, 38 launches.">
+      <text class="cv-tb" x="0" y="20">1.2 · loop over wedges</text>
+      <text class="cv-tm" x="0" y="38">Python loop, ~1,450 launches at 2048²</text>
+
+      <g class="cv-mono">
+        <text class="cv-tm" x="0" y="75">wedge 1</text>
+        <rect class="cv-boxw" x="64" y="58" width="62" height="26" rx="3"/><text class="cv-t" x="95" y="75" text-anchor="middle">gather</text>
+        <rect class="cv-boxw" x="140" y="58" width="62" height="26" rx="3"/><text class="cv-t" x="171" y="75" text-anchor="middle">mul</text>
+        <rect class="cv-boxw" x="216" y="58" width="62" height="26" rx="3"/><text class="cv-t" x="247" y="75" text-anchor="middle">iFFT</text>
+        <rect class="cv-boxw" x="292" y="58" width="62" height="26" rx="3"/><text class="cv-t" x="323" y="75" text-anchor="middle">copy</text>
+
+        <text class="cv-tm" x="0" y="115">wedge 2</text>
+        <rect class="cv-boxw" x="64" y="98" width="62" height="26" rx="3"/><text class="cv-t" x="95" y="115" text-anchor="middle">gather</text>
+        <rect class="cv-boxw" x="140" y="98" width="62" height="26" rx="3"/><text class="cv-t" x="171" y="115" text-anchor="middle">mul</text>
+        <rect class="cv-boxw" x="216" y="98" width="62" height="26" rx="3"/><text class="cv-t" x="247" y="115" text-anchor="middle">iFFT</text>
+        <rect class="cv-boxw" x="292" y="98" width="62" height="26" rx="3"/><text class="cv-t" x="323" y="115" text-anchor="middle">copy</text>
+
+        <text class="cv-tm" x="0" y="155">wedge 3</text>
+        <rect class="cv-boxw" x="64" y="138" width="62" height="26" rx="3"/><text class="cv-t" x="95" y="155" text-anchor="middle">gather</text>
+        <rect class="cv-boxw" x="140" y="138" width="62" height="26" rx="3"/><text class="cv-t" x="171" y="155" text-anchor="middle">mul</text>
+        <rect class="cv-boxw" x="216" y="138" width="62" height="26" rx="3"/><text class="cv-t" x="247" y="155" text-anchor="middle">iFFT</text>
+        <rect class="cv-boxw" x="292" y="138" width="62" height="26" rx="3"/><text class="cv-t" x="323" y="155" text-anchor="middle">copy</text>
+
+        <text class="cv-tm" x="200" y="196" text-anchor="middle">⋮</text>
+
+        <text class="cv-tm" x="0" y="235">wedge 181</text>
+        <rect class="cv-boxw" x="64" y="218" width="62" height="26" rx="3"/><text class="cv-t" x="95" y="235" text-anchor="middle">gather</text>
+        <rect class="cv-boxw" x="140" y="218" width="62" height="26" rx="3"/><text class="cv-t" x="171" y="235" text-anchor="middle">mul</text>
+        <rect class="cv-boxw" x="216" y="218" width="62" height="26" rx="3"/><text class="cv-t" x="247" y="235" text-anchor="middle">iFFT</text>
+        <rect class="cv-boxw" x="292" y="218" width="62" height="26" rx="3"/><text class="cv-t" x="323" y="235" text-anchor="middle">copy</text>
+      </g>
+      <line class="cv-lnw" x1="127" y1="71" x2="139" y2="71" marker-end="url(#cv-ahw)"/>
+      <line class="cv-lnw" x1="203" y1="71" x2="215" y2="71" marker-end="url(#cv-ahw)"/>
+      <line class="cv-lnw" x1="279" y1="71" x2="291" y2="71" marker-end="url(#cv-ahw)"/>
+      <text class="cv-tw" x="0" y="278">Each box is at least one kernel launch.</text>
+      <text class="cv-tw" x="0" y="296">The GPU idles between them.</text>
+
+      <line class="cv-lnm cv-dash" x1="400" y1="10" x2="400" y2="310"/>
+
+      <text class="cv-tb" x="430" y="20">1.3 · one plan</text>
+      <text class="cv-tm" x="430" y="38">38 launches at 2048², any number of wedges</text>
+      <rect class="cv-boxa" x="430" y="56" width="340" height="34" rx="4"/><text class="cv-t" x="600" y="77" text-anchor="middle">1 · FFT of the input (one full-size rfftn)</text>
+      <line class="cv-lna" x1="600" y1="91" x2="600" y2="116" marker-end="url(#cv-aha)"/><text class="cv-tm" x="610" y="108">spectrum</text>
+      <rect class="cv-boxa" x="430" y="117" width="340" height="34" rx="4"/><text class="cv-t" x="600" y="138" text-anchor="middle">2 · gather every window sample at once</text>
+      <line class="cv-lna" x1="600" y1="152" x2="600" y2="177" marker-end="url(#cv-aha)"/><text class="cv-tm" x="610" y="169">weighted samples</text>
+      <rect class="cv-boxa" x="430" y="178" width="340" height="34" rx="4"/><text class="cv-t" x="600" y="199" text-anchor="middle">3 · fold into the flat coefficient buffer</text>
+      <line class="cv-lna" x1="600" y1="213" x2="600" y2="238" marker-end="url(#cv-aha)"/><text class="cv-tm" x="610" y="230">folded spectra</text>
+      <rect class="cv-boxa" x="430" y="239" width="340" height="34" rx="4"/><text class="cv-t" x="600" y="260" text-anchor="middle">4 · one batched iFFT per run of equal-shape wedges</text>
+      <text class="cv-ta" x="430" y="302">Output is the flat vect() layout.</text>
+    </svg>
+</div>

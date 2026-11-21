@@ -1,0 +1,32 @@
+<div class="cv-fig">
+<svg viewBox="0 0 800 340" role="img" aria-label="Timeline, drawn to scale. Plain: the host issues many small launches and the GPU runs short kernels with gaps, 0.373 milliseconds. With CUDA graphs: one launch and the GPU runs back to back, 0.065 milliseconds.">
+      <defs>
+        <pattern id="cv-hostTicks" width="22" height="22" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="10" height="22" class="cv-fw"/></pattern>
+        <pattern id="cv-gpuTicks" width="22" height="22" patternUnits="userSpaceOnUse"><rect x="8" y="0" width="9" height="22" class="cv-fm"/></pattern>
+      </defs>
+      <text class="cv-tb" x="0" y="20">Plain: the host launches every kernel</text>
+      <text class="cv-tm" x="0" y="59">host</text>
+      <rect x="88" y="44" width="462" height="22" fill="url(#cv-hostTicks)"/>
+      <text class="cv-tm" x="0" y="103">GPU</text>
+      <rect x="88" y="88" width="462" height="22" fill="url(#cv-gpuTicks)"/>
+      <text class="cv-tw" x="560" y="103">idle between kernels</text>
+      <text class="cv-tm" x="560" y="59">one launch per kernel</text>
+      <line class="cv-ln" x1="88" y1="128" x2="550" y2="128"/>
+      <line class="cv-ln" x1="88" y1="122" x2="88" y2="134"/><line class="cv-ln" x1="550" y1="122" x2="550" y2="134"/>
+      <text class="cv-t" x="319" y="150" text-anchor="middle">0.373 ms · 512², forward, RTX 4090</text>
+
+      <line class="cv-lnm cv-dash" x1="0" y1="176" x2="800" y2="176"/>
+
+      <text class="cv-tb" x="0" y="204">cuda_graphs=True: capture once, replay</text>
+      <text class="cv-tm" x="0" y="235">host</text>
+      <rect x="88" y="220" width="10" height="22" class="cv-fa"/>
+      <text class="cv-ta" x="108" y="235">one graph launch</text>
+      <text class="cv-tm" x="0" y="279">GPU</text>
+      <rect x="88" y="264" width="80" height="22" class="cv-fa"/>
+      <text class="cv-ta" x="178" y="279">kernels back to back</text>
+      <line class="cv-lna" x1="88" y1="304" x2="168" y2="304"/>
+      <line class="cv-lna" x1="88" y1="298" x2="88" y2="310"/><line class="cv-lna" x1="168" y1="298" x2="168" y2="310"/>
+      <text class="cv-ta" x="178" y="308">0.065 ms · same input</text>
+      <text class="cv-tm" x="88" y="330">copy into static buffer → launch graph → copy out</text>
+    </svg>
+</div>

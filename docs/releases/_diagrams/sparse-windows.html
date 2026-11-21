@@ -1,0 +1,33 @@
+<div class="cv-fig">
+<svg viewBox="0 0 800 350" role="img" aria-label="Left: in 1.2 each wedge window is computed over the whole grid. Right: in 1.3 the grid is bucketed once and each wedge is computed only inside the bounding box of its support, found as a run of buckets.">
+      <defs>
+        <pattern id="cv-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" class="cv-lnw" style="stroke-width:1;opacity:.45"/></pattern>
+      </defs>
+      <text class="cv-tb" x="20" y="22">1.2 · full grid per wedge</text>
+      <text class="cv-tb" x="420" y="22">1.3 · sparse support only</text>
+
+      <rect x="20" y="50" width="240" height="240" fill="url(#cv-hatch)"/>
+      <rect class="cv-ln" x="20" y="50" width="240" height="240" style="stroke:var(--cv-warn)"/>
+      <polygon points="190,118 244,70 258,90 208,138" class="cv-fa" style="opacity:.9"/>
+      <text class="cv-tw" x="276" y="130">each wedge touches</text>
+      <text class="cv-tw" x="276" y="148">all 2048² samples</text>
+      <text class="cv-tm" x="276" y="172">angle × bandpass,</text>
+      <text class="cv-tm" x="276" y="188">dense scan and flips</text>
+
+      <rect class="cv-ln" x="420" y="50" width="240" height="240" style="fill:var(--cv-panel)"/>
+      <polygon points="590,118 644,70 658,90 608,138" class="cv-fa" style="opacity:.9"/>
+      <rect x="588" y="68" width="72" height="72" class="cv-lna cv-dash"/>
+      <text class="cv-ta" x="676" y="100">evaluate only</text>
+      <text class="cv-ta" x="676" y="118">inside this box</text>
+      <text class="cv-tm" x="676" y="142">support ~1% of the grid,</text>
+      <text class="cv-tm" x="676" y="158">box ~9–16% (3-D)</text>
+
+      <g class="cv-lnm">
+        <line x1="420" y1="300" x2="420" y2="310"/><line x1="432" y1="300" x2="432" y2="310"/><line x1="444" y1="300" x2="444" y2="310"/><line x1="456" y1="300" x2="456" y2="310"/><line x1="468" y1="300" x2="468" y2="310"/><line x1="480" y1="300" x2="480" y2="310"/><line x1="492" y1="300" x2="492" y2="310"/><line x1="504" y1="300" x2="504" y2="310"/><line x1="516" y1="300" x2="516" y2="310"/><line x1="528" y1="300" x2="528" y2="310"/><line x1="540" y1="300" x2="540" y2="310"/><line x1="552" y1="300" x2="552" y2="310"/><line x1="564" y1="300" x2="564" y2="310"/><line x1="576" y1="300" x2="576" y2="310"/><line x1="588" y1="300" x2="588" y2="310"/><line x1="600" y1="300" x2="600" y2="310"/><line x1="612" y1="300" x2="612" y2="310"/><line x1="624" y1="300" x2="624" y2="310"/><line x1="636" y1="300" x2="636" y2="310"/><line x1="648" y1="300" x2="648" y2="310"/><line x1="660" y1="300" x2="660" y2="310"/>
+      </g>
+      <line class="cv-lnm" x1="420" y1="305" x2="660" y2="305"/>
+      <rect x="588" y="298" width="72" height="14" class="cv-fa" style="opacity:.85"/>
+      <text class="cv-tm" x="420" y="330">buckets from the Meyer breakpoints, sorted once for all wedges</text>
+      <text class="cv-ta" x="588" y="346">this wedge = a contiguous run</text>
+    </svg>
+</div>

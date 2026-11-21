@@ -1,0 +1,59 @@
+/* Static diagrams on the release pages. Everything is scoped to .cv-fig and
+   follows Furo's light/dark theme. */
+.cv-fig {
+  --cv-fg: var(--color-foreground-primary);
+  --cv-muted: var(--color-foreground-secondary);
+  --cv-line: var(--color-background-border);
+  --cv-panel: var(--color-background-primary);
+  --cv-accent: #0b8a76;
+  --cv-accent-soft: #d3efe8;
+  --cv-warn: #c0560f;
+  --cv-warn-soft: #fbe3d1;
+  --cv-sans: var(--font-stack, system-ui, sans-serif);
+  --cv-mono: var(--font-stack--monospace, ui-monospace, monospace);
+  overflow-x: auto;
+  margin: 1.2em 0 0.4em;
+  padding: 14px;
+  border: 1px solid var(--cv-line);
+  border-radius: 6px;
+  background: var(--cv-panel);
+}
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) .cv-fig {
+    --cv-accent: #3fd0b4;
+    --cv-accent-soft: #0f3a33;
+    --cv-warn: #f29150;
+    --cv-warn-soft: #3d2312;
+  }
+}
+body[data-theme="dark"] .cv-fig {
+  --cv-accent: #3fd0b4;
+  --cv-accent-soft: #0f3a33;
+  --cv-warn: #f29150;
+  --cv-warn-soft: #3d2312;
+}
+.cv-fig svg { display: block; width: 100%; min-width: 600px; height: auto; }
+
+.cv-fig .cv-t  { fill: var(--cv-fg); font: 500 12.5px var(--cv-sans); }
+.cv-fig .cv-tm { fill: var(--cv-muted); font: 400 12px var(--cv-sans); }
+.cv-fig .cv-tb { fill: var(--cv-fg); font: 700 14px var(--cv-sans); }
+.cv-fig .cv-ta { fill: var(--cv-accent); font: 600 12.5px var(--cv-sans); }
+.cv-fig .cv-tw { fill: var(--cv-warn); font: 600 12.5px var(--cv-sans); }
+.cv-fig .cv-mono { font-family: var(--cv-mono); font-size: 11.5px; }
+.cv-fig .cv-box  { fill: var(--cv-panel); stroke: var(--cv-line); stroke-width: 1.2; }
+.cv-fig .cv-boxw { fill: var(--cv-warn-soft); stroke: var(--cv-warn); stroke-width: 1.2; }
+.cv-fig .cv-boxa { fill: var(--cv-accent-soft); stroke: var(--cv-accent); stroke-width: 1.4; }
+.cv-fig .cv-band { fill: var(--cv-accent-soft); stroke: none; }
+.cv-fig .cv-ln  { stroke: var(--cv-fg); stroke-width: 1.4; fill: none; }
+.cv-fig .cv-lnm { stroke: var(--cv-muted); stroke-width: 1; fill: none; }
+.cv-fig .cv-lna { stroke: var(--cv-accent); stroke-width: 1.6; fill: none; }
+.cv-fig .cv-lnw { stroke: var(--cv-warn); stroke-width: 1.2; fill: none; opacity: .75; }
+.cv-fig .cv-dash { stroke-dasharray: 5 4; }
+.cv-fig .cv-mk  { fill: var(--cv-fg); }
+.cv-fig .cv-mka { fill: var(--cv-accent); }
+.cv-fig .cv-mkw { fill: var(--cv-warn); }
+.cv-fig .cv-fa { fill: var(--cv-accent); }
+.cv-fig .cv-fw { fill: var(--cv-warn); }
+.cv-fig .cv-fm { fill: var(--cv-muted); }
+.cv-fig .cv-sq  { fill: var(--cv-panel); stroke: var(--cv-muted); stroke-width: 1; }
+.cv-fig .cv-sqa { fill: var(--cv-accent); stroke: none; }

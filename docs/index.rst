@@ -8,6 +8,7 @@
     cpu_performance.rst
     torch.rst
     contributing.rst
+    releases/index.rst
     auto_examples/index.rst
     API <api/modules>
 

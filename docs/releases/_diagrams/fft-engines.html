@@ -1,0 +1,32 @@
+<div class="cv-fig">
+<svg viewBox="0 0 800 400" role="img" aria-label="Default: SciPy if installed, otherwise numpy. auto: times numpy, scipy, mkl_fft and AMD fftw once per shape and keeps the fastest. fftw: AMD FFTW detected by fftw_aoclversion plans with ESTIMATE, stock FFTW uses MEASURE.">
+      <text class="cv-tb" x="0" y="20">Default</text>
+      <rect class="cv-box" x="290" y="32" width="220" height="32" rx="4"/><text class="cv-mono cv-t" x="400" y="52" text-anchor="middle">UDCT(…, fft_engine=None)</text>
+      <line class="cv-ln" x1="400" y1="65" x2="400" y2="86" marker-end="url(#cv-ah)"/>
+      <rect class="cv-box" x="300" y="87" width="200" height="34" rx="4"/><text class="cv-t" x="400" y="108" text-anchor="middle">SciPy installed?</text>
+      <line class="cv-lna" x1="501" y1="104" x2="548" y2="104" marker-end="url(#cv-aha)"/><text class="cv-ta" x="525" y="98" text-anchor="middle">yes</text>
+      <line class="cv-ln" x1="299" y1="104" x2="252" y2="104" marker-end="url(#cv-ah)"/><text class="cv-tm" x="276" y="98" text-anchor="middle">no</text>
+      <rect class="cv-boxa" x="550" y="84" width="240" height="44" rx="4"/><text class="cv-t" x="670" y="103" text-anchor="middle">scipy: multithreaded, no planning</text><text class="cv-tm" x="670" y="119" text-anchor="middle">float32 stays float32</text>
+      <rect class="cv-box" x="10" y="84" width="240" height="44" rx="4"/><text class="cv-t" x="130" y="103" text-anchor="middle">numpy.fft</text><text class="cv-tm" x="130" y="119" text-anchor="middle">single-threaded</text>
+
+      <line class="cv-lnm cv-dash" x1="0" y1="150" x2="800" y2="150"/>
+      <text class="cv-tb" x="0" y="176">Opt in: <tspan class="cv-mono">fft_engine="auto"</tspan></text>
+      <rect class="cv-box" x="0" y="190" width="200" height="46" rx="4"/><text class="cv-t" x="100" y="210" text-anchor="middle">time each candidate once</text><text class="cv-tm" x="100" y="226" text-anchor="middle">per shape, small proxy problem</text>
+      <line class="cv-ln" x1="201" y1="213" x2="248" y2="213" marker-end="url(#cv-ah)"/>
+      <rect class="cv-box" x="250" y="198" width="100" height="30" rx="3"/><text class="cv-mono cv-t" x="300" y="217" text-anchor="middle">numpy</text>
+      <rect class="cv-box" x="360" y="198" width="100" height="30" rx="3"/><text class="cv-mono cv-t" x="410" y="217" text-anchor="middle">scipy</text>
+      <rect class="cv-box" x="470" y="198" width="100" height="30" rx="3"/><text class="cv-mono cv-t" x="520" y="217" text-anchor="middle">mkl_fft</text>
+      <rect class="cv-box cv-dash" x="580" y="198" width="130" height="30" rx="3"/><text class="cv-mono cv-t" x="645" y="217" text-anchor="middle">fftw (AMD only)</text>
+      <line class="cv-lna" x1="480" y1="230" x2="480" y2="252" marker-end="url(#cv-aha)"/>
+      <rect class="cv-boxa" x="410" y="253" width="140" height="28" rx="4"/><text class="cv-t" x="480" y="271" text-anchor="middle">keep the fastest</text>
+      <text class="cv-tm" x="566" y="271">adds under 1 s per new shape</text>
+
+      <line class="cv-lnm cv-dash" x1="0" y1="304" x2="800" y2="304"/>
+      <text class="cv-tb" x="0" y="328">Opt in: <tspan class="cv-mono">fft_engine="fftw"</tspan></text>
+      <rect class="cv-box" x="0" y="342" width="250" height="46" rx="4"/><text class="cv-t" x="125" y="362" text-anchor="middle">loaded FFTW exports</text><text class="cv-mono cv-tm" x="125" y="378" text-anchor="middle">fftw_aoclversion ?</text>
+      <polyline class="cv-lna" points="251,365 290,365 290,350 330,350" marker-end="url(#cv-aha)"/><text class="cv-ta" x="262" y="358">yes</text>
+      <polyline class="cv-ln" points="290,365 290,382 330,382" marker-end="url(#cv-ah)"/><text class="cv-tm" x="298" y="400">no</text>
+      <rect class="cv-boxa" x="332" y="334" width="440" height="32" rx="4"/><text class="cv-t" x="552" y="354" text-anchor="middle">AMD FFTW: FFTW_ESTIMATE, plans in under a second, eligible for auto</text>
+      <rect class="cv-box" x="332" y="370" width="440" height="28" rx="4"/><text class="cv-t" x="552" y="388" text-anchor="middle">stock FFTW: FFTW_MEASURE, 4–55 s on first call, kept out of auto</text>
+    </svg>
+</div>

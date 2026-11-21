@@ -29,6 +29,7 @@ version = release = _version
 extensions = [
     "myst_parser",
     "sphinx.ext.autodoc",
+    "sphinx.ext.extlinks",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
@@ -49,6 +50,12 @@ exclude_patterns = [
 ]
 
 html_theme = "furo"
+html_static_path = ["_static"]
+html_css_files = ["release_diagrams.css"]
+
+extlinks = {
+    "pr": ("https://github.com/cako/curvelets/pull/%s", "#%s"),
+}
 
 myst_enable_extensions = [
     "colon_fence",

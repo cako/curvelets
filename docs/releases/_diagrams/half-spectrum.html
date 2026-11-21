@@ -1,0 +1,35 @@
+<div class="cv-fig">
+<svg viewBox="0 0 800 340" role="img" aria-label="Left: a spectrum square where the right half is stored by rfftn and the left half is implied by conjugate symmetry. Right: forward gathers directly from the half spectrum with weight pairs, backward accumulates on the half grid and finishes with one irfftn.">
+      <text class="cv-tb" x="0" y="20">Spectrum of a real image</text>
+      <rect class="cv-band" x="160" y="40" width="120" height="240"/>
+      <rect class="cv-box cv-dash" x="40" y="40" width="120" height="240" style="fill:none"/>
+      <rect class="cv-ln" x="40" y="40" width="240" height="240" style="fill:none"/>
+      <line class="cv-lnm" x1="160" y1="40" x2="160" y2="280"/><line class="cv-lnm" x1="40" y1="160" x2="280" y2="160"/>
+      <circle class="cv-fa" cx="232" cy="98" r="6"/><text class="cv-ta" x="242" y="94">F[k]</text>
+      <circle cx="88" cy="222" r="6" style="fill:none;stroke:var(--cv-accent);stroke-width:1.6"/><text class="cv-ta" x="40" y="246">conj F[k]</text>
+      <line class="cv-lna cv-dash" x1="226" y1="104" x2="94" y2="216" marker-end="url(#cv-aha)"/>
+      <text class="cv-ta" x="228" y="188">stored by rfftn</text>
+      <text class="cv-tm" x="52" y="62">implied by</text><text class="cv-tm" x="52" y="78">F[−k] = conj F[k]</text>
+      <text class="cv-tm" x="0" y="304">Shaded half is all that exists in memory.</text>
+
+      <line class="cv-lnm cv-dash" x1="320" y1="10" x2="320" y2="320"/>
+
+      <text class="cv-tb" x="350" y="20">What each pass does</text>
+      <text class="cv-tw" x="350" y="48">Forward, before</text>
+      <rect class="cv-boxw" x="350" y="56" width="130" height="44" rx="3"/><text class="cv-t" x="415" y="75" text-anchor="middle">[F, conj F]</text><text class="cv-tm" x="415" y="91" text-anchor="middle">full-size copy</text>
+      <line class="cv-lnw" x1="481" y1="78" x2="618" y2="78" marker-end="url(#cv-ahw)"/><text class="cv-tm" x="550" y="72" text-anchor="middle">gather</text>
+      <rect class="cv-boxw" x="620" y="56" width="130" height="44" rx="3"/><text class="cv-t" x="685" y="83" text-anchor="middle">coefficients</text>
+
+      <text class="cv-ta" x="350" y="136">Forward, now</text>
+      <rect class="cv-boxa" x="350" y="144" width="130" height="44" rx="3"/><text class="cv-t" x="415" y="163" text-anchor="middle">half spectrum</text><text class="cv-tm" x="415" y="179" text-anchor="middle">rfftn output</text>
+      <line class="cv-lna" x1="481" y1="166" x2="618" y2="166" marker-end="url(#cv-aha)"/><text class="cv-tm" x="550" y="158" text-anchor="middle">gather, conj via (w, −w)</text>
+      <rect class="cv-boxa" x="620" y="144" width="130" height="44" rx="3"/><text class="cv-t" x="685" y="171" text-anchor="middle">coefficients</text>
+
+      <text class="cv-ta" x="350" y="224">Backward, now</text>
+      <rect class="cv-boxa" x="350" y="232" width="130" height="44" rx="3"/><text class="cv-t" x="415" y="251" text-anchor="middle">folded spectra</text><text class="cv-tm" x="415" y="267" text-anchor="middle">half grid, A + conj B</text>
+      <line class="cv-lna" x1="481" y1="254" x2="618" y2="254" marker-end="url(#cv-aha)"/><text class="cv-tm" x="550" y="246" text-anchor="middle">one irfftn</text>
+      <rect class="cv-boxa" x="620" y="232" width="130" height="44" rx="3"/><text class="cv-t" x="685" y="259" text-anchor="middle">real image</text>
+      <text class="cv-tm" x="350" y="304">A weight pair (a, b) adds a·Re(src) + i·b·Im(src).</text>
+      <text class="cv-tm" x="350" y="322">With (w, −w) that is w·conj(src), so no conjugate copy exists.</text>
+    </svg>
+</div>
