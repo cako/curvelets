@@ -3,126 +3,101 @@
 Speed on CPUs
 #############
 
-The NumPy transform (:class:`curvelets.numpy.UDCT`) spends most of its time in FFTs: one full-size FFT of the input, and one small FFT per wedge. :mod:`numpy.fft` runs on a single thread, so the main lever on a CPU is a faster, multithreaded FFT library. This page explains how to choose one, and what else affects speed.
+The NumPy transform (:class:`curvelets.numpy.UDCT`) spends most of its time in FFTs. By default it uses :mod:`numpy.fft`, which runs on one CPU core. Installing a multithreaded FFT library makes it several times faster. For GPUs, see the :ref:`PyTorch backend <torch-backend>`.
 
-For GPUs, see the :ref:`PyTorch backend <torch-backend>`.
+Installation
+============
 
-Choosing an FFT engine
-======================
+Install **Curvelets** with SciPy. This is the recommended setup on every CPU:
 
-The FFT library is chosen when the transform is created, with ``fft_engine``, and its thread count with ``fft_workers``:
+.. code-block:: sh
+
+    pip install curvelets[scipy]
+
+Optionally, add another FFT library. **Curvelets** compares the installed ones and uses the fastest:
+
+.. code-block:: sh
+
+    pip install curvelets[mkl]    # Intel MKL (Linux x86_64 and Windows x64)
+    pip install curvelets[fftw]   # FFTW, through pyFFTW
+
+Usage
+=====
+
+Nothing changes in your code: with the default ``fft_engine="auto"``, creating a transform times the installed libraries on its shape (once per shape) and keeps the fastest.
 
 .. code-block:: python
 
     from curvelets.numpy import UDCT
 
-    udct = UDCT(shape=(512, 512), fft_engine="auto", fft_workers=None)
-    udct.fft_engine  # the engine actually in use, e.g. "scipy"
+    udct = UDCT(shape=(512, 512))
+    udct.fft_engine  # the library in use, e.g. "scipy"
+    coeffs = udct.forward(image)
 
-.. list-table::
-   :header-rows: 1
-   :widths: 12 28 60
+You can also choose the library and the number of threads yourself:
 
-   * - Engine
-     - Install
-     - Notes
-   * - ``"numpy"``
-     - included
-     - Single-threaded. Always available.
-   * - ``"scipy"``
-     - ``pip install curvelets[scipy]``
-     - Multithreaded, no planning. **The recommended default**: fast on every CPU we measured.
-   * - ``"mkl_fft"``
-     - ``pip install curvelets[mkl]``
-     - Intel MKL, multithreaded. Wheels exist for Linux x86_64 and Windows x64 only. Fast on some shapes, but can be very slow on AMD CPUs (see below).
-   * - ``"fftw"``
-     - ``pip install curvelets[fftw]``
-     - FFTW via pyFFTW, multithreaded. With the stock FFTW (the pyFFTW wheel), it plans each transform shape on first use, which takes seconds (up to about a minute for large 3D transforms), then is fast; ``"auto"`` never picks it. With AMD's FFTW (see below), planning is nearly instant and ``"auto"`` considers it.
-   * - ``"auto"``
-     - (default)
-     - Times ``numpy`` and the installed engines that plan cheaply (``scipy``, ``mkl_fft``, and ``fftw`` when pyFFTW runs on AMD's FFTW), once per transform shape, on a small proxy problem, and uses the fastest. It skips ``fftw`` on the stock FFTW, whose planning cost would fall on every user with pyFFTW installed.
+.. code-block:: python
 
-If a requested engine is not installed, the transform falls back to ``numpy`` with a warning. All engines give the same result up to floating-point rounding.
+    udct = UDCT(shape=(512, 512), fft_engine="scipy", fft_workers=8)
 
-In short: install SciPy (``pip install curvelets[scipy]``) and keep ``fft_engine="auto"``. Consider ``"fftw"`` when you will run many transforms of the same shape and can afford the one-off planning time.
+* ``fft_engine``: ``"auto"`` (default), ``"numpy"``, ``"scipy"``, ``"mkl_fft"`` or ``"fftw"``. If the library is not installed, a warning is shown and NumPy is used.
+* ``fft_workers``: number of threads. The default uses all the CPUs available to the process (in containers too).
 
-Threads
-=======
+Tips
+====
 
-``fft_workers`` sets the number of threads of the multithreaded engines. The default (``None``) uses every CPU the process may run on, respecting CPU affinity and container limits (in a container that sees a 128-core host but may use 32 cores, it uses 32). ``numpy`` ignores it.
-
-If you already run several transforms in parallel (for example one per process, or with a thread pool), give each a smaller ``fft_workers`` (often ``1``) so that the threads do not compete for the same cores.
-
-Other things that help
-======================
-
-* **Reuse the** :class:`~curvelets.numpy.UDCT` **object.** Creating it computes the windows and resolves the FFT engine (and, for ``"auto"``, times the candidates); ``forward`` and ``backward`` then reuse all of that, and the ``"fftw"`` engine reuses its plans.
-* **Use float32 when it is precise enough.** A float32 input gives complex64 coefficients and is usually faster than float64, as well as halving memory.
-* **Prefer the real transform** (``transform_kind="real"``, the default) for real data. It works on half of the spectrum (``rfftn``), and the complex transform has twice as many coefficients.
+* **Create the** :class:`~curvelets.numpy.UDCT` **once and reuse it** for every image of the same shape.
+* **Use float32** inputs when that precision is enough: they are faster and use half the memory.
+* **Running several transforms in parallel** (for example one per process)? Set ``fft_workers=1``, or a small number, so they do not compete for the same cores.
+* **FFTW is slow to start.** With the standard pyFFTW package, the first transform of each shape takes seconds (up to a minute for large 3D shapes) to prepare. It then runs fast, so it is worth it for many transforms of one shape. ``"auto"`` therefore never picks it; ask for it with ``fft_engine="fftw"``.
 
 AMD CPUs
 ========
 
-* **SciPy is a good choice.** On a 32-vCPU AMD EPYC 9575F it was within about 1.5 times of the fastest engine in every case we measured, with no planning.
-* **Avoid MKL in 3D.** MKL is tuned for Intel CPUs. On the EPYC, ``"mkl_fft"`` was about 25 times slower than SciPy for a 128×128×128 float32 transform (competitive in 2D). ``"auto"`` measures this and picks SciPy instead.
-* **For the best FFTW, build pyFFTW against AMD's FFTW.** AMD maintains an optimized fork of FFTW, `amd-fftw <https://github.com/amd/amd-fftw>`_ (part of AOCL). pyFFTW has no wheel for it, but the ``"fftw"`` engine uses it unchanged once pyFFTW is built against it. On the EPYC it usually planned 2–5 times faster than the stock FFTW, and was the fastest engine for 256×256×256 transforms.
+SciPy works well on AMD CPUs. Intel MKL can be very slow on them in 3D; ``"auto"`` notices and uses SciPy instead.
 
-  .. code-block:: sh
+For FFTW, AMD provides an optimized version, `amd-fftw <https://github.com/amd/amd-fftw>`_. When pyFFTW is built against it, **Curvelets** detects it, prepares transforms almost instantly, and ``"auto"`` includes it in its comparison. To install it on Linux:
 
-      # Build and install amd-fftw in double, single and long double precision
-      git clone --depth 1 https://github.com/amd/amd-fftw.git && cd amd-fftw
-      for opts in "" "--enable-single" "--enable-long-double"; do
-        simd="--enable-sse2 --enable-avx --enable-avx2 --enable-avx512"
-        [ "$opts" = "--enable-long-double" ] && simd=""
-        ./configure --prefix=$PREFIX --enable-shared --enable-threads --enable-amd-opt $simd $opts CFLAGS="-O3 -march=native"
-        make -j MAKEINFO=true && make install MAKEINFO=true && make distclean
-      done
-      cd ..
+.. code-block:: sh
 
-      # Build pyFFTW against it, and load it at run time
-      PYFFTW_INCLUDE=$PREFIX/include PYFFTW_LIB_DIR=$PREFIX/lib pip install --no-binary pyfftw pyfftw
-      export LD_LIBRARY_PATH=$PREFIX/lib
+    # 1. Build amd-fftw (all three precisions) into $PREFIX
+    git clone --depth 1 https://github.com/amd/amd-fftw.git && cd amd-fftw
+    for opts in "" "--enable-single" "--enable-long-double"; do
+      simd="--enable-sse2 --enable-avx --enable-avx2 --enable-avx512"
+      [ "$opts" = "--enable-long-double" ] && simd=""
+      ./configure --prefix=$PREFIX --enable-shared --enable-threads --enable-amd-opt $simd $opts CFLAGS="-O3 -march=native"
+      make -j MAKEINFO=true && make install MAKEINFO=true && make distclean
+    done
+    cd ..
 
-  ``-march=native`` and ``--enable-avx512`` target the CPU the library is built on; drop them for a build that must run on other machines.
+    # 2. Build pyFFTW against it, and use it at run time
+    PYFFTW_INCLUDE=$PREFIX/include PYFFTW_LIB_DIR=$PREFIX/lib pip install --no-binary pyfftw pyfftw
+    export LD_LIBRARY_PATH=$PREFIX/lib
 
-  The transform detects AMD's FFTW at run time (on Linux, from the library pyFFTW actually loaded), plans with ``FFTW_ESTIMATE``, which is nearly instant and performed well with it, and lets ``"auto"`` time it against the other engines.
+Drop ``-march=native`` and ``--enable-avx512`` if the library must also run on other machines.
 
 Intel CPUs
 ==========
 
-MKL is Intel's own FFT library, so ``"mkl_fft"`` (``pip install curvelets[mkl]``) is worth trying; ``"auto"`` compares it with SciPy for you. We have not benchmarked Intel CPUs ourselves.
+Try Intel MKL: ``pip install curvelets[mkl]``. ``"auto"`` compares it with SciPy and uses the faster one.
 
 Reference speedups
 ==================
 
-Measured on a 32-vCPU AMD EPYC 9575F (Zen 5) with ``fft_workers=32``, comparing the previous NumPy implementation (single-threaded :mod:`numpy.fft`) with the current one using ``fft_engine="auto"``, which chose SciPy or MKL. Forward / backward:
+Compared with the previous, single-threaded NumPy implementation, on 32 vCPUs of an AMD EPYC 9575F with ``fft_engine="auto"`` (forward / backward):
 
 .. list-table::
    :header-rows: 1
 
    * - Transform
-     - Previous (ms)
-     - Current, ``"auto"`` (ms)
      - Speedup
-   * - real 512×512, float64
-     - 7.8 / 11.1
-     - 5.8 / 6.2
+   * - 2D real, 512×512, float64
      - 1.3× / 1.8×
-   * - real 2048×2048, float32
-     - 189 / 166
-     - 52 / 51
+   * - 2D real, 2048×2048, float32
      - 3.7× / 3.3×
-   * - real 256×256×256, float64
-     - 2086 / 2228
-     - 470 / 519
+   * - 3D real, 256×256×256, float64
      - 4.4× / 4.3×
-   * - real 256×256×256, float32
-     - 1330 / 3654
-     - 333 / 333
-     - 4.0× / 11×
-   * - complex 1024×1024, float64
-     - 69 / 83
-     - 24 / 29
+   * - 2D complex, 1024×1024, float64
      - 2.9× / 2.9×
 
-With only NumPy installed, the current implementation is 1.3–2.4 times faster than the previous one. The full results and the benchmark script are in the repository, in ``benchmarks/numpy_engines_bench.py`` and ``benchmarks/data/``. Timings on a shared machine vary by up to about 2× between runs; treat these as indicative.
+With only NumPy installed, it is 1.3–2.4 times faster than before. Speedups depend on the CPU, the shape and the number of cores.
