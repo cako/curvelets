@@ -585,10 +585,12 @@ class UDCTWindow:
         """
         Process a single window_index value, constructing curvelet windows.
 
-        ``angle_functions`` and ``bandpass_windows`` must be float64 and already
-        circularly shifted by ``size//4`` (see :py:meth:`compute`): the shift
-        commutes with the elementwise products, so their product is the
-        shifted window directly.
+        ``angle_functions`` and ``bandpass_windows`` must already be circularly
+        shifted by ``size//4`` (see :py:meth:`compute`): the shift commutes
+        with the elementwise products, so their product is the shifted window
+        directly. The window is computed in float64: the first factor is
+        upcast (per window, before expansion), and the others are promoted
+        exactly by the in-place float64 products.
         """
         # Factors are multiplied left to right, as W = 1 · A_1 · ... · F_j
         factors: list[torch.Tensor] = []
@@ -602,6 +604,10 @@ class UDCTWindow:
             angle_func = angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)][
                 angle_idx
             ]
+            if not factors:
+                # Upcast only the 2-D function used by this window; keeping
+                # every angle function in float64 would double their memory
+                angle_func = angle_func.to(torch.float64)
             angle_idx_mapping = angle_indices[scale_idx - 1][
                 (dimension_idx, angle_dim_idx)
             ]
@@ -757,14 +763,6 @@ class UDCTWindow:
             high_frequency_mode=self.high_frequency_mode,
             grid_shift=quarter_shift,
         )
-        # Windows are built in float64; upcasting the (exactly representable)
-        # angle functions once matches the per-window promotion it replaces
-        angle_functions = {
-            scale_key: {
-                key: funcs.to(torch.float64) for key, funcs in scale_funcs.items()
-            }
-            for scale_key, scale_funcs in angle_functions.items()
-        }
         shifted_bandpass_windows = {
             scale_key: circular_shift(bandpass, quarter_shift)
             for scale_key, bandpass in bandpass_windows.items()
