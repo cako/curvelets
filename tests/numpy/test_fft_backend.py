@@ -111,20 +111,44 @@ def test_engine_is_resolved_once_at_construction(monkeypatch):
     np.testing.assert_allclose(udct.backward(udct.forward(data)), data, atol=1e-10)
 
 
-def test_auto_prefers_mkl_fft_then_benchmarks(monkeypatch):
-    fake_mkl = _fft.FFTBackend(
-        "mkl_fft", np.fft.fftn, np.fft.ifftn, np.fft.rfftn, np.fft.irfftn
-    )
-    _fft._auto_for_shape.cache_clear()
-    monkeypatch.setattr(
-        _fft, "_load", lambda name, _workers=1: fake_mkl if name == "mkl_fft" else None
-    )
-    assert resolve_fft_engine("auto", (16, 16)) is fake_mkl
+@pytest.mark.parametrize("fastest", ["numpy", "scipy", "mkl_fft"])
+def test_auto_picks_fastest_installed_engine(monkeypatch, fastest):
+    fakes = {
+        name: _fft.FFTBackend(
+            name, np.fft.fftn, np.fft.ifftn, np.fft.rfftn, np.fft.irfftn
+        )
+        for name in ("scipy", "fftw", "mkl_fft")
+    }
+    monkeypatch.setattr(_fft, "_load", lambda name, _workers=1: fakes.get(name))
+    timed: list[str] = []
 
+    def fake_time(backend, _data):
+        timed.append(backend.name)
+        return 0.0 if backend.name == fastest else 1.0
+
+    monkeypatch.setattr(_fft, "_time_backend", fake_time)
     _fft._auto_for_shape.cache_clear()
+    try:
+        assert resolve_fft_engine("auto", (16, 16)).name == fastest
+    finally:
+        _fft._auto_for_shape.cache_clear()
+    # fftw is never a candidate: its first call per shape pays for planning.
+    assert sorted(timed) == ["mkl_fft", "numpy", "scipy"]
+
+
+def test_auto_without_optional_engines_is_numpy(monkeypatch):
     monkeypatch.setattr(_fft, "_load", lambda _name, _workers=1: None)
-    assert resolve_fft_engine("auto", (16, 16)).name == "numpy"
+
+    def fail(*_args):
+        msg = "nothing to benchmark"
+        raise AssertionError(msg)
+
+    monkeypatch.setattr(_fft, "_time_backend", fail)
     _fft._auto_for_shape.cache_clear()
+    try:
+        assert resolve_fft_engine("auto", (16, 16)).name == "numpy"
+    finally:
+        _fft._auto_for_shape.cache_clear()
 
 
 def test_proxy_shape_respects_budget():
