@@ -81,12 +81,15 @@ class UDCT:
     fft_engine : {"auto", "numpy", "scipy", "fftw", "mkl_fft"}, optional
         FFT implementation, chosen once when the transform is created:
 
-        - "auto" (default): the fastest of NumPy and the installed SciPy /
-          ``mkl_fft`` for this shape (timed once per shape and cached).
+        - "auto" (default): the fastest of NumPy and the installed engines
+          that plan cheaply (SciPy, ``mkl_fft``, and FFTW when pyFFTW runs on
+          AMD's FFTW) for this shape (timed once per shape and cached).
         - "numpy": :mod:`numpy.fft` (single-threaded).
         - "scipy": :mod:`scipy.fft`, multithreaded.
-        - "fftw": FFTW via ``pyFFTW``, multithreaded (plans are cached; the
-          first transform of each shape pays for planning).
+        - "fftw": FFTW via ``pyFFTW``, multithreaded. Plans are cached; with
+          the stock FFTW the first transform of each shape plans with
+          ``FFTW_MEASURE`` (seconds), with AMD's FFTW with the much faster
+          ``FFTW_ESTIMATE``.
         - "mkl_fft": Intel MKL via ``mkl_fft``, multithreaded.
 
         An engine whose package is not installed falls back to NumPy with a

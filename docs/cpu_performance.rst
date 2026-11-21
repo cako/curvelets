@@ -37,10 +37,10 @@ The FFT library is chosen when the transform is created, with ``fft_engine``, an
      - Intel MKL, multithreaded. Wheels exist for Linux x86_64 and Windows x64 only. Fast on some shapes, but can be very slow on AMD CPUs (see below).
    * - ``"fftw"``
      - ``pip install curvelets[fftw]``
-     - FFTW via pyFFTW, multithreaded. Plans each transform shape on first use, which takes seconds (up to about a minute for large 3D transforms), then is fast. Only used when requested explicitly.
+     - FFTW via pyFFTW, multithreaded. With the stock FFTW (the pyFFTW wheel), it plans each transform shape on first use, which takes seconds (up to about a minute for large 3D transforms), then is fast; ``"auto"`` never picks it. With AMD's FFTW (see below), planning is nearly instant and ``"auto"`` considers it.
    * - ``"auto"``
      - (default)
-     - Times ``numpy`` and whichever of ``scipy`` and ``mkl_fft`` are installed, once per transform shape, on a small proxy problem, and uses the fastest. It never picks ``fftw``, whose planning cost would fall on every user with pyFFTW installed.
+     - Times ``numpy`` and the installed engines that plan cheaply (``scipy``, ``mkl_fft``, and ``fftw`` when pyFFTW runs on AMD's FFTW), once per transform shape, on a small proxy problem, and uses the fastest. It skips ``fftw`` on the stock FFTW, whose planning cost would fall on every user with pyFFTW installed.
 
 If a requested engine is not installed, the transform falls back to ``numpy`` with a warning. All engines give the same result up to floating-point rounding.
 
@@ -84,6 +84,8 @@ AMD CPUs
       export LD_LIBRARY_PATH=$PREFIX/lib
 
   ``-march=native`` and ``--enable-avx512`` target the CPU the library is built on; drop them for a build that must run on other machines.
+
+  The transform detects AMD's FFTW at run time (on Linux, from the library pyFFTW actually loaded), plans with ``FFTW_ESTIMATE``, which is nearly instant and performed well with it, and lets ``"auto"`` time it against the other engines.
 
 Intel CPUs
 ==========

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import functools
 import os
 import sys
@@ -140,8 +141,17 @@ def test_auto_picks_fastest_installed_engine(monkeypatch, fastest):
         name: _fft.FFTBackend(
             name, np.fft.fftn, np.fft.ifftn, np.fft.rfftn, np.fft.irfftn
         )
-        for name in ("scipy", "fftw", "mkl_fft")
+        for name in ("scipy", "mkl_fft")
     }
+    # The stock FFTW plans slowly (FFTW_MEASURE): not an auto candidate.
+    fakes["fftw"] = _fft.FFTBackend(
+        "fftw",
+        np.fft.fftn,
+        np.fft.ifftn,
+        np.fft.rfftn,
+        np.fft.irfftn,
+        cheap_planning=False,
+    )
     monkeypatch.setattr(_fft, "_load", lambda name, _workers=1: fakes.get(name))
     timed: list[str] = []
 
@@ -472,3 +482,76 @@ def test_fold_product_applies_extra_weights():
         window.fold_product(spectrum, extra_at_indices=extra),
         3.0 * window.fold_product(spectrum),
     )
+
+
+def test_auto_times_fftw_when_it_plans_cheaply(monkeypatch):
+    fftw = _fft.FFTBackend(
+        "fftw",
+        np.fft.fftn,
+        np.fft.ifftn,
+        np.fft.rfftn,
+        np.fft.irfftn,
+        cheap_planning=True,
+    )
+    monkeypatch.setattr(
+        _fft, "_load", lambda name, _workers=1: fftw if name == "fftw" else None
+    )
+    monkeypatch.setattr(
+        _fft, "_time_backend", lambda backend, _data: 0.0 if backend is fftw else 1.0
+    )
+    _fft._auto_for_shape.cache_clear()
+    try:
+        assert resolve_fft_engine("auto", (16, 16)) is fftw
+    finally:
+        _fft._auto_for_shape.cache_clear()
+
+
+@pytest.mark.usefixtures("clear_engine_cache")
+@pytest.mark.parametrize("amd", [False, True])
+def test_fftw_planner_effort_depends_on_fftw_build(monkeypatch, amd):
+    pyfftw, plans = _fake_pyfftw()
+    _install_fake_modules(
+        monkeypatch, {"pyfftw": pyfftw, "pyfftw.builders": pyfftw.builders}
+    )
+    monkeypatch.setattr(_fft, "_fftw_is_amd", lambda: amd)
+    udct = UDCT(shape=(32, 32), num_scales=2, fft_engine="fftw", fft_workers=2)
+    assert udct._fft.cheap_planning is amd
+    data = np.random.default_rng(0).standard_normal((32, 32))
+    np.testing.assert_allclose(udct.backward(udct.forward(data)), data, atol=1e-10)
+    expected = "FFTW_ESTIMATE" if amd else "FFTW_MEASURE"
+    assert {p["effort"] for p in plans} == {expected}
+
+
+def test_fftw_is_amd_checks_loaded_fftw_libraries(monkeypatch, tmp_path):
+    maps = tmp_path / "maps"
+    maps.write_text(
+        "7f00-7f01 r-xp 00000000 08:01 1 /usr/lib/libm.so.6\n"
+        "7f02-7f03 r-xp 00000000 08:01 2 /opt/x/pyfftw.libs/libfftw3-ab12.so.3.6.10\n"
+        "7f04-7f05 r-xp 00000000 08:01 3 /opt/x/libfftw3_threads.so.3\n"
+        "7f06-7f07 rw-p 00000000 00:00 0\n",
+        encoding="utf-8",
+    )
+    opened: list[str] = []
+
+    class Library:
+        def __init__(self, path: str, symbols: tuple[str, ...]) -> None:
+            opened.append(path)
+            for symbol in symbols:
+                setattr(self, symbol, object())
+
+    monkeypatch.setattr(ctypes, "CDLL", lambda path: Library(path, ()))
+    assert not _fft._fftw_is_amd(str(maps))
+    # Only the FFTW libraries themselves are opened (not libm, not _threads).
+    assert opened == ["/opt/x/pyfftw.libs/libfftw3-ab12.so.3.6.10"]
+
+    monkeypatch.setattr(
+        ctypes, "CDLL", lambda path: Library(path, ("fftw_aoclversion",))
+    )
+    assert _fft._fftw_is_amd(str(maps))
+
+    def unloadable(path: str) -> None:
+        raise OSError(path)
+
+    monkeypatch.setattr(ctypes, "CDLL", unloadable)
+    assert not _fft._fftw_is_amd(str(maps))
+    assert not _fft._fftw_is_amd(str(tmp_path / "missing"))
