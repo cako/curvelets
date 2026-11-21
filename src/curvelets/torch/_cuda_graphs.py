@@ -146,7 +146,10 @@ class CudaGraphsMixin:
 
     @property
     def cuda_graphs(self) -> bool:
-        """Whether CUDA calls replay CUDA graphs (see the class docstring)."""
+        """Whether CUDA calls replay CUDA graphs (see the class docstring).
+
+        .. versionadded:: 1.3
+        """
         return self._cuda_graphs
 
     @cuda_graphs.setter
@@ -157,7 +160,10 @@ class CudaGraphsMixin:
 
     @property
     def cuda_graph_cache_size(self) -> int:
-        """Number of captured CUDA graphs kept (least recently used dropped)."""
+        """Number of captured CUDA graphs kept (least recently used dropped).
+
+        .. versionadded:: 1.3
+        """
         return self._graphs.max_entries
 
     @cuda_graph_cache_size.setter
@@ -166,7 +172,10 @@ class CudaGraphsMixin:
         self._graphs.clear()
 
     def clear_cuda_graphs(self) -> None:
-        """Drop all captured CUDA graphs and their memory."""
+        """Drop all captured CUDA graphs and their memory.
+
+        .. versionadded:: 1.3
+        """
         self._graphs.clear()
 
     def _forward_flat(self, image: torch.Tensor) -> torch.Tensor:

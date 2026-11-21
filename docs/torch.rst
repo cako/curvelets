@@ -15,11 +15,14 @@ The :mod:`curvelets.torch` package provides the same transform as :mod:`curvelet
 Gradients
 =========
 
+.. versionchanged:: 1.3
+   :class:`~curvelets.torch.UDCT` takes its gradients from the adjoint transform in both layouts. Before, only :class:`~curvelets.torch.UDCTModule` did; :class:`~curvelets.torch.UDCT` recorded autograd through the whole transform.
+
 Every transform is differentiable, in both layouts. The UDCT is a tight frame, so the backward transform is the adjoint of the forward transform: the gradient of the forward transform is the backward transform of the incoming gradient, and vice versa. :class:`~curvelets.torch.UDCT` uses exactly that (through a custom :class:`torch.autograd.Function`) instead of recording every FFT, gather and fold in the autograd graph, which keeps gradients fast and memory-light. Second derivatives (``create_graph=True``), :func:`torch.vmap`, :mod:`torch.func` and :func:`torch.compile` work.
 
 .. note::
 
-   :class:`~curvelets.torch.UDCTModule`, the earlier ``nn.Module`` wrapper, is deprecated. ``UDCTModule(shape, ..., transform_type=kind)(x)`` is now ``UDCT(shape, ..., transform_kind=kind).forward_vect(x)``. It still works (it returns flat coefficients from ``__call__``) and warns.
+   :class:`~curvelets.torch.UDCTModule` is deprecated. Instead of ``UDCTModule(shape, ..., transform_type=kind)(x)``, use ``UDCT(shape, ..., transform_kind=kind).forward_vect(x)``.
 
 Moving to a GPU
 ===============
@@ -52,6 +55,8 @@ The public ``decimation_ratios`` attribute still follows ``.to()``.
 Batching
 ========
 
+.. versionadded:: 1.3
+
 Every transform accepts leading batch dimensions. For a transform of shape ``shape``:
 
 * :meth:`~curvelets.torch.UDCT.forward` maps ``(*batch, *shape)`` to coefficients whose arrays have shape ``(*batch, *wedge_shape)``;
@@ -59,7 +64,7 @@ Every transform accepts leading batch dimensions. For a transform of shape ``sha
 * :meth:`~curvelets.torch.UDCT.backward` maps coefficients back to ``(*batch, *shape)``;
 * :meth:`~curvelets.torch.UDCT.forward_vect` and :meth:`~curvelets.torch.UDCT.backward_vect` map ``(*batch, *shape)`` to ``(*batch, ncoef)`` and back.
 
-A whole batch is transformed in one call, so :func:`torch.vmap` is no longer needed (it still works). The trailing dimensions are checked against the transform's shape.
+A whole batch is transformed in one call (:func:`torch.vmap` also works). The trailing dimensions are checked against the transform's shape.
 
 .. code-block:: python
 
@@ -72,6 +77,8 @@ A whole batch is transformed in one call, so :func:`torch.vmap` is no longer nee
 
 Filtering coefficients
 ----------------------
+
+.. versionadded:: 1.3
 
 :meth:`UDCT.filter(image, fn) <curvelets.torch.UDCT.filter>` is a shortcut for the forward transform, ``fn`` applied to the coefficients, and the backward transform. ``fn`` receives a single tensor of shape ``(*batch, ncoef)`` in :meth:`~curvelets.torch.UDCT.vect` order (call :meth:`~curvelets.torch.UDCT.struct` inside it for per-wedge access), and the nested coefficient lists are never built.
 
@@ -90,6 +97,9 @@ See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a traini
 Precision
 =========
 
+.. versionchanged:: 1.3
+   Transforms have a fixed precision; inputs of another precision raise instead of being cast.
+
 A transform has a fixed precision, set when it is created with ``dtype`` (``torch.float32`` or ``torch.float64``; the default is :func:`torch.get_default_dtype`). A complex dtype names the precision of its parts: ``torch.complex64`` means ``torch.float32`` and ``torch.complex128`` means ``torch.float64``. The windows are computed in double precision and stored once in that dtype, so nothing is cast on each call.
 
 .. code-block:: python
@@ -99,11 +109,7 @@ A transform has a fixed precision, set when it is created with ``dtype`` (``torc
 
     transform = UDCT(shape=(256, 256), dtype=torch.float64)
 
-Inputs and coefficients of another precision are not cast silently: they raise a :class:`TypeError` that names the fix. To change the precision of a :class:`~curvelets.torch.UDCT` afterwards, use ``.to(dtype)``, ``.float()`` or ``.double()``. ``.to(torch.complex64)`` keeps the windows real and sets the matching precision. :meth:`~curvelets.torch.UDCT.struct` no longer takes its dtype from the last forward call; it uses the transform's.
-
-.. note::
-
-   **Breaking change.** Previously, float64 inputs to a default-constructed transform were accepted and cast. They now raise a :class:`TypeError`. Either pass ``dtype=torch.float64`` when creating the transform, call ``.double()`` on the transform, or cast the input to the transform's precision.
+Inputs and coefficients of another precision are not cast silently: they raise a :class:`TypeError` that names the fix. To change the precision of a :class:`~curvelets.torch.UDCT` afterwards, use ``.to(dtype)``, ``.float()`` or ``.double()``. ``.to(torch.complex64)`` keeps the windows real and sets the matching precision. :meth:`~curvelets.torch.UDCT.struct` returns views in the dtype of the vector it is given.
 
 .. _torch-performance:
 
@@ -122,6 +128,8 @@ Measured numbers, and the scripts that produce them, are in ``benchmarks/`` (see
 
 CUDA graphs
 ===========
+
+.. versionadded:: 1.3
 
 For small and medium inputs on a GPU (up to about :math:`1024 \times 1024`), Python takes longer to launch the transform's kernels than the GPU takes to run them. Passing ``cuda_graphs=True`` records each transform once per input shape and replays it afterwards, which removes most of that overhead:
 
