@@ -557,13 +557,15 @@ def test_fftw_is_amd_checks_loaded_fftw_libraries(monkeypatch, tmp_path):
     assert not _fft._fftw_is_amd(str(tmp_path / "missing"))
 
 
-def test_udct_default_engine_is_scipy_without_timing(monkeypatch):
+def test_udct_default_engine_without_timing(monkeypatch):
     def fail(*_args: Any) -> None:
         msg = "the default must not time engines"
         raise AssertionError(msg)
 
     monkeypatch.setattr(_fft, "_time_backend", fail)
-    assert UDCT(shape=(32, 32), num_scales=2).fft_engine == "scipy"
+    # SciPy is optional (e.g. absent on PyPy); without it the default is NumPy.
+    expected = "scipy" if "scipy" in available_fft_engines() else "numpy"
+    assert UDCT(shape=(32, 32), num_scales=2).fft_engine == expected
 
 
 def test_default_engine_falls_back_to_numpy_silently(monkeypatch, recwarn):
