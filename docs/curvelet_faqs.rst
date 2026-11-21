@@ -28,16 +28,38 @@ What separates curvelets from the other X-lets are their interesting properties,
 Why do we need another curvelet transform library?
 ##################################################
 
-There are three flavors of the discrete curvelet transform with publicly available implementations [#f1]_. The first two are based on the Fast Discrete Curvelet Transform (FDCT) pioneered by Candès, Demanet, Donoho and Ying. They are the "wrapping" and "USFFT" (unequally-spaced Fast Fourier Transform) versions of the FDCT. Both are implemented (2D and 3D for the wrapping version and 2D for the USFFT version) in the proprietary `CurveLab Toolbox <http://www.curvelet.org/software.html>`_ in MATLAB and C++.
+"Curvelet" names a family of constructions rather than a single transform, and each construction has its own implementations. It helps to keep three things apart: the curvelet constructions, the software that implements them, and other transforms that serve similar purposes.
+
+Curvelet constructions
+**********************
+
+* **First-generation curvelets** apply ridgelet transforms to blocks of a band-pass (wavelet-like) decomposition :cite:`Starck2002`. In 3D, the BeamCurvelet and RidCurvelet transforms follow the same recipe, for filaments and sheets respectively :cite:`Woiselle2010`. These constructions are much more redundant than the later ones.
+* **Second-generation curvelets** tile the frequency domain directly, with parabolic scaling (the width of a curvelet is about the square of its length), and form tight frames :cite:`Candes2004`. Their discretizations differ:
+
+  * the **Fast Discrete Curvelet Transform (FDCT)**, in its "wrapping" and "USFFT" (unequally-spaced Fast Fourier Transform) versions :cite:`Candes2006a`;
+  * the **Low-Redundancy Fast Curvelet Transform (LR-FCT)**, a 3D FDCT whose redundancy is about 10 instead of about 25 :cite:`Woiselle2011`;
+  * the **Uniform Discrete Curvelet Transform (UDCT)**, which uses smooth frequency windows and uniform decimation, giving an N-dimensional tight frame with low redundancy :cite:`Nguyen2010`.
+
+* **Extensions** of these constructions include monogenic curvelets, which add Riesz transforms to obtain an amplitude and a phase at every scale :cite:`Storath2010,Storath2011`, and curvelets on the sphere :cite:`Chan2017`.
+
+Implementations
+***************
+
+The FDCT, pioneered by Candès, Demanet, Donoho and Ying, is implemented in the proprietary `CurveLab Toolbox <http://www.curvelet.org/software.html>`_ in MATLAB and C++: the wrapping version in 2D and 3D, and the USFFT version in 2D.
 
 As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Any library which ports or converts Curvelab code to another language is also subject to Curvelab's license.
 While this does not include libraries which wrap the CurveLab toolbox and therefore do not contain any source code of Curvelab, their usage still requires Curvelab and therefore its license. Such wrappers include `curvelops <https://github.com/PyLops/curvelops>`_, `PyCurvelab <https://github.com/slimgroup/PyCurvelab>`_, both MIT licensed.
 
-A third flavor is the **Uniform Discrete Curvelet Transform (UDCT)** which does not have the same restrictive license as the FDCT. The UDCT was first implemented in MATLAB (`ucurvmd <https://github.com/nttruong7/ucurvmd>`_ [dead link]) by one of its authors, Truong Nguyen.
+The UDCT was first implemented in MATLAB (`ucurvmd <https://github.com/nttruong7/ucurvmd>`_ [dead link]) by one of its authors, Truong Nguyen, and later in Julia for 2D signals (`Curvelet.jl <https://github.com/fundamental/Curvelet.jl>`_, whose repository is archived; its last commit is from 2017). It does not have the restrictions of the FDCT.
 
-**This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing a the support for complex signals, monogenic extension for real signals :cite:`Storath2010`, and a wavelet transform at the highest scale.
+**This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing support for complex signals, monogenic curvelets for real signals :cite:`Storath2010`, and a wavelet transform at the highest scale.
 
-.. [#f1] The FDCTs and the UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redundancy Fast Curvelet Transform) :cite:`Woiselle2011`, but the implementation, `F-CUR3D <https://www.cosmostat.org/software/f-cur3d>`__, is unavailable. The monogenic curvelet transform of :cite:t:`Storath2010` does not have a publicly available implementation. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
+Other constructions have few or no implementations available. The implementation of the LR-FCT, `F-CUR3D <https://www.cosmostat.org/software/f-cur3d>`__, is unavailable. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
+
+Similar transforms
+******************
+
+Other multiscale, directional transforms, such as the dual-tree complex wavelet transform and the wavelet scattering transform, are not curvelets but serve similar purposes (see `What are curvelets?`_ for more "X-lets"). :doc:`related_projects` compares the libraries that implement them with this one.
 
 
 Can I use the **Curvelets** package for deep learning?
