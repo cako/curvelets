@@ -20,9 +20,13 @@ reports where it holds and where it does not.
 What the experiment measures
 ----------------------------
 
-A fault attribute is built from the curvelet bands. Along a reflector the wavelet
-is nearly constant, so the *relative change of the band field along the local
-event direction* is small on intact reflectors and large across a fault. For a
+Faults show up as discontinuities in otherwise laterally continuous reflections.
+Plane-wave destruction filters detect them as the residual left after predicting
+the data along the local dip, which is close to zero away from faults
+:cite:`Fomel2002`. The fault attribute here applies the same idea to each curvelet
+band. Along a reflector the wavelet is nearly constant, so the
+*relative change of the band field along the local event direction* is small on
+intact reflectors and large across a fault. For a
 band with channels :math:`f_c` (a list of real or complex fields) and event
 direction :math:`t`,
 
