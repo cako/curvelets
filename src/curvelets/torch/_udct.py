@@ -40,6 +40,20 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     buffers, so :meth:`state_dict` stays empty (they are rebuilt from the
     constructor arguments).
 
+    .. versionchanged:: 1.3
+       ``UDCT`` is a :class:`torch.nn.Module`, and its gradients come from the
+       adjoint transform in both layouts. It replaces the deprecated
+       :class:`UDCTModule`.
+
+    .. versionchanged:: 1.3
+       Every transform accepts leading batch dimensions, so
+       :func:`torch.vmap` is no longer needed.
+
+    .. versionchanged:: 1.3
+       The transform has a fixed precision (``dtype``). Inputs and
+       coefficients of another precision raise a :class:`TypeError` instead
+       of being cast.
+
     Parameters
     ----------
     shape : tuple[int, ...]
@@ -91,6 +105,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         complex counterpart for the complex transform), and coefficients come
         out as :attr:`coefficient_dtype`. Default is
         :func:`torch.get_default_dtype` (normally ``torch.float32``).
+
+        .. versionadded:: 1.3
     cuda_graphs : bool, optional
         Replay the real and complex transforms on CUDA from CUDA graphs: one
         launch per call instead of a few dozen, captured on the first call for
@@ -101,6 +117,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         512² transform gets ~6x faster on an RTX 4090); slower for large
         inputs, where copying in and out of the graph buffers costs more.
         Default is False.
+
+        .. versionadded:: 1.3
 
     Attributes
     ----------
@@ -223,12 +241,18 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
     @property
     def dtype(self) -> torch.dtype:
-        """Real precision of the transform (follows ``.to(dtype)``)."""
+        """Real precision of the transform (follows ``.to(dtype)``).
+
+        .. versionadded:: 1.3
+        """
         return self._windows[0][0][0].values.dtype
 
     @property
     def coefficient_dtype(self) -> torch.dtype:
-        """Dtype of the coefficients: complex, or real for the monogenic transform."""
+        """Dtype of the coefficients: complex, or real for the monogenic transform.
+
+        .. versionadded:: 1.3
+        """
         if self._transform_kind == "monogenic":
             return self.dtype
         return self.dtype.to_complex()
@@ -679,6 +703,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         """
         Vectorize curvelet coefficients.
 
+        .. versionchanged:: 1.3
+           Coefficients with leading batch dimensions are supported.
+
         Parameters
         ----------
         coefficients : UDCTCoefficients
@@ -712,6 +739,11 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     def struct(self, vector: torch.Tensor) -> UDCTCoefficients:
         """
         Restructure vectorized coefficients to nested list format.
+
+        .. versionchanged:: 1.3
+           Leading batch dimensions are supported, and the wedges are views
+           into ``vector`` in its dtype (previously the dtype of the last
+           forward call).
 
         Parameters
         ----------
@@ -785,6 +817,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         """
         Apply forward curvelet transform.
 
+        .. versionchanged:: 1.3
+           Leading batch dimensions are supported.
+
         Parameters
         ----------
         image : torch.Tensor
@@ -856,6 +891,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         :meth:`vect` order (use :meth:`struct` inside ``fn`` for per-wedge
         access), and never go through the nested list representation.
 
+        .. versionadded:: 1.3
+
         Parameters
         ----------
         image : torch.Tensor
@@ -899,6 +936,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
         Equals ``vect(forward(image))`` without building the nested list.
 
+        .. versionadded:: 1.3
+
         Parameters
         ----------
         image : torch.Tensor
@@ -929,6 +968,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
         Equals ``backward(struct(vector))``.
 
+        .. versionadded:: 1.3
+
         Parameters
         ----------
         vector : torch.Tensor
@@ -954,6 +995,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     def backward(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
         Apply backward (inverse) curvelet transform.
+
+        .. versionchanged:: 1.3
+           Leading batch dimensions are supported.
 
         Parameters
         ----------
@@ -999,6 +1043,10 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         and decimation ratios. If ``fn`` changes the floating-point dtype of the
         windows, :attr:`dtype` follows it; a complex target dtype (e.g.
         ``udct.to(torch.complex64)``) sets the matching real precision.
+
+        .. versionchanged:: 1.3
+           Dtype changes set the transform's precision, and the periodized
+           index maps are kept instead of recomputed.
 
         Parameters
         ----------
