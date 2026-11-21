@@ -78,22 +78,27 @@ class UDCT:
         - "monogenic": Monogenic transform that extends the curvelet transform
           by applying Riesz transforms, producing ndim+2 channels per band
           (scalar as 2 real channels plus all Riesz components).
-    fft_engine : {"auto", "numpy", "scipy", "fftw", "mkl_fft"}, optional
-        FFT implementation, chosen once when the transform is created:
+    fft_engine : {"scipy", "numpy", "auto", "fftw", "mkl_fft"}, optional
+        FFT implementation, chosen once when the transform is created.
+        Default (``None``): SciPy when it is installed
+        (``pip install curvelets[scipy]``), NumPy otherwise.
 
-        - "auto" (default): the fastest of NumPy and the installed engines
-          that plan cheaply (SciPy, ``mkl_fft``, and FFTW when pyFFTW runs on
-          AMD's FFTW) for this shape (timed once per shape and cached).
+        - "scipy": :mod:`scipy.fft`, multithreaded. Keeps float32 inputs in
+          single precision on every NumPy version.
         - "numpy": :mod:`numpy.fft` (single-threaded).
-        - "scipy": :mod:`scipy.fft`, multithreaded.
+        - "auto": the fastest of NumPy and the installed engines that plan
+          cheaply (SciPy, ``mkl_fft``, and FFTW when pyFFTW runs on AMD's
+          FFTW) for this shape. They are timed when the first transform of
+          each shape is created (cached afterwards), which adds to its
+          creation time.
         - "fftw": FFTW via ``pyFFTW``, multithreaded. Plans are cached; with
           the stock FFTW the first transform of each shape plans with
           ``FFTW_MEASURE`` (seconds), with AMD's FFTW with the much faster
           ``FFTW_ESTIMATE``.
         - "mkl_fft": Intel MKL via ``mkl_fft``, multithreaded.
 
-        An engine whose package is not installed falls back to NumPy with a
-        warning. All engines give the same result up to rounding.
+        A requested engine whose package is not installed falls back to
+        NumPy with a warning. All engines give the same result up to rounding.
     fft_workers : int, optional
         Number of threads used by the multithreaded FFT engines (``scipy``,
         ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs available to
@@ -150,7 +155,7 @@ class UDCT:
         window_threshold: float = 1e-5,
         high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
         transform_kind: Literal["real", "complex", "monogenic"] = "real",
-        fft_engine: FFTEngine = "auto",
+        fft_engine: FFTEngine | None = None,
         fft_workers: int | None = None,
     ) -> None:
         # Validate transform_kind
