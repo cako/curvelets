@@ -198,17 +198,20 @@ def test_complex_module_gradient_for_complex_input() -> None:
     assert z.grad.dtype == torch.complex64
 
 
-def test_monogenic_dtypes_and_unimplemented_paths() -> None:
-    """Monogenic coefficients are real; its transforms are not implemented yet."""
+def test_monogenic_dtypes() -> None:
+    """Monogenic coefficients and reconstructions are real, in the transform's precision."""
     udct = _udct(torch.float32, "monogenic")
     assert udct.dtype == torch.float32
     assert udct.coefficient_dtype == torch.float32
     x = torch.randn(SHAPE, dtype=torch.float32)
-    with pytest.raises(NotImplementedError):
-        udct.forward(x)
-    with pytest.raises(NotImplementedError):
-        udct.backward([[[x]]])
-    with pytest.raises(NotImplementedError):
-        udct.forward_vect(x)
+    coeffs = udct.forward(x)
+    assert {c.dtype for s in coeffs for d in s for c in d} == {torch.float32}
+    assert udct.forward_vect(x).dtype == torch.float32
+    assert {r.dtype for r in udct.backward(coeffs)} == {torch.float32}
+    with pytest.raises(TypeError, match=r"torch\.float64"):
+        udct.forward(x.double())
     with pytest.raises(ValueError, match="real-valued input"):
         udct.forward(x.to(torch.complex64))
+    udct.double()
+    assert udct.coefficient_dtype == torch.float64
+    assert {r.dtype for r in udct.backward(udct.forward(x.double()))} == {torch.float64}

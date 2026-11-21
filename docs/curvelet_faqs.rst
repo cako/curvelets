@@ -37,7 +37,7 @@ A third flavor is the **Uniform Discrete Curvelet Transform (UDCT)** which does 
 
 **This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing a the support for complex signals, monogenic extension for real signals :cite:`Storath2010`, and a wavelet transform at the highest scale.
 
-.. [#f1] The FDCTs and the UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redudancy Fast Curvelet Transform) :cite:`Woiselle2010`, but the implementation, `F-CUR3D <https://www.cosmostat.org/software/f-cur3d>`__, is unavailable. The monogenic curvelet transform of :cite:t:`Storath2010` does not have a publicly available implementation. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
+.. [#f1] The FDCTs and the UDCT are not the only curvelet transforms. To my knowledge, there is another implementation of the 3D Discrete Curvelet Transform named the LR-FCT (Low-Redundancy Fast Curvelet Transform) :cite:`Woiselle2011`, but the implementation, `F-CUR3D <https://www.cosmostat.org/software/f-cur3d>`__, is unavailable. The monogenic curvelet transform of :cite:t:`Storath2010` does not have a publicly available implementation. The `S2LET <https://astro-informatics.github.io/s2let/>`_ package implements curvelets on the sphere :cite:`Chan2017`.
 
 
 Can I use the **Curvelets** package for deep learning?

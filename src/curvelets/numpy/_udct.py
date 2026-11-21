@@ -3,6 +3,7 @@ from __future__ import annotations
 # pylint: disable=duplicate-code,too-many-lines
 # Duplicate code with torch implementation is expected
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from math import prod
 from typing import Any, Literal
 
@@ -11,14 +12,15 @@ import numpy.typing as npt
 
 from ._backward_transform import _apply_backward_transform
 from ._backward_transform_monogenic import _apply_backward_transform_monogenic
-from ._fft import FFTEngine, resolve_fft_engine
+from ._fft import FFTEngine, _resolve_workers, resolve_fft_engine
 from ._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_monogenic,
     _apply_forward_transform_real,
 )
 from ._riesz import riesz_filters
-from ._udct_windows import UDCTWindow
+from ._sparse_window import SparseWindow
+from ._udct_windows import UDCTWindow, _window_workers
 from ._utils import ParamUDCT
 from .typing import (
     _C,
@@ -108,10 +110,11 @@ class UDCT:
         .. versionadded:: 1.3
     fft_workers : int, optional
         Number of threads used by the multithreaded FFT engines (``scipy``,
-        ``fftw``, ``mkl_fft``). Default (``None``) uses all CPUs available to
-        the process (respecting CPU affinity, e.g. in containers). Ignored by
-        ``numpy``, and by ``mkl_fft`` when ``mkl-service`` is not installed
-        (MKL then uses its own default).
+        ``fftw``, ``mkl_fft``), and to build the windows when the transform is
+        created. Default (``None``) uses all CPUs available to the process
+        (respecting CPU affinity, e.g. in containers). The FFTs ignore it
+        with ``numpy``, and with ``mkl_fft`` when ``mkl-service`` is not
+        installed (MKL then uses its own default).
 
         .. versionadded:: 1.3
 
@@ -199,7 +202,9 @@ class UDCT:
             window_threshold=params_dict["window_threshold"],
         )
 
-        # Calculate windows and attach periodized FFT index maps
+        # Calculate windows and attach periodized FFT index maps, with as many
+        # threads as the FFTs use
+        self._workers = _resolve_workers(fft_workers)
         self.windows, self.decimation_ratios, self.indices = self._initialize_windows()
 
         # FFT engine, resolved once (an "auto" choice is benchmarked per shape)
@@ -249,8 +254,8 @@ class UDCT:
         >>> # For wedges_per_direction=3, num_scales=3
         >>> wedges_per_scale = np.array([3, 6])
         >>> alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
-        >>> 0.1 < alpha < 0.2  # Expected around 0.11
-        True
+        >>> round(float(alpha), 4)
+        0.0369
         """
         min_overlap = float("inf")
 
@@ -505,11 +510,14 @@ class UDCT:
         tuple
             (windows, decimation_ratios, indices)
         """
-        window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
+        window_computer = UDCTWindow(
+            self.parameters, self.high_frequency_mode, workers=self._workers
+        )
         windows, decimation_ratios, indices = window_computer.compute()
         need_flip = self.transform_kind == "complex"
         # Real and monogenic transforms work on the rfftn half spectrum.
         need_half = not need_flip
+        tasks: list[tuple[SparseWindow, npt.NDArray[np.int_]]] = []
         for scale_idx, scale_windows in enumerate(windows):
             for direction_idx, direction_windows in enumerate(scale_windows):
                 if decimation_ratios[scale_idx].shape[0] == 1:
@@ -518,10 +526,17 @@ class UDCT:
                     dec = decimation_ratios[scale_idx][
                         min(direction_idx, decimation_ratios[scale_idx].shape[0] - 1)
                     ]
-                for window in direction_windows:
-                    window.attach_periodized(
-                        dec, with_flip=need_flip, half_spectrum=need_half
-                    )
+                tasks.extend((window, dec) for window in direction_windows)
+        # Each window's maps are independent NumPy work: build them in parallel
+        with ThreadPoolExecutor(max_workers=_window_workers(self._workers)) as pool:
+            list(
+                pool.map(
+                    lambda task: task[0].attach_periodized(
+                        task[1], with_flip=need_flip, half_spectrum=need_half
+                    ),
+                    tasks,
+                )
+            )
         return windows, decimation_ratios, indices
 
     def _get_riesz_filters(self) -> list[npt.NDArray[np.complexfloating]]:
@@ -551,10 +566,10 @@ class UDCT:
         >>> from curvelets.numpy import UDCT
         >>> transform = UDCT(shape=(64, 64), num_scales=3)
         >>> shapes = transform.coefficient_shapes()
-        >>> len(shapes) == transform.num_scales
+        >>> len(shapes) == transform.parameters.num_scales
         True
-        >>> shapes[0][0][0]  # Low-frequency band shape
-        (16, 16)
+        >>> shapes[0][0][0]  # Low-frequency band shape (decimated by 2)
+        (32, 32)
         """
         if self.transform_kind == "monogenic":
             return self._coefficient_shapes_monogenic()
@@ -1106,9 +1121,11 @@ class UDCT:
 
         Notes
         -----
-        This method computes the monogenic signal directly using Riesz transforms
-        without performing the curvelet decomposition. It is mathematically equivalent
-        to backward(forward(f)) with transform_kind="monogenic" but computationally simpler.
+        This method computes the monogenic signal exactly, using Riesz transforms in
+        the Fourier domain, without the curvelet decomposition. With
+        transform_kind="monogenic", the first component of backward(forward(f)) also
+        equals f, but the others only approximate -Rₖf: each Riesz channel of the
+        coefficients keeps the real part of its values.
 
         The monogenic signal is defined as:
         Mf = f + i₁(-R₁f) + i₂(-R₂f) + ... + iₙ(-Rₙf)
@@ -1133,13 +1150,11 @@ class UDCT:
         (64, 64)
         >>> np.allclose(data, scalar)
         True
-        >>> # Verify it matches backward(forward(f)) with transform_kind="monogenic"
+        >>> # The round trip through the monogenic transform reconstructs f
         >>> transform_mono = UDCT(shape=(64, 64), transform_kind="monogenic")
         >>> coeffs = transform_mono.forward(data)
         >>> components2 = transform_mono.backward(coeffs)
         >>> np.allclose(scalar, components2[0], atol=1e-4)
-        True
-        >>> np.allclose(components[1], components2[1], atol=1e-4)
         True
         """
         np.testing.assert_equal(self.shape, image.shape)

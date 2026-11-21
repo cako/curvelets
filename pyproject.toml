@@ -115,6 +115,8 @@ filterwarnings = [
   # Free-threaded CPython re-enables the GIL to load Triton's extension (torch
   # imports Triton when it is installed, e.g. in torch.profiler)
   "ignore:The global interpreter lock \\(GIL\\) has been enabled to load module 'triton:RuntimeWarning",
+  # ... and to load markupsafe's speedups (torch.compile imports jinja2)
+  "ignore:The global interpreter lock \\(GIL\\) has been enabled to load module 'markupsafe:RuntimeWarning",
 ]
 log_cli_level = "INFO"
 testpaths = ["tests"]
@@ -252,3 +254,7 @@ messages_control.disable = [
   "missing-class-docstring",
   "missing-function-docstring",
 ]
+
+[tool.codespell]
+# Author surnames in docs/references.bib
+ignore-words-list = "childs"

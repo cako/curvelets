@@ -94,6 +94,13 @@ See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a traini
 
 .. _torch-precision:
 
+Monogenic transform
+===================
+
+``transform_kind="monogenic"`` gives the same coefficients as :mod:`curvelets.numpy`: each wedge is a real tensor of shape ``(*batch, *wedge_shape, ndim + 2)`` holding the scalar coefficient (real and imaginary parts) and one Riesz component per dimension. :meth:`~curvelets.torch.UDCT.backward` and :meth:`~curvelets.torch.UDCT.backward_vect` return the ``ndim + 1`` components that numpy returns as a tuple, stacked along a new first axis, ``(ndim + 1, *batch, *shape)``, with the reconstruction of ``f`` first (``f, *riesz = udct.backward(coeffs)``). :meth:`~curvelets.torch.UDCT.monogenic` computes :math:`(f, -R_1 f, \ldots, -R_n f)` directly, in the same layout.
+
+The transform runs on the real transform's fused plan: one batched call transforms ``f`` together with its Riesz-filtered copies. It therefore has the same gradients (through the adjoint), batching and CUDA graphs as the real transform, at about ``ndim + 1`` times its cost (up to ``2 ndim + 1`` when axes have even lengths, where the Riesz-filtered copies are complex).
+
 Precision
 =========
 
@@ -116,11 +123,29 @@ Inputs and coefficients of another precision are not cast silently: they raise a
 Performance tips
 ================
 
-* **Create the transform once and reuse it.** The first call on a device builds an execution plan (a few launches run the whole transform, whatever the number of wedges); later calls reuse it. Moving the transform with ``.to()`` rebuilds it for the new device.
+* **Create the transform once and reuse it.** Building the windows takes up to a few seconds for large inputs; across processes, save the built transform (see `Saving a built transform`_). The first call on a device builds an execution plan (a few launches run the whole transform, whatever the number of wedges); later calls reuse it. Moving the transform with ``.to()`` rebuilds it for the new device.
 * **Batch your inputs.** Pass a ``(batch, *shape)`` tensor rather than looping over images in Python (see `Batching`_).
 * **Use float32 unless you need float64.** It is the default, and is much faster on most GPUs.
 * **Avoid synchronizing in your own loop.** The transform itself never waits on the GPU; calls such as ``.item()`` or ``.cpu()`` between transforms do, and leave the GPU idle.
 * ``torch.compile`` and :func:`torch.vmap` work with the transform.
+
+Saving a built transform
+------------------------
+
+Creating a transform builds its windows on the CPU, with the same code as :mod:`curvelets.numpy`: on a 4-core laptop CPU, about 2 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5–1 s for :math:`128 \times 128 \times 128` with 3 scales. Moving the transform to a GPU does not rebuild them. If you create the same transform often (in every run of a script, or in every data-loader worker), build it once and save it with :func:`torch.save`. A saved transform keeps everything it precomputed, and loads in about 0.1–0.2 s at :math:`2048 \times 2048`:
+
+.. code-block:: python
+
+    import torch
+    from curvelets.torch import UDCT
+
+    transform = UDCT(shape=(2048, 2048), num_scales=5)
+    torch.save(transform, "udct_2048.pt")
+
+    # later, or in another process
+    transform = torch.load("udct_2048.pt", weights_only=False)
+
+``pickle`` works too. The file is large (about 100 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of ``curvelets`` that wrote it, so rebuild it after upgrading. The same applies to :class:`curvelets.numpy.UDCT` (see :ref:`cpu-performance`).
 
 Measured numbers, and the scripts that produce them, are in ``benchmarks/`` (see :ref:`contributing`).
 

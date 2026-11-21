@@ -5,7 +5,8 @@ PyTorch UDCT Module
 ``curvelets.torch.UDCT`` is a :class:`torch.nn.Module`: it moves with
 ``.to()``, nests inside networks, and is differentiable.
 
-Its gradients come from the adjoint transform. The UDCT is a tight frame, so
+Its gradients come from the adjoint transform. The UDCT :cite:`Nguyen2010` is a
+tight frame, so
 the gradient of the forward transform is the backward transform (and vice
 versa). Autograd never records the many small operations inside the
 transform, which keeps gradients fast and memory-light.
@@ -71,3 +72,10 @@ x.grad = None
 assert torch.autograd.gradcheck(
     udct.forward_vect, x, fast_mode=True, atol=1e-4, rtol=1e-3
 )
+
+# %%
+# References
+# ##########
+#
+# .. bibliography::
+#    :filter: docname in docnames

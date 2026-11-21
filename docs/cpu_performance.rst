@@ -50,10 +50,30 @@ To choose the library yourself, pass ``fft_engine``, for example ``UDCT(shape=(5
 Tips
 ====
 
-* **Create the** :class:`~curvelets.numpy.UDCT` **once and reuse it** for every image of the same shape.
+* **Create the** :class:`~curvelets.numpy.UDCT` **once and reuse it** for every image of the same shape. Across runs or processes, save it instead of rebuilding it (see `Saving a built transform`_).
 * **Use float32** inputs when that precision is enough: they are faster and use half the memory.
 * **Running several transforms in parallel** (for example one per process)? Set ``fft_workers=1``, or a small number, so they do not compete for the same cores.
 * **FFTW is slow to start.** With the standard pyFFTW package, the first transform of each shape takes seconds (up to a minute for large 3D shapes) to prepare. It then runs fast, so it is worth it for many transforms of one shape. ``"auto"`` therefore never picks it; ask for it with ``fft_engine="fftw"``.
+
+Saving a built transform
+========================
+
+Creating a transform builds its windows with ``fft_workers`` threads (by default, every CPU the process may use): on a 4-core laptop CPU, this takes about 1.5 s for a :math:`2048 \times 2048` transform with 5 scales and 0.5 s for :math:`128 \times 128 \times 128` with 3 scales. If you create the same transform often (in every run of a script, or in every worker of a pool), build it once and save it with :mod:`pickle`. A saved transform keeps everything it precomputed, and loads in about 0.2 s at :math:`2048 \times 2048`:
+
+.. code-block:: python
+
+    import pickle
+
+    from curvelets.numpy import UDCT
+
+    transform = UDCT(shape=(2048, 2048), num_scales=5)
+    with open("udct_2048.pkl", "wb") as f:
+        pickle.dump(transform, f)
+
+    with open("udct_2048.pkl", "rb") as f:  # later, or in another process
+        transform = pickle.load(f)
+
+The file is large (about 280 MB at :math:`2048 \times 2048`). Loading it runs code from the file, so only load files you created. It is tied to the version of **Curvelets** that wrote it, so rebuild it after upgrading.
 
 AMD CPUs
 ========

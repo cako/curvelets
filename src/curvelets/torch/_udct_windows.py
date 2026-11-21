@@ -1,18 +1,20 @@
-"""Window computation for PyTorch UDCT implementation."""
+"""Window computation for PyTorch UDCT implementation.
 
-# pylint: disable=duplicate-code
-# Duplicate code with numpy implementation is expected
+The windows are built once, on the CPU, when a transform is created. They are
+computed by the NumPy window builder and converted to tensors, so both
+backends share a single (optimized) implementation and produce identical
+windows.
+"""
+
 from __future__ import annotations
-
-from collections.abc import Iterable
-from itertools import combinations
-from math import ceil
 
 import numpy as np
 import torch
 
+from ..numpy._udct_windows import UDCTWindow as _NpUDCTWindow
+from ..numpy._utils import ParamUDCT as _NpParamUDCT
 from ._sparse_window import SparseWindow
-from ._utils import ParamUDCT, circular_shift, meyer_window
+from ._utils import ParamUDCT
 from .typing import UDCTWindows
 
 
@@ -20,10 +22,9 @@ class UDCTWindow:
     """
     Window computation for Uniform Discrete Curvelet Transform.
 
-    This class encapsulates all window computation functionality for the UDCT,
-    including bandpass filter creation, angle function computation, window
-    normalization, and sparse format conversion. The class is initialized with
-    UDCT parameters and provides a compute() method to generate curvelet windows.
+    Thin wrapper around :class:`curvelets.numpy._udct_windows.UDCTWindow`:
+    windows are computed with NumPy (in float64) and returned as tensors on
+    the CPU, with the same structure as the NumPy windows.
 
     Parameters
     ----------
@@ -75,640 +76,6 @@ class UDCTWindow:
         self.window_threshold = parameters.window_threshold
         self.high_frequency_mode = high_frequency_mode
 
-    @staticmethod
-    def _compute_angle_component(
-        x_primary: torch.Tensor, x_secondary: torch.Tensor
-    ) -> torch.Tensor:
-        """Compute one angle component from meshgrid coordinates."""
-        # Compute angle component using piecewise function
-        primary_ratio = torch.zeros_like(x_primary)
-        mask = (x_primary != 0) & (torch.abs(x_secondary) <= torch.abs(x_primary))
-        primary_ratio[mask] = -x_secondary[mask] / x_primary[mask]
-
-        secondary_ratio = torch.zeros_like(x_primary)
-        mask = (x_secondary != 0) & (torch.abs(x_primary) < torch.abs(x_secondary))
-        secondary_ratio[mask] = x_primary[mask] / x_secondary[mask]
-
-        # Wrap secondary_ratio to the correct range
-        wrapped_ratio = secondary_ratio.clone()
-        wrapped_ratio[secondary_ratio < 0] = secondary_ratio[secondary_ratio < 0] + 2
-        wrapped_ratio[secondary_ratio > 0] = secondary_ratio[secondary_ratio > 0] - 2
-
-        angle_component = torch.zeros_like(x_primary)
-        angle_component[:] = primary_ratio + wrapped_ratio
-        angle_component[x_primary >= 0] = -2
-        return angle_component
-
-    @staticmethod
-    def _create_angle_grids_from_frequency_grids(
-        frequency_grid_1: torch.Tensor, frequency_grid_2: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Adapt frequency grids for angle computation."""
-        meshgrid_dim1, meshgrid_dim2 = torch.meshgrid(
-            frequency_grid_2, frequency_grid_1, indexing="xy"
-        )
-
-        angle_grid_1 = UDCTWindow._compute_angle_component(meshgrid_dim1, meshgrid_dim2)
-        angle_grid_2 = UDCTWindow._compute_angle_component(meshgrid_dim2, meshgrid_dim1)
-
-        return angle_grid_2, angle_grid_1
-
-    @staticmethod
-    def _create_angle_functions(
-        angle_grid: torch.Tensor,
-        direction: int,
-        num_angular_wedges: int,
-        window_overlap: float,
-    ) -> torch.Tensor:
-        """Create angle functions using Meyer windows."""
-        angular_spacing = 2 / num_angular_wedges
-        angular_boundaries = angular_spacing * torch.tensor(
-            [-window_overlap, window_overlap, 1 - window_overlap, 1 + window_overlap],
-            dtype=angle_grid.dtype,
-            device=angle_grid.device,
-        )
-
-        angle_functions_list: list[torch.Tensor] = []
-        if direction in (1, 2):
-            for wedge_index in range(1, ceil(num_angular_wedges / 2) + 1):
-                ang2 = -1 + (wedge_index - 1) * angular_spacing + angular_boundaries
-                window_values = meyer_window(angle_grid, *ang2.tolist())
-                angle_functions_list.append(window_values.unsqueeze(0))
-        else:
-            error_msg = f"Unrecognized direction: {direction}. Must be 1 or 2."
-            raise ValueError(error_msg)
-        return torch.cat(angle_functions_list, dim=0)
-
-    @staticmethod
-    def _compute_angle_kronecker_product(
-        angle_function_1d: torch.Tensor,
-        dimension_permutation: torch.Tensor,
-        shape: tuple[int, ...],
-        dimension: int,
-    ) -> torch.Tensor:
-        """
-        Compute Kronecker product for angle functions.
-
-        Expands a 1D angle function to an N-D tensor by replicating values along
-        dimensions not in the permutation, using Kronecker products.
-
-        Parameters
-        ----------
-        angle_function_1d : torch.Tensor
-            Angle function tensor representing a 2D grid of values.
-        dimension_permutation : torch.Tensor
-            Dimension permutation indices (1-indexed) specifying which two
-            dimensions the angle function spans.
-        shape : tuple[int, ...]
-            Shape of the output tensor.
-        dimension : int
-            Dimensionality of the transform.
-
-        Returns
-        -------
-        torch.Tensor
-            Expanded (non-materialized) view with shape matching input shape
-            and dtype matching the input.
-
-        Notes
-        -----
-        The angle function spans axes ``dimension_permutation - 1`` and is
-        constant along every other axis, so the Kronecker replication is
-        exactly a broadcast: no N-D tensor is materialized.
-        """
-        broadcast_shape = [1] * dimension
-        for axis in dimension_permutation.tolist():
-            broadcast_shape[int(axis) - 1] = shape[int(axis) - 1]
-        return angle_function_1d.reshape(broadcast_shape).expand(shape)
-
-    @staticmethod
-    def _flip_with_fft_shift(input_tensor: torch.Tensor, axis: int) -> torch.Tensor:
-        """Flip tensor along specified axis with frequency domain shift."""
-        shift_vector = [0] * input_tensor.ndim
-        shift_vector[axis] = 1
-        flipped_tensor = torch.flip(input_tensor, dims=(axis,))
-        return circular_shift(flipped_tensor, tuple(shift_vector))
-
-    @staticmethod
-    def _flip_flat_indices(
-        flat_indices: torch.Tensor, shape: tuple[int, ...], axis: int
-    ) -> torch.Tensor:
-        """
-        Map flat indices through :py:meth:`_flip_with_fft_shift` along ``axis``.
-
-        ``_flip_with_fft_shift`` sends element ``k`` along ``axis`` to
-        ``(-k) mod n``; this applies that permutation to flat indices directly,
-        so a sparse window can be flipped without densifying it.
-        """
-        stride = int(np.prod(shape[axis + 1 :], dtype=np.int64))
-        n = shape[axis]
-        coord = torch.div(flat_indices, stride, rounding_mode="floor") % n
-        return flat_indices + (torch.remainder(-coord, n) - coord) * stride
-
-    @staticmethod
-    def _flip_sparse_window(window: SparseWindow, axis: int) -> SparseWindow:
-        """
-        Sparse equivalent of ``from_dense(_flip_with_fft_shift(window.to_dense()))``.
-
-        ``window`` must have ascending indices; the result does too.
-        """
-        flipped = UDCTWindow._flip_flat_indices(window.indices, window.shape, axis)
-        flipped, order = torch.sort(flipped)
-        return SparseWindow(
-            indices=flipped, values=window.values[order], shape=window.shape
-        )
-
-    @staticmethod
-    def _nchoosek(n: Iterable[int] | torch.Tensor, k: int) -> torch.Tensor:
-        """Generate all combinations of k elements from n."""
-        if isinstance(n, torch.Tensor):
-            n = n.tolist()
-        return torch.tensor(list(combinations(n, k)), dtype=torch.int64)
-
-    @staticmethod
-    def _create_bandpass_windows(
-        num_scales: int,
-        shape: tuple[int, ...],
-        radial_frequency_params: tuple[float, float, float, float],
-    ) -> tuple[dict[int, torch.Tensor], dict[int, torch.Tensor]]:
-        """Create bandpass windows using Meyer wavelets."""
-        dimension = len(shape)
-        frequency_grid: dict[int, torch.Tensor] = {}
-        meyer_windows: dict[tuple[int, int], torch.Tensor] = {}
-
-        for dimension_idx in range(dimension):
-            frequency_grid[dimension_idx] = torch.linspace(
-                -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx]
-            )[:-1]
-            # Append last value to match NumPy's behavior
-            frequency_grid[dimension_idx] = torch.cat([
-                frequency_grid[dimension_idx],
-                torch.tensor([0.5 * np.pi - (2 * np.pi / shape[dimension_idx])]),
-            ])
-            # Actually recreate properly
-            frequency_grid[dimension_idx] = torch.linspace(
-                -1.5 * np.pi, 0.5 * np.pi, shape[dimension_idx] + 1
-            )[:-1]
-
-            meyer_params = torch.tensor(
-                [-2, -1, radial_frequency_params[0], radial_frequency_params[1]],
-                device=frequency_grid[dimension_idx].device,
-            )
-            abs_frequency_grid = torch.abs(frequency_grid[dimension_idx])
-            meyer_windows[(num_scales - 1, dimension_idx)] = meyer_window(
-                abs_frequency_grid, *meyer_params.tolist()
-            )
-            if num_scales == 2:
-                meyer_windows[(num_scales - 1, dimension_idx)] = meyer_windows[
-                    (num_scales - 1, dimension_idx)
-                ] + meyer_window(
-                    torch.abs(frequency_grid[dimension_idx] + 2 * np.pi),
-                    *meyer_params.tolist(),
-                )
-            meyer_params[2] = radial_frequency_params[2]
-            meyer_params[3] = radial_frequency_params[3]
-            meyer_windows[(num_scales, dimension_idx)] = meyer_window(
-                abs_frequency_grid, *meyer_params.tolist()
-            )
-
-            for scale_idx in range(num_scales - 2, 0, -1):
-                meyer_params[2] = radial_frequency_params[0]
-                meyer_params[3] = radial_frequency_params[1]
-                meyer_params[2] /= 2 ** (num_scales - 1 - scale_idx)
-                meyer_params[3] /= 2 ** (num_scales - 1 - scale_idx)
-                meyer_windows[(scale_idx, dimension_idx)] = meyer_window(
-                    abs_frequency_grid, *meyer_params.tolist()
-                )
-
-        bandpass_windows: dict[int, torch.Tensor] = {}
-        # Get device from first frequency grid
-        device = frequency_grid[0].device if frequency_grid else None
-        for scale_idx in range(num_scales - 1, 0, -1):
-            low_freq = torch.tensor([1.0], dtype=torch.float64, device=device)
-            high_freq = torch.tensor([1.0], dtype=torch.float64, device=device)
-            for dimension_idx in range(dimension - 1, -1, -1):
-                low_freq = torch.kron(
-                    meyer_windows[(scale_idx, dimension_idx)].to(torch.float64),
-                    low_freq,
-                )
-                high_freq = torch.kron(
-                    meyer_windows[(scale_idx + 1, dimension_idx)].to(torch.float64),
-                    high_freq,
-                )
-            low_freq_nd = low_freq.reshape(*shape)
-            high_freq_nd = high_freq.reshape(*shape)
-            bandpass_nd = high_freq_nd - low_freq_nd
-            bandpass_nd = torch.clamp(bandpass_nd, min=0)
-            bandpass_windows[scale_idx] = bandpass_nd
-        bandpass_windows[0] = low_freq_nd
-        return frequency_grid, bandpass_windows
-
-    @staticmethod
-    def _create_direction_mappings(
-        dimension: int, num_scales: int, device: torch.device | None = None
-    ) -> list[torch.Tensor]:
-        """Create direction mappings for each resolution scale."""
-        result = []
-        for _ in range(num_scales - 1):
-            mapping = []
-            for dimension_idx in range(dimension):
-                row = list(range(dimension_idx)) + list(
-                    range(dimension_idx + 1, dimension)
-                )
-                mapping.append(row)
-            # Shape is (dimension, dimension-1)
-            result.append(torch.tensor(mapping, dtype=torch.int64, device=device))
-        return result
-
-    @staticmethod
-    def _create_angle_info(
-        frequency_grid: dict[int, torch.Tensor],
-        dimension: int,
-        num_scales: int,
-        angular_wedges_config: torch.Tensor,
-        window_overlap: float,
-        high_frequency_mode: str = "curvelet",
-        grid_shift: tuple[int, ...] | None = None,
-    ) -> tuple[
-        dict[int, dict[tuple[int, int], torch.Tensor]],
-        dict[int, dict[tuple[int, int], torch.Tensor]],
-    ]:
-        """
-        Create angle functions and indices for window computation.
-
-        If ``grid_shift`` is given, the 2-D angle grids are circularly shifted
-        by it (per axis) before the elementwise angle functions are evaluated,
-        so the returned angle functions carry the same shift.
-        """
-        # Get device from frequency_grid
-        device = frequency_grid[0].device if frequency_grid else None
-        dimension_permutations = UDCTWindow._nchoosek(
-            torch.arange(dimension, device=device), 2
-        )
-        angle_grid: dict[tuple[int, int], torch.Tensor] = {}
-        for pair_index, dimension_pair in enumerate(dimension_permutations):
-            angle_grids = UDCTWindow._create_angle_grids_from_frequency_grids(
-                frequency_grid[int(dimension_pair[0])],
-                frequency_grid[int(dimension_pair[1])],
-            )
-            if grid_shift is not None:
-                pair_shift = (
-                    grid_shift[int(dimension_pair[0])],
-                    grid_shift[int(dimension_pair[1])],
-                )
-                angle_grids = (
-                    circular_shift(angle_grids[0], pair_shift),
-                    circular_shift(angle_grids[1], pair_shift),
-                )
-            angle_grid[(pair_index, 0)] = angle_grids[0]
-            angle_grid[(pair_index, 1)] = angle_grids[1]
-
-        angle_functions: dict[int, dict[tuple[int, int], torch.Tensor]] = {}
-        angle_indices: dict[int, dict[tuple[int, int], torch.Tensor]] = {}
-        for scale_idx in range(num_scales - 1):
-            angle_functions[scale_idx] = {}
-            angle_indices[scale_idx] = {}
-            is_highest_scale = scale_idx == num_scales - 2
-            overlap_to_use = (
-                0.0
-                if (high_frequency_mode == "wavelet" and is_highest_scale)
-                else window_overlap
-            )
-            for dimension_idx in range(dimension):
-                angle_function_index = 0
-                for hyperpyramid_idx in range(dimension_permutations.shape[0]):
-                    for direction_idx in range(dimension_permutations.shape[1]):
-                        if (
-                            dimension_permutations[hyperpyramid_idx, direction_idx]
-                            == dimension_idx
-                        ):
-                            angle_functions[scale_idx][
-                                (dimension_idx, angle_function_index)
-                            ] = UDCTWindow._create_angle_functions(
-                                angle_grid[(hyperpyramid_idx, direction_idx)],
-                                direction_idx + 1,
-                                int(
-                                    angular_wedges_config[
-                                        scale_idx,
-                                        int(
-                                            dimension_permutations[
-                                                hyperpyramid_idx, 1 - direction_idx
-                                            ]
-                                        ),
-                                    ]
-                                ),
-                                overlap_to_use,
-                            )
-                            angle_indices[scale_idx][
-                                (dimension_idx, angle_function_index)
-                            ] = dimension_permutations[hyperpyramid_idx, :] + 1
-                            angle_function_index += 1
-        return angle_functions, angle_indices
-
-    @staticmethod
-    def _inplace_normalize_windows(
-        windows: UDCTWindows,
-        size: tuple[int, ...],
-        dimension: int,
-        num_scales: int,
-    ) -> None:
-        """Normalize windows in-place to ensure tight frame property."""
-        # Get device from windows
-        window = windows[0][0][0]
-        device = window.device
-        sum_squared_windows = torch.zeros(size, dtype=torch.float64, device=device)
-        idx_flat = window.indices
-        val_flat = window.values
-        sum_squared_windows.flatten()[idx_flat] += val_flat**2
-
-        for scale_idx in range(1, num_scales):
-            for direction_idx in range(len(windows[scale_idx])):
-                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    window = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = window.indices
-                    val_flat = window.values
-                    sum_squared_windows.flatten()[idx_flat] += val_flat**2
-                    if len(windows[scale_idx]) == dimension:
-                        # Flipped indices are a permutation, so they are unique
-                        sum_squared_windows.flatten()[
-                            UDCTWindow._flip_flat_indices(idx_flat, size, direction_idx)
-                        ] += val_flat**2
-
-        sum_squared_windows = torch.sqrt(sum_squared_windows)
-        sum_squared_windows_flat = sum_squared_windows.flatten()
-
-        window = windows[0][0][0]
-        idx_flat = window.indices
-        val_flat = window.values
-        val_flat /= sum_squared_windows_flat[idx_flat]
-
-        for scale_idx in range(1, num_scales):
-            for direction_idx in range(len(windows[scale_idx])):
-                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    window = windows[scale_idx][direction_idx][wedge_idx]
-                    idx_flat = window.indices
-                    val_flat = window.values
-                    val_flat /= sum_squared_windows_flat[idx_flat]
-
-    @staticmethod
-    def _calculate_decimation_ratios_with_lowest(
-        num_scales: int,
-        dimension: int,
-        angular_wedges_config: torch.Tensor,
-        direction_mappings: list[torch.Tensor],
-        high_frequency_mode: str = "curvelet",
-    ) -> list[torch.Tensor]:
-        """Calculate decimation ratios for each scale and direction."""
-        device = angular_wedges_config.device
-        decimation_ratios: list[torch.Tensor] = [
-            torch.full(
-                (1, dimension),
-                fill_value=2 ** (num_scales - 2),
-                dtype=torch.int64,
-                device=device,
-            )
-        ]
-        for scale_idx in range(1, num_scales):
-            if high_frequency_mode == "wavelet" and scale_idx == num_scales - 1:
-                decimation_ratios.append(
-                    torch.ones((1, dimension), dtype=torch.int64, device=device)
-                )
-            else:
-                dec_ratio = torch.full(
-                    (dimension, dimension),
-                    fill_value=2 ** (num_scales - scale_idx),
-                    dtype=torch.int64,
-                    device=device,
-                )
-                for direction_idx in range(dimension):
-                    other_directions = direction_mappings[scale_idx - 1][
-                        direction_idx, :
-                    ]
-                    for od in other_directions:
-                        od_int = int(od)
-                        dec_ratio[direction_idx, od_int] = (
-                            2
-                            * int(angular_wedges_config[scale_idx - 1, od_int])
-                            * 2 ** (num_scales - 1 - scale_idx)
-                            // 3
-                        )
-                decimation_ratios.append(dec_ratio)
-        return decimation_ratios
-
-    @staticmethod
-    def _inplace_sort_windows(
-        windows: UDCTWindows,
-        indices: dict[int, dict[int, torch.Tensor]],
-        num_scales: int,
-    ) -> None:
-        """Sort windows in-place by their angular indices."""
-        for scale_idx in range(1, num_scales):
-            for dimension_idx in indices[scale_idx]:
-                angular_index_array = indices[scale_idx][dimension_idx]
-                max_index_value = int(angular_index_array.max()) + 1
-
-                sort_keys = torch.zeros(
-                    angular_index_array.shape[0],
-                    dtype=torch.int64,
-                    device=angular_index_array.device,
-                )
-                for column_index in range(angular_index_array.shape[1]):
-                    position_weight = angular_index_array.shape[1] - 1 - column_index
-                    sort_keys += (
-                        max_index_value**position_weight
-                    ) * angular_index_array[:, column_index]
-
-                sorted_indices = torch.argsort(sort_keys)
-                indices[scale_idx][dimension_idx] = angular_index_array[sorted_indices]
-                windows[scale_idx][dimension_idx] = [
-                    windows[scale_idx][dimension_idx][int(idx)]
-                    for idx in sorted_indices
-                ]
-
-    @staticmethod
-    def _build_angle_indices_1d(
-        scale_idx: int,
-        dimension_idx: int,
-        angle_functions: dict[int, dict[tuple[int, int], torch.Tensor]],
-        dimension: int,
-    ) -> torch.Tensor:
-        """Build multi-dimensional angle index combinations using Kronecker products."""
-        # Get device from angle_functions
-        device = (
-            angle_functions[scale_idx - 1][(dimension_idx, 0)].device
-            if angle_functions
-            else None
-        )
-        angle_indices_1d = torch.arange(
-            len(angle_functions[scale_idx - 1][(dimension_idx, 0)]), device=device
-        ).unsqueeze(1)
-
-        for angle_dim_idx in range(1, dimension - 1):
-            num_angles = len(
-                angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)]
-            )
-            angle_indices_2d = torch.arange(
-                num_angles, device=angle_indices_1d.device
-            ).unsqueeze(1)
-            kron_1 = torch.kron(
-                angle_indices_1d,
-                torch.ones(
-                    (num_angles, 1), dtype=torch.int64, device=angle_indices_1d.device
-                ),
-            )
-            kron_2 = torch.kron(
-                torch.ones(
-                    (angle_indices_1d.shape[0], 1),
-                    dtype=torch.int64,
-                    device=angle_indices_1d.device,
-                ),
-                angle_indices_2d,
-            )
-            angle_indices_1d = torch.cat([kron_1, kron_2], dim=1)
-        return angle_indices_1d
-
-    @staticmethod
-    def _process_single_window(
-        scale_idx: int,
-        dimension_idx: int,
-        window_index: int,
-        angle_indices_1d: torch.Tensor,
-        angle_functions: dict[int, dict[tuple[int, int], torch.Tensor]],
-        angle_indices: dict[int, dict[tuple[int, int], torch.Tensor]],
-        bandpass_windows: dict[int, torch.Tensor],
-        direction_mappings: list[torch.Tensor],
-        max_angles_per_dim: torch.Tensor,
-        shape: tuple[int, ...],
-        dimension: int,
-        window_threshold: float,
-    ) -> tuple[list[SparseWindow], torch.Tensor]:
-        """
-        Process a single window_index value, constructing curvelet windows.
-
-        ``angle_functions`` and ``bandpass_windows`` must already be circularly
-        shifted by ``size//4`` (see :py:meth:`compute`): the shift commutes
-        with the elementwise products, so their product is the shifted window
-        directly. The window is computed in float64: the first factor is
-        upcast (per window, before expansion), and the others are promoted
-        exactly by the in-place float64 products.
-        """
-        # Factors are multiplied left to right, as W = 1 · A_1 · ... · F_j
-        factors: list[torch.Tensor] = []
-
-        for angle_dim_idx in range(dimension - 1):
-            angle_idx = int(
-                angle_indices_1d.reshape(len(angle_indices_1d), -1)[
-                    window_index, angle_dim_idx
-                ]
-            )
-            angle_func = angle_functions[scale_idx - 1][(dimension_idx, angle_dim_idx)][
-                angle_idx
-            ]
-            if not factors:
-                # Upcast only the 2-D function used by this window; keeping
-                # every angle function in float64 would double their memory
-                angle_func = angle_func.to(torch.float64)
-            angle_idx_mapping = angle_indices[scale_idx - 1][
-                (dimension_idx, angle_dim_idx)
-            ]
-            kron_angle = UDCTWindow._compute_angle_kronecker_product(
-                angle_func, angle_idx_mapping, shape, dimension
-            )
-            factors.append(kron_angle)
-
-        factors.append(bandpass_windows[scale_idx])
-
-        # The first product allocates the N-D window (1.0 · x == x exactly, so
-        # this matches starting from ones()); the rest multiply in place
-        window = torch.mul(factors[0], factors[1])
-        for factor in factors[2:]:
-            window.mul_(factor)
-        window.sqrt_()
-
-        def needs_flipping(angle_idx: torch.Tensor, flip_dimension_index: int) -> bool:
-            return bool(
-                2 * (angle_idx[flip_dimension_index] + 1)
-                <= max_angles_per_dim[flip_dimension_index]
-            )
-
-        def flip_angle_idx(
-            angle_idx: torch.Tensor, flip_dimension_index: int
-        ) -> torch.Tensor:
-            flipped = angle_idx.clone()
-            flipped[flip_dimension_index] = (
-                max_angles_per_dim[flip_dimension_index]
-                - 1
-                - angle_idx[flip_dimension_index]
-            )
-            return flipped
-
-        def add_flipped_indices(
-            indices_list: list[torch.Tensor], flip_dimension_index: int
-        ) -> list[torch.Tensor]:
-            needs_flip_mask = [
-                needs_flipping(idx, flip_dimension_index) for idx in indices_list
-            ]
-            flipped_indices = [
-                flip_angle_idx(indices_list[i], flip_dimension_index)
-                for i in range(len(indices_list))
-                if needs_flip_mask[i]
-            ]
-            return indices_list + flipped_indices
-
-        angle_indices_list = [angle_indices_1d[window_index, :].clone()]
-        for flip_dimension_index in range(dimension - 2, -1, -1):
-            angle_indices_list = add_flipped_indices(
-                angle_indices_list, flip_dimension_index
-            )
-
-        num_windows = len(angle_indices_list)
-        angle_indices_2d = torch.stack(angle_indices_list)
-
-        angle_to_source: dict[tuple[int, ...], tuple[int, int]] = {
-            tuple(angle_indices_2d[0].tolist()): (0, -1)
-        }
-        angle_idx_to_window_idx: dict[tuple[int, ...], int] = {
-            tuple(angle_indices_2d[0].tolist()): 0
-        }
-        for flip_dimension_index in range(dimension - 2, -1, -1):
-            for source_idx_tuple, source_window_idx in list(
-                angle_idx_to_window_idx.items()
-            ):
-                source_angle_idx = torch.tensor(
-                    source_idx_tuple, device=angle_indices_2d.device
-                )
-                if needs_flipping(source_angle_idx, flip_dimension_index):
-                    flipped_angle_idx = flip_angle_idx(
-                        source_angle_idx, flip_dimension_index
-                    )
-                    flipped_angle_idx_tuple = tuple(flipped_angle_idx.tolist())
-                    if flipped_angle_idx_tuple not in angle_to_source:
-                        angle_to_source[flipped_angle_idx_tuple] = (
-                            source_window_idx,
-                            flip_dimension_index,
-                        )
-                        angle_idx_to_window_idx[flipped_angle_idx_tuple] = len(
-                            angle_idx_to_window_idx
-                        )
-
-        window_tuples = [SparseWindow.from_dense(window, window_threshold)]
-
-        # A flip only permutes entries, so thresholding commutes with it and the
-        # flip is applied to the sparse indices instead of a dense copy.
-        for window_idx in range(1, num_windows):
-            angle_idx_tuple = tuple(angle_indices_2d[window_idx].tolist())
-            source_window_idx, flip_dimension_index = angle_to_source[angle_idx_tuple]
-            flip_axis_dimension = int(
-                direction_mappings[scale_idx - 1][dimension_idx, flip_dimension_index]
-            )
-            window_tuples.append(
-                UDCTWindow._flip_sparse_window(
-                    window_tuples[source_window_idx], flip_axis_dimension
-                )
-            )
-
-        return window_tuples, angle_indices_2d
-
     def compute(
         self,
     ) -> tuple[UDCTWindows, list[torch.Tensor], dict[int, dict[int, torch.Tensor]]]:
@@ -718,150 +85,59 @@ class UDCTWindow:
         Returns
         -------
         windows : UDCTWindows
-            Curvelet windows in sparse format.
+            Curvelet windows in sparse format (int64 indices, float64 values,
+            on the CPU). Structure is ``windows[scale][direction][wedge]``.
         decimation_ratios : list[torch.Tensor]
-            Decimation ratios for each scale and direction.
+            Decimation ratios (int64) for each scale and direction.
         indices : dict[int, dict[int, torch.Tensor]]
-            Angular indices for each window.
+            Angular indices (int64) for each window.
         """
-        frequency_grid, bandpass_windows = UDCTWindow._create_bandpass_windows(
-            num_scales=self.num_scales,
-            shape=self.shape,
-            radial_frequency_params=self.radial_frequency_params,
+        device = self.angular_wedges_config.device
+        numpy_parameters = _NpParamUDCT(
+            shape=tuple(int(s) for s in self.shape),
+            angular_wedges_config=self.angular_wedges_config.cpu().numpy(),
+            window_overlap=float(self.window_overlap),
+            radial_frequency_params=(
+                float(self.radial_frequency_params[0]),
+                float(self.radial_frequency_params[1]),
+                float(self.radial_frequency_params[2]),
+                float(self.radial_frequency_params[3]),
+            ),
+            window_threshold=float(self.window_threshold),
         )
-        low_frequency_window = circular_shift(
-            torch.sqrt(bandpass_windows[0]), tuple(s // 4 for s in self.shape)
-        )
+        np_windows, np_decimation_ratios, np_indices = _NpUDCTWindow(
+            numpy_parameters, self.high_frequency_mode
+        ).compute()
 
-        windows: UDCTWindows = []
-        windows.append([])
-        windows[0].append([])
-        windows[0][0] = [
-            SparseWindow.from_dense(low_frequency_window, self.window_threshold)
+        windows: UDCTWindows = [
+            [
+                [
+                    SparseWindow(
+                        indices=torch.from_numpy(
+                            np.asarray(window.indices, dtype=np.int64)
+                        ),
+                        values=torch.from_numpy(
+                            np.asarray(window.values, dtype=np.float64)
+                        ),
+                        shape=tuple(window.shape),
+                    )
+                    for window in direction_windows
+                ]
+                for direction_windows in scale_windows
+            ]
+            for scale_windows in np_windows
         ]
-
-        indices: dict[int, dict[int, torch.Tensor]] = {}
-        indices[0] = {}
-        indices[0][0] = torch.zeros((1, 1), dtype=torch.int64)
-        direction_mappings = UDCTWindow._create_direction_mappings(
-            dimension=self.dimension,
-            num_scales=self.num_scales,
-            device=self.angular_wedges_config.device,
-        )
-        # Every high-frequency window is circularly shifted by size//4 along each
-        # axis. A circular shift commutes with the elementwise angle functions
-        # and with the elementwise products forming each window, so shift the
-        # (lower-dimensional) angle grids and bandpass filters once here
-        # instead of every N-D window.
-        quarter_shift = tuple(s // 4 for s in self.shape)
-        angle_functions, angle_indices = UDCTWindow._create_angle_info(
-            frequency_grid,
-            dimension=self.dimension,
-            num_scales=self.num_scales,
-            angular_wedges_config=self.angular_wedges_config,
-            window_overlap=self.window_overlap,
-            high_frequency_mode=self.high_frequency_mode,
-            grid_shift=quarter_shift,
-        )
-        shifted_bandpass_windows = {
-            scale_key: circular_shift(bandpass, quarter_shift)
-            for scale_key, bandpass in bandpass_windows.items()
-            if scale_key > 0
+        decimation_ratios = [
+            torch.from_numpy(np.asarray(ratios, dtype=np.int64)).to(device)
+            for ratios in np_decimation_ratios
+        ]
+        indices = {
+            scale_idx: {
+                direction_idx: torch.from_numpy(
+                    np.asarray(angle_indices, dtype=np.int64)
+                ).to(device)
+                for direction_idx, angle_indices in scale_indices.items()
+            }
+            for scale_idx, scale_indices in np_indices.items()
         }
-
-        decimation_ratios = UDCTWindow._calculate_decimation_ratios_with_lowest(
-            num_scales=self.num_scales,
-            dimension=self.dimension,
-            angular_wedges_config=self.angular_wedges_config,
-            direction_mappings=direction_mappings,
-            high_frequency_mode=self.high_frequency_mode,
-        )
-
-        for scale_idx in range(1, self.num_scales):
-            windows.append([])
-            indices[scale_idx] = {}
-
-            if (
-                self.high_frequency_mode == "wavelet"
-                and scale_idx == self.num_scales - 1
-            ):
-                lowpass_filter = bandpass_windows[0].clone()
-                ring_window = 1.0 - lowpass_filter
-                ring_window = torch.clamp(ring_window, min=0.0)
-                ring_window = torch.sqrt(
-                    circular_shift(ring_window, tuple(s // 4 for s in self.shape))
-                )
-                ring_window_sparse = SparseWindow.from_dense(
-                    ring_window, self.window_threshold
-                )
-                windows[scale_idx].append([ring_window_sparse])
-                indices[scale_idx][0] = torch.zeros(
-                    (1, self.dimension - 1),
-                    dtype=torch.int64,
-                    device=self.angular_wedges_config.device,
-                )
-            else:
-                for dimension_idx in range(self.dimension):
-                    angle_indices_1d = UDCTWindow._build_angle_indices_1d(
-                        scale_idx=scale_idx,
-                        dimension_idx=dimension_idx,
-                        angle_functions=angle_functions,
-                        dimension=self.dimension,
-                    )
-                    num_windows = angle_indices_1d.shape[0]
-                    max_angles_per_dim = self.angular_wedges_config[
-                        scale_idx - 1,
-                        direction_mappings[scale_idx - 1][dimension_idx, :],
-                    ]
-
-                    window_results: list[tuple[list[SparseWindow], torch.Tensor]] = [
-                        UDCTWindow._process_single_window(
-                            scale_idx=scale_idx,
-                            dimension_idx=dimension_idx,
-                            window_index=window_index,
-                            angle_indices_1d=angle_indices_1d,
-                            angle_functions=angle_functions,
-                            angle_indices=angle_indices,
-                            bandpass_windows=shifted_bandpass_windows,
-                            direction_mappings=direction_mappings,
-                            max_angles_per_dim=max_angles_per_dim,
-                            shape=self.shape,
-                            dimension=self.dimension,
-                            window_threshold=self.window_threshold,
-                        )
-                        for window_index in range(num_windows)
-                    ]
-
-                    all_windows: list[SparseWindow] = [
-                        window
-                        for window_list, _ in window_results
-                        for window in window_list
-                    ]
-                    all_angle_indices = [angle_idx for _, angle_idx in window_results]
-                    angle_index_array = (
-                        torch.cat(all_angle_indices, dim=0)
-                        if all_angle_indices
-                        else torch.zeros(
-                            (0, self.dimension - 1),
-                            dtype=torch.int64,
-                            device=self.angular_wedges_config.device,
-                        )
-                    )
-
-                    windows[scale_idx].append(all_windows)
-                    indices[scale_idx][dimension_idx] = angle_index_array
-
-        UDCTWindow._inplace_normalize_windows(
-            windows,
-            size=self.shape,
-            dimension=self.dimension,
-            num_scales=self.num_scales,
-        )
-
-        UDCTWindow._inplace_sort_windows(
-            windows=windows,
-            indices=indices,
-            num_scales=self.num_scales,
-        )
-
         return windows, decimation_ratios, indices
