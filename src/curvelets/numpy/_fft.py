@@ -7,15 +7,18 @@ PyLops, the FFT implementation is chosen per transform with an ``engine``:
 - ``"numpy"``: :mod:`numpy.fft` (always available);
 - ``"scipy"``: :mod:`scipy.fft`, multithreaded with ``workers``;
 - ``"fftw"``: FFTW through ``pyFFTW``, multithreaded. Plans are made with
-  ``FFTW_MEASURE`` on the first transform of each shape and kept for the life
-  of the engine (see :class:`_FFTWPlans`);
+  ``FFTW_MEASURE`` on the first transform of each shape (seconds; up to about
+  a minute for large 3D transforms) and kept for the life of the engine (see
+  :class:`_FFTWPlans`). ``FFTW_ESTIMATE`` plans instantly but, with the stock
+  FFTW, splits small FFTs over every thread and ran up to 100x slower on a
+  32-vCPU EPYC;
 - ``"mkl_fft"``: Intel MKL through ``mkl_fft``, multithreaded
   (:mod:`mkl_fft.interfaces.scipy_fft`, which needs ``mkl-service``; without
   it, :mod:`mkl_fft.interfaces.numpy_fft` with MKL's default thread count);
 - ``"auto"`` (default): ``numpy`` and whichever of ``scipy`` and ``mkl_fft``
   are importable are timed once per transform shape on a wedge-sized proxy
-  problem, and the fastest is kept. ``fftw`` is never chosen automatically: its
-  first call for each shape pays for planning.
+  problem, and the fastest is kept. ``fftw`` is never chosen automatically:
+  its planning cost would fall on every user with pyFFTW installed.
 
 ``workers`` sets the thread count of the multithreaded engines (default: all
 CPUs). A requested engine whose package is not installed falls back to
