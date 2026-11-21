@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Literal
+from typing import Any, Literal
 
 import torch
 
@@ -29,17 +29,9 @@ class UDCTModule(UDCT):
 
     def __init__(
         self,
-        shape: tuple[int, ...],
-        angular_wedges_config: torch.Tensor | None = None,
-        num_scales: int | None = None,
-        wedges_per_direction: int | None = None,
-        window_overlap: float | None = None,
-        radial_frequency_params: tuple[float, float, float, float] | None = None,
-        window_threshold: float = 1e-5,
-        high_frequency_mode: Literal["curvelet", "wavelet"] = "curvelet",
+        *args: Any,
         transform_type: Literal["real", "complex"] = "real",
-        dtype: torch.dtype | None = None,
-        cuda_graphs: bool = False,
+        **kwargs: Any,
     ) -> None:
         warnings.warn(
             "UDCTModule is deprecated: UDCT is an nn.Module now. Use "
@@ -48,19 +40,8 @@ class UDCTModule(UDCT):
             DeprecationWarning,
             stacklevel=2,
         )
-        super().__init__(
-            shape=shape,
-            angular_wedges_config=angular_wedges_config,
-            num_scales=num_scales,
-            wedges_per_direction=wedges_per_direction,
-            window_overlap=window_overlap,
-            radial_frequency_params=radial_frequency_params,
-            window_threshold=window_threshold,
-            high_frequency_mode=high_frequency_mode,
-            transform_kind=transform_type,
-            dtype=dtype,
-            cuda_graphs=cuda_graphs,
-        )
+        kwargs["transform_kind"] = transform_type
+        super().__init__(*args, **kwargs)
 
     def forward(self, image: torch.Tensor) -> torch.Tensor:
         """Flattened coefficients of shape ``(*batch, ncoef)`` (see :meth:`UDCT.forward_vect`)."""
