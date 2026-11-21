@@ -171,7 +171,7 @@ cb.ax.yaxis.set_major_formatter(fmt)
 
 # %%
 # References
-# ##########
+# ==========
 #
 # .. bibliography::
 #    :filter: docname in docnames

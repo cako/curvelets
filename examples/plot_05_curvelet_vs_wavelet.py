@@ -269,7 +269,7 @@ for i, coeff in enumerate(wavelet_coeffs_scale1):
 
 # %%
 # References
-# ##########
+# ==========
 #
 # .. bibliography::
 #    :filter: docname in docnames
