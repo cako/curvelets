@@ -15,6 +15,16 @@ name: CI
 # missing script and any error run the tests, and so does a failure of the
 # `changes` job itself: the test jobs skip only on an explicit "false". Jobs
 # skipped this way count as passed, so the run still finishes green.
+#
+# On pull requests, the first failing job cancels the rest of the matrix. PyPy
+# and the Python prereleases (3.15, 3.15t) are best-effort: their failures
+# neither cancel the matrix nor fail the run.
+#
+# A push to main reruns no tests when the merged pull request was up to date
+# with main and its latest CI run passed (.github/scripts/tested_pr_run.sh):
+# that run tested the same tree, and the coverage job uploads its reports for
+# the merge commit. Otherwise main runs a Linux-only subset (3.11 and 3.14); the
+# cross-OS matrix already ran on the pull request.
 on:
   workflow_dispatch:
   pull_request:
@@ -35,11 +45,17 @@ permissions:
   contents: read
 
 jobs:
+  # Runs no third-party code; its token can only read.
   changes:
     name: Detect code changes
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
     outputs:
       code: ${{ steps.gate.outputs.code }}
+      tested-run: ${{ steps.tested.outputs.run-id }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,22 +84,35 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Pushes to main only. Any failure leaves run-id empty, and the tests run.
+      - name: Find the pull request run that tested this code
+        id: tested
+        if: github.event_name == 'push' && steps.gate.outputs.code == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          run_id=$(.github/scripts/tested_pr_run.sh "$REPO" "$SHA" "$BEFORE") || run_id=""
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+
   checks:
     name: Check Python ${{ matrix.python-version }} on ${{ matrix.runs-on }}
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' && needs.changes.outputs.tested-run == '' }}
     runs-on: ${{ matrix.runs-on }}
-    # PyPy: numpy only ships PyPy 3.11 wheels, up to 2.4.x; best-effort job.
-    continue-on-error: ${{ startsWith(matrix.python-version, 'pypy') }}
+    # Best-effort: PyPy (numpy only ships PyPy 3.11 wheels, up to 2.4.x) and the
+    # Python prereleases.
+    continue-on-error: ${{ startsWith(matrix.python-version, 'pypy') || startsWith(matrix.python-version, '3.15') }}
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event_name == 'pull_request' }}
+      # Pushes to main: Linux only, oldest and newest stable Python.
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]
-        runs-on: [ubuntu-latest, macos-latest, windows-latest]
-
-        include:
-          - python-version: pypy-3.11
-            runs-on: ubuntu-latest
+        python-version: ${{ github.event_name == 'push' && fromJSON('["3.11", "3.14"]') || fromJSON('["3.11", "3.12", "3.13", "3.14", "3.14t", "3.15", "3.15t"]') }}
+        runs-on: ${{ github.event_name == 'push' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest", "windows-latest"]') }}
+        include: >-
+          ${{ github.event_name == 'push' && fromJSON('[]') || fromJSON('[{"python-version": "pypy-3.11", "runs-on": "ubuntu-latest"}]') }}
 
     steps:
       - uses: actions/checkout@v7
@@ -146,18 +175,35 @@ jobs:
   coverage:
     name: Upload coverage
     needs: [changes, checks]
-    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' }}
+    # Skipped when a test job failed: partial reports would show a false drop.
+    if: ${{ !cancelled() && needs.changes.outputs.code != 'false' && (needs.checks.result == 'success' || needs.changes.outputs.tested-run != '') }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     # Installs and runs no Python packages: only this job sees CODECOV_TOKEN.
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: actions/download-artifact@v8
+      - name: Download this run's coverage reports
+        if: needs.changes.outputs.tested-run == ''
+        uses: actions/download-artifact@v8
         with:
           pattern: coverage-*
           path: coverage-reports
+
+      # The pull request run tested the same tree: upload its reports for the
+      # merge commit.
+      - name: Download the pull request run's coverage reports
+        if: needs.changes.outputs.tested-run != ''
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          path: coverage-reports
+          run-id: ${{ needs.changes.outputs.tested-run }}
+          github-token: ${{ github.token }}
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v7.1.1
