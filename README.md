@@ -83,7 +83,7 @@ np.testing.assert_allclose(x, C.backward(y))
 [^asymmetric-ftn]: The directional resolution is asymmetric in the sense that the number of wedges per direction is different for each direction. See the [direction resolution example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_02_direction_resolution.html) for an example.
 [^wavelet-ftn]: Isotropic wavelets are supported. See the [curvelet vs wavelet example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_05_curvelet_vs_wavelet.html) for an example.
 [^monogenic-ftn]: The monogenic curvelet transform was originally defined for 2D signals by Storath 2010, but this implementation extends it to arbitrary N-D signals by using all Riesz transform components (one per dimension).
-[^torch-ftn]: PyTorch bindings are supported. See the [UDCT module gradcheck example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_09_udct_module_gradcheck.html) for an example. The torch `UDCT` does not support the monogenic mode yet.
+[^torch-ftn]: PyTorch bindings are supported. See the [UDCT module gradcheck example](https://curvelets.readthedocs.io/en/latest/auto_examples/plot_09_udct_module_gradcheck.html) for an example. The torch `UDCT` supports all transform kinds, monogenic included.
 
 ## FAQs
 

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from math import prod, sqrt
+from math import sqrt
 from typing import Any, Literal, Self
 
 import numpy as np
@@ -15,6 +15,13 @@ from torch import nn
 
 from ._cuda_graphs import CudaGraphCache, CudaGraphsMixin, _may_need_grad
 from ._dtypes import check_dtype, resolve_dtype
+from ._monogenic import (
+    MonogenicLayout,
+    channels_from_real,
+    real_from_channels,
+    riesz_images,
+    riesz_spectra,
+)
 from ._plan import UDCTPlan
 from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
@@ -25,8 +32,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     """
     Uniform Discrete Curvelet Transform (UDCT) implementation.
 
-    Forward and backward curvelet transforms (real or complex) as a
-    :class:`torch.nn.Module` with no learnable parameters. Calling the module
+    Forward and backward curvelet transforms (real, complex or monogenic) as
+    a :class:`torch.nn.Module` with no learnable parameters. Calling the module
     (``udct(x)``) is :meth:`forward`; :meth:`forward_vect` and
     :meth:`backward_vect` work on the flat :meth:`vect` layout instead of
     nested lists, which suits networks and optimizers.
@@ -94,8 +101,17 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
           frequency components into different bands. Each band is scaled by
           :math:`\\sqrt{0.5}`.
         - "monogenic": Monogenic transform that extends the curvelet transform
-          by applying Riesz transforms, producing ndim+1 components per band
-          (scalar plus all Riesz components).
+          by applying Riesz transforms. Each band has ndim+2 real channels
+          along its last axis: the complex scalar coefficient (real and
+          imaginary parts) and one Riesz component per dimension. The
+          backward transform returns ``ndim + 1`` components stacked along a
+          new first axis: :math:`f`, then approximations of :math:`-R_k f`
+          (see :meth:`backward`). The results match
+          :class:`curvelets.numpy.UDCT`.
+
+        .. versionchanged:: 1.3
+           ``"monogenic"`` is implemented (it raised ``NotImplementedError``
+           before).
 
     dtype : torch.dtype, optional
         Precision of the transform: ``torch.float32`` or ``torch.float64``
@@ -108,7 +124,7 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
         .. versionadded:: 1.3
     cuda_graphs : bool, optional
-        Replay the real and complex transforms on CUDA from CUDA graphs: one
+        Replay the transforms on CUDA from CUDA graphs: one
         launch per call instead of a few dozen, captured on the first call for
         each input shape and dtype (the last :attr:`cuda_graph_cache_size` are
         kept). Covers every forward/backward entry point, :meth:`filter`
@@ -129,7 +145,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     cuda_graph_cache_size : int
         Number of captured graphs kept (least recently used dropped first).
     coefficient_dtype : torch.dtype
-        Dtype of the coefficients (complex for the real and complex transforms).
+        Dtype of the coefficients (complex for the real and complex transforms,
+        real for the monogenic transform).
     high_frequency_mode : str
         High frequency mode.
     transform_kind : str
@@ -223,6 +240,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         # Captured CUDA graphs of the plan's flat transforms (cuda_graphs=True).
         self._cuda_graphs = cuda_graphs
         self._graphs = CudaGraphCache()
+        # Monogenic coefficient layout and Riesz filters, built on first use.
+        self._monogenic_layout: MonogenicLayout | None = None
+        self._riesz: torch.Tensor | None = None
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -303,8 +323,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         >>> # For wedges_per_direction=3, num_scales=3
         >>> wedges_per_scale = torch.tensor([3, 6], dtype=torch.int64)
         >>> alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
-        >>> 0.1 < alpha < 0.2  # Expected around 0.11
-        True
+        >>> round(alpha, 4)
+        0.0369
         """
         min_overlap = float("inf")
 
@@ -599,8 +619,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         >>> shapes = transform.coefficient_shapes()
         >>> len(shapes) == transform.num_scales
         True
-        >>> shapes[0][0][0]  # Low-frequency band shape
-        (16, 16)
+        >>> shapes[0][0][0]  # Low-frequency band shape (decimated by 2)
+        (32, 32)
         """
         if self._transform_kind == "monogenic":
             return self._coefficient_shapes_monogenic()
@@ -725,16 +745,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
     def _vect_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """Private method for monogenic coefficient vectorization (no input validation)."""
-        parts: list[torch.Tensor] = []
-        for scale_coeffs in coefficients:
-            for direction_coeffs in scale_coeffs:
-                for wedge_coeffs in direction_coeffs:
-                    # wedge_coeffs has shape (*wedge_shape, ndim+2)
-                    # Flatten each channel separately to maintain order
-                    num_channels = wedge_coeffs.shape[-1]
-                    for ch_idx in range(num_channels):
-                        parts.append(wedge_coeffs[..., ch_idx].flatten())
-        return torch.cat(parts)
+        return self._get_monogenic_layout(coefficients[0][0][0].device).flatten(
+            coefficients
+        )
 
     def struct(self, vector: torch.Tensor) -> UDCTCoefficients:
         """
@@ -753,7 +766,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         Returns
         -------
         UDCTCoefficients
-            Restructured coefficients, each of shape ``(*batch, *wedge_shape)``,
+            Restructured coefficients, each of shape ``(*batch, *wedge_shape)``
+            (``(*batch, *wedge_shape, ndim + 2)`` for the monogenic transform),
             as views into ``vector`` (same dtype).
 
         Examples
@@ -775,43 +789,7 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
     def _struct_monogenic(self, vector: torch.Tensor) -> UDCTCoefficients:
         """Private method for monogenic coefficient restructuring (no input validation)."""
-        begin_idx = 0
-        coefficients: UDCTCoefficients = []
-        internal_shape = torch.tensor(self._params.shape, dtype=torch.int64)
-        # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
-        # Matches numpy's structure
-        num_channels = self._params.ndim + 2
-
-        for scale_idx, decimation_ratios_scale in enumerate(
-            self._decimation_ratios_cpu
-        ):
-            coefficients.append([])
-            num_directions = len(decimation_ratios_scale)
-
-            for direction_idx in range(num_directions):
-                coefficients[scale_idx].append([])
-                window_direction_idx = min(
-                    direction_idx, len(self._windows[scale_idx]) - 1
-                )
-                decimation_ratio_dir = decimation_ratios_scale[
-                    min(direction_idx, len(decimation_ratios_scale) - 1), :
-                ]
-
-                for _ in self._windows[scale_idx][window_direction_idx]:
-                    shape_decimated = (internal_shape // decimation_ratio_dir).tolist()
-                    # For monogenic, each wedge has shape (*wedge_shape, ndim+2)
-                    # Stack channels along last axis to match numpy structure
-                    wedge_channels: list[torch.Tensor] = []
-                    for _ in range(num_channels):
-                        size = prod(shape_decimated)
-                        end_idx = begin_idx + size
-                        channel = vector[begin_idx:end_idx].reshape(shape_decimated)
-                        wedge_channels.append(channel)
-                        begin_idx = end_idx
-                    # Stack channels along last axis: shape (*wedge_shape, num_channels)
-                    wedge_array = torch.stack(wedge_channels, dim=-1)
-                    coefficients[scale_idx][direction_idx].append(wedge_array)
-        return coefficients
+        return self._get_monogenic_layout(vector.device).unflatten(vector)
 
     def forward(self, image: torch.Tensor) -> UDCTCoefficients:
         """
@@ -834,8 +812,10 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         UDCTCoefficients
             Curvelet coefficients organized by scale, direction, and wedge, each
             of shape ``(*batch, *wedge_shape)``.
-            For monogenic transforms, each coefficient tensor has shape
-            ``(*wedge_shape, ndim+1)`` with channels stacked along the last axis.
+            For monogenic transforms, each coefficient tensor is real with shape
+            ``(*batch, *wedge_shape, ndim+2)``, channels
+            ``[scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]`` along the
+            last axis.
 
         Examples
         --------
@@ -851,7 +831,7 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         """
         self._check_input(image)
         if self._transform_kind == "monogenic":
-            return self._forward_monogenic(image)
+            return self._struct_monogenic(self._forward_monogenic_flat(image))
         if self._cuda_graphs or _may_need_grad(image):
             # Views into the flat coefficients; gradients through the adjoint.
             return self._get_plan().unflatten(self._forward_flat(image))
@@ -904,7 +884,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         Returns
         -------
         torch.Tensor
-            Filtered result of shape ``(*batch, *self.shape)``.
+            Filtered result of shape ``(*batch, *self.shape)``; for the
+            monogenic transform, ``(ndim + 1, *batch, *self.shape)`` (see
+            :meth:`backward`).
 
         Examples
         --------
@@ -920,7 +902,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         return self.backward_vect(fn(self.forward_vect(image)))
 
     def _get_plan(self) -> UDCTPlan:
-        """Fused plan for the real/complex transform (built on first use).
+        """Fused plan of the real/complex transform (built on first use).
+
+        The monogenic transform runs on the real transform's plan.
 
         Also rebuilt when the windows are on another device than the plan was
         built for, e.g. after ``torch.load(..., map_location=...)``, which moves
@@ -964,9 +948,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         >>> torch.allclose(transform.forward_vect(x), transform.vect(transform(x)))
         True
         """
-        if self._transform_kind == "monogenic":
-            return self.vect(self.forward(image))
         self._check_input(image)
+        if self._transform_kind == "monogenic":
+            return self._forward_monogenic_flat(image)
         return self._forward_flat(image)
 
     def backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
@@ -985,19 +969,62 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         Returns
         -------
         torch.Tensor
-            Reconstruction of shape ``(*batch, *self.shape)``.
+            Reconstruction of shape ``(*batch, *self.shape)``; for the
+            monogenic transform, ``(ndim + 1, *batch, *self.shape)`` (see
+            :meth:`backward`).
         """
-        if self._transform_kind == "monogenic":
-            return self.backward(self.struct(vector))
         check_dtype(vector, self.dtype, "coefficients")
+        if self._transform_kind == "monogenic":
+            return self._backward_monogenic_flat(vector)
         return self._backward_flat(vector)
 
-    def _forward_monogenic(self, image: torch.Tensor) -> UDCTCoefficients:  # pylint: disable=unused-argument
-        """Private method for monogenic forward transform (no input validation)."""
-        # TODO: Implement monogenic forward transform for PyTorch
-        # For now, raise NotImplementedError
-        msg = "Monogenic transform not yet implemented for PyTorch"
-        raise NotImplementedError(msg)
+    def _get_monogenic_layout(self, device: torch.device) -> MonogenicLayout:
+        """Monogenic coefficient layout, with its index maps on ``device``."""
+        if self._monogenic_layout is None:
+            self._monogenic_layout = MonogenicLayout.build(
+                self._get_plan(), self._params.ndim + 2
+            )
+        self._monogenic_layout = self._monogenic_layout.to(device)
+        return self._monogenic_layout
+
+    def _get_riesz(self, device: torch.device) -> torch.Tensor:
+        """Riesz filters ``(ndim, *shape)`` on ``device`` (built on first use)."""
+        if self._riesz is None or self._riesz.device != device:
+            self._riesz = riesz_spectra(self._params.shape, self.dtype, device)
+        return self._riesz
+
+    def _forward_monogenic_flat(self, image: torch.Tensor) -> torch.Tensor:
+        """Monogenic forward transform of checked input to the :meth:`vect` layout.
+
+        One batched real transform of ``f`` and its Riesz images (see
+        :mod:`curvelets.torch._monogenic`); gradients flow through the adjoint
+        real transform.
+        """
+        images, even = riesz_images(image, self._get_riesz(image.device))
+        coefficients = self._forward_flat(images)
+        channels = channels_from_real(coefficients, self._params.ndim, even)
+        layout = self._get_monogenic_layout(image.device)
+        return channels.flatten(-2)[..., layout.perm]
+
+    def _backward_monogenic_flat(self, vector: torch.Tensor) -> torch.Tensor:
+        """Monogenic backward transform of :meth:`vect`-layout coefficients."""
+        if vector.is_complex():
+            msg = "Monogenic coefficients must be real-valued, got a complex tensor."
+            raise ValueError(msg)
+        layout = self._get_monogenic_layout(vector.device)
+        if vector.shape[-1] != layout.ncoef:
+            msg = (
+                f"Expected monogenic coefficients of shape (*batch, {layout.ncoef}), "
+                f"got {tuple(vector.shape)}."
+            )
+            raise ValueError(msg)
+        channels = vector[..., layout.inverse].unflatten(
+            -1, (layout.num_channels, self._get_plan().ncoef)
+        )
+        images = self._backward_flat(real_from_channels(channels))
+        # (*batch, ndim + 1, *shape) -> (ndim + 1, *batch, *shape), Riesz negated.
+        images = images.movedim(-self._params.ndim - 1, 0)
+        return torch.cat([images[:1], -images[1:]])
 
     def backward(self, coefficients: UDCTCoefficients) -> torch.Tensor:
         """
@@ -1016,21 +1043,77 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         -------
         torch.Tensor
             Reconstruction of shape ``(*batch, *self.shape)``.
+            For the monogenic transform, a real tensor of shape
+            ``(ndim + 1, *batch, *self.shape)``: the components that
+            :class:`curvelets.numpy.UDCT` returns as a tuple, stacked along a
+            new first axis (so ``f, *riesz = udct.backward(coeffs)`` works as
+            in numpy). The first is the reconstruction of :math:`f`; the others
+            are the synthesis of each Riesz channel, which approximates
+            :math:`-R_k f` (see :meth:`monogenic` for the exact values). As in
+            numpy, each Riesz channel only keeps the real part of its
+            coefficients, so these components are not exact.
         """
         if self._transform_kind == "monogenic":
-            return self._backward_monogenic(coefficients)
+            flat = self._vect_monogenic(coefficients)
+            check_dtype(flat, self.dtype, "coefficients")
+            return self._backward_monogenic_flat(flat)
         plan = self._get_plan()
         # Checked after flattening, so mixed-precision wedges are caught too.
         flat = plan.flatten(coefficients)
         check_dtype(flat, self.dtype, "coefficients")
         return self._backward_flat(flat)
 
-    def _backward_monogenic(self, coefficients: UDCTCoefficients) -> torch.Tensor:  # pylint: disable=unused-argument
-        """Private method for monogenic backward transform (no input validation)."""
-        # TODO: Implement monogenic backward transform for PyTorch
-        # For now, raise NotImplementedError
-        msg = "Monogenic transform not yet implemented for PyTorch"
-        raise NotImplementedError(msg)
+    def monogenic(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the monogenic signal directly, without the curvelet transform.
+
+        Returns :math:`(f, -R_1 f, \\ldots, -R_n f)`, where :math:`R_k` are the
+        Riesz transforms, computed exactly in the Fourier domain. Available
+        for every ``transform_kind``.
+
+        .. versionadded:: 1.3
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            Real input of shape ``(*batch, *self.shape)`` and precision
+            :attr:`dtype`.
+
+        Returns
+        -------
+        torch.Tensor
+            Real tensor of shape ``(ndim + 1, *batch, *self.shape)``: ``image``,
+            then :math:`-R_k f` for each dimension (the tuple that
+            :meth:`curvelets.numpy.UDCT.monogenic` returns, stacked along a new
+            first axis).
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> transform = UDCT(shape=(64, 64), transform_kind="monogenic")
+        >>> data = torch.randn(64, 64)
+        >>> scalar, riesz1, riesz2 = transform.monogenic(data)  # shape (3, 64, 64)
+        >>> torch.equal(scalar, data)
+        True
+        >>> recon = transform.backward(transform.forward(data))
+        >>> torch.allclose(recon[0], data, atol=1e-4)
+        True
+        """
+        self._check_shape(image)
+        if image.is_complex():
+            msg = (
+                "Monogenic transform requires real-valued input. "
+                "Got complex tensor. Use forward() for complex inputs."
+            )
+            raise ValueError(msg)
+        check_dtype(image, self.dtype, "input")
+        ndim = self._params.ndim
+        dims = tuple(range(-ndim, 0))
+        spectrum = torch.fft.fftn(image, dim=dims).unsqueeze(-ndim - 1)  # pylint: disable=not-callable
+        riesz = torch.fft.ifftn(spectrum * self._get_riesz(image.device), dim=dims)  # pylint: disable=not-callable
+        riesz = -riesz.real.movedim(-ndim - 1, 0)
+        return torch.cat([image.unsqueeze(0), riesz])
 
     def _apply(
         self, fn: Callable[[torch.Tensor], torch.Tensor], recurse: bool = True
@@ -1080,9 +1163,12 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
                     self._windows[scale_idx][dir_idx][wedge_idx] = window.apply(fn)
 
         # The fused plan holds copies of the window tensors; rebuild it lazily.
-        # Captured graphs refer to the old plan's tensors.
+        # Captured graphs refer to the old plan's tensors. The Riesz filters
+        # follow the device and dtype on their next use.
         self._plan = None
         self._graphs.clear()
+        self._monogenic_layout = None
+        self._riesz = None
 
         # Apply to decimation_ratios (list of tensors)
         for i, ratio in enumerate(self._decimation_ratios):

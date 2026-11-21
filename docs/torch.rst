@@ -94,6 +94,13 @@ See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a traini
 
 .. _torch-precision:
 
+Monogenic transform
+===================
+
+``transform_kind="monogenic"`` gives the same coefficients as :mod:`curvelets.numpy`: each wedge is a real tensor of shape ``(*batch, *wedge_shape, ndim + 2)`` holding the scalar coefficient (real and imaginary parts) and one Riesz component per dimension. :meth:`~curvelets.torch.UDCT.backward` and :meth:`~curvelets.torch.UDCT.backward_vect` return the ``ndim + 1`` components that numpy returns as a tuple, stacked along a new first axis, ``(ndim + 1, *batch, *shape)``, with the reconstruction of ``f`` first (``f, *riesz = udct.backward(coeffs)``). :meth:`~curvelets.torch.UDCT.monogenic` computes :math:`(f, -R_1 f, \ldots, -R_n f)` directly, in the same layout.
+
+The transform runs on the real transform's fused plan: one batched call transforms ``f`` together with its Riesz-filtered copies. It therefore has the same gradients (through the adjoint), batching and CUDA graphs as the real transform, at about ``ndim + 1`` times its cost (up to ``2 ndim + 1`` when axes have even lengths, where the Riesz-filtered copies are complex).
+
 Precision
 =========
 

@@ -15,7 +15,7 @@ from torch import nn
 from curvelets.torch import UDCT, UDCTModule
 
 SHAPE = (32, 32)
-Kind = Literal["real", "complex"]
+Kind = Literal["real", "complex", "monogenic"]
 T = TypeVar("T")
 
 needs_cuda = pytest.mark.skipif(
@@ -56,7 +56,7 @@ COPIES: dict[str, Callable[[Any], Any]] = {
 
 
 @pytest.mark.parametrize("how", list(COPIES))  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+@pytest.mark.parametrize("kind", ["real", "complex", "monogenic"])  # type: ignore[untyped-decorator]
 def test_copy_of_used_transform_matches(kind: Kind, how: str) -> None:
     """A transform that has run copies to one with the same results and gradients."""
     udct = _udct(kind)
@@ -143,7 +143,7 @@ def test_plan_for_another_device_is_rebuilt() -> None:
 
 
 @needs_cuda  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+@pytest.mark.parametrize("kind", ["real", "complex", "monogenic"])  # type: ignore[untyped-decorator]
 def test_cuda_transform_copies_and_loads_on_cpu(kind: Kind) -> None:
     """A transform used on CUDA copies to CUDA, and ``torch.load`` with
     ``map_location="cpu"`` gives a working CPU transform."""
