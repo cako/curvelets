@@ -4,8 +4,11 @@ FFT engines for the NumPy UDCT.
 The transform is FFT-bound, and ``numpy.fft`` runs on a single thread. As in
 PyLops, the FFT implementation is chosen per transform with an ``engine``:
 
-- ``"numpy"``: :mod:`numpy.fft` (always available);
-- ``"scipy"``: :mod:`scipy.fft`, multithreaded with ``workers``;
+- ``"numpy"``: :mod:`numpy.fft` (always available, single-threaded);
+- ``"scipy"``: :mod:`scipy.fft`, multithreaded with ``workers``. It keeps
+  float32 inputs in single precision on every NumPy version. The default
+  (``engine=None``) uses it when SciPy is installed, and ``numpy`` (silently)
+  otherwise;
 - ``"fftw"``: FFTW through ``pyFFTW``, multithreaded. Plans are made on the
   first transform of each shape and kept for the life of the engine (see
   :class:`_FFTWPlans`). With the stock FFTW they use ``FFTW_MEASURE``
@@ -17,7 +20,7 @@ PyLops, the FFT implementation is chosen per transform with an ``engine``:
 - ``"mkl_fft"``: Intel MKL through ``mkl_fft``, multithreaded
   (:mod:`mkl_fft.interfaces.scipy_fft`, which needs ``mkl-service``; without
   it, :mod:`mkl_fft.interfaces.numpy_fft` with MKL's default thread count);
-- ``"auto"`` (default): ``numpy`` and the importable engines that plan
+- ``"auto"``: ``numpy`` and the importable engines that plan
   cheaply (``scipy``, ``mkl_fft``, and ``fftw`` when pyFFTW runs on AMD's
   FFTW) are timed once per transform shape on a wedge-sized proxy problem, and
   the fastest is kept. ``fftw`` on the stock FFTW is never chosen
@@ -342,15 +345,16 @@ def _auto_for_shape(shape: tuple[int, ...], workers: int) -> FFTBackend:
 
 
 def resolve_fft_engine(
-    engine: str, shape: tuple[int, ...], workers: int | None = None
+    engine: str | None, shape: tuple[int, ...], workers: int | None = None
 ) -> FFTBackend:
     """
     FFT backend for an engine name and transform shape.
 
     Parameters
     ----------
-    engine : {"auto", "numpy", "scipy", "fftw", "mkl_fft"}
-        Requested engine. ``"auto"`` picks the fastest of ``numpy`` and the
+    engine : {"auto", "numpy", "scipy", "fftw", "mkl_fft"} or None
+        Requested engine. ``None`` is the default: ``scipy``, or ``numpy``
+        (silently) where SciPy is not installed. ``"auto"`` picks the fastest of ``numpy`` and the
         installed engines that plan cheaply (``scipy``, ``mkl_fft``, and
         ``fftw`` on AMD's FFTW) for this shape (timed once and cached).
     shape : tuple of int
@@ -380,10 +384,14 @@ def resolve_fft_engine(
     >>> resolve_fft_engine("auto", (64, 64)).name in ("numpy", "scipy", "mkl_fft")
     True
     """
-    if engine not in FFT_ENGINES:
+    if engine is not None and engine not in FFT_ENGINES:
         msg = f"fft_engine must be one of {list(FFT_ENGINES)}, got {engine!r}"
         raise ValueError(msg)
     num_workers = _resolve_workers(workers)
+    if engine is None:
+        # The default: SciPy when installed (an optional dependency), NumPy
+        # otherwise, without a warning.
+        return _load("scipy", num_workers) or _numpy_backend()
     if engine == "auto":
         return _auto_for_shape(tuple(int(s) for s in shape), num_workers)
     backend = _load(engine, num_workers)

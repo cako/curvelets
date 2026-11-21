@@ -190,7 +190,7 @@ def _apply_backward_transform_real(
     real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
     complex_dtype = _to_complex_dtype(real_dtype)
     if fft is None:
-        fft = resolve_fft_engine("auto", parameters.shape)
+        fft = resolve_fft_engine(None, parameters.shape)
 
     highest_scale_idx = parameters.num_scales - 1
     wavelet_highest = len(windows[highest_scale_idx]) == 1
@@ -276,7 +276,7 @@ def _apply_backward_transform_complex(
     real_dtype = _to_real_dtype(coefficients[0][0][0].dtype)
     complex_dtype = _to_complex_dtype(real_dtype)
     if fft is None:
-        fft = resolve_fft_engine("auto", parameters.shape)
+        fft = resolve_fft_engine(None, parameters.shape)
 
     highest_scale_idx = parameters.num_scales - 1
     wavelet_highest = len(windows[highest_scale_idx]) == 1
