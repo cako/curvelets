@@ -1,18 +1,19 @@
 """Main UDCT class for PyTorch implementation."""
 
-# pylint: disable=duplicate-code
+# pylint: disable=duplicate-code,too-many-lines
 # Duplicate code with numpy implementation is expected
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
 from math import prod, sqrt
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 import numpy as np
 import torch
+from torch import nn
 
-from ._cuda_graphs import CudaGraphCache, CudaGraphsMixin
+from ._cuda_graphs import CudaGraphCache, CudaGraphsMixin, _may_need_grad
 from ._dtypes import check_dtype, resolve_dtype
 from ._plan import UDCTPlan
 from ._udct_windows import UDCTWindow
@@ -20,12 +21,24 @@ from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
 
 
-class UDCT(CudaGraphsMixin):
+class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     """
     Uniform Discrete Curvelet Transform (UDCT) implementation.
 
-    This class provides forward and backward curvelet transforms with support
-    for both real and complex transforms.
+    Forward and backward curvelet transforms (real or complex) as a
+    :class:`torch.nn.Module` with no learnable parameters. Calling the module
+    (``udct(x)``) is :meth:`forward`; :meth:`forward_vect` and
+    :meth:`backward_vect` work on the flat :meth:`vect` layout instead of
+    nested lists, which suits networks and optimizers.
+
+    Gradients of every transform come from the adjoint transform: the UDCT is
+    a tight frame, so the gradient of the forward transform is the backward
+    transform and vice versa, with no autograd graph through the
+    computation. Second derivatives, ``torch.func`` transforms and
+    ``torch.compile`` are supported. ``.to(device)``, ``.cuda()``,
+    ``.double()`` and ``.float()`` move or recast the windows; they are not
+    buffers, so :meth:`state_dict` stays empty (they are rebuilt from the
+    constructor arguments).
 
     Parameters
     ----------
@@ -82,8 +95,8 @@ class UDCT(CudaGraphsMixin):
         Replay the real and complex transforms on CUDA from CUDA graphs: one
         launch per call instead of a few dozen, captured on the first call for
         each input shape and dtype (the last :attr:`cuda_graph_cache_size` are
-        kept). Covers every forward/backward entry point, :meth:`filter`,
-        :class:`UDCTModule` and gradients (through the adjoint transform).
+        kept). Covers every forward/backward entry point, :meth:`filter`
+        and gradients (through the adjoint transform).
         Worthwhile for small and medium inputs, where launches dominate (a
         512² transform gets ~6x faster on an RTX 4090); slower for large
         inputs, where copying in and out of the graph buffers costs more.
@@ -103,8 +116,6 @@ class UDCT(CudaGraphsMixin):
         High frequency mode.
     transform_kind : str
         Type of transform being used ("real", "complex", or "monogenic").
-    parameters : ParamUDCT
-        Internal UDCT parameters.
 
     Examples
     --------
@@ -124,6 +135,12 @@ class UDCT(CudaGraphsMixin):
     >>> recon2 = transform2.backward(coeffs2)
     >>> torch.allclose(data, recon2, atol=1e-4)
     True
+    >>> # Flat coefficients and gradients, e.g. inside a network
+    >>> x = torch.randn(4, 64, 64, requires_grad=True)
+    >>> features = transform.forward_vect(x)  # shape (4, ncoef)
+    >>> features.abs().pow(2).sum().backward()
+    >>> x.grad.shape
+    torch.Size([4, 64, 64])
     """
 
     def __init__(
@@ -140,6 +157,7 @@ class UDCT(CudaGraphsMixin):
         dtype: torch.dtype | None = None,
         cuda_graphs: bool = False,
     ) -> None:
+        super().__init__()
         dtype = resolve_dtype(dtype)
 
         # Validate transform_kind
@@ -163,7 +181,7 @@ class UDCT(CudaGraphsMixin):
         )
 
         # Create ParamUDCT object
-        self._parameters = ParamUDCT(
+        self._params = ParamUDCT(
             shape=params_dict["internal_shape"],
             angular_wedges_config=params_dict["angular_wedges_config"],
             window_overlap=params_dict["window_overlap"],
@@ -191,21 +209,21 @@ class UDCT(CudaGraphsMixin):
     @property
     def shape(self) -> tuple[int, ...]:
         """Shape of the transform."""
-        return self._parameters.shape
+        return self._params.shape
 
     @property
     def ndim(self) -> int:
         """Number of dimensions."""
-        return self._parameters.ndim
+        return self._params.ndim
 
     @property
     def num_scales(self) -> int:
         """Number of scales."""
-        return self._parameters.num_scales
+        return self._params.num_scales
 
     @property
     def dtype(self) -> torch.dtype:
-        """Real precision of the transform (follows ``UDCTModule.to(dtype)``)."""
+        """Real precision of the transform (follows ``.to(dtype)``)."""
         return self._windows[0][0][0].values.dtype
 
     @property
@@ -517,7 +535,7 @@ class UDCT(CudaGraphsMixin):
         tuple
             (windows, decimation_ratios, indices)
         """
-        window_computer = UDCTWindow(self._parameters, self._high_frequency_mode)
+        window_computer = UDCTWindow(self._params, self._high_frequency_mode)
         windows, decimation_ratios, indices = window_computer.compute()
         need_flip = self._transform_kind == "complex"
         for scale_idx, scale_windows in enumerate(windows):
@@ -569,7 +587,7 @@ class UDCT(CudaGraphsMixin):
     def _coefficient_shapes_real(self) -> list[list[list[tuple[int, ...]]]]:
         """Private method for real transform coefficient shapes calculation."""
         shapes: list[list[list[tuple[int, ...]]]] = []
-        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        internal_shape = torch.tensor(self._params.shape, dtype=torch.int64)
         for scale_idx, decimation_ratios_scale in enumerate(
             self._decimation_ratios_cpu
         ):
@@ -594,19 +612,19 @@ class UDCT(CudaGraphsMixin):
     def _coefficient_shapes_complex(self) -> list[list[list[tuple[int, ...]]]]:
         """Private method for complex transform coefficient shapes calculation."""
         shapes: list[list[list[tuple[int, ...]]]] = []
-        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        internal_shape = torch.tensor(self._params.shape, dtype=torch.int64)
         for scale_idx, decimation_ratios_scale in enumerate(
             self._decimation_ratios_cpu
         ):
             shapes.append([])
             if scale_idx > 0:
-                num_directions = 2 * self._parameters.ndim
+                num_directions = 2 * self._params.ndim
             else:
                 num_directions = len(decimation_ratios_scale)
             for direction_idx in range(num_directions):
                 shapes[scale_idx].append([])
-                if scale_idx > 0 and direction_idx >= self._parameters.ndim:
-                    window_direction_idx = direction_idx % self._parameters.ndim
+                if scale_idx > 0 and direction_idx >= self._params.ndim:
+                    window_direction_idx = direction_idx % self._params.ndim
                     window_direction_idx = min(
                         window_direction_idx, len(self._windows[scale_idx]) - 1
                     )
@@ -631,8 +649,8 @@ class UDCT(CudaGraphsMixin):
     def _coefficient_shapes_monogenic(self) -> list[list[list[tuple[int, ...]]]]:
         """Private method for monogenic transform coefficient shapes calculation."""
         shapes: list[list[list[tuple[int, ...]]]] = []
-        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
-        num_channels = self._parameters.ndim + 2
+        internal_shape = torch.tensor(self._params.shape, dtype=torch.int64)
+        num_channels = self._params.ndim + 2
         for scale_idx, decimation_ratios_scale in enumerate(
             self._decimation_ratios_cpu
         ):
@@ -727,10 +745,10 @@ class UDCT(CudaGraphsMixin):
         """Private method for monogenic coefficient restructuring (no input validation)."""
         begin_idx = 0
         coefficients: UDCTCoefficients = []
-        internal_shape = torch.tensor(self._parameters.shape, dtype=torch.int64)
+        internal_shape = torch.tensor(self._params.shape, dtype=torch.int64)
         # ndim+2 channels: [scalar.real, scalar.imag, riesz_1, ..., riesz_ndim]
         # Matches numpy's structure
-        num_channels = self._parameters.ndim + 2
+        num_channels = self._params.ndim + 2
 
         for scale_idx, decimation_ratios_scale in enumerate(
             self._decimation_ratios_cpu
@@ -799,7 +817,8 @@ class UDCT(CudaGraphsMixin):
         self._check_input(image)
         if self._transform_kind == "monogenic":
             return self._forward_monogenic(image)
-        if self._cuda_graphs:
+        if self._cuda_graphs or _may_need_grad(image):
+            # Views into the flat coefficients; gradients through the adjoint.
             return self._get_plan().unflatten(self._forward_flat(image))
         return self._get_plan().forward_nested(image)
 
@@ -815,7 +834,7 @@ class UDCT(CudaGraphsMixin):
         check_dtype(image, self.dtype, "input")
 
     def _check_shape(self, image: torch.Tensor) -> None:
-        shape = tuple(self._parameters.shape)
+        shape = tuple(self._params.shape)
         if tuple(image.shape[image.ndim - len(shape) :]) != shape or image.ndim < len(
             shape
         ):
@@ -861,28 +880,65 @@ class UDCT(CudaGraphsMixin):
         >>> transform.filter(noisy, hard_threshold).shape
         torch.Size([4, 32, 32])
         """
-        return self._backward_vect(fn(self._forward_vect(image)))
+        return self.backward_vect(fn(self.forward_vect(image)))
 
     def _get_plan(self) -> UDCTPlan:
         """Fused plan for the real/complex transform (built on first use)."""
         if self._plan is None:
             self._plan = UDCTPlan.build(
-                self._parameters,
+                self._params,
                 self._windows,
                 self._decimation_ratios_cpu,
                 complex_mode=self._transform_kind == "complex",
             )
         return self._plan
 
-    def _forward_vect(self, image: torch.Tensor) -> torch.Tensor:
-        """Forward transform straight to the ``vect`` layout (used by UDCTModule)."""
+    def forward_vect(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Forward transform straight to the flat :meth:`vect` layout.
+
+        Equals ``vect(forward(image))`` without building the nested list.
+
+        Parameters
+        ----------
+        image : torch.Tensor
+            Input of shape ``(*batch, *self.shape)``.
+
+        Returns
+        -------
+        torch.Tensor
+            Coefficients of shape ``(*batch, ncoef)``.
+
+        Examples
+        --------
+        >>> import torch
+        >>> from curvelets.torch import UDCT
+        >>> transform = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+        >>> x = torch.randn(32, 32)
+        >>> torch.allclose(transform.forward_vect(x), transform.vect(transform(x)))
+        True
+        """
         if self._transform_kind == "monogenic":
             return self.vect(self.forward(image))
         self._check_input(image)
         return self._forward_flat(image)
 
-    def _backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
-        """Backward transform from the ``vect`` layout (used by UDCTModule)."""
+    def backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
+        """
+        Backward transform from the flat :meth:`vect` layout.
+
+        Equals ``backward(struct(vector))``.
+
+        Parameters
+        ----------
+        vector : torch.Tensor
+            Coefficients of shape ``(*batch, ncoef)``.
+
+        Returns
+        -------
+        torch.Tensor
+            Reconstruction of shape ``(*batch, *self.shape)``.
+        """
         if self._transform_kind == "monogenic":
             return self.backward(self.struct(vector))
         check_dtype(vector, self.dtype, "coefficients")
@@ -925,16 +981,24 @@ class UDCT(CudaGraphsMixin):
         msg = "Monogenic transform not yet implemented for PyTorch"
         raise NotImplementedError(msg)
 
+    def _apply(
+        self, fn: Callable[[torch.Tensor], torch.Tensor], recurse: bool = True
+    ) -> Self:
+        """Apply ``fn`` to the windows too (``.to()``, ``.cuda()``, ``.double()``)."""
+        super()._apply(fn, recurse)
+        self.apply_to_tensors(fn)
+        return self
+
     def apply_to_tensors(self, fn: Callable[[torch.Tensor], torch.Tensor]) -> None:
         """
         Apply a function to all internal tensors.
 
-        This method is used for device and dtype transfers (e.g., when calling
-        `model.to(device)` on a module containing this UDCT instance). It applies
+        Called by ``.to()``, ``.cuda()``, ``.double()`` and the like (prefer
+        those). It applies
         the given function to all internal tensor attributes including windows
         and decimation ratios. If ``fn`` changes the floating-point dtype of the
         windows, :attr:`dtype` follows it; a complex target dtype (e.g.
-        ``module.to(torch.complex64)``) sets the matching real precision.
+        ``udct.to(torch.complex64)``) sets the matching real precision.
 
         Parameters
         ----------

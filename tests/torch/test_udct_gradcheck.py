@@ -1,4 +1,4 @@
-"""Gradcheck tests for UDCTModule."""
+"""Gradcheck tests for the UDCT nn.Module."""
 
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ import curvelets.torch as torch_curvelets
     sys.platform == "win32",
     reason="Timeout-based tests hang on Windows due to thread-based timeout limitations",
 )  # type: ignore[untyped-decorator]
-def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
+def test_udct_gradcheck(dim: int, transform_type: str) -> None:
     """
-    Test that UDCTModule passes gradcheck for all dimensions and transform types.
+    Test that UDCT.forward_vect passes gradcheck for all dimensions and transform types.
 
     Parameters
     ----------
@@ -42,12 +42,13 @@ def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
         shape = (4, 4, 4, 4)
         config = torch.tensor([[3, 3, 3, 3]])
 
-    udct_module = torch_curvelets.UDCTModule(
+    udct = torch_curvelets.UDCT(
         shape=shape,
         angular_wedges_config=config,
         window_overlap=0.15,
         window_threshold=1e-5,
-        transform_type=transform_type,  # type: ignore[arg-type]
+        transform_kind=transform_type,  # type: ignore[arg-type]
+        dtype=torch.float64,
     )
 
     rng = np.random.default_rng(42)
@@ -70,7 +71,7 @@ def test_udct_module_gradcheck(dim: int, transform_type: str) -> None:
     # UDCT involves FFT operations which can have numerical precision issues
     # If timeout occurs, test is skipped (via conftest hook)
     result = torch.autograd.gradcheck(
-        udct_module,
+        udct.forward_vect,
         input_tensor,
         fast_mode=use_fast_mode,
         check_undefined_grad=False,
