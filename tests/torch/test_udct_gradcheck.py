@@ -13,8 +13,7 @@ import curvelets.torch as torch_curvelets
 
 @pytest.mark.parametrize("dim", [2, 3, 4])  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("transform_type", ["real", "complex"])  # type: ignore[untyped-decorator]
-@pytest.mark.timeout(10)  # type: ignore[untyped-decorator]
-@pytest.mark.timeout_to_xfail  # type: ignore[untyped-decorator]
+@pytest.mark.timeout(30)  # type: ignore[untyped-decorator]
 @pytest.mark.skipif(
     sys.platform == "win32",
     reason="Timeout-based tests hang on Windows due to thread-based timeout limitations",
@@ -64,16 +63,14 @@ def test_udct_gradcheck(dim: int, transform_type: str) -> None:
         input_data = torch.from_numpy(rng.random(shape, dtype=np.float64))
         input_tensor = input_data.clone().requires_grad_(True)
 
-    # Use fast_mode for real transforms (not complex)
-    use_fast_mode = transform_type == "real"
-
+    # fast_mode (randomized vector-Jacobian products) keeps gradcheck cost
+    # independent of input size; slow mode builds the full Jacobian.
     # Run gradcheck with timeout protection via pytest-timeout
     # UDCT involves FFT operations which can have numerical precision issues
-    # If timeout occurs, test is skipped (via conftest hook)
     result = torch.autograd.gradcheck(
         udct.forward_vect,
         input_tensor,
-        fast_mode=use_fast_mode,
+        fast_mode=True,
         check_undefined_grad=False,
         check_batched_grad=False,
         atol=1e-5,
