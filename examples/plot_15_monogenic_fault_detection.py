@@ -49,12 +49,13 @@ orientation of its own.
 from __future__ import annotations
 
 # %%
+from pathlib import Path
 from typing import Literal, TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-from scipy.ndimage import gaussian_filter
+from scipy.ndimage import distance_transform_edt, gaussian_filter
 from scipy.stats import rankdata
 
 from curvelets.numpy import UDCT
@@ -277,12 +278,18 @@ def isotropic_attribute(
     return finish(*relative_change(fields, tangent), post)
 
 
-def auc(score: npt.NDArray[np.float64], near: float = 4, far: float = 14) -> float:
+def auc(
+    score: npt.NDArray[np.float64],
+    near: float = 4,
+    far: float = 14,
+    dist: npt.NDArray[np.float64] | None = None,
+) -> float:
     """Area under the ROC curve: pixels within ``near`` of the fault against the
-    pixels farther than ``far`` (the borders of the image are excluded)."""
+    pixels farther than ``far`` (the borders of the image are excluded). ``dist`` is
+    the distance to the fault, by default that of the synthetic model."""
     m = 24
     s = score[m:-m, m:-m]
-    d = distance[m:-m, m:-m]
+    d = (distance if dist is None else dist)[m:-m, m:-m]
     pos, neg = s[d <= near], s[d >= far]
     ranks = rankdata(np.concatenate([pos, neg]))
     return float(
@@ -615,6 +622,71 @@ for (title, _model, _gap), per_case in zip(smoothing_cases, smoothed, strict=Tru
         print(f"{title}, noise {noise}: {cells}")
 
 # %%
+# Real faults: the Thebe gas field
+# ################################
+#
+# Four tiles of 200 time samples by 256 traces from the Thebe gas field volume
+# (Exmouth Plateau, NW Australia), with expert fault labels, are included in the
+# test data. They come from the fault-recognition dataset of An et al. (2021, Data
+# in Brief, 37, 107219), released under CC0 at https://doi.org/10.7910/DVN/YBYGBK;
+# ``testdata/make_thebe_tiles.py`` cuts them from the original volume. The labels
+# are fault zones a few samples wide; positives are pixels within 3 samples of a
+# labelled pixel and negatives those farther than 12.
+
+tiles_path = Path("testdata/thebe_tiles.npz")
+if not tiles_path.exists():
+    tiles_path = Path("../testdata/thebe_tiles.npz")
+thebe = np.load(tiles_path)
+thebe_seismic = thebe["seismic"].astype(np.float64)
+thebe_faults = np.unpackbits(thebe["faults"], axis=-1, count=shape[1]).astype(bool)
+
+real_posts = (0, 3)
+real_scores = np.zeros((len(thebe_seismic), len(real_posts), 2))
+real_maps = []
+for t, (tile, labels) in enumerate(zip(thebe_seismic, thebe_faults, strict=True)):
+    dist_to_fault = distance_transform_edt(~labels)
+    f = spectrum(tile)
+    for k, post in enumerate(real_posts):
+        pair = (
+            isotropic_attribute(f, 1, "gradient", post),
+            isotropic_attribute(f, 3, "riesz", post),
+        )
+        real_scores[t, k] = [auc(a, near=3, far=12, dist=dist_to_fault) for a in pair]
+        if t == 0 and post == 0:
+            real_maps = list(pair)
+
+print("Thebe tiles: AUC (standard / monogenic), isotropic band")
+for t, row in enumerate(real_scores):
+    cells = "  ".join(
+        f"post {p}: {a:.2f}/{b:.2f}" for p, (a, b) in zip(real_posts, row, strict=True)
+    )
+    print(f"  tile {t}: {cells}")
+for k, post in enumerate(real_posts):
+    a, b = real_scores[:, k].mean(axis=0)
+    print(f"  mean, post {post}: {a:.3f}/{b:.3f}")
+
+# %%
+# The first tile, its fault labels (red), and the unsmoothed attributes.
+
+fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+axs[0].imshow(thebe_seismic[0], cmap="gray", aspect="auto", vmin=-3, vmax=3)
+axs[0].contour(thebe_faults[0], levels=[0.5], colors="r", linewidths=0.6)
+axs[0].set(title="Thebe tile with fault labels")
+for ax, title, attribute, score in zip(
+    axs[1:],
+    ("standard", "monogenic"),
+    real_maps,
+    real_scores[0, 0],
+    strict=True,
+):
+    im = ax.imshow(attribute, aspect="auto", vmax=np.percentile(attribute, 99))
+    create_colorbar(im=im, ax=ax)
+    ax.set(title=f"Isotropic, {title}\nAUC = {score:.2f}")
+for ax in axs:
+    despine(ax)
+plt.tight_layout()
+
+# %%
 # Conclusions
 # ###########
 #
@@ -639,15 +711,12 @@ for (title, _model, _gap), per_case in zip(smoothing_cases, smoothed, strict=Tru
 # Real data
 # ---------
 #
-# The same isotropic attributes were scored outside this example on real faults:
-# 113 tiles of 256 by 256 samples from ten sections of the Thebe gas field volume
-# (NW Australia), against its expert fault labels (An et al., 2021, Data in Brief
-# 37, 107219; data at https://doi.org/10.7910/DVN/YBYGBK, CC0). The pattern
-# matches the synthetic one. Unsmoothed, monogenic wins clearly (mean AUC 0.65
-# against 0.60 with ``num_scales=3``, better in 97% of the tiles). With 3 samples of
+# The Thebe tiles above follow the same pattern. A larger check outside this
+# example, on 113 tiles of 256 by 256 samples from ten sections of the same volume,
+# gave the same picture: unsmoothed, monogenic wins clearly (mean AUC 0.65 against
+# 0.60 with ``num_scales=3``, better in 97% of the tiles); with 3 samples of
 # smoothing the lead is about 0.01 (0.709 against 0.701, better in 64% of the
 # tiles), and with ``num_scales=4`` it vanishes by 4 to 6 samples of smoothing.
-# The volume is too large to download in this example.
 #
 # A one-sided truncation, with no reflectors at all on one side of the fault, is
 # not tested: a local attribute cannot tell a reflector-free half-plane from a very
