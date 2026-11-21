@@ -29,7 +29,9 @@ direction :math:`t`,
    \\mathrm{attribute} = \\sqrt{\\frac{\\sum_c |\\partial_t f_c|^2}
    {\\overline{\\sum_c |f_c|^2}}}
 
-where the overline is a Gaussian smoothing. Two versions are compared:
+where the overline is a Gaussian smoothing. The attribute can also be smoothed
+itself, by a Gaussian of width ``post``; comparing the two versions at matched
+smoothing turns out to decide the result. Two versions are compared:
 
 - **standard**: the channel is the standard UDCT coefficient (the real transform).
 - **monogenic**: the channels are the scalar coefficient and its two Riesz
@@ -213,10 +215,14 @@ def relative_change(
 
 
 def finish(
-    num: npt.NDArray[np.float64], den: npt.NDArray[np.float64]
+    num: npt.NDArray[np.float64], den: npt.NDArray[np.float64], post: float = 0.0
 ) -> npt.NDArray[np.float64]:
+    """Square root of the normalised ratio, optionally smoothed by ``post`` samples."""
     den = gaussian_filter(den, SIGMA)
-    return crop(np.sqrt(num / (den + 1e-3 * den.max())))
+    ratio = num / (den + 1e-3 * den.max())
+    if post > 0:
+        ratio = gaussian_filter(ratio, post)
+    return crop(np.sqrt(ratio))
 
 
 def structure_tangent(
@@ -231,7 +237,7 @@ def structure_tangent(
 
 
 def directional_attribute(
-    image_freq: Spectrum, channels: Literal[1, 3]
+    image_freq: Spectrum, channels: Literal[1, 3], post: float = 0.0
 ) -> npt.NDArray[np.float64]:
     """Attribute from the directional (analytic) bands, summed over all of them."""
     num = np.zeros(padded_shape)
@@ -246,13 +252,14 @@ def directional_attribute(
         n, d = relative_change(fields, tangent)
         num += n
         den += d
-    return finish(num, den)
+    return finish(num, den, post)
 
 
 def isotropic_attribute(
     image_freq: Spectrum,
     channels: Literal[1, 3],
     dip: Literal["gradient", "riesz"],
+    post: float = 0.0,
 ) -> npt.NDArray[np.float64]:
     """Attribute from the isotropic band, along a locally estimated event direction.
 
@@ -267,7 +274,7 @@ def isotropic_attribute(
         pair = [np.fft.ifftn(r).real for r in riesz_fields]
     tangent = structure_tangent(pair[0], pair[1])
     fields = [band] if channels == 1 else [band, *riesz_fields]
-    return finish(*relative_change(fields, tangent))
+    return finish(*relative_change(fields, tangent), post)
 
 
 def auc(score: npt.NDArray[np.float64], near: float = 4, far: float = 14) -> float:
@@ -316,8 +323,8 @@ plt.tight_layout()
 # Sweep over throw and noise
 # ##########################
 #
-# For each throw, noise level and noise seed, the four attributes are scored.
-# Lines are the mean over the seeds.
+# For each throw, noise level and noise seed, the four attributes are scored,
+# without smoothing of the attributes. Lines are the mean over the seeds.
 
 noise_levels = [0.25, 0.5, 1.0, 2.0]
 n_seeds = 3
@@ -370,6 +377,9 @@ for (case_name, _throw), per_case in zip(cases, mean_scores, strict=True):
 # %%
 # What makes the isotropic monogenic attribute better?
 # ####################################################
+#
+# This section and the next compare unsmoothed attributes; the section on matched
+# smoothing below shows how much of the difference survives smoothing.
 #
 # The monogenic attribute differs from the standard one in two ways: it uses three
 # channels instead of one, and it estimates the event direction from the Riesz
@@ -537,47 +547,118 @@ for local in (0.5, 1.0, 2.0, 5.0):
     print(f"  {local:>4}: standard {pair[0]:.2f}, monogenic {pair[1]:.2f}")
 
 # %%
+# Matched smoothing
+# #################
+#
+# The unsmoothed standard attribute is speckled: the real band oscillates, so its
+# along-event change fluctuates with the phase. The monogenic attribute is smooth by
+# construction. A fair comparison smooths both by the same amount. The isotropic
+# attributes are recomputed with a post-smoothing of width ``post`` (samples), for a
+# sharp throw of 4 samples and for a 16-sample fault zone with the same throw.
+
+posts = [0, 1, 2, 3, 4, 6]
+smoothing_cases: list[tuple[str, npt.NDArray[np.float64], float | None]] = [
+    ("Sharp fault, throw 4", make_model(4.0), None),
+    ("Fault zone, gap 16, throw 4", make_fault_zone(4.0, 16), 16.0),
+]
+smoothing_noise = (0.5, 1.0)
+smoothed = np.zeros((len(smoothing_cases), len(smoothing_noise), len(posts), 2))
+for i, (_, model, zone_width) in enumerate(smoothing_cases):
+    for j, noise in enumerate(smoothing_noise):
+        for k, post in enumerate(posts):
+            per_seed = []
+            for seed in range(n_seeds):
+                f = spectrum(noisy(model, noise, seed))
+                pair = (
+                    isotropic_attribute(f, 1, "gradient", post),
+                    isotropic_attribute(f, 3, "riesz", post),
+                )
+                per_seed.append([
+                    auc(a) if zone_width is None else zone_auc(a, zone_width)
+                    for a in pair
+                ])
+            smoothed[i, j, k] = np.mean(per_seed, axis=0)
+
+fig, axs = plt.subplots(1, 2, figsize=(10, 3.8), sharey=True)
+for ax, (title, _model, _gap), per_case in zip(
+    axs, smoothing_cases, smoothed, strict=True
+):
+    for j, noise in enumerate(smoothing_noise):
+        ax.plot(
+            posts,
+            per_case[j, :, 0],
+            "C0--",
+            marker="o",
+            alpha=1 - 0.4 * j,
+            label=f"standard, noise {noise}",
+        )
+        ax.plot(
+            posts,
+            per_case[j, :, 1],
+            "C3-",
+            marker="o",
+            alpha=1 - 0.4 * j,
+            label=f"monogenic, noise {noise}",
+        )
+    ax.set(title=title, xlabel="post-smoothing (samples)", ylim=(0.6, 1.01))
+axs[0].set_ylabel("AUC")
+axs[0].legend(fontsize=8)
+plt.tight_layout()
+
+print("Mean AUC (standard / monogenic) against post-smoothing, isotropic band")
+for (title, _model, _gap), per_case in zip(smoothing_cases, smoothed, strict=True):
+    for j, noise in enumerate(smoothing_noise):
+        cells = "  ".join(
+            f"{p}: {a:.2f}/{b:.2f}"
+            for p, (a, b) in zip(posts, per_case[j], strict=True)
+        )
+        print(f"{title}, noise {noise}: {cells}")
+
+# %%
 # Conclusions
 # ###########
 #
 # - **Directional bands: no difference.** The standard UDCT directional bands are
 #   already analytic, and the Riesz components of a narrow directional band mostly
 #   repeat the same information, so the two attributes score within about 0.02 AUC.
-#   Both are weak in noise: these bands carry the finest detail and the most noise,
-#   so this is a comparison of two equally weak detectors.
-# - **Isotropic band, offset faults: monogenic is better.** For example, with a
-#   throw of 4 samples and noise :math:`\sigma = 0.5` the AUC is about 0.92
-#   (monogenic) against 0.78 (standard), and the gap persists across throws and
-#   noise levels. The ablation shows that the gain comes from the three channels,
-#   not from the way the event direction is estimated. The monogenic energy
-#   :math:`\beta^2 + (\mathcal{R}_1\beta)^2 + (\mathcal{R}_2\beta)^2` does not
-#   depend on where in the oscillation a pixel sits, while a lone real coefficient
-#   loses sensitivity near its zero crossings. A phase jump across the fault is
-#   therefore seen everywhere with the former and only partly with the latter.
-# - **Fault zones with a gap: monogenic is better, and not only because of the
-#   phase jump.** The change attribute detects the zone better with monogenic
-#   channels at every gap width, with or without a throw (for a 16-sample gap and
-#   no throw, about 0.85 against 0.74). Where the reflectors stop, the attribute
-#   acts as a coherence measure, and the phase-invariant monogenic measure is more
-#   uniform on intact reflectors than the real band, which fluctuates with the phase.
-#   This is the closest this test comes to the original hypothesis that monogenic
-#   curvelets handle reflectors that stop.
-# - **Dimming: no practical advantage.** The monogenic envelope helps only when the
-#   local energy is not smoothed. With a few samples of smoothing the real band does
-#   as well, and both score better than without smoothing.
+# - **Isotropic band, unsmoothed: monogenic is much better.** For a throw of 4
+#   samples and noise :math:`\sigma = 0.5` the AUC is about 0.92 against 0.78, for
+#   offsets and for fault zones alike. The ablation attributes this to the three
+#   channels: the monogenic energy
+#   :math:`\beta^2 + (\mathcal{R}_1\beta)^2 + (\mathcal{R}_2\beta)^2` does not depend
+#   on where in the oscillation a pixel sits, so the attribute is smooth, while the
+#   real band's attribute is speckled by its oscillation.
+# - **At matched smoothing most of that lead disappears.** Smoothing both
+#   attributes by 2 samples or more makes them equal at moderate noise, and leaves
+#   monogenic ahead by about 0.02 to 0.03 AUC at high noise
+#   (:math:`\sigma = 1`). The monogenic attribute is smooth for free and keeps full
+#   resolution; once the standard attribute is smoothed, it is nearly as good.
+# - **Dimming: no practical advantage**, for the same reason: with a few samples of
+#   smoothing the real band's energy is an envelope too.
+#
+# Real data
+# ---------
+#
+# The same isotropic attributes were scored outside this example on real faults:
+# 113 tiles of 256 by 256 samples from ten sections of the Thebe gas field volume
+# (NW Australia), against its expert fault labels (An et al., 2021, Data in Brief
+# 37, 107219; data at https://doi.org/10.7910/DVN/YBYGBK, CC0). The pattern
+# matches the synthetic one. Unsmoothed, monogenic wins clearly (mean AUC 0.65
+# against 0.60 with ``num_scales=3``, better in 97% of the tiles). With 3 samples of
+# smoothing the lead is about 0.01 (0.709 against 0.701, better in 64% of the
+# tiles), and with ``num_scales=4`` it vanishes by 4 to 6 samples of smoothing.
+# The volume is too large to download in this example.
 #
 # A one-sided truncation, with no reflectors at all on one side of the fault, is
 # not tested: a local attribute cannot tell a reflector-free half-plane from a very
 # wide gap, so scoring it against a line would be ill-posed.
 #
-# Caveats: one synthetic model and an attribute chosen for this test. The advantage
-# also depends on how much of the signal the isotropic band holds, and it reverses
-# when that band is too coarse. With ``num_scales=3`` the isotropic band holds the
-# wavelet's main energy. With ``num_scales=4`` (an isotropic band below the
-# wavelet's peak frequency) a separate check over five noise seeds, with the same
-# throw of 4 samples, gave the opposite ordering: AUC about 0.52 (monogenic) against
-# 0.71 (standard) at :math:`\sigma = 0.5`. A plausible but untested reason is that
-# the Riesz transform of a band containing the zero frequency is non-local, which
-# blurs the fault. So the result is not that monogenic curvelets are better in
-# general, but that phase invariance helps detect offsets and fault zones when the
-# isotropic band contains the reflectors.
+# Caveats: synthetic models and attributes chosen for this test. The comparison
+# also depends on how much of the signal the isotropic band holds. On the
+# synthetic model with ``num_scales=4`` (an isotropic band below the wavelet's peak
+# frequency), a separate unsmoothed check over five seeds gave the opposite
+# ordering (AUC about 0.52 for monogenic against 0.71 for standard at
+# :math:`\sigma = 0.5`), while on the Thebe data ``num_scales=4`` favoured
+# monogenic. The overall result: monogenic curvelets give a phase-invariant,
+# speckle-free fault attribute at the isotropic scale without any smoothing, but
+# not a substantially better detector once the standard attribute is smoothed.
