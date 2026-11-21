@@ -2,7 +2,7 @@
 UDCT MNIST Classification
 =========================
 
-This example demonstrates how to use ``UDCTModule`` as a feature extractor
+This example demonstrates how to use ``UDCT`` as a feature extractor
 for image classification on the MNIST dataset.
 
 Instead of using convolutional layers, this network:
@@ -18,10 +18,10 @@ Architecture Overview
 #####################
 
 - **Input**: MNIST images (28x28 grayscale)
-- **Feature extraction**: UDCTModule transforms each image into curvelet coefficients
+- **Feature extraction**: ``UDCT.forward_vect`` transforms each image into curvelet coefficients
 - **Features**: All coefficient values (every pixel in every wedge) form the feature vector
 - **Classification**: Two-layer MLP (Linear -> ReLU -> Linear) maps features to 10 classes
-- **Batch processing**: ``UDCTModule`` transforms a whole batch in one call
+- **Batch processing**: ``UDCT`` transforms a whole batch in one call
 
 **Credits**
 
@@ -41,7 +41,7 @@ from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torchvision import datasets, transforms
 
-from curvelets.torch import UDCTModule
+from curvelets.torch import UDCT
 
 # %%
 # UDCTNet: Curvelet-Based Classifier
@@ -50,11 +50,11 @@ from curvelets.torch import UDCTModule
 # This network replaces convolutional layers with the curvelet transform.
 # The key components are:
 #
-# 1. ``UDCTModule``: Computes curvelet coefficients for each image
+# 1. ``UDCT``: Computes curvelet coefficients for each image (a submodule)
 # 2. Feature extraction: Uses all coefficient values as features
 # 3. Two-layer MLP: Maps features to class probabilities
 #
-# ``UDCTModule`` accepts a leading batch dimension, so a whole batch of images
+# ``UDCT`` accepts a leading batch dimension, so a whole batch of images
 # is transformed in one call.
 
 
@@ -69,29 +69,29 @@ class UDCTNet(nn.Module):  # type: ignore[misc]
         hidden_size: int = 128,
     ) -> None:
         super().__init__()
-        self.udct = UDCTModule(
+        self.udct = UDCT(
             shape=shape,
             num_scales=num_scales,
             wedges_per_direction=wedges_per_direction,
         )
         # Precompute number of features via dummy forward pass during init
-        # UDCTModule returns flattened coefficients (all pixels in all wedges)
+        # forward_vect returns flattened coefficients (all pixels in all wedges)
         with torch.inference_mode():
             dummy = torch.zeros(shape)
-            n_features = self.udct(dummy).numel()
+            n_features = self.udct.forward_vect(dummy).numel()
         self.fc1 = nn.Linear(n_features, hidden_size)
         self.fc2 = nn.Linear(hidden_size, 10)
 
     def _extract_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract all curvelet coefficients from a single 2D image."""
-        # UDCTModule returns flattened coefficients - take abs to get real features
-        return self.udct(x).abs()
+        # Flattened coefficients - take abs to get real features
+        return self.udct.forward_vect(x).abs()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass with batched curvelet feature extraction."""
         # x: (batch, 1, 28, 28) -> squeeze to (batch, 28, 28)
         x = x.squeeze(1)
-        # UDCTModule handles the leading batch dimension natively
+        # UDCT handles the leading batch dimension natively
         features = self._extract_features(x)
         x = F.relu(self.fc1(features))
         return F.log_softmax(self.fc2(x), dim=1)

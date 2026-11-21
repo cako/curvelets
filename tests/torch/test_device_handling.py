@@ -13,7 +13,7 @@ import pytest
 import torch
 
 import curvelets.torch._sparse_window as sparse_window_module
-from curvelets.torch import UDCT, UDCTModule
+from curvelets.torch import UDCT
 
 DEVICES = ["cpu"] + (["cuda"] if torch.cuda.is_available() else [])
 needs_cuda = pytest.mark.skipif(
@@ -93,11 +93,11 @@ def test_udct_module_backprop_on_device(device: str, kind: TransformKind) -> Non
     x_cpu = _input(kind, shape, "cpu")
 
     def grad_on(dev: str) -> torch.Tensor:
-        module = UDCTModule(
-            shape=shape, num_scales=3, wedges_per_direction=3, transform_type=kind
+        module = UDCT(
+            shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind
         ).to(dev)
         x = x_cpu.to(dev).requires_grad_(True)
-        module(x).abs().pow(2).sum().backward()
+        module.forward_vect(x).abs().pow(2).sum().backward()
         assert x.grad is not None
         return x.grad.cpu()
 
@@ -106,7 +106,7 @@ def test_udct_module_backprop_on_device(device: str, kind: TransformKind) -> Non
 
 def test_public_decimation_ratios_follow_the_module() -> None:
     """The public ``decimation_ratios`` still move with ``.to()``."""
-    module = UDCTModule(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    module = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
     module = module.to(DEVICES[-1])
     assert all(d.device.type == DEVICES[-1] for d in module.decimation_ratios)
 

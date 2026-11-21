@@ -7,7 +7,7 @@ from typing import Literal
 import pytest
 import torch
 
-from curvelets.torch import UDCT, UDCTModule
+from curvelets.torch import UDCT
 
 Kind = Literal["real", "complex"]
 SHAPE = (32, 32)
@@ -49,9 +49,9 @@ def test_forward_rejects_wrong_trailing_shape() -> None:
         _udct("real").forward(torch.randn(4, 32, 31))
 
 
-def test_udct_module_batched_matches_vmap() -> None:
-    """UDCTModule on a batch equals vmap over single images, gradients included."""
-    module = UDCTModule(shape=SHAPE, num_scales=3, wedges_per_direction=3)
+def test_forward_vect_batched_matches_vmap() -> None:
+    """forward_vect on a batch equals vmap over single images, gradients included."""
+    module = UDCT(shape=SHAPE, num_scales=3, wedges_per_direction=3).forward_vect
     x = _batch("real", 5)
     torch.testing.assert_close(module(x), torch.vmap(module)(x))
 

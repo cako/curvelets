@@ -69,8 +69,8 @@ def _kernel_ok(src: torch.Tensor) -> bool:
 
     It has no autograd or functorch rules, so differentiable calls and
     ``vmap``/``grad`` transforms take the torch implementation. (Gradients of the
-    UDCT through ``UDCTModule`` or ``cuda_graphs=True`` are the adjoint
-    transform evaluated without autograd, so they still use the kernel.)
+    UDCT are the adjoint transform evaluated without autograd, so they still
+    use the kernel.)
     """
     if src.requires_grad and torch.is_grad_enabled():
         return False

@@ -6,9 +6,9 @@ so the cache captures each flat transform once per input shape as a CUDA
 graph and replays it: one copy into a static input buffer, one graph launch,
 and one copy out of the static output buffer.
 
-Calls that need gradients go through the adjoint autograd Functions
-(:mod:`._autograd`), whose forward and backward are both plain calls, so both
-replay. Under ``torch.vmap`` or ``torch.compile``, inside another stream
+Gradients always come from the adjoint autograd Functions
+(:mod:`._autograd`), whose forward and backward are both plain calls without
+gradients, so both replay. Under ``torch.vmap`` or ``torch.compile``, inside another stream
 capture, and for CPU tensors, calls run as usual.
 
 On an RTX 4090 a single 512² forward drops from 0.37 to 0.065 ms and the
@@ -51,21 +51,23 @@ def _needs_grad(tensor: torch.Tensor) -> bool:
     return bool(torch.is_grad_enabled() and tensor.requires_grad)
 
 
+def _may_need_grad(tensor: torch.Tensor) -> bool:
+    """Whether a call must go through the adjoint Functions.
+
+    Inside ``torch.func`` transforms ``requires_grad`` does not tell, so those
+    go through them too (the Functions have vmap rules).
+    """
+    return bool(
+        torch.is_grad_enabled() and (tensor.requires_grad or _functorch_wrapped(tensor))
+    )
+
+
 def graphable(tensor: torch.Tensor) -> bool:
     """Whether a call on ``tensor`` can be replayed from a graph as it is.
 
     Graphs record no autograd history, so the call must not need gradients.
     """
     return _replay_possible(tensor) and not _needs_grad(tensor)
-
-
-def graphable_with_adjoint(tensor: torch.Tensor) -> bool:
-    """Whether a call that needs gradients can still use graphs.
-
-    It goes through an autograd Function whose forward and backward (the
-    adjoint transform) both run without gradients, and so from graphs.
-    """
-    return _replay_possible(tensor) and _needs_grad(tensor)
 
 
 def _capture(  # pragma: no cover - needs a CUDA device (tests/torch/test_cuda_graphs.py)
@@ -110,26 +112,6 @@ class CudaGraphCache:
     def clear(self) -> None:
         """Drop every captured graph (and its memory pool)."""
         self._entries.clear()
-
-    def call(
-        self,
-        name: str,
-        fn: Callable[[torch.Tensor], torch.Tensor],
-        tensor: torch.Tensor,
-        adjoint_apply: Callable[[torch.Tensor, Any], torch.Tensor],
-        udct: Any,
-    ) -> torch.Tensor:
-        """``fn(tensor)``: replayed, through the adjoint Function, or plainly.
-
-        Calls that need gradients go through ``adjoint_apply(tensor, udct)``
-        (an autograd Function whose forward and backward call back into the
-        transform without gradients, and so replay).
-        """
-        if graphable(tensor):
-            return self.run(name, fn, tensor)
-        if graphable_with_adjoint(tensor):
-            return adjoint_apply(tensor, udct)
-        return fn(tensor)
 
     def run(
         self,
@@ -196,21 +178,22 @@ class CudaGraphsMixin:
         self._graphs.clear()
 
     def _forward_flat(self, image: torch.Tensor) -> torch.Tensor:
-        """Flat forward of checked input (from a CUDA graph when enabled)."""
+        """Flat forward of checked input; its gradient is the backward transform."""
+        if _may_need_grad(image):
+            # Runs _forward_flat again without gradients, so from graphs too.
+            return ForwardWithAdjoint.apply(image, self)
         forward: Callable[[torch.Tensor], torch.Tensor] = self._get_plan().forward_flat
-        if not self._cuda_graphs:
-            return forward(image)
-        return self._graphs.call(
-            "forward", forward, image, ForwardWithAdjoint.apply, self
-        )
+        if self._cuda_graphs and graphable(image):
+            return self._graphs.run("forward", forward, image)
+        return forward(image)
 
     def _backward_flat(self, vector: torch.Tensor) -> torch.Tensor:
-        """Flat backward of checked input (from a CUDA graph when enabled)."""
+        """Flat backward of checked input; its gradient is the forward transform."""
+        if _may_need_grad(vector):
+            return BackwardWithAdjoint.apply(vector, self)
         backward: Callable[[torch.Tensor], torch.Tensor] = (
             self._get_plan().backward_flat
         )
-        if not self._cuda_graphs:
-            return backward(vector)
-        return self._graphs.call(
-            "backward", backward, vector, BackwardWithAdjoint.apply, self
-        )
+        if self._cuda_graphs and graphable(vector):
+            return self._graphs.run("backward", backward, vector)
+        return backward(vector)

@@ -2,8 +2,8 @@
 
 Measured on the native-batching code (#86; the code is unchanged by #87) with
 `benchmarks/stage_profile.py`, on an **RTX 4090** (Ada AD102, 72 MB L2,
-~1 TB/s), torch 2.8.0+cu128, float32, real transform, `_forward_vect` /
-`_backward_vect` (the `UDCTModule` path).
+~1 TB/s), torch 2.8.0+cu128, float32, real transform, `forward_vect` /
+`backward_vect` (the `UDCTModule` path).
 
 ## Method
 
@@ -51,10 +51,10 @@ Rerun: `python benchmarks/stage_profile.py --batch 1,8 --json out.json`
   2–3× more kernels (the sparse fold levels; see §3).
 - **Bandwidth-bound (device > host):** batched work at ≥1024² and ≥128³. The
   breakdown in §2 applies here.
-- `UDCTModule` forward wall ≈ `_forward_vect` wall: the autograd wrapper adds
+- `UDCTModule` forward wall ≈ `forward_vect` wall: the autograd wrapper adds
   nothing measurable.
 - The nested API costs host time only: at 2048² B=1, `forward()` adds 0.32 ms
-  over `_forward_vect` (181 `unbind` views) and `backward()` adds 0.65 ms (the
+  over `forward_vect` (181 `unbind` views) and `backward()` adds 0.65 ms (the
   `flatten` cat). At 128³ B=1 it adds +0.12 / +0.49 ms.
 
 ## 2. Stage breakdown (device ms)
