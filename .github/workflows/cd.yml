@@ -17,33 +17,60 @@ concurrency:
 env:
   FORCE_COLOR: 3
 
+# Read-only by default; only the publish job gets an OIDC token (for PyPI
+# trusted publishing).
+permissions:
+  contents: read
+
+# Actions are pinned to commit SHAs (tags can be moved); Dependabot updates the
+# pins and their version comments.
 jobs:
   dist:
     name: Distribution build
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
 
+      # Every tool that touches the release (build frontend and backend, twine)
+      # comes from a hash-locked file, as wheels only: no unpinned package and
+      # no sdist build code runs while building what gets published.
       - name: Install build tooling
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade build twine packaging hatchling hatch-vcs
+          python -m pip install --require-hashes --only-binary :all: --no-deps -r .github/requirements/build.txt
+          python -m pip check
 
       - name: Build distributions
-        run: python -m build
+        run: python -m build --no-isolation
 
       - name: Validate distributions
         run: python -m twine check --strict dist/*
 
+      # A release must publish exactly its tag's version (not a dev version
+      # from an unexpected checkout).
+      - name: Check the version matches the release tag
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          expected="${TAG#v}"
+          for f in dist/*; do
+            case "$(basename "$f")" in
+              "curvelets-$expected.tar.gz" | "curvelets-$expected-"*.whl) ;;
+              *) echo "::error::$f does not match release tag $TAG"; exit 1 ;;
+            esac
+          done
+
       - name: Upload Packages
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Packages
           path: dist
@@ -51,6 +78,8 @@ jobs:
   publish:
     needs: [dist]
     name: Publish to PyPI
+    # Protect this environment in the repository settings: require a reviewer
+    # and allow only release tags (v*) to deploy.
     environment: pypi
     permissions:
       id-token: write
@@ -58,12 +87,12 @@ jobs:
     if: github.event_name == 'release' && github.event.action == 'published'
 
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: Packages
           path: dist
 
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         if: github.event_name == 'release' && github.event.action == 'published'
         # with:
         #   # Remember to tell (test-)pypi about this repo before publishing

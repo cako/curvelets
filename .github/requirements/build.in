@@ -1,0 +1,10 @@
+# Tools for the release build (.github/workflows/cd.yml). The build runs
+# without isolation, so the build backend comes from this lock too.
+# Refresh the lock with:
+#   uv pip compile .github/requirements/build.in --generate-hashes \
+#     --python-version 3.14 --python-platform x86_64-manylinux_2_28 \
+#     -o .github/requirements/build.txt
+build
+twine
+hatchling
+hatch-vcs

@@ -12,9 +12,15 @@ UDCTWindows
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 
-from typing_extensions import TypeAliasType
+# typing_extensions is only a dependency on Python < 3.12 (see pyproject.toml);
+# TypeAliasType is in the standard library from 3.12.
+if sys.version_info >= (3, 12):
+    from typing import TypeAliasType
+else:
+    from typing_extensions import TypeAliasType
 
 if TYPE_CHECKING:
     from ._sparse_window import SparseWindow
