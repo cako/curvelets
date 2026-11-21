@@ -55,9 +55,9 @@ Tips
 AMD CPUs
 ========
 
-SciPy works well on AMD CPUs. Intel MKL can be very slow on them in 3D; ``"auto"`` notices and uses SciPy instead.
+SciPy, the default when installed, works well on AMD CPUs. Avoid choosing Intel MKL explicitly there: it can be very slow on AMD CPUs for 3D transforms. ``"auto"`` handles this on its own: it times every installed library on your shape and keeps the fastest, so it uses MKL only for shapes where MKL is actually fast.
 
-For FFTW, AMD provides an optimized version, `amd-fftw <https://github.com/amd/amd-fftw>`_. When pyFFTW is built against it, **Curvelets** detects it, prepares transforms almost instantly, and ``"auto"`` includes it in its comparison. To install it on Linux:
+For FFTW, AMD provides an optimized version, `amd-fftw <https://github.com/amd/amd-fftw>`_. When pyFFTW is built against it, **Curvelets** detects it and prepares transforms almost instantly, so ``"auto"`` includes it among the libraries it times (the standard FFTW is left out because it is slow to prepare). To install it on Linux:
 
 .. code-block:: sh
 
