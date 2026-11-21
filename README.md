@@ -122,7 +122,7 @@ The FDCT, pioneered by Candès, Demanet, Donoho and Ying, is implemented in the 
 
 As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Beyond copyright, the FDCT algorithms themselves (both the USFFT and wrapping variants, in 2D and 3D) are patented in the United States: [US 7,840,625 B2](https://patents.google.com/patent/US7840625B2/en), "Methods for performing fast discrete curvelet transforms of data", assigned to Caltech and Stanford. The patent is expected to expire on 25 July 2029 [^f2]; until then, practicing the FDCT in the US may require a patent license from the assignees. This applies to any implementation, including a clean-room reimplementation that shares no code with CurveLab. Any library which ports or converts Curvelab code to another language is additionally subject to Curvelab's license. While this does not include libraries which wrap the CurveLab toolbox and therefore do not contain any source code of Curvelab, their usage still requires Curvelab and therefore its license. Such wrappers include [curvelops](https://github.com/PyLops/curvelops), [PyCurvelab](https://github.com/slimgroup/PyCurvelab), both MIT licensed.
 
-The UDCT was first implemented in MATLAB ([ucurvmd](https://github.com/nttruong7/ucurvmd) [dead link]) by one of its authors, Truong Nguyen, and later in Julia for 2D signals ([Curvelet.jl](https://github.com/fundamental/Curvelet.jl), whose repository is archived; its last commit is from 2017). It does not have the restrictions of the FDCT.
+The UDCT was first implemented in MATLAB ([ucurvmd](https://github.com/nttruong7/ucurvmd) [dead link]) by one of its authors, Truong Nguyen, and later in Julia for 2D signals ([Curvelet.jl](https://github.com/fundamental/Curvelet.jl), whose repository has been archived and read-only since 10 September 2019; its last commit is from 2017). It does not have the restrictions of the FDCT.
 
 **This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing support for complex signals, monogenic curvelets for real signals [[7](#7-storath-m-2010-the-monogenic-curvelet-transform-2010-ieee-international-conference-on-image-processing)], and a wavelet transform at the highest scale.
 
@@ -154,7 +154,7 @@ Curvelab implements the fast discrete curvelet transforms (FDCT) [[1](#1-candès
 
 ### Curvelet.jl
 
-Curvelet.jl implements the UDCT [[2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634)] in Julia, for 2D signals. The repository is archived, and its last commit is from 2017.
+Curvelet.jl implements the UDCT [[2](#2-nguyen-t-t-and-h-chauris-2010-uniform-discrete-curvelet-transform-ieee-transactions-on-signal-processing-58-36183634)] in Julia, for 2D signals. The repository has been archived and read-only since 10 September 2019, and its last commit is from 2017.
 
 ### Kymatio
 
