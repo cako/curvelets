@@ -5,6 +5,7 @@
     self
     curvelet_faqs.rst
     related_projects.rst
+    cpu_performance.rst
     torch.rst
     contributing.rst
     auto_examples/index.rst
@@ -44,15 +45,7 @@ The NumPy transform is FFT-bound. It runs on :mod:`numpy.fft` by default, and ca
     pip install curvelets[fftw]   # FFTW via pyFFTW
     pip install curvelets[mkl]    # Intel MKL via mkl_fft (Linux x86_64 and Windows x64)
 
-With the default ``fft_engine="auto"``, NumPy and the installed SciPy and MKL engines are timed once per transform shape, and the fastest is used.
-
-FFTW is only used when requested with ``fft_engine="fftw"``. It plans each transform shape with ``FFTW_MEASURE`` on first use, which takes seconds (up to about a minute for large 3D transforms), and is fast afterwards: choose it for many transforms of the same shape. On AMD CPUs, pyFFTW can be built against AMD's optimized FFTW (`amd-fftw <https://github.com/amd/amd-fftw>`_), which plans faster:
-
-.. code-block:: sh
-
-    # After building and installing amd-fftw (double, single and long double) into $PREFIX:
-    PYFFTW_INCLUDE=$PREFIX/include PYFFTW_LIB_DIR=$PREFIX/lib pip install --no-binary pyfftw pyfftw
-    export LD_LIBRARY_PATH=$PREFIX/lib
+With the default ``fft_engine="auto"``, the fastest installed engine is chosen for you. See :ref:`cpu-performance` for how to choose an engine and threads, AMD- and Intel-specific advice, and reference speedups.
 
 **Curvelets** supports Python 3.11 and above, NumPy 1.20 and above.
 
