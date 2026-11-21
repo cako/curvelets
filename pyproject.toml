@@ -220,6 +220,7 @@ isort.required-imports = ["from __future__ import annotations"]
 "tests/**" = ["T20"]
 "noxfile.py" = ["T20"]
 "examples/**" = ["T20"]
+".github/scripts/**" = ["T20"]
 "benchmarks/**" = ["T20", "BLE001", "PLC0415", "SLF001", "N806"]
 
 
