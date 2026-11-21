@@ -254,3 +254,7 @@ messages_control.disable = [
   "missing-class-docstring",
   "missing-function-docstring",
 ]
+
+[tool.codespell]
+# Author surnames in docs/references.bib
+ignore-words-list = "childs"

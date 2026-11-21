@@ -2,8 +2,9 @@
 Do Monogenic Curvelets Detect Faults Better?
 ============================================
 
-A hypothesis: in seismic images with faults, monogenic curvelets should outperform
-standard curvelets, because a reflector that is cut or offset by a fault changes
+A hypothesis: in seismic images with faults, monogenic curvelets
+:cite:`Storath2010,Storath2011`, which extend curvelets with the monogenic signal
+:cite:`Felsberg2001`, should outperform standard curvelets, because a reflector that is cut or offset by a fault changes
 abruptly along its length, and the extra Riesz components (the "inverted phase")
 describe that change better than a single coefficient can.
 
@@ -627,8 +628,8 @@ for (title, _model, _gap), per_case in zip(smoothing_cases, smoothed, strict=Tru
 #
 # Four tiles of 200 time samples by 256 traces from the Thebe gas field volume
 # (Exmouth Plateau, NW Australia), with expert fault labels, are included in the
-# test data. They come from the fault-recognition dataset of An et al. (2021, Data
-# in Brief, 37, 107219), released under CC0 at https://doi.org/10.7910/DVN/YBYGBK;
+# test data. They come from the fault-recognition dataset of :cite:t:`An2021`,
+# released under CC0 at https://doi.org/10.7910/DVN/YBYGBK;
 # ``testdata/make_thebe_tiles.py`` cuts them from the original volume. The labels
 # are fault zones a few samples wide; positives are pixels within 3 samples of a
 # labelled pixel and negatives those farther than 12.
@@ -731,3 +732,10 @@ plt.tight_layout()
 # monogenic. The overall result: monogenic curvelets give a phase-invariant,
 # speckle-free fault attribute at the isotropic scale without any smoothing, but
 # not a substantially better detector once the standard attribute is smoothed.
+
+# %%
+# References
+# ----------
+#
+# .. bibliography::
+#    :filter: docname in docnames
