@@ -85,20 +85,28 @@ Try Intel MKL: ``pip install curvelets[mkl]``. ``"auto"`` compares it with SciPy
 Reference speedups
 ==================
 
-Compared with the previous, single-threaded NumPy implementation, on 32 vCPUs of an AMD EPYC 9575F with ``fft_engine="auto"`` (forward / backward):
+Speedup over NumPy's FFT (``fft_engine="numpy"``), measured on 32 vCPUs of an AMD EPYC 9575F with ``fft_workers=32`` (forward / backward):
 
 .. list-table::
    :header-rows: 1
 
    * - Transform
-     - Speedup
+     - SciPy (default)
+     - ``"auto"``
    * - 2D real, 512×512, float64
-     - 1.3× / 1.8×
+     - 0.8× / 0.8×
+     - 1.0× / 1.0×
    * - 2D real, 2048×2048, float32
-     - 3.7× / 3.3×
+     - 1.3× / 1.1×
+     - 1.8× / 2.1×
+   * - 3D real, 128×128×128, float32
+     - 1.7× / 1.8×
+     - 1.7× / 2.0×
    * - 3D real, 256×256×256, float64
-     - 4.4× / 4.3×
+     - 2.6× / 2.3×
+     - 3.5× / 3.1×
    * - 2D complex, 1024×1024, float64
-     - 2.9× / 2.9×
+     - 1.8× / 1.6×
+     - 2.2× / 2.0×
 
-With NumPy's FFT alone (``fft_engine="numpy"``), it is 1.3–2.4 times faster than before. Speedups depend on the CPU, the shape and the number of cores.
+Multithreading pays off for larger transforms; for small ones such as 512×512, NumPy's single-threaded FFT is about as fast. Speedups depend on the CPU, the shape and the number of cores, and these were measured on a shared machine, so treat them as indicative.

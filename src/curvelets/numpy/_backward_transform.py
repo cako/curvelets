@@ -56,7 +56,7 @@ def _process_wedge_backward_real(
     Notes
     -----
     Equivalence: ``fftn(upsample(c, d)) == tile(fftn(c), d)``.
-    Scale is ``sqrt(prod(d) / 2)`` matching the former upsample / full-FFT path.
+    Scale is ``sqrt(prod(d) / 2)``, as for upsampling followed by a full-size FFT.
     """
     window.synthesize_half(
         coefficient,
