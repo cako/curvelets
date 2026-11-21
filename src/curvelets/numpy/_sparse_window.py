@@ -129,7 +129,7 @@ class SparseWindow:
         2
         """
         arr_flat = arr.ravel()
-        indices = np.argwhere(arr_flat > threshold).ravel()
+        indices = np.flatnonzero(arr_flat > threshold)
         values = arr_flat[indices]
         return cls(indices=indices, values=values, shape=arr.shape)
 
