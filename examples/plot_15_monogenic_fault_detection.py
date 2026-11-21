@@ -732,7 +732,7 @@ plt.tight_layout()
 
 # %%
 # References
-# ##########
+# ==========
 #
 # .. bibliography::
 #    :filter: docname in docnames
