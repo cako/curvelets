@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
+from ._fft import FFTBackend, resolve_fft_engine
+from ._periodized_fft import half_spectrum_shape, hermitian_from_half
 from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT
 from .typing import (
@@ -15,12 +17,39 @@ from .typing import (
     _to_complex_dtype,
 )
 
+_HalfAccumulator = tuple[
+    npt.NDArray[np.complexfloating], npt.NDArray[np.complexfloating]
+]
+
+
+def _synthesize_monogenic_band(
+    coefficients: npt.NDArray[np.floating],
+    window: SparseWindow,
+    decimation_ratio: _IntegerNDArray,
+    accumulators: list[_HalfAccumulator],
+    scale: float,
+    fft: FFTBackend | None,
+) -> None:
+    """Accumulate the scalar and Riesz channels of one band (half spectrum)."""
+    complex_dtype = accumulators[0][0].dtype
+    scalar_2ch = np.ascontiguousarray(coefficients[..., :2])
+    channels = [scalar_2ch.view(complex_dtype).squeeze(-1)] + [
+        coefficients[..., 2 + riesz_idx].astype(complex_dtype)
+        for riesz_idx in range(coefficients.shape[-1] - 2)
+    ]
+    for channel, (own, mirror) in zip(channels, accumulators, strict=True):
+        window.synthesize_half(
+            channel, own, mirror, scale, decimation=decimation_ratio, fft=fft
+        )
+
 
 def _process_wedge_backward_monogenic(
     coefficients: npt.NDArray[np.floating],
     window: SparseWindow,
     decimation_ratio: _IntegerNDArray,
-    image_frequencies: list[npt.NDArray[np.complexfloating]],
+    accumulators: list[_HalfAccumulator],
+    factor: float = 1.0,
+    fft: FFTBackend | None = None,
 ) -> None:
     """
     Accumulate one monogenic wedge into component frequency buffers.
@@ -41,63 +70,18 @@ def _process_wedge_backward_monogenic(
         Sparse window representation.
     decimation_ratio : _IntegerNDArray
         Decimation ratio for this wedge.
-    image_frequencies : list of ndarray
-        Frequency accumulators for [scalar, riesz_1, ..., riesz_ndim]
-        (modified in-place).
+    accumulators : list of (ndarray, ndarray)
+        Half-spectrum (own, mirror) accumulators for
+        [scalar, riesz_1, ..., riesz_ndim] (modified in-place).
+    factor : float, optional
+        Band combination factor (2 for curvelet bands, 1 for the wavelet band).
+    fft : FFTBackend, optional
+        FFT implementation; defaults to ``numpy.fft``.
     """
-    num_channels = coefficients.shape[-1]
-    num_riesz = num_channels - 2
-    complex_dtype = image_frequencies[0].dtype
-
-    scalar_2ch = np.ascontiguousarray(coefficients[..., :2])
-    coeff_scalar = scalar_2ch.view(complex_dtype).squeeze(-1)
-    scale = float(np.sqrt(np.prod(decimation_ratio) / 2.0))
-
-    window.synthesize(
-        coeff_scalar,
-        image_frequencies[0],
-        scale,
-        decimation=decimation_ratio,
+    scale = factor * float(np.sqrt(np.prod(decimation_ratio) / 2.0))
+    _synthesize_monogenic_band(
+        coefficients, window, decimation_ratio, accumulators, scale, fft
     )
-
-    for riesz_idx in range(num_riesz):
-        coeff_riesz_k = coefficients[..., 2 + riesz_idx].astype(complex_dtype)
-        window.synthesize(
-            coeff_riesz_k,
-            image_frequencies[1 + riesz_idx],
-            scale,
-            decimation=decimation_ratio,
-        )
-
-
-def _backward_lowpass_monogenic_periodized(
-    low_coeffs: npt.NDArray[np.floating],
-    window: SparseWindow,
-    decimation_ratio: _IntegerNDArray,
-    image_frequencies: list[npt.NDArray[np.complexfloating]],
-) -> None:
-    """Accumulate monogenic lowpass (scalar + Riesz) via tiled sparse FFT."""
-    complex_dtype = image_frequencies[0].dtype
-    num_riesz = low_coeffs.shape[-1] - 2
-    scale = float(np.sqrt(np.prod(decimation_ratio)))
-
-    low_scalar_2ch = np.ascontiguousarray(low_coeffs[..., :2])
-    low_coeff_scalar = low_scalar_2ch.view(complex_dtype).squeeze(-1)
-    window.synthesize(
-        low_coeff_scalar,
-        image_frequencies[0],
-        scale,
-        decimation=decimation_ratio,
-    )
-
-    for riesz_idx in range(num_riesz):
-        low_coeff_riesz = low_coeffs[..., 2 + riesz_idx].astype(complex_dtype)
-        window.synthesize(
-            low_coeff_riesz,
-            image_frequencies[1 + riesz_idx],
-            scale,
-            decimation=decimation_ratio,
-        )
 
 
 def _apply_backward_transform_monogenic(
@@ -105,6 +89,7 @@ def _apply_backward_transform_monogenic(
     parameters: ParamUDCT,
     windows: UDCTWindows[_F],
     decimation_ratios: list[_IntegerNDArray],
+    fft: FFTBackend | None = None,
 ) -> tuple[npt.NDArray[_F], ...]:
     """
     Apply backward monogenic curvelet transform.
@@ -149,94 +134,56 @@ def _apply_backward_transform_monogenic(
     first_coeff = coefficients[0][0][0]
     real_dtype = first_coeff.dtype
     complex_dtype = _to_complex_dtype(real_dtype)
+    num_components = first_coeff.shape[-1] - 1
+    if fft is None:
+        fft = resolve_fft_engine("auto", parameters.shape)
 
-    num_channels = first_coeff.shape[-1]
-    num_components = num_channels - 1
-
-    image_frequencies = [
-        np.zeros(parameters.shape, dtype=complex_dtype) for _ in range(num_components)
+    half_shape = half_spectrum_shape(parameters.shape)
+    accumulators: list[_HalfAccumulator] = [
+        (
+            np.zeros(half_shape, dtype=complex_dtype),
+            np.zeros(half_shape, dtype=complex_dtype),
+        )
+        for _ in range(num_components)
     ]
 
     highest_scale_idx = parameters.num_scales - 1
-    is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
+    wavelet_highest = len(windows[highest_scale_idx]) == 1
+    for scale_idx in range(1, parameters.num_scales):
+        # Curvelet bands count twice; the wavelet-mode highest band once.
+        factor = 1.0 if wavelet_highest and scale_idx == highest_scale_idx else 2.0
+        for direction_idx, direction_windows in enumerate(windows[scale_idx]):
+            if decimation_ratios[scale_idx].shape[0] == 1:
+                decimation_ratio = decimation_ratios[scale_idx][0, :]
+            else:
+                decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+            for wedge_idx, window in enumerate(direction_windows):
+                _process_wedge_backward_monogenic(
+                    coefficients[scale_idx][direction_idx][wedge_idx],
+                    window,
+                    decimation_ratio,
+                    accumulators,
+                    factor,
+                    fft,
+                )
 
-    if is_wavelet_mode_highest_scale:  # pylint: disable=too-many-nested-blocks
-        image_frequencies_wavelet = [
-            np.zeros(parameters.shape, dtype=complex_dtype)
-            for _ in range(num_components)
-        ]
-        image_frequencies_other = [
-            np.zeros(parameters.shape, dtype=complex_dtype)
-            for _ in range(num_components)
-        ]
-
-        for scale_idx in range(1, parameters.num_scales):
-            for direction_idx in range(len(windows[scale_idx])):
-                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    window = windows[scale_idx][direction_idx][wedge_idx]
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            direction_idx, :
-                        ]
-
-                    coeffs = coefficients[scale_idx][direction_idx][wedge_idx]
-                    targets = (
-                        image_frequencies_wavelet
-                        if scale_idx == highest_scale_idx
-                        else image_frequencies_other
-                    )
-                    _process_wedge_backward_monogenic(
-                        coeffs,
-                        window,
-                        decimation_ratio,
-                        targets,
-                    )
-
-        for comp_idx in range(num_components):
-            image_frequencies[comp_idx] = (
-                2 * image_frequencies_other[comp_idx]
-                + image_frequencies_wavelet[comp_idx]
-            )
-    else:
-        for scale_idx in range(1, parameters.num_scales):
-            for direction_idx in range(len(windows[scale_idx])):
-                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    window = windows[scale_idx][direction_idx][wedge_idx]
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            direction_idx, :
-                        ]
-
-                    coeffs = coefficients[scale_idx][direction_idx][wedge_idx]
-                    _process_wedge_backward_monogenic(
-                        coeffs,
-                        window,
-                        decimation_ratio,
-                        image_frequencies,
-                    )
-
-        for comp_idx in range(num_components):
-            image_frequencies[comp_idx] *= 2
-
-    _backward_lowpass_monogenic_periodized(
+    dec0 = decimation_ratios[0][0]
+    _synthesize_monogenic_band(
         coefficients[0][0][0],
         windows[0][0][0],
-        decimation_ratios[0][0],
-        image_frequencies,
+        dec0,
+        accumulators,
+        float(np.sqrt(np.prod(dec0))),
+        fft,
     )
 
-    results = []
-    scalar: npt.NDArray[_F] = np.fft.ifftn(image_frequencies[0]).real.astype(real_dtype)
-    results.append(scalar)
-
-    for comp_idx in range(1, num_components):
-        riesz_k: npt.NDArray[_F] = -np.fft.ifftn(
-            image_frequencies[comp_idx]
-        ).real.astype(real_dtype)
-        results.append(riesz_k)
-
+    axes = tuple(range(parameters.ndim))
+    results: list[npt.NDArray[_F]] = []
+    for comp_idx, (own, mirror) in enumerate(accumulators):
+        component = fft.irfftn(
+            hermitian_from_half(own, mirror), s=parameters.shape, axes=axes
+        )
+        if comp_idx > 0:
+            component = -component  # Riesz components are -R_k f
+        results.append(component.astype(real_dtype, copy=False))
     return tuple(results)
