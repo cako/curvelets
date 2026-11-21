@@ -1,16 +1,16 @@
 """
-Monogenic vs. Real and Complex Transforms
-=========================================
+Monogenic vs. Real Transform
+============================
 
 Three cases where the monogenic curvelet transform :cite:`Storath2010,Storath2011`
 gives meaningful results at the coarse, **isotropic** scales and the real and
-complex transforms do not.
+real transform does not.
 
 The curvelet tiling is directional only at the fine scales. The isotropic
 low-frequency band is symmetric in frequency, so its coefficients are real in every
-mode: the ``"complex"`` transform provides no analytic signal there, and the
-``"real"`` and ``"complex"`` bands are one scalar array without orientation
-information. The monogenic transform adds the Riesz transforms of each band, giving
+mode, so it has no analytic signal and no orientation information: it is one
+real scalar array. (The ``"complex"`` transform, meant for complex input, does not
+change this: its isotropic band is the same real array.) The monogenic transform adds the Riesz transforms of each band, giving
 
 .. math::
    A = \\sqrt{\\beta^2 + (\\mathcal{R}_1\\beta)^2 + (\\mathcal{R}_2\\beta)^2},
@@ -38,14 +38,14 @@ from scipy.ndimage import gaussian_filter, zoom
 from curvelets.numpy import UDCT
 from curvelets.plot import create_colorbar, despine
 
-Kind = Literal["real", "complex", "monogenic"]
-kinds: tuple[Kind, ...] = ("real", "complex", "monogenic")
+Kind = Literal["real", "monogenic"]
+kinds: tuple[Kind, ...] = ("real", "monogenic")
 
 # %%
 # Part 1: Amplitude and phase
 # ###########################
 #
-# Real and complex coefficients of the isotropic band give an oscillating amplitude
+# Real coefficients of the isotropic band give an oscillating amplitude
 # and a binary phase; the monogenic ones give an envelope and a continuous phase.
 
 # %%
@@ -81,15 +81,16 @@ true_envelope = np.maximum(env1, env2)
 #
 # Same parameters for all three; only ``transform_kind`` changes.
 
-opts_gabor = {"shape": shape, "num_scales": 3, "wedges_per_direction": 3}
 bands_gabor = {}
-for kind in ("real", "complex", "monogenic"):
-    coeffs_gabor = UDCT(transform_kind=kind, **opts_gabor).forward(image_gabor)
+for kind in kinds:
+    coeffs_gabor = UDCT(
+        shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind
+    ).forward(image_gabor)
     bands_gabor[kind] = coeffs_gabor[0][0][0]  # isotropic low-frequency band
 
-print("Imaginary part of the low band (max |Im|):")
-for kind in ("real", "complex"):
-    print(f"  {kind:>9}: {np.abs(bands_gabor[kind].imag).max():.2e}")
+print(
+    f"Imaginary part of the real low band (max |Im|): {np.abs(bands_gabor['real'].imag).max():.2e}"
+)
 
 # %%
 # The low band is decimated, so sample the true envelope on the same grid.
@@ -98,13 +99,11 @@ step_gabor = shape[0] // bands_gabor["real"].shape[0]
 env_ref = true_envelope[::step_gabor, ::step_gabor]
 
 real_band = bands_gabor["real"].real
-complex_band = bands_gabor["complex"]  # real in practice, see the printout above
 mono_gabor = bands_gabor["monogenic"]
 beta = mono_gabor[..., 0]  # scalar.real; channel 1 is scalar.imag (zero here)
 r1_g, r2_g = mono_gabor[..., 2], mono_gabor[..., 3]
 
 amp_real = np.abs(real_band)
-amp_complex = np.abs(complex_band)
 amp_mono = np.sqrt(beta**2 + r1_g**2 + r2_g**2)
 
 # Phase is only meaningful where there is signal, so mask the background.
@@ -116,19 +115,18 @@ phase_mono = np.ma.masked_where(~signal_gabor, np.arctan2(np.hypot(r1_g, r2_g), 
 # Amplitude
 # ---------
 #
-# The real and complex amplitudes are identical and oscillate; the monogenic
+# The real amplitude oscillates; the monogenic
 # amplitude follows the envelope. Each panel is normalised by its maximum, since
 # the band coefficients carry an overall scaling.
 
-fig, axs = plt.subplots(1, 4, figsize=(16, 4))
+fig, axs = plt.subplots(1, 3, figsize=(12, 4))
 amp_opts = {"aspect": "equal", "cmap": "magma", "vmin": 0, "vmax": 1}
 panels = [
     (env_ref, "True envelope"),
     (amp_real, r"Real: $|\beta|$"),
-    (amp_complex, r"Complex: $|\beta|$"),
     (amp_mono, "Monogenic: $A$"),
 ]
-for ax, (data, title) in zip(axs, panels, strict=False):
+for ax, (data, title) in zip(axs, panels, strict=True):
     im = ax.imshow((data / data.max()).T, **amp_opts)
     create_colorbar(im=im, ax=ax)
     despine(ax)
@@ -156,7 +154,6 @@ def roughness(a: npt.NDArray[np.float64]) -> float:
 print(f"{'':>10} {'corr. w/ envelope':>18} {'roughness':>10}")
 for name, a in (
     ("real", amp_real),
-    ("complex", amp_complex),
     ("monogenic", amp_mono),
 ):
     print(f"{name:>10} {correlation(a, env_ref):>18.3f} {roughness(a):>10.2e}")
@@ -272,10 +269,10 @@ for kind in kinds:
 # Decay rate including the isotropic band
 # ---------------------------------------
 #
-# The real and complex estimates show thin curved artifacts around the edges; the
+# The real estimates show thin curved artifacts around the edges; the
 # monogenic estimate does not.
 
-fig, axs = plt.subplots(1, 3, figsize=(14, 4.2))
+fig, axs = plt.subplots(1, 2, figsize=(9.5, 4.2))
 for ax, kind in zip(axs, kinds, strict=True):
     im = ax.imshow(decay[kind].T, aspect="equal", vmin=-1, vmax=4, cmap="viridis")
     create_colorbar(im=im, ax=ax)
@@ -289,7 +286,7 @@ plt.tight_layout()
 #
 # A direct measure of how well the amplitudes follow a power law across scales.
 
-fig, axs = plt.subplots(1, 3, figsize=(14, 4.2))
+fig, axs = plt.subplots(1, 2, figsize=(9.5, 4.2))
 for ax, kind in zip(axs, kinds, strict=True):
     im = ax.imshow(resid[kind].T, aspect="equal", vmin=0, vmax=1.5, cmap="magma")
     create_colorbar(im=im, ax=ax)
@@ -308,7 +305,7 @@ for kind in kinds:
 # Part 3: Local orientation
 # #########################
 #
-# The Riesz components give an orientation estimate where the real and complex bands
+# The Riesz components give an orientation estimate where the real band
 # have none.
 
 # %%
@@ -349,10 +346,8 @@ for kind in kinds:
     ).forward(image_packets)
     bands_packets[kind] = coeffs[0][0][0]
 
-print("Low band shapes (real, complex, monogenic):")
-print(
-    f"  {bands_packets['real'].shape}, {bands_packets['complex'].shape}, {bands_packets['monogenic'].shape}"
-)
+print("Low band shapes (real, monogenic):")
+print(f"  {bands_packets['real'].shape}, {bands_packets['monogenic'].shape}")
 
 # %%
 # Orientation from the Riesz components
@@ -402,7 +397,7 @@ im = axs[0].imshow(
     bands_packets["real"].real.T, aspect="equal", cmap="RdBu_r", vmin=-vmax, vmax=vmax
 )
 create_colorbar(im=im, ax=axs[0])
-axs[0].set(title="Real / complex low band\n(no orientation information)")
+axs[0].set(title="Real low band\n(no orientation information)")
 
 opts = {"aspect": "equal", "cmap": "hsv", "vmin": 0, "vmax": np.pi}
 im = axs[1].imshow(np.ma.masked_where(~signal_packets, theta_ref).T, **opts)
@@ -430,9 +425,9 @@ plt.tight_layout()
 # Takeaways
 # #########
 #
-# - At the fine, directional scales the real, complex and monogenic amplitudes agree
+# - At the fine, directional scales the real and monogenic amplitudes agree
 #   :cite:`Storath2011`.
-# - At the isotropic scales the real and complex transforms yield real coefficients
+# - At the isotropic scales the real transform yields real coefficients
 #   with an oscillating amplitude, a binary phase and no orientation.
 # - The monogenic transform gives a smooth envelope, a continuous phase and a local
 #   orientation at every scale, which stabilises multiscale analyses such as
