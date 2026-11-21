@@ -41,7 +41,7 @@ L2, and each row still has enough GPU work to hide its kernel launches.
 Batches of smaller inputs run whole: for them, more launches would cost more
 than the cache saves.
 
-The launch count no longer grows with the number of wedges. Every op is
+The launch count does not grow with the number of wedges. Every op is
 out-of-place and differentiable, so the plan works under autograd and
 ``torch.vmap``, and it accepts arbitrary leading batch dimensions. The gather
 path traces into a single graph under ``torch.compile``.
