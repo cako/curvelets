@@ -479,6 +479,12 @@ for ax in axs:
     despine(ax)
 plt.tight_layout()
 
+# %%
+# Error
+# -----
+#
+# Angular error of each estimate, on the same scale.
+
 fig, axs = plt.subplots(1, 2, figsize=(9.5, 4.2))
 for ax, (err, title) in zip(
     axs,
