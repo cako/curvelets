@@ -18,6 +18,7 @@ from ._forward_transform import (
     _apply_forward_transform_real,
 )
 from ._riesz import riesz_filters
+from ._sparse_window import SparseWindow
 from ._udct_windows import UDCTWindow, _window_workers
 from ._utils import ParamUDCT
 from .typing import (
@@ -459,7 +460,7 @@ class UDCT:
         window_computer = UDCTWindow(self.parameters, self.high_frequency_mode)
         windows, decimation_ratios, indices = window_computer.compute()
         need_flip = self.transform_kind == "complex"
-        tasks = []
+        tasks: list[tuple[SparseWindow, npt.NDArray[np.int_]]] = []
         for scale_idx, scale_windows in enumerate(windows):
             for direction_idx, direction_windows in enumerate(scale_windows):
                 if decimation_ratios[scale_idx].shape[0] == 1:

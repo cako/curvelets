@@ -55,7 +55,7 @@ class _SortedGrid:
         key_dtype = np.int16 if num_keys <= np.iinfo(np.int16).max else np.intp
         keys = (2 * left + (right != left)).astype(key_dtype)
         order = np.argsort(keys, kind="stable")  # radix sort for small ints
-        bucket_starts = np.zeros(num_keys + 1, dtype=np.intp)
+        bucket_starts: _IntpNDArray = np.zeros(num_keys + 1, dtype=np.intp)
         np.cumsum(np.bincount(keys, minlength=num_keys), out=bucket_starts[1:])
         return cls(
             flat=flat,
@@ -107,7 +107,7 @@ class _SparseAngleFunction:
         nonzero = np.unravel_index(self.indices[self.values != 0], self.grid_shape)
         supports = []
         for axis, n in enumerate(self.grid_shape):
-            support = np.zeros(n, dtype=bool)
+            support: npt.NDArray[np.bool_] = np.zeros(n, dtype=bool)
             support[nonzero[axis]] = True
             supports.append(support)
         return tuple(supports)
@@ -640,7 +640,9 @@ class UDCTWindow:
         def outer_product(scale: int) -> npt.NDArray[np.float64]:
             # Same values (and multiplication order) as the Kronecker product
             # kron(m_0, kron(m_1, ... kron(m_{d-1}, [1.0]))), via broadcasting
-            result = np.ones((1,) * dimension, dtype=np.float64)
+            result: npt.NDArray[np.float64] = np.ones(
+                (1,) * dimension, dtype=np.float64
+            )
             for dimension_idx in range(dimension - 1, -1, -1):
                 axis_shape = [1] * dimension
                 axis_shape[dimension_idx] = shape[dimension_idx]
@@ -744,6 +746,7 @@ class UDCTWindow:
             function entry is a list with one sparse function per wedge.
         """
         dimension_permutations = UDCTWindow._nchoosek(np.arange(dimension), 2)
+
         def scale_overlap(scale_idx: int) -> float:
             # Use overlap=0 for highest scale when mode="wavelet"
             # Note: scale_idx is 0-indexed for high-frequency scales (0 to num_scales-2)
@@ -1107,7 +1110,7 @@ class UDCTWindow:
         elif dimension == 2:
             # The angle grid is the full 2-D grid, so its flat indices are the
             # window's flat indices
-            (angle_func, _), = angle_terms
+            ((angle_func, _),) = angle_terms
             indices = angle_func.indices
             values = np.multiply(
                 angle_func.values, bandpass.reshape(-1)[indices], dtype=float
@@ -1131,9 +1134,7 @@ class UDCTWindow:
         for angle_func, axes in angle_terms:
             # Expand the 2-D angle function over the box (Kronecker product)
             sub_angle = angle_func.dense()[
-                np.ix_(
-                    axis_indices[int(axes[0]) - 1], axis_indices[int(axes[1]) - 1]
-                )
+                np.ix_(axis_indices[int(axes[0]) - 1], axis_indices[int(axes[1]) - 1])
             ]
             factors.append(
                 UDCTWindow._compute_angle_kronecker_product(
@@ -1694,7 +1695,9 @@ class UDCTWindow:
             for scale_idx, dimension_idx, futures in pending:
                 window_results = [future.result() for future in futures]
                 windows[scale_idx][dimension_idx] = [
-                    window for window_list, _ in window_results for window in window_list
+                    window
+                    for window_list, _ in window_results
+                    for window in window_list
                 ]
                 all_angle_indices = [angle_idx for _, angle_idx in window_results]
                 indices[scale_idx][dimension_idx] = (

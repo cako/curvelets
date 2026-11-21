@@ -99,6 +99,35 @@ Performance
 
 The transform is designed to keep a GPU busy instead of waiting on the Python process. This section describes what the implementation does; measured numbers and the hardware they come from are in ``benchmarks/GPU_PERFORMANCE.md`` (see :ref:`contributing` for how to reproduce them).
 
+Building a transform
+--------------------
+
+Creating a transform builds its windows, once, on the CPU. :mod:`curvelets.torch` uses the same window builder as :mod:`curvelets.numpy` and converts the result to tensors, so both backends build identical windows at the same cost. The builder evaluates each window only where it can be nonzero and spreads the work over the CPU cores with threads. On a 4-core laptop CPU (Intel i7-8565U), building a :math:`2048 \times 2048` transform with 5 scales takes about 2 s, and a :math:`128 \times 128 \times 128` transform with 3 scales about 0.5 s. Moving the transform to a GPU afterwards does not rebuild anything.
+
+If you create the same transform repeatedly, for example in every run of a script or in every worker of a data loader, build it once and save it. Transforms pickle with everything they precompute, and loading one takes a fraction of the time it takes to build it (about 0.1–0.2 s instead of 2 s for the :math:`2048 \times 2048` transform above):
+
+.. code-block:: python
+
+    import pickle
+
+    from curvelets.numpy import UDCT
+
+    transform = UDCT(shape=(2048, 2048), num_scales=5)
+    with open("udct_2048.pkl", "wb") as f:
+        pickle.dump(transform, f)
+
+    # later, or in another process
+    with open("udct_2048.pkl", "rb") as f:
+        transform = pickle.load(f)
+
+For :mod:`curvelets.torch`, :func:`torch.save` and :func:`torch.load` (with ``weights_only=False``) work the same way for a :class:`~curvelets.torch.UDCT` and a :class:`~curvelets.torch.UDCTModule`; ``pickle`` works too.
+
+Keep in mind that:
+
+* the file holds the windows and their index maps, so it is large: about 110–130 MB for the :math:`2048 \times 2048` transform above;
+* unpickling runs code from the file, so only load files you created yourself;
+* a saved transform is tied to the version of ``curvelets`` that created it, so rebuild it after upgrading.
+
 No device-to-host synchronizations
 ----------------------------------
 
