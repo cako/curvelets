@@ -14,8 +14,7 @@ build:
       - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
     install:
       - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" -e .
-      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" -r docs/requirements.txt
-      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" --group docs
+      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" --torch-backend=cpu --group docs
 
 sphinx:
   configuration: docs/conf.py

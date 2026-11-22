@@ -79,6 +79,8 @@ docs = [
   "types-docutils",
   "cmap",
   "pylops>=2.3.0",
+  "torch",
+  "torchvision",
 ]
 
 [project.urls]
@@ -267,4 +269,3 @@ ignore-words-list = "childs"
 
 [tool.uv]
 exclude-newer = "30 days"
-index-strategy = "unsafe-best-match"
