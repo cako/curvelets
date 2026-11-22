@@ -47,10 +47,10 @@ Implementations
 
 The FDCT, pioneered by Candès, Demanet, Donoho and Ying, is implemented in the proprietary `CurveLab Toolbox <http://www.curvelet.org/software.html>`_ in MATLAB and C++: the wrapping version in 2D and 3D, and the USFFT version in 2D.
 
-As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Any library which ports or converts Curvelab code to another language is also subject to Curvelab's license.
+As of 2026, any non-academic use of the CurveLab Toolbox requires a commercial license. Beyond copyright, the FDCT algorithms themselves (both the USFFT and wrapping variants, in 2D and 3D) are patented in the United States: [US 7,840,625 B2](https://patents.google.com/patent/US7840625B2/en). The patent applies to any implementation, including ports, rewrites or  clean-room reimplementations.
 While this does not include libraries which wrap the CurveLab toolbox and therefore do not contain any source code of Curvelab, their usage still requires Curvelab and therefore its license. Such wrappers include `curvelops <https://github.com/PyLops/curvelops>`_, `PyCurvelab <https://github.com/slimgroup/PyCurvelab>`_, both MIT licensed.
 
-The UDCT was first implemented in MATLAB (`ucurvmd <https://github.com/nttruong7/ucurvmd>`_ [dead link]) by one of its authors, Truong Nguyen, and later in Julia for 2D signals (`Curvelet.jl <https://github.com/fundamental/Curvelet.jl>`_, whose repository has been archived and read-only since 10 September 2019; its last commit is from 2017). It does not have the restrictions of the FDCT.
+The UDCT was first implemented in MATLAB (`ucurvmd <https://github.com/nttruong7/ucurvmd>`_ [dead link]) by one of its authors, Truong Nguyen, and later in Julia for 2D signals (`Curvelet.jl <https://github.com/fundamental/Curvelet.jl>`_, whose repository has been archived and read-only since 10 September 2019; its last commit is from 2017). It does not have the same restrictions as the FDCT.
 
 **This library provides the first open-source, pure-Python implementation of the UDCT**, borrowing heavily from Nguyen's original implementation. The goal of this library is to allow industry professionals to use curvelets more easily. It also goes beyond the original implementation by providing support for complex signals, monogenic curvelets for real signals :cite:`Storath2010`, and a wavelet transform at the highest scale.
 
