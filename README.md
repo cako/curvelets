@@ -18,9 +18,12 @@
 
 [![PyPI version][pypi-version]][pypi-link]
 ![PyPI downloads](https://img.shields.io/pypi/dm/curvelets.svg?label=Pypi%20downloads)
+![Python versions][python-versions]
 ![OS-support](https://img.shields.io/badge/OS-linux,win,osx-850A8B.svg)
 ![License](https://img.shields.io/github/license/cako/curvelets)
 
+![NumPy][numpy-badge]
+![PyTorch][pytorch-badge]
 [![GitHub Discussion][github-discussions-badge]][github-discussions-link]
 
 <!-- SPHINX-START -->
@@ -30,9 +33,12 @@
 [actions-link]:             https://github.com/cako/curvelets/actions
 [github-discussions-badge]: https://img.shields.io/static/v1?label=Discussions&message=Ask&color=blue&logo=github
 [github-discussions-link]:  https://github.com/cako/curvelets/discussions
+[numpy-badge]:               https://img.shields.io/badge/NumPy-%23013243.svg?logo=numpy&logoColor=white
 [pypi-link]:                https://pypi.org/project/Curvelets/
 [pypi-platforms]:           https://img.shields.io/pypi/pyversions/Curvelets
 [pypi-version]:             https://img.shields.io/pypi/v/Curvelets
+[python-versions]:          https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14%20%7C%203.15-blue?logo=python&logoColor=white
+[pytorch-badge]:             https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?logo=pytorch&logoColor=white
 [rtd-badge]:                https://img.shields.io/readthedocs/curvelets
 [rtd-link]:                 https://curvelets.readthedocs.io/en/latest/?badge=latest
 
