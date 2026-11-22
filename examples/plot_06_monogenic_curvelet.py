@@ -12,7 +12,7 @@ over all scales, unlike the standard curvelet transform which only provides
 this decomposition at the highest scale.
 
 Mathematical Foundation
-------------------------
+#######################
 
 The monogenic signal :math:`M_f` of a real-valued function :math:`f` is defined as:
 
@@ -62,7 +62,7 @@ from curvelets.plot import create_colorbar, despine
 
 # %%
 # Setup: Create a curvelet at isotropic scale
-# ############################################
+# ###########################################
 #
 # We'll extract the low-frequency band (isotropic scale) and visualize
 # the scalar component and its Riesz transforms.
@@ -95,7 +95,7 @@ riesz2_low = low_band[..., 3]  # Riesz_2 component
 
 # %%
 # Time Domain Visualization
-# ##########################
+# #########################
 #
 # Figure 2a: From left to right: :math:`\beta_{a0\theta} = \gamma_{a0\theta}`,
 # :math:`\mathcal{R}_1\beta_{a0\theta}`, and :math:`\mathcal{R}_2\beta_{a0\theta}`
@@ -131,7 +131,7 @@ plt.tight_layout()
 
 # %%
 # Frequency Domain Visualization
-# ###############################
+# ##############################
 #
 # Figure 2b: From left to right: :math:`\widehat{\beta}_{a0\theta}`,
 # :math:`i\widehat{\mathcal{R}_1\beta}_{a0\theta}`, and
@@ -203,7 +203,7 @@ plt.tight_layout()
 
 # %%
 # Amplitude Computation
-# ######################
+# #####################
 #
 # The amplitude of the monogenic signal is computed as:
 #
