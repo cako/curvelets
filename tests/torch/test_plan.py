@@ -302,7 +302,12 @@ def test_csr_plan_compiles_to_one_graph(kind: Kind) -> None:
     x = _input(kind, shape).unsqueeze(0).repeat(2, 1, 1)
     coeffs = plan.forward_flat(x)
     torch._dynamo.reset()  # pylint: disable=protected-access
-    forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    try:
+        forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    except RuntimeError as exc:
+        if "not supported on Python" in str(exc):
+            pytest.skip(str(exc))
+        raise
     backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), coeffs)
     torch.testing.assert_close(backward(coeffs), plan.backward_flat(coeffs))

@@ -273,7 +273,12 @@ def test_compile_sees_through_kernel(kind: Kind) -> None:
     coeffs = plan.forward_flat(x)
     torch._dynamo.reset()  # pylint: disable=protected-access
     # aot_eager, as in test_plan.py: Inductor warns on the complex FFTs.
-    forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    try:
+        forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    except RuntimeError as exc:
+        if "not supported on Python" in str(exc):
+            pytest.skip(str(exc))
+        raise
     backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), coeffs, atol=1e-5, rtol=1e-5)
     torch.testing.assert_close(
