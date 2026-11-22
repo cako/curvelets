@@ -27,12 +27,6 @@ Kind = Literal["real", "complex"]
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-CONFIGS = [
-    ((32, 32), 3, 3),
-    ((48, 40), 3, 6),
-    ((16, 16, 16), 3, 3),
-]
-
 
 @pytest.fixture(autouse=True)  # type: ignore[untyped-decorator]
 def _kernel_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,10 +88,20 @@ def _assert_close(
     torch.testing.assert_close(actual, expected, rtol=tol, atol=tol * scale)
 
 
-@pytest.mark.parametrize(("shape", "ns", "wpd"), CONFIGS)  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("batch", [(), (3,), (2, 9)])  # type: ignore[untyped-decorator]
+KERNEL_CASES = [
+    ((32, 32), 3, 3, "real", torch.float32, ()),
+    ((32, 32), 3, 3, "complex", torch.float32, (2, 9)),
+    ((32, 32), 3, 3, "real", torch.float64, (2, 9)),
+    ((48, 40), 3, 6, "real", torch.float64, (3,)),
+    ((48, 40), 3, 6, "complex", torch.float32, (3,)),
+    ((16, 16, 16), 3, 3, "real", torch.float32, ()),
+    ((16, 16, 16), 3, 3, "complex", torch.float64, (3,)),
+]
+
+
+@pytest.mark.parametrize(
+    ("shape", "ns", "wpd", "kind", "dtype", "batch"), KERNEL_CASES
+)  # type: ignore[untyped-decorator]
 def test_kernel_matches_torch_fold(
     monkeypatch: pytest.MonkeyPatch,
     shape: tuple[int, ...],

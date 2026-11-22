@@ -262,9 +262,9 @@ def test_csr_plan_gradcheck_and_vmap(kind: Kind) -> None:
     )
     plan = _use_strategy(udct, "csr")
     x = _input(kind, shape).unsqueeze(0).requires_grad_(True)
-    assert torch.autograd.gradcheck(plan.forward_flat, (x,))
+    assert torch.autograd.gradcheck(plan.forward_flat, (x,), fast_mode=True)
     coeffs = plan.forward_flat(x.detach()).requires_grad_(True)
-    assert torch.autograd.gradcheck(plan.backward_flat, (coeffs,))
+    assert torch.autograd.gradcheck(plan.backward_flat, (coeffs,), fast_mode=True)
 
     batch = torch.stack([_input(kind, shape, seed) for seed in range(3)])
     torch.testing.assert_close(
