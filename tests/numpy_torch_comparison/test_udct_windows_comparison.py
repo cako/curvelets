@@ -61,8 +61,8 @@ def test_udct_window_compute_matches_numpy(ndim):
     np_window = NpUDCTWindow(np_params)
     torch_window = TorchUDCTWindow(torch_params)
 
-    np_windows, np_dec_ratios, np_indices = np_window.compute()
-    torch_windows, torch_dec_ratios, torch_indices = torch_window.compute()
+    np_windows, np_dec_ratios, _np_indices = np_window.compute()
+    torch_windows, torch_dec_ratios, _torch_indices = torch_window.compute()
 
     # Check same number of scales
     assert len(np_windows) == len(torch_windows)

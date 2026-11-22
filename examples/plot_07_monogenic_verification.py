@@ -290,7 +290,8 @@ complex_dtype = _to_complex_dtype(real_dtype)
 scalar_coeffs_only = [
     [
         [
-            np.ascontiguousarray(coeffs[scale][dir][wedge][..., :2])
+            np
+            .ascontiguousarray(coeffs[scale][dir][wedge][..., :2])
             .view(complex_dtype)
             .squeeze(-1)
             for wedge in range(len(coeffs[scale][dir]))

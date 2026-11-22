@@ -225,6 +225,11 @@ ignore = [
   "PLR09",   # Too many <...>
   "PLR2004", # Magic value used in comparison
   "ISC001",  # Conflicts with formatter
+  "PLC0415", # Imports of optional dependencies are intentionally lazy
+  "LOG015",  # The library logs on the root logger by design
+  "BLE001",  # Blind excepts are deliberate fallbacks
+  "PYI018",  # Private TypeVars are used in runtime-evaluated aliases
+  "PYI047",  # Private aliases are used in runtime-evaluated annotations
 ]
 isort.required-imports = ["from __future__ import annotations"]
 # Uncomment if using a _compat.typing backport

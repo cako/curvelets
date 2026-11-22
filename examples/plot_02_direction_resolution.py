@@ -205,9 +205,7 @@ def plot_colorbars(
         xyaxis = cax.yaxis if orientation == "vertical" else cax.xaxis
         xyaxis.set_major_locator(ticker.MultipleLocator(1))
         xyaxis.set_major_formatter(
-            ticker.FuncFormatter(
-                lambda x, _: "Low" if int(round(2 * x)) == 0 else "High"
-            )
+            ticker.FuncFormatter(lambda x, _: "Low" if round(2 * x) == 0 else "High")
         )
         cax.set_title(f"Dir {idir}")
 

@@ -355,13 +355,13 @@ def run_config(
         err = (v.cpu() - v_ref).abs().max().item() / v_ref.abs().max().item()
         if vname == "library_vect":
             # Flat path (forward(structured=False)/backward, no nested-list round trip).
-            fwd = lambda u=u: u.forward(x, structured=False)  # noqa: E731
-            bwd = lambda u=u, v=v: u.backward(v)  # noqa: E731
+            fwd = lambda u=u: u.forward(x, structured=False)
+            bwd = lambda u=u, v=v: u.backward(v)
         else:
-            fwd = lambda u=u: u.vect(u.forward(x))  # noqa: E731
+            fwd = lambda u=u: u.vect(u.forward(x))
             # NB: backward is fed the nested coefficients directly; before the P0
             # fixes UDCT.struct() crashed on CUDA after apply_to_tensors.
-            bwd = lambda u=u, c=c: u.backward(c)  # noqa: E731
+            bwd = lambda u=u, c=c: u.backward(c)
         if dev.type == "cuda":
             torch.cuda.reset_peak_memory_stats()
         r = {
