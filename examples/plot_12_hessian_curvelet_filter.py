@@ -223,7 +223,7 @@ fig.tight_layout()
 # %%
 # Estimating the Curvelet-Domain Hessian Filter (CHF)
 # ###################################################
-# 
+#
 # By applying the curvelet-domain inverse filter in sliding windows, we can estimate :math:`H^{-1}` and
 # recover the true grid of scatterers from the blurred Hessian-vector product.
 #
