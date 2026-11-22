@@ -138,23 +138,10 @@ for ires, _ in enumerate(coeffs):
 # Curvelet Coefficients: Concatenated
 # #########################################
 
-# coeffs_vec = C.vect(coeffs=coeffs)
-# coeffs_img = []
-# for i in range(0, len(coeffs_vec) - zone_plate.size, zone_plate.size):
-#     coeffs_img.append(coeffs_vec[i : i + zone_plate.size].reshape(1, *zone_plate.shape))
-# if len(coeffs_vec) % zone_plate.size != 0:
-#     coeffs_img.append(np.zeros((1, *zone_plate.shape), dtype=coeffs_vec.dtype))
-#     coeffs_img[-1].flat[
-#         len(coeffs_vec) - zone_plate.size : len(coeffs_vec)
-#     ] = coeffs_vec[len(coeffs_vec) - zone_plate.size :]
-# coeffs_img = np.concatenate(coeffs_img, axis=0)
-
-_coeffs_vec = []
-for c in coeffs[:2]:
-    for d in c:
-        for a in d:
-            _coeffs_vec.append(a.ravel())
-coeffs_vec = np.concatenate(_coeffs_vec)
+# ``vect`` flattens and concatenates the coefficients of the scales it is given
+# (here the two coarsest ones). ``C.forward(zone_plate, structured=False)``
+# would return the same layout for *all* scales without building the nested list.
+coeffs_vec = C.vect(coeffs[:2])
 
 coeffs_img = np.zeros((1, *zone_plate.shape), dtype=coeffs_vec.dtype)
 coeffs_img.flat[: len(coeffs_vec)] = coeffs_vec[: len(coeffs_vec)]

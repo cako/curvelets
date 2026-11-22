@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 import pytest
 import torch
@@ -271,7 +273,7 @@ class TestCoefficientShapes:
     @pytest.mark.parametrize("transform_type", ["real", "complex"])
     def test_coefficient_shapes_forward_vect(self, transform_type):
         """
-        Test that coefficient_shapes() matches struct(forward_vect(x)).
+        Test that coefficient_shapes() matches struct(forward(x, structured=False)).
 
         Parameters
         ----------
@@ -287,10 +289,37 @@ class TestCoefficientShapes:
             dtype=torch.float64,
         )
         predicted_shapes = module.coefficient_shapes()
-        actual_vec = module.forward_vect(torch.zeros(shape, dtype=torch.float64))
+        actual_vec = module.forward(
+            torch.zeros(shape, dtype=torch.float64), structured=False
+        )
         actual_coeffs = module.struct(actual_vec)
         actual_shapes = [
             [[tuple(wedge.shape) for wedge in direction] for direction in scale]
             for scale in actual_coeffs
         ]
         assert predicted_shapes == actual_shapes
+
+
+@pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])  # type: ignore[untyped-decorator]
+def test_forward_structured_false_matches_vect(
+    transform_kind: Literal["real", "complex", "monogenic"],
+) -> None:
+    """``forward(x, structured=False)`` equals ``vect(forward(x))`` and inverts."""
+    udct = UDCT(shape=(32, 32), transform_kind=transform_kind)
+    x = torch.randn(3, 32, 32)
+    flat = udct.forward(x, structured=False)
+    assert isinstance(flat, torch.Tensor)
+    torch.testing.assert_close(flat, udct.vect(udct.forward(x)))
+    torch.testing.assert_close(udct.backward(flat), udct.backward(udct.forward(x)))
+
+
+def test_vect_aliases_are_deprecated() -> None:
+    """``forward_vect``/``backward_vect`` still work but warn."""
+    udct = UDCT(shape=(32, 32))
+    x = torch.randn(32, 32)
+    with pytest.warns(DeprecationWarning, match="forward_vect"):
+        flat = udct.forward_vect(x)
+    torch.testing.assert_close(flat, udct.forward(x, structured=False))
+    with pytest.warns(DeprecationWarning, match="backward_vect"):
+        recon = udct.backward_vect(flat)
+    torch.testing.assert_close(recon, udct.backward(flat))

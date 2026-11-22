@@ -16,8 +16,8 @@ Two layouts are available:
 - **Nested** (``udct(x)`` / :meth:`~curvelets.torch.UDCT.forward` and
   :meth:`~curvelets.torch.UDCT.backward`): lists of tensors indexed by scale,
   direction and wedge, as in ``curvelets.numpy``.
-- **Flat** (:meth:`~curvelets.torch.UDCT.forward_vect` and
-  :meth:`~curvelets.torch.UDCT.backward_vect`): one tensor of shape
+- **Flat** (:meth:`~curvelets.torch.UDCT.forward` with ``structured=False``,
+  and :meth:`~curvelets.torch.UDCT.backward` on the resulting tensor): one tensor of shape
   ``(*batch, ncoef)`` in :meth:`~curvelets.torch.UDCT.vect` order, which suits
   networks and optimizers.
 
@@ -45,10 +45,10 @@ assert isinstance(udct, torch.nn.Module)
 # %%
 # Flat Coefficients and Gradients
 # ###############################
-# ``forward_vect`` returns all coefficients as one tensor. A loss on them
+# ``forward(x, structured=False)`` returns all coefficients as one tensor. A loss on them
 # backpropagates to the input through the backward transform.
 x = torch.randn(*shape, dtype=torch.float64, requires_grad=True)
-coeffs = udct.forward_vect(x)
+coeffs = udct.forward(x, structured=False)
 loss = coeffs.abs().sum()
 loss.backward()
 assert x.grad is not None
@@ -70,7 +70,11 @@ assert torch.allclose(x.detach(), reconstructed, atol=1e-4)
 # finite differences.
 x.grad = None
 assert torch.autograd.gradcheck(
-    udct.forward_vect, x, fast_mode=True, atol=1e-4, rtol=1e-3
+    lambda t: udct.forward(t, structured=False),
+    x,
+    fast_mode=True,
+    atol=1e-4,
+    rtol=1e-3,
 )
 
 # %%

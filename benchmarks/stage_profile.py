@@ -238,17 +238,17 @@ def run(
     if kind == "complex":
         x = torch.complex(x, torch.randn_like(x))
     t0 = time.perf_counter()
-    vec = udct.forward_vect(x)
+    vec = udct.forward(x, structured=False)
     torch.cuda.synchronize()
     plan_s = time.perf_counter() - t0
     plan = udct._get_plan()  # pylint: disable=protected-access
 
     # correctness of the replay
-    ref_f = udct.forward_vect(x).reshape(batch, -1)
+    ref_f = udct.forward(x, structured=False).reshape(batch, -1)
     tl = Timeline()
     got_f = staged_forward(plan, x, tl)
     tl.result()
-    ref_b = udct.backward_vect(vec)
+    ref_b = udct.backward(vec)
     tl = Timeline()
     got_b = staged_backward(plan, vec.reshape(batch, -1), tl)
     tl.result()
@@ -268,10 +268,10 @@ def run(
     fwd = median_stages(fwd_runs)
     bwd = median_stages(bwd_runs)
 
-    f_dev, f_host = e2e(lambda: udct.forward_vect(x), 20)
-    b_dev, b_host = e2e(lambda: udct.backward_vect(vec), 20)
-    f_wall = wall(lambda: udct.forward_vect(x), 20)
-    b_wall = wall(lambda: udct.backward_vect(vec), 20)
+    f_dev, f_host = e2e(lambda: udct.forward(x, structured=False), 20)
+    b_dev, b_host = e2e(lambda: udct.backward(vec), 20)
+    f_wall = wall(lambda: udct.forward(x, structured=False), 20)
+    b_wall = wall(lambda: udct.backward(vec), 20)
     nested_wall = wall(lambda: udct.forward(x), 20)
     nested_bwd = udct.forward(x)
     nested_bwd_wall = wall(lambda: udct.backward(nested_bwd), 20)
@@ -283,9 +283,9 @@ def run(
     xg = x.clone().requires_grad_(True)
 
     def train_step() -> None:
-        mod.forward_vect(xg).abs().sum().backward()
+        mod.forward(xg, structured=False).abs().sum().backward()
 
-    mod_fwd_wall = wall(lambda: mod.forward_vect(x), 20)
+    mod_fwd_wall = wall(lambda: mod.forward(x, structured=False), 20)
     train_wall = wall(train_step, 20)
 
     nw = len(plan.layout)
@@ -301,15 +301,15 @@ def run(
     assert isinstance(fm, CsrFold)  # CUDA plans use CSR folds
     print(f"  fwd fold: {fm.num_targets:,} targets, {fm.col.numel():,} nnz")
     print(
-        f"  kernels/call: fwd {kernel_count(lambda: udct.forward_vect(x))}, "
-        f"bwd {kernel_count(lambda: udct.backward_vect(vec))}"
+        f"  kernels/call: fwd {kernel_count(lambda: udct.forward(x, structured=False))}, "
+        f"bwd {kernel_count(lambda: udct.backward(vec))}"
     )
     print_table("FORWARD", fwd, f_dev, f_host)
     print_table("INVERSE", bwd, b_dev, b_host)
     print(
         f"\n  wall (sync per call): fwd_vect {f_wall:.3f}  bwd_vect {b_wall:.3f}  "
         f"forward(nested) {nested_wall:.3f}  backward(nested) {nested_bwd_wall:.3f}  "
-        f"forward_vect {mod_fwd_wall:.3f}  fwd+autograd bwd {train_wall:.3f} ms"
+        f"flat forward {mod_fwd_wall:.3f}  fwd+autograd bwd {train_wall:.3f} ms"
     )
     return {
         "name": name,

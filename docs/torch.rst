@@ -7,8 +7,8 @@ The :mod:`curvelets.torch` package provides the same transform as :mod:`curvelet
 
 :class:`~curvelets.torch.UDCT` is the transform, and it is a :class:`torch.nn.Module` with no learnable parameters:
 
-* ``udct(x)`` (:meth:`~curvelets.torch.UDCT.forward`) returns the nested coefficient structure and :meth:`~curvelets.torch.UDCT.backward` inverts it, as in :mod:`curvelets.numpy`; ``vect`` flattens the nested structure to a single tensor and ``struct`` does the opposite;
-* :meth:`~curvelets.torch.UDCT.forward_vect` and :meth:`~curvelets.torch.UDCT.backward_vect` go straight to and from the flat coefficient tensor, which is the convenient layout inside a network.
+* ``udct(x)`` (:meth:`~curvelets.torch.UDCT.forward`) returns the nested coefficient structure and :meth:`~curvelets.torch.UDCT.backward` inverts it, as in :mod:`curvelets.numpy`; ``udct(x, structured=False)`` returns the flat tensor directly, and ``backward`` accepts either layout; ``vect`` flattens the nested structure to a single tensor and ``struct`` does the opposite;
+* ``forward(x, structured=False)`` returns the flat coefficient tensor directly, and :meth:`~curvelets.torch.UDCT.backward` accepts it, which is the convenient layout inside a network.
 
 .. _torch-gradients:
 
@@ -22,7 +22,7 @@ Every transform is differentiable, in both layouts. The UDCT is a tight frame, s
 
 .. note::
 
-   :class:`~curvelets.torch.UDCTModule` is deprecated. Instead of ``UDCTModule(shape, ..., transform_type=kind)(x)``, use ``UDCT(shape, ..., transform_kind=kind).forward_vect(x)``.
+   :class:`~curvelets.torch.UDCTModule` is deprecated. Instead of ``UDCTModule(shape, ..., transform_type=kind)(x)``, use ``UDCT(shape, ..., transform_kind=kind).forward(x, structured=False)``.
 
 Moving to a GPU
 ===============
@@ -36,7 +36,7 @@ A :class:`~curvelets.torch.UDCT` moves like any other module, alone or as a subm
 
     udct = UDCT(shape=(512, 512)).to("cuda")
     x = torch.randn(512, 512, device="cuda", requires_grad=True)
-    y = udct.forward_vect(x)
+    y = udct.forward(x, structured=False)
     y.abs().sum().backward()  # gradients flow through the transform
 
 The windows are not registered as buffers, so ``state_dict()`` stays empty: they are rebuilt from the constructor arguments rather than stored in checkpoints.
@@ -62,7 +62,7 @@ Every transform accepts leading batch dimensions. For a transform of shape ``sha
 * :meth:`~curvelets.torch.UDCT.forward` maps ``(*batch, *shape)`` to coefficients whose arrays have shape ``(*batch, *wedge_shape)``;
 * :meth:`~curvelets.torch.UDCT.vect` maps those to a tensor of shape ``(*batch, ncoef)`` and :meth:`~curvelets.torch.UDCT.struct` goes back;
 * :meth:`~curvelets.torch.UDCT.backward` maps coefficients back to ``(*batch, *shape)``;
-* :meth:`~curvelets.torch.UDCT.forward_vect` and :meth:`~curvelets.torch.UDCT.backward_vect` map ``(*batch, *shape)`` to ``(*batch, ncoef)`` and back.
+* ``forward(x, structured=False)`` and :meth:`~curvelets.torch.UDCT.backward` (given the flat tensor) map ``(*batch, *shape)`` to ``(*batch, ncoef)`` and back.
 
 A whole batch is transformed in one call (:func:`torch.vmap` also works). The trailing dimensions are checked against the transform's shape.
 
@@ -73,7 +73,7 @@ A whole batch is transformed in one call (:func:`torch.vmap` also works). The tr
 
     udct = UDCT(shape=(28, 28))
     images = torch.randn(64, 1, 28, 28)  # (batch, channel, height, width)
-    coefficients = udct.forward_vect(images)  # (64, 1, ncoef)
+    coefficients = udct.forward(images, structured=False)  # (64, 1, ncoef)
 
 Filtering coefficients
 ----------------------
@@ -97,7 +97,7 @@ See :ref:`sphx_glr_auto_examples_plot_10_udct_mnist.py` for batching in a traini
 Monogenic transform
 ===================
 
-``transform_kind="monogenic"`` gives the same coefficients as :mod:`curvelets.numpy`: each wedge is a real tensor of shape ``(*batch, *wedge_shape, ndim + 2)`` holding the scalar coefficient (real and imaginary parts) and one Riesz component per dimension. :meth:`~curvelets.torch.UDCT.backward` and :meth:`~curvelets.torch.UDCT.backward_vect` return the ``ndim + 1`` components that numpy returns as a tuple, stacked along a new first axis, ``(ndim + 1, *batch, *shape)``, with the reconstruction of ``f`` first (``f, *riesz = udct.backward(coeffs)``). :meth:`~curvelets.torch.UDCT.monogenic` computes :math:`(f, -R_1 f, \ldots, -R_n f)` directly, in the same layout.
+``transform_kind="monogenic"`` gives the same coefficients as :mod:`curvelets.numpy`: each wedge is a real tensor of shape ``(*batch, *wedge_shape, ndim + 2)`` holding the scalar coefficient (real and imaginary parts) and one Riesz component per dimension. :meth:`~curvelets.torch.UDCT.backward` (from nested or flat coefficients) returns the ``ndim + 1`` components that numpy returns as a tuple, stacked along a new first axis, ``(ndim + 1, *batch, *shape)``, with the reconstruction of ``f`` first (``f, *riesz = udct.backward(coeffs)``). :meth:`~curvelets.torch.UDCT.monogenic` computes :math:`(f, -R_1 f, \ldots, -R_n f)` directly, in the same layout.
 
 The transform runs on the real transform's fused plan: one batched call transforms ``f`` together with its Riesz-filtered copies. It therefore has the same gradients (through the adjoint), batching and CUDA graphs as the real transform, at about ``ndim + 1`` times its cost (up to ``2 ndim + 1`` when axes have even lengths, where the Riesz-filtered copies are complex).
 

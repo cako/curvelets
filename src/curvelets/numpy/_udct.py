@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from math import prod
-from typing import Any, Literal
+from typing import Any, Literal, overload
 
 import numpy as np
 import numpy.typing as npt
@@ -909,9 +909,42 @@ class UDCT:
                     coefficients[scale_idx][direction_idx].append(wedge_array)
         return coefficients
 
+    @overload
     def forward(
-        self, image: npt.NDArray[_F] | npt.NDArray[_C]
-    ) -> UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]:
+        self,
+        image: npt.NDArray[_F] | npt.NDArray[_C],
+        structured: Literal[True] = True,
+    ) -> UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]: ...
+
+    @overload
+    def forward(
+        self,
+        image: npt.NDArray[_F] | npt.NDArray[_C],
+        structured: Literal[False],
+    ) -> npt.NDArray[np.complexfloating] | npt.NDArray[np.floating]: ...
+
+    @overload
+    def forward(
+        self,
+        image: npt.NDArray[_F] | npt.NDArray[_C],
+        structured: bool,
+    ) -> (
+        UDCTCoefficients[np.complexfloating]
+        | UDCTCoefficients[np.floating]
+        | npt.NDArray[np.complexfloating]
+        | npt.NDArray[np.floating]
+    ): ...
+
+    def forward(
+        self,
+        image: npt.NDArray[_F] | npt.NDArray[_C],
+        structured: bool = True,
+    ) -> (
+        UDCTCoefficients[np.complexfloating]
+        | UDCTCoefficients[np.floating]
+        | npt.NDArray[np.complexfloating]
+        | npt.NDArray[np.floating]
+    ):
         """
         Apply forward curvelet transform.
 
@@ -923,10 +956,17 @@ class UDCT:
             - For transform_kind="real" or "monogenic": must be real-valued (``npt.NDArray[_F]``)
             - For transform_kind="complex": can be real-valued or complex-valued
 
+        structured : bool, default True
+            If True, return the nested coefficients. If False, return the flat
+            vector that :meth:`vect` would produce (``forward(x,
+            structured=False)`` equals ``vect(forward(x))``); :meth:`backward`
+            accepts it as is.
+
         Returns
         -------
-        list[list[list[NDArray]]]
-            Curvelet coefficients as nested list structure.
+        list[list[list[NDArray]]] | :obj:`np.ndarray <numpy.ndarray>`
+            With ``structured=False``, the flat coefficient vector. Otherwise
+            curvelet coefficients as nested list structure.
 
             - For "real" or "complex" transform: ComplexUDCTCoefficients[_C]
               (complex dtype matching input precision)
@@ -958,6 +998,9 @@ class UDCT:
         >>> coeffs = transform.forward(data)
         >>> len(coeffs)  # Number of scales
         4
+        >>> flat = transform.forward(data, structured=False)
+        >>> np.array_equal(flat, transform.vect(coeffs))
+        True
         """
         np.testing.assert_equal(self.shape, image.shape)
 
@@ -970,12 +1013,18 @@ class UDCT:
             raise ValueError(msg)
 
         # Dispatch to appropriate transform based on transform_kind
+        coefficients: (
+            UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]
+        )
         if self.transform_kind == "real":
-            return self._forward_real(image)
-        if self.transform_kind == "monogenic":
-            return self._forward_monogenic(image)
-        # complex
-        return self._forward_complex(image)
+            coefficients = self._forward_real(image)
+        elif self.transform_kind == "monogenic":
+            coefficients = self._forward_monogenic(image)
+        else:  # complex
+            coefficients = self._forward_complex(image)
+        if structured:
+            return coefficients
+        return self.vect(coefficients)
 
     def _forward_real(
         self, image: npt.NDArray[_F]
@@ -1021,7 +1070,10 @@ class UDCT:
     def backward(
         self,
         coefficients: (
-            UDCTCoefficients[np.complexfloating] | UDCTCoefficients[np.floating]
+            UDCTCoefficients[np.complexfloating]
+            | UDCTCoefficients[np.floating]
+            | npt.NDArray[np.complexfloating]
+            | npt.NDArray[np.floating]
         ),
     ) -> np.ndarray | tuple[npt.NDArray[_F], ...]:
         """
@@ -1029,8 +1081,9 @@ class UDCT:
 
         Parameters
         ----------
-        coefficients : list[list[list[NDArray]]]
-            Curvelet coefficients from forward transform. For "monogenic" transform,
+        coefficients : list[list[list[NDArray]]] | :obj:`np.ndarray <numpy.ndarray>`
+            Curvelet coefficients from forward transform, or the flat vector
+            from ``forward(x, structured=False)`` or :meth:`vect`. For "monogenic" transform,
             each coefficient array has shape ``(*wedge_shape, ndim+2)`` with real dtype:
 
             - Channel 0: scalar.real
@@ -1067,6 +1120,8 @@ class UDCT:
         >>> np.allclose(data, recon, atol=1e-4)
         True
         """
+        if isinstance(coefficients, np.ndarray):
+            coefficients = self.struct(coefficients)
         # Dispatch to appropriate transform based on transform_kind
         if self.transform_kind == "real":
             return self._backward_real(coefficients)

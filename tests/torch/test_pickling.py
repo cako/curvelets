@@ -61,17 +61,17 @@ def test_copy_of_used_transform_matches(kind: Kind, how: str) -> None:
     """A transform that has run copies to one with the same results and gradients."""
     udct = _udct(kind)
     x = _image(kind, (2,))
-    coeffs = udct.forward_vect(x)  # builds the plan before copying
+    coeffs = udct.forward(x, structured=False)  # builds the plan before copying
     clone = COPIES[how](udct)
     assert isinstance(clone, UDCT)
-    torch.testing.assert_close(clone.forward_vect(x), coeffs)
+    torch.testing.assert_close(clone.forward(x, structured=False), coeffs)
     torch.testing.assert_close(clone(x), udct(x))
-    torch.testing.assert_close(clone.backward_vect(coeffs), udct.backward_vect(coeffs))
+    torch.testing.assert_close(clone.backward(coeffs), udct.backward(coeffs))
 
     grads = []
     for transform in (udct, clone):
         xg = x.clone().requires_grad_(True)
-        transform.forward_vect(xg).abs().pow(2).sum().backward()
+        transform.forward(xg, structured=False).abs().pow(2).sum().backward()
         grads.append(xg.grad)
     torch.testing.assert_close(grads[1], grads[0])
 
@@ -94,7 +94,7 @@ class _Classifier(nn.Module):  # type: ignore[misc]
         self.head = nn.Linear(self.udct.vect(self.udct(_image())).shape[-1], 3).double()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.head(self.udct.forward_vect(x).abs())
+        return self.head(self.udct.forward(x, structured=False).abs())
 
 
 def test_network_with_transform_saves_and_loads() -> None:
@@ -133,10 +133,10 @@ def test_plan_for_another_device_is_rebuilt() -> None:
     device-specific choice (fold strategy, Triton kernels) carries over."""
     udct = _udct()
     x = _image(batch=(2,))
-    expected = udct.forward_vect(x)
+    expected = udct.forward(x, structured=False)
     stale = udct._get_plan()  # pylint: disable=protected-access
     stale.device = torch.device("meta")  # as if built on another device
-    torch.testing.assert_close(udct.forward_vect(x), expected)
+    torch.testing.assert_close(udct.forward(x, structured=False), expected)
     plan = udct._get_plan()  # pylint: disable=protected-access
     assert plan is not stale
     assert plan.device == torch.device("cpu")
@@ -149,13 +149,15 @@ def test_cuda_transform_copies_and_loads_on_cpu(kind: Kind) -> None:
     ``map_location="cpu"`` gives a working CPU transform."""
     udct = _udct(kind).to("cuda")
     x = _image(kind, (2,), device="cuda")
-    expected = udct.forward_vect(x)
+    expected = udct.forward(x, structured=False)
 
     for how in ("deepcopy", "pickle", "torch.save"):
         clone = COPIES[how](udct)
         assert clone.windows[0][0][0].values.is_cuda
-        torch.testing.assert_close(clone.forward_vect(x), expected)
+        torch.testing.assert_close(clone.forward(x, structured=False), expected)
 
     on_cpu = _saved(udct, map_location="cpu")
     assert not on_cpu.windows[0][0][0].values.is_cuda
-    torch.testing.assert_close(on_cpu.forward_vect(x.cpu()), expected.cpu())
+    torch.testing.assert_close(
+        on_cpu.forward(x.cpu(), structured=False), expected.cpu()
+    )

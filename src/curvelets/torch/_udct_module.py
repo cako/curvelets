@@ -18,7 +18,7 @@ class UDCTModule(UDCT):
         :class:`UDCT` now is an ``nn.Module`` with adjoint gradients.
         ``UDCTModule(shape, ..., transform_type=kind)`` returned flat
         coefficients from ``__call__``; the replacement is
-        ``UDCT(shape, ..., transform_kind=kind).forward_vect(x)`` (or
+        ``UDCT(shape, ..., transform_kind=kind).forward(x, structured=False)`` (or
         ``udct(x)`` for nested coefficients). ``UDCTModule`` will be removed
         in a future release.
 
@@ -35,7 +35,7 @@ class UDCTModule(UDCT):
     ) -> None:
         warnings.warn(
             "UDCTModule is deprecated: UDCT is an nn.Module now. Use "
-            "UDCT(..., transform_kind=...) and udct.forward_vect(x) for flat "
+            "UDCT(..., transform_kind=...) and udct.forward(x, structured=False) for flat "
             "coefficients.",
             DeprecationWarning,
             stacklevel=2,
@@ -43,6 +43,6 @@ class UDCTModule(UDCT):
         kwargs["transform_kind"] = transform_type
         super().__init__(*args, **kwargs)
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
-        """Flattened coefficients of shape ``(*batch, ncoef)`` (see :meth:`UDCT.forward_vect`)."""
-        return self.forward_vect(image)
+    def forward(self, image: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+        """Flattened coefficients of shape ``(*batch, ncoef)``."""
+        return UDCT.forward(self, image, structured=False)

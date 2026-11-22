@@ -91,8 +91,8 @@ def test_torch_adjoint_and_parseval(
     )
 
     x = _randn_like_kind(shape, is_complex=transform_kind == "complex", gen=gen)
-    u_x = udct.forward_vect(x)
-    recon = udct.backward_vect(u_x)
+    u_x = udct.forward(x, structured=False)
+    recon = udct.backward(u_x)
     assert float((recon - x).norm().item()) / float(x.norm().item()) < 1e-12
 
     energy_x = float(x.abs().pow(2).sum().item())
@@ -100,7 +100,7 @@ def test_torch_adjoint_and_parseval(
     assert abs(energy_u_x - energy_x) / energy_x < 1e-12
 
     y = _randn_like_kind(tuple(u_x.shape), is_complex=True, gen=gen)
-    uh_y = udct.backward_vect(y)
+    uh_y = udct.backward(y)
     lhs = (y.conj() * u_x).sum()
     rhs = (uh_y.conj() * x).sum()
     if transform_kind == "real":
@@ -113,7 +113,7 @@ def test_torch_adjoint_and_parseval(
 
 @pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])  # type: ignore[untyped-decorator]
 def test_torch_wavelet_gradcheck(transform_kind: AllKind) -> None:
-    """Exact gradcheck holds for forward_vect and backward_vect in wavelet mode."""
+    """Exact gradcheck holds for the flat forward and backward in wavelet mode."""
     gen = torch.Generator().manual_seed(0)
     udct = UDCT(
         shape=(8, 8),
@@ -124,14 +124,16 @@ def test_torch_wavelet_gradcheck(transform_kind: AllKind) -> None:
     )
     x = _randn_like_kind((8, 8), is_complex=transform_kind == "complex", gen=gen)
     x.requires_grad_(True)
-    assert torch.autograd.gradcheck(udct.forward_vect, (x,), fast_mode=False)
+    assert torch.autograd.gradcheck(
+        lambda t: udct.forward(t, structured=False), (x,), fast_mode=False
+    )
 
-    template = udct.forward_vect(x.detach())
+    template = udct.forward(x.detach(), structured=False)
     c = _randn_like_kind(
         tuple(template.shape), is_complex=template.is_complex(), gen=gen
     )
     c.requires_grad_(True)
-    assert torch.autograd.gradcheck(udct.backward_vect, (c,), fast_mode=False)
+    assert torch.autograd.gradcheck(udct.backward, (c,), fast_mode=False)
 
 
 @pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])  # type: ignore[untyped-decorator]
@@ -146,10 +148,13 @@ def test_torch_wavelet_multiscale_directional_grad(transform_kind: AllKind) -> N
         dtype=torch.float64,
     )
     x = _randn_like_kind((16, 16), is_complex=transform_kind == "complex", gen=gen)
-    assert _directional_grad_error(udct.forward_vect, x, gen=gen) < 1e-7
+    assert (
+        _directional_grad_error(lambda t: udct.forward(t, structured=False), x, gen=gen)
+        < 1e-7
+    )
 
-    template = udct.forward_vect(x)
+    template = udct.forward(x, structured=False)
     c = _randn_like_kind(
         tuple(template.shape), is_complex=template.is_complex(), gen=gen
     )
-    assert _directional_grad_error(udct.backward_vect, c, gen=gen) < 1e-7
+    assert _directional_grad_error(udct.backward, c, gen=gen) < 1e-7

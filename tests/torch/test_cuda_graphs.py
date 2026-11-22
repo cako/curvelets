@@ -114,11 +114,11 @@ def test_cpu_tensors_run_as_usual(kind: Kind) -> None:
     """On CPU the flag changes nothing and captures nothing."""
     plain, graphed = _udct(kind), _udct(kind, cuda_graphs=True)
     x = _image(kind, (2,))
-    coeffs = plain.forward_vect(x)
-    torch.testing.assert_close(graphed.forward_vect(x), coeffs)
+    coeffs = plain.forward(x, structured=False)
+    torch.testing.assert_close(graphed.forward(x, structured=False), coeffs)
     torch.testing.assert_close(
-        graphed.backward_vect(coeffs),
-        plain.backward_vect(coeffs),
+        graphed.backward(coeffs),
+        plain.backward(coeffs),
     )
     assert len(graphed._graphs) == 0  # pylint: disable=protected-access
 
@@ -144,7 +144,7 @@ def test_adjoint_functions_gradcheck(kind: Kind) -> None:
     assert torch.autograd.gradcheck(
         lambda t: ForwardWithAdjoint.apply(t, udct), (x,), fast_mode=True
     )
-    coeffs = udct.forward_vect(x.detach()).requires_grad_(True)
+    coeffs = udct.forward(x.detach(), structured=False).requires_grad_(True)
     assert torch.autograd.gradcheck(
         lambda c: BackwardWithAdjoint.apply(c, udct), (coeffs,), fast_mode=True
     )
@@ -162,11 +162,11 @@ def test_replay_matches_plain_calls(
     graphed = _udct(kind, dtype, cuda_graphs=True, device=device)
     for seed in range(2):  # fresh inputs: the static buffers are refilled
         x = _image(kind, batch, dtype, device, seed)
-        coeffs = plain.forward_vect(x)
-        torch.testing.assert_close(graphed.forward_vect(x), coeffs)
+        coeffs = plain.forward(x, structured=False)
+        torch.testing.assert_close(graphed.forward(x, structured=False), coeffs)
         torch.testing.assert_close(
-            graphed.backward_vect(coeffs),
-            plain.backward_vect(coeffs),
+            graphed.backward(coeffs),
+            plain.backward(coeffs),
         )
         nested = graphed.forward(x)
         torch.testing.assert_close(graphed.vect(nested), coeffs)
@@ -184,9 +184,9 @@ def test_results_survive_later_calls(device: str) -> None:
         _image("real", device=device, seed=1),
         _image("real", device=device, seed=2),
     )
-    first = udct.forward_vect(x1)
+    first = udct.forward(x1, structured=False)
     expected = first.clone()
-    udct.forward_vect(x2)
+    udct.forward(x2, structured=False)
     torch.testing.assert_close(first, expected)
 
 
@@ -195,11 +195,11 @@ def test_cache_is_bounded_and_cleared(device: str) -> None:
     udct = _udct(cuda_graphs=True, device=device)
     udct.cuda_graph_cache_size = 2
     for batch in (1, 2, 3):
-        udct.forward_vect(_image("real", (batch,), device=device))
+        udct.forward(_image("real", (batch,), device=device), structured=False)
     assert len(udct._graphs) == 2  # pylint: disable=protected-access
     udct.apply_to_tensors(lambda t: t.to(device))
     assert len(udct._graphs) == 0  # pylint: disable=protected-access
-    udct.forward_vect(_image("real", device=device))
+    udct.forward(_image("real", device=device), structured=False)
     udct.clear_cuda_graphs()
     assert len(udct._graphs) == 0  # pylint: disable=protected-access
 
@@ -222,11 +222,11 @@ def test_gradients_match_plain_autograd(kind: Kind, device: str) -> None:
         len(graphed._graphs) == 2
     )  # forward, and backward as its gradient  # pylint: disable=protected-access
 
-    coeffs = plain.forward_vect(x)
+    coeffs = plain.forward(x, structured=False)
 
     def coeff_grad(udct: UDCT) -> torch.Tensor:
         cg = coeffs.clone().requires_grad_(True)
-        loss = udct.backward_vect(cg).abs().pow(2).sum()
+        loss = udct.backward(cg).abs().pow(2).sum()
         (grad,) = torch.autograd.grad(loss, cg)
         return grad
 
@@ -243,7 +243,9 @@ def test_module_training_and_double_backward(device: str) -> None:
         ).to(device)
         xg = x.clone().requires_grad_(True)
         (grad,) = torch.autograd.grad(
-            module.forward_vect(xg).abs().pow(2).sum(), xg, create_graph=True
+            module.forward(xg, structured=False).abs().pow(2).sum(),
+            xg,
+            create_graph=True,
         )
         (second,) = torch.autograd.grad(grad.pow(2).sum(), xg)
         return grad.detach(), second
@@ -258,15 +260,17 @@ def test_module_gradcheck_with_graphs(device: str) -> None:
         shape=(16, 16), num_scales=2, dtype=torch.float64, cuda_graphs=True
     ).to(device)
     x = torch.randn(16, 16, dtype=torch.float64, device=device, requires_grad=True)
-    assert torch.autograd.gradcheck(module.forward_vect, (x,), fast_mode=True)
+    assert torch.autograd.gradcheck(
+        lambda t: module.forward(t, structured=False), (x,), fast_mode=True
+    )
 
 
 def test_vmap_runs_without_graphs(device: str) -> None:
     """Under torch.vmap calls fall back to plain execution and still match."""
     udct = _udct(cuda_graphs=True, device=device)
     x = _image("real", (3,), device=device)
-    expected = _udct(device=device).forward_vect(x)
-    batched = torch.vmap(udct.forward_vect)(x)
+    expected = _udct(device=device).forward(x, structured=False)
+    batched = torch.vmap(lambda t: udct.forward(t, structured=False))(x)
     torch.testing.assert_close(batched, expected)
 
 
@@ -286,14 +290,16 @@ def test_monogenic_with_graphs(device: str) -> None:
 
     udct, eager = build(True), build(False)
     x = _image("real", (2,), device=device)
-    vec = udct.forward_vect(x)
-    torch.testing.assert_close(vec, eager.forward_vect(x))
-    torch.testing.assert_close(udct.backward_vect(vec), eager.backward_vect(vec))
+    vec = udct.forward(x, structured=False)
+    torch.testing.assert_close(vec, eager.forward(x, structured=False))
+    torch.testing.assert_close(udct.backward(vec), eager.backward(vec))
     torch.testing.assert_close(udct.vect(udct(x)), vec)
     assert len(udct._graphs) == 2  # pylint: disable=protected-access
 
     xg = x.clone().requires_grad_(True)
-    (grad,) = torch.autograd.grad(udct.forward_vect(xg).pow(2).sum(), xg)
+    (grad,) = torch.autograd.grad(udct.forward(xg, structured=False).pow(2).sum(), xg)
     xe = x.clone().requires_grad_(True)
-    (expected,) = torch.autograd.grad(eager.forward_vect(xe).pow(2).sum(), xe)
+    (expected,) = torch.autograd.grad(
+        eager.forward(xe, structured=False).pow(2).sum(), xe
+    )
     torch.testing.assert_close(grad, expected)

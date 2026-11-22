@@ -63,9 +63,9 @@ def test_single_precision_matches_double(kind: str) -> None:
     gen = torch.Generator().manual_seed(0)
     x = torch.randn(SHAPE, generator=gen, dtype=torch.float64)
     single, double = _udct(torch.float32, kind), _udct(torch.float64, kind)
-    coeffs = single.forward_vect(x.float())
+    coeffs = single.forward(x.float(), structured=False)
     assert coeffs.dtype == torch.complex64
-    reference = double.forward_vect(x)
+    reference = double.forward(x, structured=False)
     torch.testing.assert_close(
         coeffs, reference.to(torch.complex64), atol=1e-5, rtol=1e-4
     )
@@ -83,7 +83,7 @@ def test_mismatched_input_precision_raises() -> None:
     with pytest.raises(TypeError, match="float32"):
         udct.filter(x, lambda c: c)
     with pytest.raises(TypeError, match="float32"):
-        udct.forward_vect(x)
+        udct.forward(x, structured=False)
     with pytest.raises(TypeError, match="integer|int64"):
         udct.forward(torch.ones(SHAPE, dtype=torch.int64))
 
@@ -95,7 +95,7 @@ def test_mismatched_coefficient_precision_raises() -> None:
     with pytest.raises(TypeError, match="complex128"):
         single.backward(coeffs)
     with pytest.raises(TypeError, match="complex128"):
-        single.backward_vect(double.vect(coeffs))
+        single.backward(double.vect(coeffs))
 
 
 def test_complex_transform_accepts_matching_complex_input() -> None:
@@ -121,16 +121,16 @@ def test_module_to_dtype_changes_precision() -> None:
     )
     x = torch.randn(SHAPE, dtype=torch.float64)
     with pytest.raises(TypeError):
-        module.forward_vect(x)
-    assert module.float().forward_vect(x.float()).dtype == torch.complex64
+        module.forward(x, structured=False)
+    assert module.float().forward(x.float(), structured=False).dtype == torch.complex64
     module = module.double()
     assert module.dtype == torch.float64
-    out = module.forward_vect(x)
+    out = module.forward(x, structured=False)
     assert out.dtype == torch.complex128
     reference = UDCT(
         shape=SHAPE, num_scales=3, wedges_per_direction=3, dtype=torch.float64
     )
-    torch.testing.assert_close(out, reference.forward_vect(x))
+    torch.testing.assert_close(out, reference.forward(x, structured=False))
     assert module.to(torch.float32).dtype == torch.float32
 
 
@@ -140,7 +140,7 @@ def test_module_gradient_has_input_precision() -> None:
         shape=SHAPE, num_scales=3, wedges_per_direction=3, dtype=torch.float32
     )
     x = torch.randn(SHAPE, requires_grad=True, dtype=torch.float32)
-    module.forward_vect(x).abs().sum().backward()
+    module.forward(x, structured=False).abs().sum().backward()
     assert x.grad is not None
     assert x.grad.dtype == torch.float32
 
@@ -174,7 +174,7 @@ def test_module_to_complex_dtype_sets_real_precision(kind: str) -> None:
     windows = module.windows
     assert all(not w.values.is_complex() for s in windows for d in s for w in d)
     x = torch.randn(SHAPE, dtype=torch.float64)
-    assert module.forward_vect(x).dtype == torch.complex128
+    assert module.forward(x, structured=False).dtype == torch.complex128
 
 
 def test_complex_module_gradient_for_complex_input() -> None:
@@ -187,7 +187,7 @@ def test_complex_module_gradient_for_complex_input() -> None:
         dtype=torch.float32,
     )
     z = torch.randn(SHAPE, dtype=torch.complex64, requires_grad=True)
-    module.forward_vect(z).abs().sum().backward()
+    module.forward(z, structured=False).abs().sum().backward()
     assert z.grad is not None
     assert z.grad.dtype == torch.complex64
 
@@ -200,7 +200,7 @@ def test_monogenic_dtypes() -> None:
     x = torch.randn(SHAPE, dtype=torch.float32)
     coeffs = udct.forward(x)
     assert {c.dtype for s in coeffs for d in s for c in d} == {torch.float32}
-    assert udct.forward_vect(x).dtype == torch.float32
+    assert udct.forward(x, structured=False).dtype == torch.float32
     assert {r.dtype for r in udct.backward(coeffs)} == {torch.float32}
     with pytest.raises(TypeError, match=r"torch\.float64"):
         udct.forward(x.double())
