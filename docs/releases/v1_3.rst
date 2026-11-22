@@ -187,6 +187,7 @@ New features
 ------------
 
 - ``curvelets.torch.UDCT`` is an ``nn.Module`` with adjoint gradients. ``.to()``, ``.cuda()`` and ``.double()`` work, and it can be a submodule. ``forward(x, structured=False)`` returns the flat coefficients and ``backward`` accepts them, in both NumPy and PyTorch. (:pr:`104`)
+- ``UDCT.forward(x, structured=False)`` returns the flat coefficients that ``vect`` would produce, and ``UDCT.backward`` accepts either layout. This replaces the two-step ``vect(forward(x))`` and ``backward(struct(v))``, in both NumPy and PyTorch, and PyTorch skips building the nested list. ``forward_vect`` and ``backward_vect`` are deprecated aliases. (:pr:`132`)
 - The monogenic transform is available in PyTorch, matching ``curvelets.numpy.UDCT``, with ``UDCT.monogenic()``, batching, CUDA graphs and gradients. (:pr:`111`)
 - ``UDCT(..., dtype=...)`` fixes the precision to float32 or float64 at construction, with new ``dtype`` and ``coefficient_dtype`` properties. (:pr:`87`)
 - Per-stage GPU profiling tools and a benchmark harness in ``benchmarks/``. (:pr:`81`, :pr:`89`)
