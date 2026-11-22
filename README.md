@@ -13,7 +13,7 @@
 </h3>
 
 [![Actions Status][actions-badge]][actions-link]
-[![Documentation Status](https://readthedocs.org/projects/curvelets/badge/?version=latest)](https://curvelets.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status][rtd-badge]][rtd-link]
 [![codecov](https://codecov.io/github/cako/curvelets/graph/badge.svg?token=T16E0ANTLR)](https://codecov.io/github/cako/curvelets)
 
 [![PyPI version][pypi-version]][pypi-link]
@@ -33,8 +33,8 @@
 [pypi-link]:                https://pypi.org/project/Curvelets/
 [pypi-platforms]:           https://img.shields.io/pypi/pyversions/Curvelets
 [pypi-version]:             https://img.shields.io/pypi/v/Curvelets
-[rtd-badge]:                https://readthedocs.org/projects/Curvelets/badge/?version=latest
-[rtd-link]:                 https://Curvelets.readthedocs.io/en/latest/?badge=latest
+[rtd-badge]:                https://img.shields.io/readthedocs/curvelets
+[rtd-link]:                 https://curvelets.readthedocs.io/en/latest/?badge=latest
 
 <!-- prettier-ignore-end -->
 
