@@ -239,7 +239,7 @@ ax2 = fig.add_subplot(gs[0, 1], projection="polar")
 ax3 = fig.add_subplot(gs[1, :])
 ax4 = fig.add_subplot(gs[2, :])
 ax1.imshow(
-    colored_wins.swapaxes(0, 1), extent=(kx[0], kx[-1], ky[-1], ky[0]), aspect=ny / nx
+    colored_wins.swapaxes(0, 1), extent=(kx[0], kx[-1], ky[-1], ky[0]), aspect="equal"
 )
 ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 ax1.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
@@ -266,7 +266,9 @@ ax1 = fig.add_subplot(gs[0, 0])
 ax2 = fig.add_subplot(gs[0, 1], projection="polar")
 ax3 = fig.add_subplot(gs[1, :])
 ax4 = fig.add_subplot(gs[2, :])
-ax1.imshow(colored_wins.swapaxes(0, 1), extent=(kx[0], kx[-1], ky[-1], ky[0]))
+ax1.imshow(
+    colored_wins.swapaxes(0, 1), extent=(kx[0], kx[-1], ky[-1], ky[0]), aspect="equal"
+)
 ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 ax1.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 ax1.set(
@@ -292,7 +294,9 @@ ax1 = fig.add_subplot(gs[0, 0])
 ax2 = fig.add_subplot(gs[0, 1], projection="polar")
 ax3 = fig.add_subplot(gs[1, :])
 ax4 = fig.add_subplot(gs[2, :])
-ax1.imshow(colored_wins.swapaxes(0, 1), extent=(kx[0], kx[-1], ky[-1], ky[0]))
+ax1.imshow(
+    colored_wins.swapaxes(0, 1), extent=(kx[0], kx[-1], ky[-1], ky[0]), aspect="equal"
+)
 ax1.xaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 ax1.yaxis.set_minor_locator(ticker.MultipleLocator(0.1))
 ax1.set(
