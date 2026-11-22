@@ -55,7 +55,7 @@ def test_complex_input_to_real_transform_error(rng):
     # This should trigger the error for complex input to real transform
     with pytest.raises(
         ValueError,
-        match="Real transform requires real-valued input.*Use transform_kind='complex'",
+        match=r"Real transform requires real-valued input.*Use transform_kind='complex'",
     ):
         _apply_forward_transform(
             data,
@@ -164,7 +164,7 @@ def test_forward_real_transform_with_complex_input(rng):
     # This should raise an error because input is complex and transform is real
     with pytest.raises(
         ValueError,
-        match="Real transform requires real-valued input.*Use transform_kind='complex'",
+        match=r"Real transform requires real-valued input.*Use transform_kind='complex'",
     ):
         _apply_forward_transform(
             data,
