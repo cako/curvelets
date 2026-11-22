@@ -239,9 +239,11 @@ def collect_worst_loss_misclassifications(
 #
 # We use a simplified configuration suitable for a gallery example:
 #
-# - 10 epochs
+# - 5 epochs
 # - Batch size of 64
 # - Adadelta optimizer with learning rate scheduling
+
+torch.manual_seed(42)
 
 # Device selection
 if torch.accelerator.is_available():

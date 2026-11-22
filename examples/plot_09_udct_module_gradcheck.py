@@ -34,6 +34,8 @@ from curvelets.torch import UDCT
 # %%
 # Setup
 # #####
+torch.manual_seed(0)
+
 shape = (32, 32)
 udct = UDCT(
     shape=shape,
