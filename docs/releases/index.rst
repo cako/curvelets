@@ -14,7 +14,7 @@ What changed in each version of **Curvelets**. The newest version is first. Each
      - Date
      - Highlights
    * - :doc:`1.3 <v1_3>`
-     - In development
+     - 2026-11-22
      - Much faster NumPy and PyTorch transforms, CUDA graphs and a Triton kernel, FFT engines for NumPy, monogenic transform in PyTorch, ``UDCT`` as an ``nn.Module``. See also :doc:`v1_3_under_the_hood`.
    * - :doc:`1.2 <v1_2>`
      - 2026-07-19
