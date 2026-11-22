@@ -14,6 +14,8 @@ Usage: python benchmarks/fold_bench.py [--configs 2d_512,...] [--batches 1,8]
        [--export out.json]
 """
 
+# pylint: disable=protected-access
+
 from __future__ import annotations
 
 import argparse
@@ -74,30 +76,17 @@ def mib(tensors: list[torch.Tensor]) -> float:
     return float(sum(t.numel() * t.element_size() for t in tensors)) / 2**20
 
 
-def level_tensors(fold: Any) -> list[torch.Tensor]:
-    out = [fold.src0, fold.w0]
-    for lvl in fold.levels:
-        out += [lvl.targets, lvl.sources, lvl.weights]
-    return out
-
-
-def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, Any]]:
+def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, Any]]:  # pylint: disable=too-many-locals,protected-access
     shape, ns, wpd = CONFIGS[name]
     udct = UDCT(
         shape=shape, num_scales=ns, wedges_per_direction=wpd, dtype=torch.float32
     )
     udct.apply_to_tensors(lambda t: t.cuda())
     plan = udct._get_plan()  # pylint: disable=protected-access
-    fwd: Any = plan.fwd_map  # GatherFold with CSR maps on CUDA
+    fwd: Any = plan.fwd_map
     bwd: Any = plan.bwd_map
-    csr = (fwd.csr, bwd.csr)
-    assert csr[0] is not None, "Triton kernel unavailable"
-    assert csr[1] is not None, "Triton kernel unavailable"
-    # Plain calls keep only the CSR maps; the torch rows need the level tables,
-    # which are built here (as a differentiable call would).
     tables = {
-        "levels_mib": mib(level_tensors(fwd) + level_tensors(bwd)),
-        "csr_mib": mib(csr[0].tensors() + csr[1].tensors()),
+        "csr_mib": mib(fwd.tensors() + bwd.tensors()),
     }
     rows = []
     for batch in batches:
@@ -106,10 +95,13 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
         spectrum = plan._spectrum(x)  # pylint: disable=protected-access
         small = plan._batched_ffts(coeffs, torch.fft.fftn, coeffs.dtype)  # pylint: disable=protected-access
         for variant in ("torch", "triton"):
-            fwd.csr, bwd.csr = csr if variant == "triton" else (None, None)
+            apply_fwd = fwd._apply_triton if variant == "triton" else fwd._apply_torch
+            apply_bwd = bwd._apply_triton if variant == "triton" else bwd._apply_torch
+            fwd.apply = apply_fwd
+            bwd.apply = apply_bwd
             rec: dict[str, Any] = {"config": name, "batch": batch, "variant": variant}
-            rec["fold_fwd_dev"] = timeit(partial(fwd.apply, spectrum))[1]
-            rec["fold_bwd_dev"] = timeit(partial(bwd.apply, small))[1]
+            rec["fold_fwd_dev"] = timeit(partial(apply_fwd, spectrum))[1]
+            rec["fold_bwd_dev"] = timeit(partial(apply_bwd, small))[1]
             calls: dict[str, Callable[[], object]] = {
                 "fwd": partial(udct.forward_vect, x),
                 "inv": partial(udct.backward_vect, coeffs),
@@ -125,12 +117,16 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
             rec.update(tables)
             rows.append(rec)
             print(json.dumps(rec), flush=True)
-        fwd.csr, bwd.csr = csr
+        # Restore Triton kernels
+        fwd.apply = fwd._apply_triton
+        bwd.apply = bwd._apply_triton
         # Same results either way.
         ref = udct.forward_vect(x)
-        fwd.csr = bwd.csr = None
+        fwd.apply = fwd._apply_torch
+        bwd.apply = bwd._apply_torch
         err = ((ref - udct.forward_vect(x)).abs().max() / ref.abs().max()).item()
-        fwd.csr, bwd.csr = csr
+        fwd.apply = fwd._apply_triton
+        bwd.apply = bwd._apply_triton
         print(f"# {name} B={batch}: max rel diff triton vs torch {err:.1e}", flush=True)
     del udct, plan
     torch.cuda.empty_cache()

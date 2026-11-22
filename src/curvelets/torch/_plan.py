@@ -14,8 +14,8 @@ launch-bound: thousands of tiny kernels for large configurations.
 
 The fold step has one implementation per device class:
 
-- GPUs and other accelerators: one deterministic gather-only fold over all
-  wedges (:class:`~._foldmap.GatherFold`) and batched FFTs, i.e. few launches.
+- GPUs and other accelerators: one deterministic CSR fold over all
+  wedges (:class:`~._foldmap.CsrFold`) and batched FFTs, i.e. few launches.
 - CPUs: sorted scatter-adds (:class:`~._foldmap.ScatterFold`), applied row by
   row, with no redundant arithmetic. The forward folds all wedges at once (it
   has to read the whole spectrum anyway). The backward is cache-blocked: wedges
@@ -26,7 +26,7 @@ The real transform works on half spectra: the forward gathers from ``rfftn`` of
 the (real) input, reading ``conj(F[-k])`` for frequencies outside the stored
 half, and the backward accumulates the Hermitian part of the spectrum,
 ``A + conj(B)``, whose ``irfftn`` equals ``ifftn(F).real``. That halves the
-full-size FFTs and buffers. The gather folds apply the conjugation on the fly
+full-size FFTs and buffers. The CSR folds apply the conjugation on the fly
 with per-term weight pairs ``(w, -w)`` for the real and imaginary parts, so the
 backward is one fold and the forward reads the half spectrum directly; the CPU
 scatter folds read conjugated terms from a ``[F, conj(F)]`` scratch buffer.
@@ -43,7 +43,7 @@ than the cache saves.
 
 The launch count does not grow with the number of wedges. Every op is
 out-of-place and differentiable, so the plan works under autograd and
-``torch.vmap``, and it accepts arbitrary leading batch dimensions. The gather
+``torch.vmap``, and it accepts arbitrary leading batch dimensions. The CSR
 path traces into a single graph under ``torch.compile``.
 """
 
@@ -59,7 +59,7 @@ from typing import Any
 
 import torch
 
-from ._foldmap import GatherFold, ScatterFold, _functorch_wrapped, _index_dtype
+from ._foldmap import CsrFold, ScatterFold, _functorch_wrapped, _index_dtype
 from ._periodized_fft import _ravel_multi_index, _unravel_index
 from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT
@@ -141,9 +141,9 @@ class UDCTPlan:
     ncoef: int
     # Forward: spectrum -> folded coefficients. Gather: reads the (half)
     # spectrum, conj via weight pairs. Scatter: reads [F, conj F] (real) or F.
-    fwd_map: GatherFold | ScatterFold
-    # Accelerator backward (gather strategy): one fold over all wedges.
-    bwd_map: GatherFold | None  # coefficient spectra -> spectrum (half or full)
+    fwd_map: CsrFold | ScatterFold
+    # Accelerator backward (CSR strategy): one fold over all wedges.
+    bwd_map: CsrFold | None  # coefficient spectra -> spectrum (half or full)
     # CPU backward (scatter strategy): cache-sized chunks of wedges.
     cpu_chunks: list[_CpuChunk] | None
     # Accelerators: the device's L2 size. Batches whose rows each need more
@@ -185,9 +185,9 @@ class UDCTPlan:
             Decimation ratios (CPU tensors preferred; only read via ``tolist``).
         complex_mode : bool
             Complex transform (separate positive/negative frequency bands).
-        fold_strategy : {"scatter", "gather"}, optional
+        fold_strategy : {"scatter", "csr"}, optional
             Execution strategy. By default CPUs get ``"scatter"`` (cache-blocked
-            chunks) and every other device (CUDA, MPS, XPU, ...) ``"gather"``.
+            chunks) and every other device (CUDA, MPS, XPU, ...) ``"csr"``.
 
         Returns
         -------
@@ -266,12 +266,12 @@ class UDCTPlan:
 
         strategy = fold_strategy
         if strategy is None:
-            strategy = "scatter" if fwd_idx.device.type == "cpu" else "gather"
-        fwd_map: GatherFold | ScatterFold
+            strategy = "scatter" if fwd_idx.device.type == "cpu" else "csr"
+        fwd_map: CsrFold | ScatterFold
         bwd_map = None
         cpu_chunks = None
-        if strategy == "gather":
-            fwd_map, bwd_map = _gather_folds(
+        if strategy == "csr":
+            fwd_map, bwd_map = _csr_folds(
                 groups, fwd_c, bwd_c, offset, num_spectrum, complex_mode=complex_mode
             )
         elif strategy == "scatter":
@@ -296,7 +296,7 @@ class UDCTPlan:
             bwd_map=bwd_map,
             cpu_chunks=cpu_chunks,
             batch_chunk_bytes=(
-                _l2_cache_bytes(fwd_idx.device) if strategy == "gather" else None
+                _l2_cache_bytes(fwd_idx.device) if strategy == "csr" else None
             ),
             device=fwd_idx.device,
         )
@@ -397,9 +397,9 @@ class UDCTPlan:
             Flattened coefficients.
         """
         batch = image.shape[: image.ndim - self.ndim]
-        if isinstance(self.fwd_map, GatherFold):
+        if isinstance(self.fwd_map, CsrFold):
             images = image.reshape(-1, *self.shape)
-            return self._gather_forward(images).reshape(*batch, self.ncoef)
+            return self._csr_forward(images).reshape(*batch, self.ncoef)
         flat = self._spectrum(image)
         reuse = _direct_ok(flat)
         if not self.complex_output:
@@ -442,7 +442,7 @@ class UDCTPlan:
         per_row = (2 * self.ncoef + math.prod(self.spectrum_shape)) * complex_itemsize
         return 1 if per_row > self.batch_chunk_bytes else rows
 
-    def _gather_forward(self, images: torch.Tensor) -> torch.Tensor:
+    def _csr_forward(self, images: torch.Tensor) -> torch.Tensor:
         """Accelerator forward of ``(rows, *shape)``, in cache-sized row chunks."""
         rows = images.shape[0]
         itemsize = images.element_size() * (1 if images.is_complex() else 2)
@@ -579,7 +579,7 @@ class UDCTPlan:
         # Same as ``dtype.to_complex()``, which TorchDynamo cannot trace.
         cdtype = torch.promote_types(flat.dtype, torch.complex64)
         if self.cpu_chunks is None:
-            return self._gather_backward(flat, cdtype).reshape(*batch, *self.shape)
+            return self._csr_backward(flat, cdtype).reshape(*batch, *self.shape)
         spectrum = _stack_rows([self._cpu_backward_row(row, cdtype) for row in flat])
         return self._inverse_full(spectrum.reshape(*batch, *self.spectrum_shape))
 
@@ -592,7 +592,7 @@ class UDCTPlan:
             return torch.fft.ifftn(spectrum, dim=dims, out=out)  # pylint: disable=not-callable
         return torch.fft.irfftn(spectrum, s=self.shape, dim=dims, out=out)  # pylint: disable=not-callable
 
-    def _gather_backward(self, flat: torch.Tensor, cdtype: torch.dtype) -> torch.Tensor:
+    def _csr_backward(self, flat: torch.Tensor, cdtype: torch.dtype) -> torch.Tensor:
         """Accelerator backward of ``(rows, ncoef)``, in cache-sized row chunks."""
         assert self.bwd_map is not None
         rows = flat.shape[0]
@@ -704,7 +704,7 @@ def _cpu_chunks(
     ]
 
 
-def _gather_folds(
+def _csr_folds(
     groups: list[_Group],
     fwd: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     bwd: list[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
@@ -712,8 +712,8 @@ def _gather_folds(
     num_spectrum: int,
     *,
     complex_mode: bool,
-) -> tuple[GatherFold, GatherFold]:
-    """Forward and backward gather folds (accelerator strategy).
+) -> tuple[CsrFold, CsrFold]:
+    """Forward and backward CSR folds (accelerator strategy).
 
     ``fwd`` is ``(slot, source, weight)``; for the real transform its sources
     index ``[F_half, conj(F_half)]``, which becomes a source in ``F_half`` and the
@@ -732,13 +732,13 @@ def _gather_folds(
         conj = sources >= num_spectrum
         sources = torch.where(conj, sources - num_spectrum, sources)
         weights = torch.stack([weights, torch.where(conj, -weights, weights)], dim=-1)
-    fwd_map = GatherFold.build(targets, sources, weights, ncoef, num_spectrum)
+    fwd_map = CsrFold.build(targets, sources, weights, ncoef, num_spectrum)
 
     if complex_mode:
         (bwd_c,) = bwd
-        return fwd_map, GatherFold.build(*bwd_c, num_spectrum, ncoef)
+        return fwd_map, CsrFold.build(*bwd_c, num_spectrum, ncoef)
     (t_plain, s_plain, w_plain), (t_conj, s_conj, w_conj) = bwd
-    bwd_map = GatherFold.build(
+    bwd_map = CsrFold.build(
         torch.cat([t_plain, t_conj]),
         torch.cat([s_plain, s_conj]),
         torch.cat([
