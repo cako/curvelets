@@ -692,7 +692,7 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
             self._decimation_ratios_cpu
         ):
             shapes.append([])
-            if scale_idx > 0:
+            if scale_idx > 0 and len(self._windows[scale_idx]) > 1:
                 num_directions = 2 * self._params.ndim
             else:
                 num_directions = len(decimation_ratios_scale)

@@ -17,10 +17,13 @@ def _wedge_synthesize_scale(
     decimation_ratio: torch.Tensor,
     *,
     complex_mode: bool = False,
+    symmetric: bool = False,
 ) -> float:
-    """Scale for periodized backward wedge (optional complex √0.5)."""
+    """Scale for periodized backward band (√D if symmetric, else 2√(D/2), optional complex √0.5)."""
     prod_d = float(torch.prod(decimation_ratio.float()).item())
-    scale = float(math.sqrt(prod_d / 2.0))
+    if symmetric:
+        return float(math.sqrt(prod_d))
+    scale = 2.0 * float(math.sqrt(prod_d / 2.0))
     if complex_mode:
         scale *= float(math.sqrt(0.5))
     return scale
@@ -31,6 +34,8 @@ def _process_wedge_backward_real(
     window: SparseWindow,
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
+    *,
+    symmetric: bool = False,
 ) -> None:
     """
     Accumulate one real-mode wedge into ``image_frequency`` via tiled sparse FFT.
@@ -45,16 +50,20 @@ def _process_wedge_backward_real(
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : torch.Tensor
         Full-size frequency accumulator (modified in-place).
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Notes
     -----
     Equivalence: ``fftn(upsample(c, d)) == tile(fftn(c), d)``.
-    Scale is ``sqrt(prod(d) / 2)`` matching the former upsample / full-FFT path.
+    Scale is ``2 * sqrt(prod(d) / 2)`` for directional wedges and
+    ``sqrt(prod(d))`` for symmetric wavelet bands.
     """
     window.synthesize(
         coefficient,
         image_frequency,
-        _wedge_synthesize_scale(decimation_ratio),
+        _wedge_synthesize_scale(decimation_ratio, symmetric=symmetric),
         decimation=decimation_ratio,
     )
 
@@ -65,6 +74,8 @@ def _process_wedge_backward_complex(
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
     flip_window: bool = False,
+    *,
+    symmetric: bool = False,
 ) -> None:
     """
     Accumulate one complex-mode wedge into ``image_frequency`` via tiled sparse FFT.
@@ -82,16 +93,21 @@ def _process_wedge_backward_complex(
     flip_window : bool, optional
         If True, use flipped indices for negative frequency processing.
         Default is False.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Notes
     -----
-    Scale includes :math:`\\sqrt{0.5}` for +/- frequency separation:
-    ``sqrt(0.5) * sqrt(prod(d) / 2)``.
+    Scale includes :math:`\\sqrt{0.5}` for +/- frequency separation on
+    directional wedges: ``2 * sqrt(0.5) * sqrt(prod(d) / 2)``.
     """
     window.synthesize(
         coefficient,
         image_frequency,
-        _wedge_synthesize_scale(decimation_ratio, complex_mode=True),
+        _wedge_synthesize_scale(
+            decimation_ratio, complex_mode=True, symmetric=symmetric
+        ),
         flip=flip_window,
         decimation=decimation_ratio,
     )
@@ -158,73 +174,30 @@ def _apply_backward_transform_real(
     complex_dtype = coefficients[0][0][0].dtype
     device = coefficients[0][0][0].device
 
-    highest_scale_idx = parameters.num_scales - 1
-    is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
+    image_frequency = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
+    for scale_idx in range(1, parameters.num_scales):
+        symmetric = len(windows[scale_idx]) == 1
+        for direction_idx, direction_windows in enumerate(windows[scale_idx]):
+            decimation_ratio = (
+                decimation_ratios[scale_idx][0, :]
+                if decimation_ratios[scale_idx].shape[0] == 1
+                else decimation_ratios[scale_idx][direction_idx, :]
+            )
+            for wedge_idx, window in enumerate(direction_windows):
+                _process_wedge_backward_real(
+                    coefficients[scale_idx][direction_idx][wedge_idx],
+                    window,
+                    decimation_ratio,
+                    image_frequency,
+                    symmetric=symmetric,
+                )
 
-    if is_wavelet_mode_highest_scale:
-        image_frequency_other_scales = torch.zeros(
-            parameters.shape, dtype=complex_dtype, device=device
-        )
-        image_frequency_wavelet_scale = torch.zeros(
-            parameters.shape, dtype=complex_dtype, device=device
-        )
-        for scale_idx in range(1, parameters.num_scales):
-            for direction_idx in range(len(windows[scale_idx])):
-                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    window = windows[scale_idx][direction_idx][wedge_idx]
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            direction_idx, :
-                        ]
-                    target = (
-                        image_frequency_wavelet_scale
-                        if scale_idx == highest_scale_idx
-                        else image_frequency_other_scales
-                    )
-                    _process_wedge_backward_real(
-                        coefficients[scale_idx][direction_idx][wedge_idx],
-                        window,
-                        decimation_ratio,
-                        target,
-                    )
-        image_frequency_high = (
-            2 * image_frequency_other_scales + image_frequency_wavelet_scale
-        )
-    else:
-        image_frequency_high = torch.zeros(
-            parameters.shape, dtype=complex_dtype, device=device
-        )
-        for scale_idx in range(1, parameters.num_scales):
-            for direction_idx in range(len(windows[scale_idx])):
-                for wedge_idx in range(len(windows[scale_idx][direction_idx])):
-                    window = windows[scale_idx][direction_idx][wedge_idx]
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            direction_idx, :
-                        ]
-                    _process_wedge_backward_real(
-                        coefficients[scale_idx][direction_idx][wedge_idx],
-                        window,
-                        decimation_ratio,
-                        image_frequency_high,
-                    )
-        image_frequency_high *= 2
-
-    image_frequency_low = torch.zeros(
-        parameters.shape, dtype=complex_dtype, device=device
-    )
     _backward_lowpass_periodized(
         coefficients[0][0][0],
         windows[0][0][0],
         decimation_ratios[0][0],
-        image_frequency_low,
+        image_frequency,
     )
-
-    image_frequency = image_frequency_high + image_frequency_low
     res: torch.Tensor = torch.fft.ifftn(image_frequency).real  # pylint: disable=not-callable
     return res
 
@@ -241,7 +214,7 @@ def _apply_backward_transform_complex(
     This function reconstructs a complex-valued image or volume from curvelet
     coefficients by upsampling, applying frequency-domain windows, and combining
     all bands. The complex transform mode processes separate positive and negative
-    frequency bands.
+    frequency bands (1 direction at the wavelet-mode highest scale).
 
     Parameters
     ----------
@@ -249,7 +222,8 @@ def _apply_backward_transform_complex(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = torch.Tensor
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per
+          curvelet scale; 1 direction at the wavelet-mode highest scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
     parameters : ParamUDCT
@@ -275,136 +249,42 @@ def _apply_backward_transform_complex(
     complex_dtype = coefficients[0][0][0].dtype
     device = coefficients[0][0][0].device
 
-    highest_scale_idx = parameters.num_scales - 1
-    is_wavelet_mode_highest_scale = len(windows[highest_scale_idx]) == 1
-
-    if is_wavelet_mode_highest_scale:
-        image_frequency_other_scales = torch.zeros(
-            parameters.shape, dtype=complex_dtype, device=device
-        )
-        image_frequency_wavelet_scale = torch.zeros(
-            parameters.shape, dtype=complex_dtype, device=device
-        )
-
-        # Process positive frequency bands
-        for scale_idx in range(1, parameters.num_scales):
-            num_window_directions = len(windows[scale_idx])
+    image_frequency = torch.zeros(parameters.shape, dtype=complex_dtype, device=device)
+    for scale_idx in range(1, parameters.num_scales):
+        if len(windows[scale_idx]) == 1:
+            decimation_ratio = decimation_ratios[scale_idx][0, :]
+            for wedge_idx, window in enumerate(windows[scale_idx][0]):
+                _process_wedge_backward_complex(
+                    coefficients[scale_idx][0][wedge_idx],
+                    window,
+                    decimation_ratio,
+                    image_frequency,
+                    flip_window=False,
+                    symmetric=True,
+                )
+            continue
+        for flip_window in (False, True):
+            coeff_offset = parameters.ndim if flip_window else 0
             for direction_idx in range(parameters.ndim):
-                window_direction_idx = min(direction_idx, num_window_directions - 1)
-                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            window_direction_idx, :
-                        ]
-                    if scale_idx == highest_scale_idx and direction_idx != 0:
-                        continue
-                    target = (
-                        image_frequency_wavelet_scale
-                        if scale_idx == highest_scale_idx
-                        else image_frequency_other_scales
-                    )
+                decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                for wedge_idx, window in enumerate(windows[scale_idx][direction_idx]):
                     _process_wedge_backward_complex(
-                        coefficients[scale_idx][direction_idx][wedge_idx],
-                        windows[scale_idx][window_direction_idx][wedge_idx],
-                        decimation_ratio,
-                        target,
-                        flip_window=False,
-                    )
-
-        # Process negative frequency bands
-        for scale_idx in range(1, parameters.num_scales):
-            num_window_directions = len(windows[scale_idx])
-            for direction_idx in range(parameters.ndim):
-                window_direction_idx = min(direction_idx, num_window_directions - 1)
-                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            window_direction_idx, :
-                        ]
-                    if scale_idx == highest_scale_idx and direction_idx != 0:
-                        continue
-                    target = (
-                        image_frequency_wavelet_scale
-                        if scale_idx == highest_scale_idx
-                        else image_frequency_other_scales
-                    )
-                    _process_wedge_backward_complex(
-                        coefficients[scale_idx][direction_idx + parameters.ndim][
+                        coefficients[scale_idx][direction_idx + coeff_offset][
                             wedge_idx
                         ],
-                        windows[scale_idx][window_direction_idx][wedge_idx],
+                        window,
                         decimation_ratio,
-                        target,
-                        flip_window=True,
+                        image_frequency,
+                        flip_window=flip_window,
+                        symmetric=False,
                     )
 
-        image_frequency_high = (
-            2 * image_frequency_other_scales + image_frequency_wavelet_scale
-        )
-    else:
-        image_frequency_high = torch.zeros(
-            parameters.shape, dtype=complex_dtype, device=device
-        )
-
-        # Process positive frequency bands
-        for scale_idx in range(1, parameters.num_scales):
-            num_window_directions = len(windows[scale_idx])
-            for direction_idx in range(parameters.ndim):
-                window_direction_idx = min(direction_idx, num_window_directions - 1)
-                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            window_direction_idx, :
-                        ]
-                    _process_wedge_backward_complex(
-                        coefficients[scale_idx][direction_idx][wedge_idx],
-                        windows[scale_idx][window_direction_idx][wedge_idx],
-                        decimation_ratio,
-                        image_frequency_high,
-                        flip_window=False,
-                    )
-
-        # Process negative frequency bands
-        for scale_idx in range(1, parameters.num_scales):
-            num_window_directions = len(windows[scale_idx])
-            for direction_idx in range(parameters.ndim):
-                window_direction_idx = min(direction_idx, num_window_directions - 1)
-                for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                    if decimation_ratios[scale_idx].shape[0] == 1:
-                        decimation_ratio = decimation_ratios[scale_idx][0, :]
-                    else:
-                        decimation_ratio = decimation_ratios[scale_idx][
-                            window_direction_idx, :
-                        ]
-                    _process_wedge_backward_complex(
-                        coefficients[scale_idx][direction_idx + parameters.ndim][
-                            wedge_idx
-                        ],
-                        windows[scale_idx][window_direction_idx][wedge_idx],
-                        decimation_ratio,
-                        image_frequency_high,
-                        flip_window=True,
-                    )
-
-        image_frequency_high = image_frequency_high * 2
-
-    image_frequency_low = torch.zeros(
-        parameters.shape, dtype=complex_dtype, device=device
-    )
     _backward_lowpass_periodized(
         coefficients[0][0][0],
         windows[0][0][0],
         decimation_ratios[0][0],
-        image_frequency_low,
+        image_frequency,
     )
-
-    image_frequency = image_frequency_high + image_frequency_low
     res: torch.Tensor = torch.fft.ifftn(image_frequency)  # pylint: disable=not-callable
     return res
 
@@ -431,8 +311,8 @@ def _apply_backward_transform(
         coefficients[scale][direction][wedge] = torch.Tensor
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands
-          * Real mode: ndim directions per scale
-          * Complex mode: 2*ndim directions per scale
+          * Real mode: ndim directions per curvelet scale (1 in wavelet mode)
+          * Complex mode: 2*ndim directions per curvelet scale (1 in wavelet mode)
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int
@@ -479,10 +359,10 @@ def _apply_backward_transform(
        each band. Windows are stored in sparse format for efficiency.
 
     4. **Combination**: All frequency bands are combined:
-       - High-frequency bands are multiplied by 2 (to account for
+       - Directional curvelet bands are multiplied by 2 (to account for
          combined +/- frequencies in real mode, or separate processing
          in complex mode)
-       - Low-frequency band is added separately
+       - Low-frequency and symmetric wavelet-mode bands count once
        - Final frequency-domain representation is obtained
 
     5. **IFFT**: Combined frequency representation is transformed back

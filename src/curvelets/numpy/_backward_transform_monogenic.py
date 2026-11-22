@@ -48,8 +48,9 @@ def _process_wedge_backward_monogenic(
     window: SparseWindow,
     decimation_ratio: _IntegerNDArray,
     accumulators: list[_HalfAccumulator],
-    factor: float = 1.0,
     fft: FFTBackend | None = None,
+    *,
+    symmetric: bool = False,
 ) -> None:
     """
     Accumulate one monogenic wedge into component frequency buffers.
@@ -73,12 +74,14 @@ def _process_wedge_backward_monogenic(
     accumulators : list of (ndarray, ndarray)
         Half-spectrum (own, mirror) accumulators for
         [scalar, riesz_1, ..., riesz_ndim] (modified in-place).
-    factor : float, optional
-        Band combination factor (2 for curvelet bands, 1 for the wavelet band).
     fft : FFTBackend, optional
         FFT implementation; defaults to ``numpy.fft``.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
     """
-    scale = factor * float(np.sqrt(np.prod(decimation_ratio) / 2.0))
+    prod_d = float(np.prod(decimation_ratio))
+    scale = float(np.sqrt(prod_d)) if symmetric else 2.0 * float(np.sqrt(prod_d / 2.0))
     _synthesize_monogenic_band(
         coefficients, window, decimation_ratio, accumulators, scale, fft
     )
@@ -147,11 +150,8 @@ def _apply_backward_transform_monogenic(
         for _ in range(num_components)
     ]
 
-    highest_scale_idx = parameters.num_scales - 1
-    wavelet_highest = len(windows[highest_scale_idx]) == 1
     for scale_idx in range(1, parameters.num_scales):
-        # Curvelet bands count twice; the wavelet-mode highest band once.
-        factor = 1.0 if wavelet_highest and scale_idx == highest_scale_idx else 2.0
+        symmetric = len(windows[scale_idx]) == 1
         for direction_idx, direction_windows in enumerate(windows[scale_idx]):
             if decimation_ratios[scale_idx].shape[0] == 1:
                 decimation_ratio = decimation_ratios[scale_idx][0, :]
@@ -163,8 +163,8 @@ def _apply_backward_transform_monogenic(
                     window,
                     decimation_ratio,
                     accumulators,
-                    factor,
                     fft,
+                    symmetric=symmetric,
                 )
 
     dec0 = decimation_ratios[0][0]

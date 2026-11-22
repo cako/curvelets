@@ -18,9 +18,13 @@ def _wedge_synthesize_scale(
     decimation_ratio: npt.NDArray[np.int_],
     *,
     complex_mode: bool = False,
+    symmetric: bool = False,
 ) -> float:
-    """Scale for periodized backward wedge (optional complex √0.5)."""
-    scale = float(np.sqrt(np.prod(decimation_ratio) / 2.0))
+    """Scale for periodized backward band (√D if symmetric, else 2√(D/2), optional complex √0.5)."""
+    prod_d = float(np.prod(decimation_ratio))
+    if symmetric:
+        return float(np.sqrt(prod_d))
+    scale = 2.0 * float(np.sqrt(prod_d / 2.0))
     if complex_mode:
         scale *= float(np.sqrt(0.5))
     return scale
@@ -32,8 +36,9 @@ def _process_wedge_backward_real(
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     image_frequency_mirror: npt.NDArray[np.complexfloating],
-    factor: float = 1.0,
     fft: FFTBackend | None = None,
+    *,
+    symmetric: bool = False,
 ) -> None:
     """
     Accumulate one real-mode wedge into the half-spectrum accumulators.
@@ -48,21 +53,23 @@ def _process_wedge_backward_real(
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency, image_frequency_mirror : npt.NDArray[np.complexfloating]
         Half-spectrum own / mirror accumulators (modified in-place).
-    factor : float, optional
-        Band combination factor (2 for curvelet bands, 1 for the wavelet band).
     fft : FFTBackend, optional
         FFT implementation; defaults to ``numpy.fft``.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Notes
     -----
     Equivalence: ``fftn(upsample(c, d)) == tile(fftn(c), d)``.
-    Scale is ``sqrt(prod(d) / 2)``, as for upsampling followed by a full-size FFT.
+    Scale is ``2 * sqrt(prod(d) / 2)`` for directional wedges and
+    ``sqrt(prod(d))`` for symmetric wavelet bands.
     """
     window.synthesize_half(
         coefficient,
         image_frequency,
         image_frequency_mirror,
-        factor * _wedge_synthesize_scale(decimation_ratio),
+        _wedge_synthesize_scale(decimation_ratio, symmetric=symmetric),
         decimation=decimation_ratio,
         fft=fft,
     )
@@ -74,8 +81,9 @@ def _process_wedge_backward_complex(
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     flip_window: bool = False,
-    factor: float = 1.0,
     fft: FFTBackend | None = None,
+    *,
+    symmetric: bool = False,
 ) -> None:
     """
     Accumulate one complex-mode wedge into ``image_frequency``.
@@ -92,15 +100,18 @@ def _process_wedge_backward_complex(
         Full-size frequency accumulator (modified in-place).
     flip_window : bool, optional
         If True, use flipped (negative-frequency) window indices.
-    factor : float, optional
-        Band combination factor (2 for curvelet bands, 1 for the wavelet band).
     fft : FFTBackend, optional
         FFT implementation; defaults to ``numpy.fft``.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
     """
     window.synthesize(
         coefficient,
         image_frequency,
-        factor * _wedge_synthesize_scale(decimation_ratio, complex_mode=True),
+        _wedge_synthesize_scale(
+            decimation_ratio, complex_mode=True, symmetric=symmetric
+        ),
         flip=flip_window,
         decimation=decimation_ratio,
         fft=fft,
@@ -122,18 +133,6 @@ def _backward_lowpass_periodized(
         decimation=decimation_ratio,
         fft=fft,
     )
-
-
-def _band_factor(
-    scale_idx: int, highest_scale_idx: int, wavelet_highest: bool
-) -> float:
-    """
-    Weight of a band in the reconstruction.
-
-    Curvelet bands count twice (their windows cover one of each ``±k`` pair);
-    the wavelet-mode highest band covers both and counts once.
-    """
-    return 1.0 if wavelet_highest and scale_idx == highest_scale_idx else 2.0
 
 
 def _decimation_for(
@@ -192,14 +191,11 @@ def _apply_backward_transform_real(
     if fft is None:
         fft = resolve_fft_engine(None, parameters.shape)
 
-    highest_scale_idx = parameters.num_scales - 1
-    wavelet_highest = len(windows[highest_scale_idx]) == 1
-
     half_shape = half_spectrum_shape(parameters.shape)
     own = np.zeros(half_shape, dtype=complex_dtype)
     mirror = np.zeros(half_shape, dtype=complex_dtype)
     for scale_idx in range(1, parameters.num_scales):
-        factor = _band_factor(scale_idx, highest_scale_idx, wavelet_highest)
+        symmetric = len(windows[scale_idx]) == 1
         for direction_idx, direction_windows in enumerate(windows[scale_idx]):
             decimation_ratio = _decimation_for(
                 decimation_ratios, scale_idx, direction_idx
@@ -211,8 +207,8 @@ def _apply_backward_transform_real(
                     decimation_ratio,
                     own,
                     mirror,
-                    factor,
                     fft,
+                    symmetric=symmetric,
                 )
 
     dec0 = decimation_ratios[0][0]
@@ -242,7 +238,7 @@ def _apply_backward_transform_complex(
     This function reconstructs a complex-valued image or volume from curvelet
     coefficients by upsampling, applying frequency-domain windows, and combining
     all bands. The complex transform mode processes positive and negative
-    frequency bands separately.
+    frequency bands separately (1 direction at the wavelet-mode highest scale).
 
     Parameters
     ----------
@@ -250,7 +246,8 @@ def _apply_backward_transform_complex(
         Curvelet coefficients from forward transform. Structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per
+          curvelet scale; 1 direction at the wavelet-mode highest scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
     parameters : ParamUDCT
@@ -278,31 +275,28 @@ def _apply_backward_transform_complex(
     if fft is None:
         fft = resolve_fft_engine(None, parameters.shape)
 
-    highest_scale_idx = parameters.num_scales - 1
-    wavelet_highest = len(windows[highest_scale_idx]) == 1
-
     image_frequency = np.zeros(parameters.shape, dtype=complex_dtype)
-    for flip_window in (False, True):
-        coeff_offset = parameters.ndim if flip_window else 0
-        for scale_idx in range(1, parameters.num_scales):
-            factor = _band_factor(scale_idx, highest_scale_idx, wavelet_highest)
-            num_window_directions = len(windows[scale_idx])
-            for direction_idx in range(parameters.ndim):
-                # The wavelet-mode highest band has one window, stored once per
-                # flip in direction 0.
-                if (
-                    wavelet_highest
-                    and scale_idx == highest_scale_idx
-                    and direction_idx != 0
-                ):
-                    continue
-                window_direction_idx = min(direction_idx, num_window_directions - 1)
-                decimation_ratio = _decimation_for(
-                    decimation_ratios, scale_idx, window_direction_idx
+    for scale_idx in range(1, parameters.num_scales):
+        if len(windows[scale_idx]) == 1:
+            decimation_ratio = _decimation_for(decimation_ratios, scale_idx, 0)
+            for wedge_idx, window in enumerate(windows[scale_idx][0]):
+                _process_wedge_backward_complex(
+                    coefficients[scale_idx][0][wedge_idx],
+                    window,
+                    decimation_ratio,
+                    image_frequency,
+                    flip_window=False,
+                    fft=fft,
+                    symmetric=True,
                 )
-                for wedge_idx, window in enumerate(
-                    windows[scale_idx][window_direction_idx]
-                ):
+            continue
+        for flip_window in (False, True):
+            coeff_offset = parameters.ndim if flip_window else 0
+            for direction_idx in range(parameters.ndim):
+                decimation_ratio = _decimation_for(
+                    decimation_ratios, scale_idx, direction_idx
+                )
+                for wedge_idx, window in enumerate(windows[scale_idx][direction_idx]):
                     _process_wedge_backward_complex(
                         coefficients[scale_idx][direction_idx + coeff_offset][
                             wedge_idx
@@ -311,8 +305,8 @@ def _apply_backward_transform_complex(
                         decimation_ratio,
                         image_frequency,
                         flip_window=flip_window,
-                        factor=factor,
                         fft=fft,
+                        symmetric=False,
                     )
 
     _backward_lowpass_periodized(
@@ -370,8 +364,8 @@ def _apply_backward_transform(
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands
-          * Real mode: ndim directions per scale
-          * Complex mode: 2*ndim directions per scale
+          * Real mode: ndim directions per curvelet scale (1 in wavelet mode)
+          * Complex mode: 2*ndim directions per curvelet scale (1 in wavelet mode)
     parameters : ParamUDCT
         UDCT parameters containing transform configuration:
         - num_scales : int

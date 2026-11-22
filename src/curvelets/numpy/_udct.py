@@ -636,7 +636,7 @@ class UDCT:
         internal_shape = np.array(self.parameters.shape)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             shapes.append([])
-            if scale_idx > 0:
+            if scale_idx > 0 and len(self.windows[scale_idx]) > 1:
                 num_directions = 2 * self.parameters.ndim
             else:
                 num_directions = len(decimation_ratios_scale)
@@ -838,25 +838,19 @@ class UDCT:
         internal_shape = np.array(self.parameters.shape)
         for scale_idx, decimation_ratios_scale in enumerate(self.decimation_ratios):
             coefficients.append([])
-            # In complex transform mode, we have 2*dim directions per scale (for scale > 0)
-            # but decimation_ratios_scale only has dim rows, so we need to handle this
-            if scale_idx > 0:
+            # Complex mode has 2*dim directions per curvelet scale, whereas
+            # scale 0 and the wavelet-mode highest scale have 1 direction.
+            if scale_idx > 0 and len(self.windows[scale_idx]) > 1:
                 num_directions = 2 * self.parameters.ndim
             else:
                 num_directions = len(decimation_ratios_scale)
 
             for direction_idx in range(num_directions):
                 coefficients[scale_idx].append([])
-                # In complex transform mode, directions >= dim reuse windows and decimation ratios
-                # from directions < dim. Negative frequency directions (dim..2*dim-1) use the same
-                # windows and decimation ratios as positive frequency directions (0..dim-1)
-                # For "wavelet" mode at highest scale, windows only has 1 direction, so use index 0
+                # Negative frequency directions (dim..2*dim-1) reuse windows and
+                # decimation ratios from positive frequency directions (0..dim-1).
                 if scale_idx > 0 and direction_idx >= self.parameters.ndim:
                     window_direction_idx = direction_idx % self.parameters.ndim
-                    # Clamp to available windows (for "wavelet" mode at highest scale)
-                    window_direction_idx = min(
-                        window_direction_idx, len(self.windows[scale_idx]) - 1
-                    )
                     decimation_ratio_dir = decimation_ratios_scale[
                         min(window_direction_idx, len(decimation_ratios_scale) - 1), :
                     ]
@@ -945,8 +939,9 @@ class UDCT:
 
               Complex scalar can be reconstructed via .view(complex_dtype) on channels 0:2.
 
-            When transform_kind="complex", directions are doubled (first ndim directions
-            for positive frequencies, next ndim for negative).
+            When transform_kind="complex", directions are doubled on curvelet scales
+            (first ndim directions for positive frequencies, next ndim for negative);
+            the symmetric wavelet-mode highest scale has 1 direction.
             Coefficients have dtype matching the input:
 
             - np.float32 input -> np.complex64 coefficients (real/complex) or np.float32 (monogenic)

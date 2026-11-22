@@ -56,9 +56,10 @@ class TestComplexTransformIntegration:
         # Verify structure: should have 3 scales (1 lowpass + 2 from angular_wedges_config)
         assert len(coeffs) == 3
 
-        # Verify highest scale has 2*ndim directions (for complex transform)
+        # Intermediate curvelet scales have 2*ndim directions; wavelet highest scale has 1
+        assert len(coeffs[1]) == 2 * transform.ndim
         highest_scale_idx = 2
-        assert len(coeffs[highest_scale_idx]) == 2 * transform.ndim
+        assert len(coeffs[highest_scale_idx]) == 1
 
         # Verify reconstruction accuracy
         assert recon.shape == data.shape
