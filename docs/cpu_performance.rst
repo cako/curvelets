@@ -53,8 +53,8 @@ Tips
 
 * **Create the** :class:`~curvelets.numpy.UDCT` **once and reuse it** for every image of the same shape. Across runs or processes, save it instead of rebuilding it (see `Saving a built transform`_).
 * **Use float32** inputs when that precision is enough: they are faster and use half the memory.
-* **Running several transforms in parallel** (for example one per process)? Set ``fft_workers=1``, or a small number, so they do not compete for the same cores.
-* **FFTW is slow to start.** With the standard pyFFTW package, the first transform of each shape takes seconds (up to a minute for large 3D shapes) to prepare. It then runs fast, so it is worth it for many transforms of one shape. ``"auto"`` therefore never picks it; ask for it with ``fft_engine="fftw"``.
+* **Run several transforms in parallel.** By default, all available CPU cores are used for the FFT. If the transform is being called from within a parallel pool, use ``fft_workers=n_cores/pool_size`` to avoid processes competing for the same cores. The FFTs also release the GIL, so you can still benefit from Python multithreading.
+* **FFTW is slow to start.** With the standard pyFFTW package, the first transform of each shape takes seconds (up to a minute for large 3D shapes) to prepare. It then runs fast, so it may be worth it for many transforms of one shape. ``"auto"`` therefore never picks it; ask for it with ``fft_engine="fftw"``.
 
 Saving a built transform
 ========================
@@ -104,7 +104,7 @@ Drop ``-march=native`` and ``--enable-avx512`` if the library must also run on o
 Intel CPUs
 ==========
 
-Try Intel MKL: ``pip install curvelets[mkl]``. ``"auto"`` compares it with SciPy and uses the faster one.
+Try Intel MKL: ``pip install curvelets[mkl]``. ``"auto"`` compares it with SciPy and uses the faster one. If you are using a NumPy/SciPy that is built with MKL (e.g. Conda, Intel oneAPI), you can just set ``fft_engine="numpy"``/``fft_engine="scipy"``, which will use the MKL FFT. 
 
 Reference speedups
 ==================
