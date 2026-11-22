@@ -267,3 +267,4 @@ ignore-words-list = "childs"
 
 [tool.uv]
 exclude-newer = "30 days"
+index-strategy = "unsafe-best-match"
