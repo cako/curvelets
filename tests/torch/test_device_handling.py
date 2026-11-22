@@ -97,7 +97,7 @@ def test_udct_module_backprop_on_device(device: str, kind: TransformKind) -> Non
             shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind
         ).to(dev)
         x = x_cpu.to(dev).requires_grad_(True)
-        module.forward_vect(x).abs().pow(2).sum().backward()
+        module.forward(x, structured=False).abs().pow(2).sum().backward()
         assert x.grad is not None
         return x.grad.cpu()
 

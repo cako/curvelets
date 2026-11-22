@@ -62,7 +62,7 @@ def test_matches_numpy(shape: tuple[int, ...], high: HighFrequencyMode) -> None:
         assert c.shape == c_ref.shape
         np.testing.assert_allclose(c.numpy(), c_ref, atol=ATOL)
     np.testing.assert_allclose(
-        udct.forward_vect(xt).numpy(), ref.vect(coeffs_ref), atol=ATOL
+        udct.forward(xt, structured=False).numpy(), ref.vect(coeffs_ref), atol=ATOL
     )
 
     # numpy's tuples of components are the first axis of the torch results.
@@ -92,7 +92,7 @@ def test_round_trip_scalar(shape: tuple[int, ...], high: HighFrequencyMode) -> N
 
 
 def test_layout_and_batching() -> None:
-    """Batched calls equal per-image calls; vect/struct/forward_vect agree."""
+    """Batched calls equal per-image calls; vect/struct/flat forward agree."""
     udct, _ = _pair((32, 30))
     x = torch.randn(2, 3, 32, 30, dtype=torch.float64)
     coeffs = udct(x)
@@ -102,7 +102,7 @@ def test_layout_and_batching() -> None:
     ):
         assert tuple(c.shape) == (2, 3, *s)
 
-    vec = udct.forward_vect(x)
+    vec = udct.forward(x, structured=False)
     assert vec.shape == (
         2,
         3,
@@ -112,11 +112,11 @@ def test_layout_and_batching() -> None:
     for a, b in zip(_wedges(udct.struct(vec)), _wedges(coeffs), strict=True):
         torch.testing.assert_close(a, b)
 
-    single = udct.forward_vect(x[1, 2])
+    single = udct.forward(x[1, 2], structured=False)
     torch.testing.assert_close(vec[1, 2], single)
-    recon = udct.backward_vect(vec)
+    recon = udct.backward(vec)
     assert recon.shape == (3, 2, 3, 32, 30)
-    torch.testing.assert_close(recon[:, 1, 2], udct.backward_vect(single))
+    torch.testing.assert_close(recon[:, 1, 2], udct.backward(single))
     torch.testing.assert_close(udct.filter(x, lambda c: c), recon)
     monogenic = udct.monogenic(x)
     assert monogenic.shape == (3, 2, 3, 32, 30)
@@ -126,11 +126,11 @@ def test_layout_and_batching() -> None:
 def test_invalid_coefficients() -> None:
     """Complex or wrongly sized coefficients are rejected."""
     udct, _ = _pair((32, 32))
-    vec = udct.forward_vect(torch.randn(32, 32, dtype=torch.float64))
+    vec = udct.forward(torch.randn(32, 32, dtype=torch.float64), structured=False)
     with pytest.raises(ValueError, match="real-valued"):
-        udct.backward_vect(vec.to(torch.complex128))
+        udct.backward(vec.to(torch.complex128))
     with pytest.raises(ValueError, match="Expected monogenic coefficients"):
-        udct.backward_vect(vec[:-1])
+        udct.backward(vec[:-1])
     coeffs = udct.struct(vec)
     coeffs[0][0][0] = coeffs[0][0][0][..., :2]
     with pytest.raises(ValueError, match="Expected monogenic coefficients"):
@@ -150,9 +150,11 @@ def test_gradcheck() -> None:
         return tuple(_wedges(udct(t)))
 
     assert torch.autograd.gradcheck(nested, (x,), fast_mode=True)
-    assert torch.autograd.gradcheck(udct.forward_vect, (x,), fast_mode=True)
-    v = udct.forward_vect(x.detach()).requires_grad_(True)
-    assert torch.autograd.gradcheck(udct.backward_vect, (v,), fast_mode=True)
+    assert torch.autograd.gradcheck(
+        (lambda t: udct.forward(t, structured=False)), (x,), fast_mode=True
+    )
+    v = udct.forward(x.detach(), structured=False).requires_grad_(True)
+    assert torch.autograd.gradcheck(udct.backward, (v,), fast_mode=True)
     assert torch.autograd.gradcheck(udct.monogenic, (x,), fast_mode=True)
 
 
@@ -166,8 +168,8 @@ def test_nested_gradients_match_flat() -> None:
     loss = loss + udct.backward(coeffs).abs().sum()
     loss.backward()
     xf = x.clone().requires_grad_(True)
-    vec = udct.forward_vect(xf)
-    (vec.pow(2).sum() + udct.backward_vect(vec).abs().sum()).backward()
+    vec = udct.forward(xf, structured=False)
+    (vec.pow(2).sum() + udct.backward(vec).abs().sum()).backward()
     assert xn.grad is not None
     assert xf.grad is not None
     torch.testing.assert_close(xn.grad, xf.grad)
@@ -177,9 +179,11 @@ def test_to_rebuilds_caches() -> None:
     """Changing the precision with .to() rebuilds the Riesz filters."""
     udct = UDCT(shape=(32, 32), transform_kind="monogenic", dtype=torch.float32)
     x = torch.randn(32, 32, dtype=torch.float64)
-    expected = udct.forward_vect(x.float()).double()
+    expected = udct.forward(x.float(), structured=False).double()
     udct.to(torch.float64)
-    torch.testing.assert_close(udct.forward_vect(x), expected, atol=1e-5, rtol=1e-4)
+    torch.testing.assert_close(
+        udct.forward(x, structured=False), expected, atol=1e-5, rtol=1e-4
+    )
     assert udct.monogenic(x)[1].dtype == torch.float64
 
 
@@ -193,25 +197,29 @@ def test_second_derivatives() -> None:
     """gradgradcheck holds for the flat forward and backward transforms."""
     udct = _small()
     x = torch.randn(16, 18, dtype=torch.float64, requires_grad=True)
-    assert torch.autograd.gradgradcheck(udct.forward_vect, (x,), fast_mode=True)
-    v = udct.forward_vect(x.detach()).requires_grad_(True)
-    assert torch.autograd.gradgradcheck(udct.backward_vect, (v,), fast_mode=True)
+    assert torch.autograd.gradgradcheck(
+        (lambda t: udct.forward(t, structured=False)), (x,), fast_mode=True
+    )
+    v = udct.forward(x.detach(), structured=False).requires_grad_(True)
+    assert torch.autograd.gradgradcheck(udct.backward, (v,), fast_mode=True)
 
 
 def test_vmap_and_func_grad() -> None:
     """torch.vmap matches batched calls; torch.func.grad matches autograd."""
     udct = _small()
     x = torch.randn(3, 16, 18, dtype=torch.float64)
-    vec = udct.forward_vect(x)
-    torch.testing.assert_close(torch.vmap(udct.forward_vect)(x), vec)
+    vec = udct.forward(x, structured=False)
     torch.testing.assert_close(
-        torch.vmap(udct.backward_vect)(vec), udct.backward_vect(vec).movedim(1, 0)
+        torch.vmap((lambda t: udct.forward(t, structured=False)))(x), vec
+    )
+    torch.testing.assert_close(
+        torch.vmap(udct.backward)(vec), udct.backward(vec).movedim(1, 0)
     )
 
     def loss(t: torch.Tensor) -> torch.Tensor:
         return (
-            udct.forward_vect(t).pow(2).sum()
-            + udct.backward_vect(udct.forward_vect(t)).abs().sum()
+            udct.forward(t, structured=False).pow(2).sum()
+            + udct.backward(udct.forward(t, structured=False)).abs().sum()
         )
 
     xg = x[0].clone().requires_grad_(True)
@@ -224,17 +232,21 @@ def test_compile_matches_eager() -> None:
     gradients included."""
     udct = _small()
     x = torch.randn(2, 16, 18, dtype=torch.float64)
-    vec = udct.forward_vect(x)  # builds the plan, layout and Riesz filters
-    recon = udct.backward_vect(vec)
+    vec = udct.forward(x, structured=False)  # builds the plan, layout and Riesz filters
+    recon = udct.backward(vec)
     torch._dynamo.reset()  # pylint: disable=protected-access
-    forward = torch.compile(udct.forward_vect, backend="aot_eager", fullgraph=True)
-    backward = torch.compile(udct.backward_vect, backend="aot_eager", fullgraph=True)
+    forward = torch.compile(
+        (lambda t: udct.forward(t, structured=False)),
+        backend="aot_eager",
+        fullgraph=True,
+    )
+    backward = torch.compile(udct.backward, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), vec)
     torch.testing.assert_close(backward(vec), recon)
 
     for fn, compiled, inp in (
-        (udct.forward_vect, forward, x),
-        (udct.backward_vect, backward, vec),
+        ((lambda t: udct.forward(t, structured=False)), forward, x),
+        (udct.backward, backward, vec),
     ):
         leaf_c = inp.clone().requires_grad_(True)
         compiled(leaf_c).pow(2).sum().backward()
@@ -253,11 +265,11 @@ def test_cuda_matches_cpu(shape: tuple[int, ...], high: HighFrequencyMode) -> No
     x = torch.randn(2, *shape, dtype=torch.float64)
     xc = x.cuda().requires_grad_(True)
     xg = x.clone().requires_grad_(True)
-    vec_cuda = udct_cuda.forward_vect(xc)
-    vec = udct.forward_vect(xg)
+    vec_cuda = udct_cuda.forward(xc, structured=False)
+    vec = udct.forward(xg, structured=False)
     torch.testing.assert_close(vec_cuda.cpu(), vec)
-    recon_cuda = udct_cuda.backward_vect(vec_cuda)
-    recon = udct.backward_vect(vec)
+    recon_cuda = udct_cuda.backward(vec_cuda)
+    recon = udct.backward(vec)
     torch.testing.assert_close(recon_cuda.cpu(), recon)
     torch.testing.assert_close(udct_cuda.monogenic(xc).cpu(), udct.monogenic(xg))
     recon_cuda.pow(2).sum().backward()

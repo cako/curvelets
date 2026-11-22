@@ -20,7 +20,7 @@ import curvelets.torch as torch_curvelets
 )  # type: ignore[untyped-decorator]
 def test_udct_gradcheck(dim: int, transform_type: str) -> None:
     """
-    Test that UDCT.forward_vect passes gradcheck for all dimensions and transform types.
+    Test that UDCT.forward(structured=False) passes gradcheck for all dimensions and transform types.
 
     Parameters
     ----------
@@ -68,7 +68,7 @@ def test_udct_gradcheck(dim: int, transform_type: str) -> None:
     # Run gradcheck with timeout protection via pytest-timeout
     # UDCT involves FFT operations which can have numerical precision issues
     result = torch.autograd.gradcheck(
-        udct.forward_vect,
+        (lambda t: udct.forward(t, structured=False)),
         input_tensor,
         fast_mode=True,
         check_undefined_grad=False,

@@ -354,9 +354,9 @@ def run_config(
         v = u.vect(c)
         err = (v.cpu() - v_ref).abs().max().item() / v_ref.abs().max().item()
         if vname == "library_vect":
-            # Flat path (forward_vect/backward_vect, no nested-list round trip).
-            fwd = lambda u=u: u.forward_vect(x)  # noqa: E731
-            bwd = lambda u=u, v=v: u.backward_vect(v)  # noqa: E731
+            # Flat path (forward(structured=False)/backward, no nested-list round trip).
+            fwd = lambda u=u: u.forward(x, structured=False)  # noqa: E731
+            bwd = lambda u=u, v=v: u.backward(v)  # noqa: E731
         else:
             fwd = lambda u=u: u.vect(u.forward(x))  # noqa: E731
             # NB: backward is fed the nested coefficients directly; before the P0
@@ -388,7 +388,7 @@ def run_config(
             dev
         )
         xg = x.clone().requires_grad_(True)
-        m.forward_vect(xg).abs().sum().backward()
+        m.forward(xg, structured=False).abs().sum().backward()
         res["udctmodule_autograd"] = "ok"
     except Exception as e:
         res["udctmodule_autograd"] = repr(e)[:200]
@@ -483,7 +483,7 @@ def run_config(
             )
             / B
         )
-        # vmap via the forward_vect path
+        # vmap via the flat forward path
         try:
             vm = torch.vmap(lambda xi: u_keep.vect(u_keep.forward(xi)))
             vm(xb_b)

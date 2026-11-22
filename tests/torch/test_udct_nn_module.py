@@ -44,7 +44,7 @@ def test_call_is_nested_forward() -> None:
     x = _image("real")
     coeffs = udct(x)
     assert isinstance(coeffs, list)
-    torch.testing.assert_close(udct.vect(coeffs), udct.forward_vect(x))
+    torch.testing.assert_close(udct.vect(coeffs), udct.forward(x, structured=False))
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
@@ -58,8 +58,8 @@ def test_nested_gradients_match_flat(kind: Kind) -> None:
     loss = loss + udct.backward(coeffs).abs().sum()
     loss.backward()
     xf = x.clone().requires_grad_(True)
-    vec = udct.forward_vect(xf)
-    (vec.abs().pow(2).sum() + udct.backward_vect(vec).abs().sum()).backward()
+    vec = udct.forward(xf, structured=False)
+    (vec.abs().pow(2).sum() + udct.backward(vec).abs().sum()).backward()
     assert xn.grad is not None
     assert xf.grad is not None
     torch.testing.assert_close(xn.grad, xf.grad)
@@ -76,15 +76,15 @@ def test_nested_forward_gradcheck(kind: Kind) -> None:
         return tuple(c for s in udct(t) for d in s for c in d)
 
     assert torch.autograd.gradcheck(nested, (x,), fast_mode=True)
-    v = udct.forward_vect(x.detach()).requires_grad_(True)
-    assert torch.autograd.gradcheck(udct.backward_vect, (v,), fast_mode=True)
+    v = udct.forward(x.detach(), structured=False).requires_grad_(True)
+    assert torch.autograd.gradcheck(udct.backward, (v,), fast_mode=True)
     # Real coefficients through the backward transform get real gradients.
     r = v.detach().real.clone().requires_grad_(True)
-    assert torch.autograd.gradcheck(udct.backward_vect, (r,), fast_mode=True)
+    assert torch.autograd.gradcheck(udct.backward, (r,), fast_mode=True)
 
 
 def test_works_inside_sequential() -> None:
-    """The bound forward_vect composes with ordinary layers."""
+    """The flat forward composes with ordinary layers."""
     udct = _udct()
 
     class Features(nn.Module):  # type: ignore[misc]
@@ -94,7 +94,7 @@ def test_works_inside_sequential() -> None:
             self.head = nn.LazyLinear(3, dtype=torch.float64)
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            return self.head(self.udct.forward_vect(x).abs())
+            return self.head(self.udct.forward(x, structured=False).abs())
 
     model = Features()
     model(_image("real", (4,))).sum().backward()
@@ -116,4 +116,4 @@ def test_udct_module_is_deprecated_and_returns_flat() -> None:
         )
     assert isinstance(module, UDCT)
     x = _image("complex", (2,))
-    torch.testing.assert_close(module(x), _udct("complex").forward_vect(x))
+    torch.testing.assert_close(module(x), _udct("complex").forward(x, structured=False))

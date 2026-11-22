@@ -112,20 +112,24 @@ def test_plan_batched_matches_single(kind: Kind) -> None:
 
 
 def test_vect_fast_path_matches_vect_forward() -> None:
-    """``UDCT.forward_vect`` equals ``vect(forward(x))``."""
+    """``UDCT.forward(x, structured=False)`` equals ``vect(forward(x))``."""
     udct = UDCT(shape=(48, 40), num_scales=3, wedges_per_direction=6)
     x = _input("real", (48, 40))
     torch.testing.assert_close(
-        udct.forward_vect(x),
+        udct.forward(x, structured=False),
         udct.vect(udct.forward(x)),
     )
 
 
 def test_forward_vect_vmap_matches_loop() -> None:
-    """``torch.vmap`` over ``forward_vect`` still works with the fused plan."""
-    module = UDCT(
+    """``torch.vmap`` over the flat ``forward`` still works with the fused plan."""
+    udct = UDCT(
         shape=(28, 28), num_scales=2, wedges_per_direction=3, dtype=torch.float64
-    ).forward_vect
+    )
+
+    def module(t: torch.Tensor) -> torch.Tensor:
+        return udct.forward(t, structured=False)
+
     batch = torch.randn(4, 28, 28, dtype=torch.float64)
     batched = torch.vmap(module)(batch)
     for i in range(4):
@@ -181,11 +185,11 @@ def test_small_cpu_chunks_match_csr(
     plan = _use_strategy(udct, "scatter")
     assert plan.cpu_chunks is not None
     assert len(plan.cpu_chunks) > len(plan.groups)
-    blocked = udct.forward_vect(x)
-    blocked_back = udct.backward_vect(blocked)
+    blocked = udct.forward(x, structured=False)
+    blocked_back = udct.backward(blocked)
     _use_strategy(udct, "csr")
-    torch.testing.assert_close(blocked, udct.forward_vect(x))
-    torch.testing.assert_close(blocked_back, udct.backward_vect(blocked))
+    torch.testing.assert_close(blocked, udct.forward(x, structured=False))
+    torch.testing.assert_close(blocked_back, udct.backward(blocked))
 
 
 @pytest.mark.parametrize("fold_cls", [CsrFold, ScatterFold])  # type: ignore[untyped-decorator]
@@ -448,21 +452,21 @@ def test_direct_and_autograd_paths_agree(kind: Kind) -> None:
         shape=(48, 40), num_scales=3, wedges_per_direction=6, transform_kind=kind
     )
     x = _input(kind, (48, 40))
-    fast = udct.forward_vect(x)
-    slow = udct.forward_vect(x.clone().requires_grad_(True))
+    fast = udct.forward(x, structured=False)
+    slow = udct.forward(x.clone().requires_grad_(True), structured=False)
     torch.testing.assert_close(slow.detach(), fast, rtol=0, atol=0)
-    back_fast = udct.backward_vect(fast)
-    back_slow = udct.backward_vect(fast.clone().requires_grad_(True))
+    back_fast = udct.backward(fast)
+    back_slow = udct.backward(fast.clone().requires_grad_(True))
     torch.testing.assert_close(back_slow.detach(), back_fast, rtol=0, atol=0)
 
 
 def test_backward_accepts_real_coefficients() -> None:
     """Real-valued coefficients (e.g. after taking .real) are promoted to complex."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    vec = udct.forward_vect(_input("real", (32, 32))).real
+    vec = udct.forward(_input("real", (32, 32)), structured=False).real
     torch.testing.assert_close(
-        udct.backward_vect(vec),
-        udct.backward_vect(vec.to(torch.complex128)),
+        udct.backward(vec),
+        udct.backward(vec.to(torch.complex128)),
     )
 
 
@@ -471,13 +475,13 @@ def test_cpu_scratch_reuse_does_not_leak_between_calls() -> None:
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
     x1 = _input("real", (32, 32), seed=1)
     x2 = _input("real", (32, 32), seed=2)
-    first = udct.forward_vect(x1).clone()
-    second = udct.forward_vect(x2)
-    torch.testing.assert_close(udct.forward_vect(x1), first)
+    first = udct.forward(x1, structured=False).clone()
+    second = udct.forward(x2, structured=False)
+    torch.testing.assert_close(udct.forward(x1, structured=False), first)
     fresh = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    torch.testing.assert_close(second, fresh.forward_vect(x2))
+    torch.testing.assert_close(second, fresh.forward(x2, structured=False))
     batch = torch.stack([x1, x2])
-    torch.testing.assert_close(udct.forward_vect(batch)[0], first)
+    torch.testing.assert_close(udct.forward(batch, structured=False)[0], first)
 
 
 def test_plan_rejects_unknown_strategy() -> None:

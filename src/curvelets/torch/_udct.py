@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Callable
 from math import sqrt
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, overload
 
 import numpy as np
 import torch
@@ -44,9 +45,9 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
     Forward and backward curvelet transforms (real, complex or monogenic) as
     a :class:`torch.nn.Module` with no learnable parameters. Calling the module
-    (``udct(x)``) is :meth:`forward`; :meth:`forward_vect` and
-    :meth:`backward_vect` work on the flat :meth:`vect` layout instead of
-    nested lists, which suits networks and optimizers.
+    (``udct(x)``) is :meth:`forward`; ``forward(x, structured=False)`` and
+    :meth:`backward` of a flat tensor work on the :meth:`vect` layout instead
+    of nested lists, which suits networks and optimizers.
 
     Gradients of every transform come from the adjoint transform: the UDCT is
     a tight frame, so the gradient of the forward transform is the backward
@@ -193,7 +194,7 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     True
     >>> # Flat coefficients and gradients, e.g. inside a network
     >>> x = torch.randn(4, 64, 64, requires_grad=True)
-    >>> features = transform.forward_vect(x)  # shape (4, ncoef)
+    >>> features = transform.forward(x, structured=False)  # shape (4, ncoef)
     >>> features.abs().pow(2).sum().backward()
     >>> x.grad.shape
     torch.Size([4, 64, 64])
@@ -822,12 +823,30 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         """Private method for monogenic coefficient restructuring (no input validation)."""
         return self._get_monogenic_layout(vector.device).unflatten(vector)
 
-    def forward(self, image: torch.Tensor) -> UDCTCoefficients:
+    @overload
+    def forward(
+        self, image: torch.Tensor, structured: Literal[True] = True
+    ) -> UDCTCoefficients: ...
+
+    @overload
+    def forward(
+        self, image: torch.Tensor, structured: Literal[False]
+    ) -> torch.Tensor: ...
+
+    @overload
+    def forward(
+        self, image: torch.Tensor, structured: bool
+    ) -> UDCTCoefficients | torch.Tensor: ...
+
+    def forward(
+        self, image: torch.Tensor, structured: bool = True
+    ) -> UDCTCoefficients | torch.Tensor:
         """
         Apply forward curvelet transform.
 
         .. versionchanged:: 1.3
-           Leading batch dimensions are supported.
+           Leading batch dimensions are supported, and ``structured=False``
+           returns the flat :meth:`vect` layout directly.
 
         Parameters
         ----------
@@ -837,11 +856,19 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
             - For transform_kind="real" or "monogenic": must be real-valued
             - For transform_kind="complex": can be real-valued or complex-valued
+        structured : bool, default True
+            If True, return the nested coefficients. If False, return the flat
+            tensor that :meth:`vect` would produce, without building the nested
+            list (``forward(x, structured=False)`` equals
+            ``vect(forward(x))``); :meth:`backward` accepts it as is.
+
+            .. versionadded:: 1.3
 
         Returns
         -------
-        UDCTCoefficients
-            Curvelet coefficients organized by scale, direction, and wedge, each
+        UDCTCoefficients | torch.Tensor
+            With ``structured=False``, a tensor of shape ``(*batch, ncoef)``.
+            Otherwise curvelet coefficients organized by scale, direction, and wedge, each
             of shape ``(*batch, *wedge_shape)``.
             For monogenic transforms, each coefficient tensor is real with shape
             ``(*batch, *wedge_shape, ndim+2)``, channels
@@ -859,8 +886,15 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         8
         >>> transform.backward(coeffs).shape
         torch.Size([8, 32, 32])
+        >>> flat = transform.forward(batch, structured=False)
+        >>> torch.allclose(flat, transform.vect(coeffs))
+        True
         """
         self._check_input(image)
+        if not structured:
+            if self._transform_kind == "monogenic":
+                return self._forward_monogenic_flat(image)
+            return self._forward_flat(image)
         if self._transform_kind == "monogenic":
             return self._struct_monogenic(self._forward_monogenic_flat(image))
         if self._cuda_graphs or _may_need_grad(image):
@@ -930,7 +964,7 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         >>> transform.filter(noisy, hard_threshold).shape
         torch.Size([4, 32, 32])
         """
-        return self.backward_vect(fn(self.forward_vect(image)))
+        return self.backward(fn(self.forward(image, structured=False)))
 
     def _get_plan(self) -> UDCTPlan:
         """Fused plan of the real/complex transform (built on first use).
@@ -954,60 +988,31 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
     def forward_vect(self, image: torch.Tensor) -> torch.Tensor:
         """
-        Forward transform straight to the flat :meth:`vect` layout.
+        Deprecated alias of ``forward(image, structured=False)``.
 
-        Equals ``vect(forward(image))`` without building the nested list.
-
-        .. versionadded:: 1.3
-
-        Parameters
-        ----------
-        image : torch.Tensor
-            Input of shape ``(*batch, *self.shape)``.
-
-        Returns
-        -------
-        torch.Tensor
-            Coefficients of shape ``(*batch, ncoef)``.
-
-        Examples
-        --------
-        >>> import torch
-        >>> from curvelets.torch import UDCT
-        >>> transform = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-        >>> x = torch.randn(32, 32)
-        >>> torch.allclose(transform.forward_vect(x), transform.vect(transform(x)))
-        True
+        .. deprecated:: 1.3
+           Use ``forward(image, structured=False)``.
         """
-        self._check_input(image)
-        if self._transform_kind == "monogenic":
-            return self._forward_monogenic_flat(image)
-        return self._forward_flat(image)
+        warnings.warn(
+            "forward_vect is deprecated: use forward(image, structured=False).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.forward(image, structured=False)
 
     def backward_vect(self, vector: torch.Tensor) -> torch.Tensor:
         """
-        Backward transform from the flat :meth:`vect` layout.
+        Deprecated alias of ``backward(vector)``.
 
-        Equals ``backward(struct(vector))``.
-
-        .. versionadded:: 1.3
-
-        Parameters
-        ----------
-        vector : torch.Tensor
-            Coefficients of shape ``(*batch, ncoef)``.
-
-        Returns
-        -------
-        torch.Tensor
-            Reconstruction of shape ``(*batch, *self.shape)``; for the
-            monogenic transform, ``(ndim + 1, *batch, *self.shape)`` (see
-            :meth:`backward`).
+        .. deprecated:: 1.3
+           :meth:`backward` accepts the flat tensor directly.
         """
-        check_dtype(vector, self.dtype, "coefficients")
-        if self._transform_kind == "monogenic":
-            return self._backward_monogenic_flat(vector)
-        return self._backward_flat(vector)
+        warnings.warn(
+            "backward_vect is deprecated: backward accepts the flat tensor.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.backward(vector)
 
     def _get_monogenic_layout(self, device: torch.device) -> MonogenicLayout:
         """Monogenic coefficient layout, with its index maps on ``device``."""
@@ -1057,18 +1062,21 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         images = images.movedim(-self._params.ndim - 1, 0)
         return torch.cat([images[:1], -images[1:]])
 
-    def backward(self, coefficients: UDCTCoefficients) -> torch.Tensor:
+    def backward(self, coefficients: UDCTCoefficients | torch.Tensor) -> torch.Tensor:
         """
         Apply backward (inverse) curvelet transform.
 
         .. versionchanged:: 1.3
-           Leading batch dimensions are supported.
+           Leading batch dimensions are supported, and the flat tensor of
+           ``forward(x, structured=False)`` is accepted.
 
         Parameters
         ----------
-        coefficients : UDCTCoefficients
+        coefficients : UDCTCoefficients | torch.Tensor
             Curvelet coefficients from forward transform, each of shape
-            ``(*batch, *wedge_shape)``.
+            ``(*batch, *wedge_shape)``, or the flat tensor of shape
+            ``(*batch, ncoef)`` from ``forward(x, structured=False)`` or
+            :meth:`vect`.
 
         Returns
         -------
@@ -1084,6 +1092,11 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
             numpy, each Riesz channel only keeps the real part of its
             coefficients, so these components are not exact.
         """
+        if isinstance(coefficients, torch.Tensor):
+            check_dtype(coefficients, self.dtype, "coefficients")
+            if self._transform_kind == "monogenic":
+                return self._backward_monogenic_flat(coefficients)
+            return self._backward_flat(coefficients)
         if self._transform_kind == "monogenic":
             flat = self._vect_monogenic(coefficients)
             check_dtype(flat, self.dtype, "coefficients")

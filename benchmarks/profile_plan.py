@@ -35,16 +35,16 @@ def main() -> None:
     x = torch.randn(shape, device=dev)
     if args.kind == "complex":
         x = torch.complex(x, torch.randn(shape, device=dev))
-    vec = udct.forward_vect(x)
+    vec = udct.forward(x, structured=False)
     for _ in range(3):
-        udct.backward_vect(udct.forward_vect(x))
+        udct.backward(udct.forward(x, structured=False))
     acts = [ProfilerActivity.CPU] + (
         [ProfilerActivity.CUDA] if dev.type == "cuda" else []
     )
     sort = "cuda_time_total" if dev.type == "cuda" else "cpu_time_total"
     calls: list[tuple[str, Callable[[], torch.Tensor]]] = [
-        ("forward", lambda: udct.forward_vect(x)),
-        ("backward", lambda: udct.backward_vect(vec)),
+        ("forward", lambda: udct.forward(x, structured=False)),
+        ("backward", lambda: udct.backward(vec)),
     ]
     for name, fn in calls:
         with profile(activities=acts) as prof:

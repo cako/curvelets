@@ -50,8 +50,12 @@ def test_forward_rejects_wrong_trailing_shape() -> None:
 
 
 def test_forward_vect_batched_matches_vmap() -> None:
-    """forward_vect on a batch equals vmap over single images, gradients included."""
-    module = UDCT(shape=SHAPE, num_scales=3, wedges_per_direction=3).forward_vect
+    """flat forward on a batch equals vmap over single images, gradients included."""
+    udct = UDCT(shape=SHAPE, num_scales=3, wedges_per_direction=3)
+
+    def module(t: torch.Tensor) -> torch.Tensor:
+        return udct.forward(t, structured=False)
+
     x = _batch("real", 5)
     torch.testing.assert_close(module(x), torch.vmap(module)(x))
 

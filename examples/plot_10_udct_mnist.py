@@ -18,7 +18,7 @@ Architecture Overview
 #####################
 
 - **Input**: MNIST images (28x28 grayscale)
-- **Feature extraction**: ``UDCT.forward_vect`` transforms each image into curvelet coefficients
+- **Feature extraction**: ``UDCT.forward(x, structured=False)`` transforms each image into curvelet coefficients
 - **Features**: All coefficient values (every pixel in every wedge) form the feature vector
 - **Classification**: Two-layer MLP (Linear -> ReLU -> Linear) maps features to 10 classes
 - **Batch processing**: ``UDCT`` transforms a whole batch in one call
@@ -75,17 +75,17 @@ class UDCTNet(nn.Module):  # type: ignore[misc]
             wedges_per_direction=wedges_per_direction,
         )
         # Precompute number of features via dummy forward pass during init
-        # forward_vect returns flattened coefficients (all pixels in all wedges)
+        # forward(structured=False) returns flattened coefficients (all pixels in all wedges)
         with torch.inference_mode():
             dummy = torch.zeros(shape)
-            n_features = self.udct.forward_vect(dummy).numel()
+            n_features = self.udct.forward(dummy, structured=False).numel()
         self.fc1 = nn.Linear(n_features, hidden_size)
         self.fc2 = nn.Linear(hidden_size, 10)
 
     def _extract_features(self, x: torch.Tensor) -> torch.Tensor:
         """Extract all curvelet coefficients from a single 2D image."""
         # Flattened coefficients - take abs to get real features
-        return self.udct.forward_vect(x).abs()
+        return self.udct.forward(x, structured=False).abs()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass with batched curvelet feature extraction."""

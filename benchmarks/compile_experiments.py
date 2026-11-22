@@ -160,7 +160,7 @@ def main() -> None:
         udct = UDCT(shape=shape, num_scales=ns, wedges_per_direction=wpd)
         udct.apply_to_tensors(lambda t: t.to(dev))
         x1 = torch.randn((1, *shape), device=dev)
-        udct.forward_vect(x1)
+        udct.forward(x1, structured=False)
         plan = udct._get_plan()  # pylint: disable=protected-access
         fwd, bwd = plan.forward_flat, plan.backward_flat
         for batch in (int(b) for b in args.batch.split(",")):
@@ -229,8 +229,8 @@ def main() -> None:
                     cuda_graphs=True,
                 )
                 graphed_udct.apply_to_tensors(lambda t: t.to(dev))
-                fwd_g = graphed_udct.forward_vect
-                bwd_g = graphed_udct.backward_vect
+                fwd_g = lambda t: graphed_udct.forward(t, structured=False)
+                bwd_g = graphed_udct.backward
                 report(
                     cfg,
                     batch,

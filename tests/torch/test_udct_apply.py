@@ -53,7 +53,7 @@ class TestUDCTApply:
         udct = udct.float()
 
         x = torch.randn(28, 28, dtype=torch.float32)
-        y = udct.forward_vect(x)
+        y = udct.forward(x, structured=False)
 
         assert y.dtype == torch.complex64
 
@@ -62,7 +62,7 @@ class TestUDCTApply:
         udct = udct.double()
 
         x = torch.randn(28, 28, dtype=torch.float64)
-        y = udct.forward_vect(x)
+        y = udct.forward(x, structured=False)
 
         assert y.dtype == torch.complex128
 
@@ -75,5 +75,5 @@ class TestUDCTApply:
         assert window.values.dtype == torch.float32
 
         x = torch.randn(28, 28, dtype=torch.float32)
-        y = udct.forward_vect(x)
+        y = udct.forward(x, structured=False)
         assert y.dtype == torch.complex64

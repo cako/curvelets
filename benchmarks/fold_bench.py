@@ -3,7 +3,7 @@
 For each configuration and batch size, on the same plan:
 
 - ``fold``: the forward and backward folds alone (device ms, back to back);
-- ``e2e``: ``UDCT.forward_vect`` / ``UDCT.backward_vect`` (wall ms with a sync
+- ``e2e``: ``UDCT.forward(structured=False)`` / ``UDCT.backward`` (wall ms with a sync
   per call, and device ms back to back), plain and with ``cuda_graphs=True``;
 - peak extra memory of one end-to-end call, and the size of the fold tables.
 
@@ -91,7 +91,7 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
     rows = []
     for batch in batches:
         x = torch.randn(batch, *shape, device="cuda")
-        coeffs = udct.forward_vect(x)
+        coeffs = udct.forward(x, structured=False)
         spectrum = plan._spectrum(x)  # pylint: disable=protected-access
         small = plan._batched_ffts(coeffs, torch.fft.fftn, coeffs.dtype)  # pylint: disable=protected-access
         for variant in ("torch", "triton"):
@@ -103,8 +103,8 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
             rec["fold_fwd_dev"] = timeit(partial(apply_fwd, spectrum))[1]
             rec["fold_bwd_dev"] = timeit(partial(apply_bwd, small))[1]
             calls: dict[str, Callable[[], object]] = {
-                "fwd": partial(udct.forward_vect, x),
-                "inv": partial(udct.backward_vect, coeffs),
+                "fwd": partial(udct.forward, x, structured=False),
+                "inv": partial(udct.backward, coeffs),
             }
             for key, fn in calls.items():
                 udct.cuda_graphs = False
@@ -121,10 +121,12 @@ def run_config(name: str, batches: list[int], graphs: bool) -> list[dict[str, An
         fwd.apply = fwd._apply_triton
         bwd.apply = bwd._apply_triton
         # Same results either way.
-        ref = udct.forward_vect(x)
+        ref = udct.forward(x, structured=False)
         fwd.apply = fwd._apply_torch
         bwd.apply = bwd._apply_torch
-        err = ((ref - udct.forward_vect(x)).abs().max() / ref.abs().max()).item()
+        err = (
+            (ref - udct.forward(x, structured=False)).abs().max() / ref.abs().max()
+        ).item()
         fwd.apply = fwd._apply_triton
         bwd.apply = bwd._apply_triton
         print(f"# {name} B={batch}: max rel diff triton vs torch {err:.1e}", flush=True)
