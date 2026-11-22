@@ -15,6 +15,7 @@
 [![Actions Status][actions-badge]][actions-link]
 [![Documentation Status][rtd-badge]][rtd-link]
 [![codecov](https://codecov.io/github/cako/curvelets/graph/badge.svg?token=T16E0ANTLR)](https://codecov.io/github/cako/curvelets)
+[![DOI](https://zenodo.org/badge/759261079.svg)](https://doi.org/10.5281/zenodo.24450134)
 
 [![PyPI version][pypi-version]][pypi-link]
 ![PyPI downloads](https://img.shields.io/pypi/dm/curvelets.svg?label=Pypi%20downloads)
