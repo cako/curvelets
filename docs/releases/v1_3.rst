@@ -1,7 +1,7 @@
 1.3
 ===
 
-*In development.* A performance release. The PyTorch transform on a GPU is **18–75x faster** than 1.2 for a single image (forward plus backward) and up to **~500x faster** for batches. Building a transform takes **up to ~13x less time** and uses up to 65% less memory on both backends. The NumPy transform is **1.5–2x faster** without any extra library and up to **7.6x faster** with SciPy installed.
+*In development.* A performance release. The PyTorch transform on a GPU is **18–75x faster** than 1.2 for a single image (forward plus backward), up to **~500x faster** for batches, and up to **~900x faster** (nearly **1,000x** forward) with CUDA graphs. Building a transform takes **up to ~13x less time** and uses up to 65% less memory on both backends. The NumPy transform is **1.5–2x faster** without any extra library and up to **7.6x faster** with SciPy installed.
 
 The PyTorch ``UDCT`` is now an ``nn.Module``, the monogenic transform is available in PyTorch, and there are four new gallery examples. For the mechanisms behind the speedups, with diagrams, see :doc:`v1_3_under_the_hood`.
 
@@ -82,7 +82,7 @@ For a batch of 8 images the forward transform is 117–494x faster. 1.2 has no b
      - 4.91 ms
      - 132x
 
-With ``UDCT(cuda_graphs=True)``, a single forward takes 0.072 ms at 512², 0.165 ms at 1024² and 0.098 ms at 3D 64³: 133x, 261x and 797x faster than 1.2. Graphs help launch-bound sizes (small and medium inputs, small batches); for large batches the plain path is as fast or faster.
+With ``UDCT(cuda_graphs=True)``, a single forward takes 0.072 ms at 512², 0.165 ms at 1024² and 0.098 ms at 3D 64³ (133x, 261x and 797x faster than 1.2), and a single-image round trip takes 0.14 ms at 512², 0.34 ms at 1024² and 0.19 ms at 3D 64³ (119x, 210x and 667x faster). For a batch of 8 with ``cuda_graphs=True``, a round trip takes 0.52 ms at 512² (15,300 images/s, 250x) and 1.13 ms at 3D 64³ (7,060 images/s, **908x** round trip; 0.58 ms or **974x** forward). Graphs help launch-bound sizes (small and medium inputs, small batches); for large batches the plain path is as fast or faster.
 
 Building a transform
 ^^^^^^^^^^^^^^^^^^^^
@@ -178,7 +178,7 @@ Technologies
 ^^^^^^^^^^^^
 
 - **CUDA graphs.** ``UDCT(..., cuda_graphs=True)`` records each flat forward and backward once and replays it, including under autograd. (:pr:`92`)
-- **Fused Triton fold kernel.** On CUDA the fold runs as one CSR kernel per direction with no atomics, 10–36% faster end to end. (:pr:`94`)
+- **Fused Triton fold kernel.** On CUDA the fold runs as one CSR kernel per direction with no atomics, 10–36% faster end to end. (:pr:`94`, :pr:`125`)
 - **torch.compile support.** ``forward_vect`` and ``backward_vect`` compile with ``fullgraph=True``. (:pr:`90`, :pr:`111`)
 - **Pluggable FFT engines for NumPy:** ``UDCT(..., fft_engine=None | "scipy" | "numpy" | "auto" | "fftw" | "mkl_fft", fft_workers=None)``. The default is SciPy when it is installed and :mod:`numpy.fft` otherwise. AMD's FFTW is detected at run time, and ``"auto"`` times the installed engines once per shape. New extras: ``curvelets[scipy]``, ``curvelets[fftw]`` and ``curvelets[mkl]``. See :ref:`cpu-performance`. (:pr:`97`)
 - **Usable-CPU detection.** Worker counts use the process's CPU affinity rather than ``os.cpu_count()``, and ``fft_workers`` also sets the number of window-building threads. (:pr:`97`, :pr:`114`)
@@ -203,6 +203,7 @@ Bug fixes
 ---------
 
 - ``import curvelets`` failed on Python 3.12 and later after a bare ``pip install curvelets`` because ``typing_extensions`` was imported unconditionally. (:pr:`98`)
+- Window construction now warns when an axis length is not a multiple of ``lcm(4, *decimation_ratios)``—a tighter anti-aliasing and partition-of-unity condition than divisibility by the decimation ratios alone (Nguyen & Chauris 2010), without which periodized folding silently loses about ``1e-2`` in round-trip accuracy. (:pr:`124`)
 - Backpropagation through ``UDCTModule`` failed on CUDA because of a device mismatch in ``struct()``, and ``.to()`` dropped the precomputed index maps so every later call recomputed them. (:pr:`82`)
 - A transform loaded onto another device (for example ``torch.load(..., map_location="cpu")`` of a transform that had run on CUDA) failed with a Triton error. The plan is now rebuilt for the new device, and pickling and ``torch.save`` are tested for both backends. (:pr:`109`)
 - A real input to the complex PyTorch transform failed in the adjoint path. It now receives the real part, following PyTorch's convention. (:pr:`104`)
