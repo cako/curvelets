@@ -28,7 +28,7 @@ import torch
 
 from ._triton_fold import CsrFold, _functorch_wrapped, _index_dtype
 
-__all__ = ["CsrFold", "ScatterFold"]
+__all__ = ["CsrFold", "ScatterFold", "_functorch_wrapped", "_index_dtype"]
 
 
 @dataclass

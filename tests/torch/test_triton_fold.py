@@ -210,7 +210,8 @@ def test_autograd_matches_torch_gradient(monkeypatch: pytest.MonkeyPatch) -> Non
     xg2 = x.clone().requires_grad_(True)
     plan_torch.backward_flat(plan_torch.forward_flat(xg2)).sum().backward()
 
-    assert xg1.grad is not None and xg2.grad is not None
+    assert xg1.grad is not None
+    assert xg2.grad is not None
     torch.testing.assert_close(xg1.grad, xg2.grad, rtol=1e-10, atol=1e-10)
 
 
