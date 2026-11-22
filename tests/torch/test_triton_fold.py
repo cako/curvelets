@@ -99,9 +99,7 @@ KERNEL_CASES = [
 ]
 
 
-@pytest.mark.parametrize(
-    ("shape", "ns", "wpd", "kind", "dtype", "batch"), KERNEL_CASES
-)  # type: ignore[untyped-decorator]
+@pytest.mark.parametrize(("shape", "ns", "wpd", "kind", "dtype", "batch"), KERNEL_CASES)  # type: ignore[untyped-decorator]
 def test_kernel_matches_torch_fold(
     monkeypatch: pytest.MonkeyPatch,
     shape: tuple[int, ...],
