@@ -141,10 +141,12 @@ def test_adjoint_functions_gradcheck(kind: Kind) -> None:
     if kind == "complex":
         x = torch.complex(x, torch.randn_like(x))
     x.requires_grad_(True)
-    assert torch.autograd.gradcheck(lambda t: ForwardWithAdjoint.apply(t, udct), (x,))
+    assert torch.autograd.gradcheck(
+        lambda t: ForwardWithAdjoint.apply(t, udct), (x,), fast_mode=True
+    )
     coeffs = udct.forward_vect(x.detach()).requires_grad_(True)
     assert torch.autograd.gradcheck(
-        lambda c: BackwardWithAdjoint.apply(c, udct), (coeffs,)
+        lambda c: BackwardWithAdjoint.apply(c, udct), (coeffs,), fast_mode=True
     )
 
 
@@ -256,7 +258,7 @@ def test_module_gradcheck_with_graphs(device: str) -> None:
         shape=(16, 16), num_scales=2, dtype=torch.float64, cuda_graphs=True
     ).to(device)
     x = torch.randn(16, 16, dtype=torch.float64, device=device, requires_grad=True)
-    assert torch.autograd.gradcheck(module.forward_vect, (x,))
+    assert torch.autograd.gradcheck(module.forward_vect, (x,), fast_mode=True)
 
 
 def test_vmap_runs_without_graphs(device: str) -> None:

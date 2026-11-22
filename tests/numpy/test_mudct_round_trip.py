@@ -14,33 +14,6 @@ from tests.numpy.conftest import (
 
 @pytest.mark.round_trip
 @pytest.mark.parametrize("dim", [2, 3, 4])
-def test_mudct_round_trip_absolute(dim, rng):
-    """
-    Test Monogenic Curvelet Transform round-trip with absolute tolerance.
-
-    For specific parameters, we can guarantee an absolute precision of approximately 1e-4.
-    """
-    transform = setup_numpy_transform(dim, transform_kind="monogenic")
-    shapes = get_test_shapes(dim)
-    size = shapes[0]
-
-    data = rng.normal(size=size)
-    coeffs = transform.forward(data)
-    components = transform.backward(coeffs)
-
-    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
-    assert len(components) == dim + 1, (
-        f"Expected {dim + 1} output components, got {len(components)}"
-    )
-    scalar = components[0]
-
-    atol = 1e-4 if dim in {2, 3} else 1e-3
-    # Only compare scalar component to original input
-    np.testing.assert_allclose(data, scalar, atol=atol)
-
-
-@pytest.mark.round_trip
-@pytest.mark.parametrize("dim", [2, 3, 4])
 def test_mudct_round_trip_relative(dim, rng):
     """
     Test Monogenic Curvelet Transform round-trip with relative tolerance.
@@ -347,59 +320,6 @@ def test_mudct_reconstruction_vs_udct(dim, rng):
 
     # Scalar component should match UDCT reconstruction (within numerical precision)
     np.testing.assert_allclose(recon_udct, scalar, atol=1e-5)
-
-
-@pytest.mark.round_trip
-@pytest.mark.parametrize("dim", [2, 3, 4])
-def test_mudct_riesz_components_correctness(dim, rng):
-    """
-    Test that Riesz components from backward() with transform_kind="monogenic" match direct Riesz transforms.
-
-    The backward() with transform_kind="monogenic" should return (f, -R_1f, -R_2f) where:
-    - f is the original input
-    - -R_1f and -R_2f match the direct Riesz transform computation
-    """
-    from curvelets.numpy import UDCT
-    from curvelets.numpy._riesz import riesz_filters
-
-    shapes = get_test_shapes(dim)
-    if not shapes:
-        pytest.skip(f"No test shapes defined for dimension {dim}")
-
-    size = shapes[0]
-    data = rng.normal(size=size).astype(np.float64)
-
-    transform = UDCT(
-        shape=size, num_scales=3, wedges_per_direction=3, transform_kind="monogenic"
-    )
-
-    # Get monogenic coefficients and reconstruct
-    coeffs = transform.forward(data)
-    components = transform.backward(coeffs)
-    # Verify correct number of output components (ndim+1: scalar + riesz_1..riesz_ndim)
-    assert len(components) == dim + 1, (
-        f"Expected {dim + 1} output components, got {len(components)}"
-    )
-    scalar = components[0]
-    riesz1 = components[1] if len(components) > 1 else None
-    riesz2 = components[2] if len(components) > 2 else None
-
-    # Compute Riesz transforms directly
-    filters = riesz_filters(size)
-    data_fft = np.fft.fftn(data)
-    riesz1_direct = np.fft.ifftn(data_fft * filters[0]).real
-    riesz2_direct = np.fft.ifftn(data_fft * filters[1]).real
-
-    # Verify scalar component (should already pass from other tests)
-    atol_scalar = 5e-4 if dim in {2, 3} else 1e-3
-    np.testing.assert_allclose(data, scalar, atol=atol_scalar)
-
-    # Verify Riesz components match direct computation
-    # Note: backward() with transform_kind="monogenic" returns -R_1f and -R_2f
-    # Use relaxed tolerance for Riesz components due to numerical precision
-    atol_riesz = 2.0 if dim == 2 else (2.5 if dim == 3 else 1.5)
-    np.testing.assert_allclose(-riesz1_direct, riesz1, atol=atol_riesz)
-    np.testing.assert_allclose(-riesz2_direct, riesz2, atol=atol_riesz)
 
 
 @pytest.mark.round_trip

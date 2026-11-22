@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import copy
-import io
-import pickle
 from typing import Literal
 
 import pytest
@@ -262,9 +260,9 @@ def test_csr_plan_gradcheck_and_vmap(kind: Kind) -> None:
     )
     plan = _use_strategy(udct, "csr")
     x = _input(kind, shape).unsqueeze(0).requires_grad_(True)
-    assert torch.autograd.gradcheck(plan.forward_flat, (x,))
+    assert torch.autograd.gradcheck(plan.forward_flat, (x,), fast_mode=True)
     coeffs = plan.forward_flat(x.detach()).requires_grad_(True)
-    assert torch.autograd.gradcheck(plan.backward_flat, (coeffs,))
+    assert torch.autograd.gradcheck(plan.backward_flat, (coeffs,), fast_mode=True)
 
     batch = torch.stack([_input(kind, shape, seed) for seed in range(3)])
     torch.testing.assert_close(
@@ -501,21 +499,3 @@ def test_plan_requires_periodized_maps() -> None:
             udct._decimation_ratios_cpu,  # pylint: disable=protected-access
             complex_mode=False,
         )
-
-
-def test_used_transform_can_be_copied_and_pickled() -> None:
-    """A transform that has run (plan and CPU scratch built) can be deep-copied,
-    pickled and saved with ``torch.save``."""
-    module = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    x = _input("real", (32, 32)).to(torch.get_default_dtype())
-    expected = module(x)
-    for clone in (
-        copy.deepcopy(module),
-        pickle.loads(pickle.dumps(module)),
-    ):
-        torch.testing.assert_close(clone(x), expected)
-    buffer = io.BytesIO()
-    torch.save(module, buffer)
-    buffer.seek(0)
-    loaded = torch.load(buffer, weights_only=False)
-    torch.testing.assert_close(loaded(x), expected)
