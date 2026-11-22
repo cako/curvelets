@@ -218,9 +218,7 @@ def test_gradients_match_plain_autograd(kind: Kind, device: str) -> None:
         return grad
 
     torch.testing.assert_close(image_grad(graphed), image_grad(plain))
-    assert (
-        len(graphed._graphs) == 2
-    )  # forward, and backward as its gradient  # pylint: disable=protected-access
+    assert len(graphed._graphs) == 2  # forward, and backward as its gradient  # pylint: disable=protected-access
 
     coeffs = plain.forward(x, structured=False)
 

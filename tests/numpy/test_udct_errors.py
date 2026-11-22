@@ -69,6 +69,6 @@ def test_complex_input_real_transform(rng):
     data = rng.normal(size=(64, 64)) + 1j * rng.normal(size=(64, 64))
     with pytest.raises(
         ValueError,
-        match="Real transform requires real-valued input.*Use transform_kind='complex'",
+        match=r"Real transform requires real-valued input.*Use transform_kind='complex'",
     ):
         transform.forward(data)

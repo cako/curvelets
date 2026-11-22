@@ -302,16 +302,24 @@ def test_csr_plan_compiles_to_one_graph(kind: Kind) -> None:
     x = _input(kind, shape).unsqueeze(0).repeat(2, 1, 1)
     coeffs = plan.forward_flat(x)
     torch._dynamo.reset()  # pylint: disable=protected-access
-    forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    try:
+        forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    except RuntimeError as exc:
+        if "not supported on Python" in str(exc):
+            pytest.skip(str(exc))
+        raise
     backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), coeffs)
     torch.testing.assert_close(backward(coeffs), plan.backward_flat(coeffs))
 
 
 @pytest.mark.parametrize("budget", [None, 1])  # type: ignore[untyped-decorator]
-def test_csr_empty_batch(budget: int | None) -> None:
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+def test_csr_empty_batch(budget: int | None, kind: Kind) -> None:
     """A batch of zero rows gives empty results, whole-batch or row by row."""
-    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    udct = UDCT(
+        shape=(32, 32), num_scales=3, wedges_per_direction=3, transform_kind=kind
+    )
     plan = _use_strategy(udct, "csr")
     plan.batch_chunk_bytes = budget
     coeffs = plan.forward_flat(torch.zeros(0, 32, 32))

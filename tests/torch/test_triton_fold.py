@@ -255,6 +255,10 @@ def test_device_rules(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_empty_batch() -> None:
     """Zero rows give empty results."""
     plan = _plan(_udct((32, 32), 3, 3, "real", torch.float32))
+    fwd_csr, _ = _csr(plan)
+    assert fwd_csr.apply(
+        torch.zeros(0, fwd_csr.num_sources, dtype=torch.complex64, device=DEVICE)
+    ).shape == (0, plan.ncoef)
     out = plan.forward_flat(torch.zeros(0, 32, 32, device=DEVICE))
     assert out.shape == (0, plan.ncoef)
     assert plan.backward_flat(out).shape == (0, 32, 32)
@@ -269,7 +273,12 @@ def test_compile_sees_through_kernel(kind: Kind) -> None:
     coeffs = plan.forward_flat(x)
     torch._dynamo.reset()  # pylint: disable=protected-access
     # aot_eager, as in test_plan.py: Inductor warns on the complex FFTs.
-    forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    try:
+        forward = torch.compile(plan.forward_flat, backend="aot_eager", fullgraph=True)
+    except RuntimeError as exc:
+        if "not supported on Python" in str(exc):
+            pytest.skip(str(exc))
+        raise
     backward = torch.compile(plan.backward_flat, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), coeffs, atol=1e-5, rtol=1e-5)
     torch.testing.assert_close(

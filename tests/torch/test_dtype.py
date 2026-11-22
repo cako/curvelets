@@ -84,7 +84,7 @@ def test_mismatched_input_precision_raises() -> None:
         udct.filter(x, lambda c: c)
     with pytest.raises(TypeError, match="float32"):
         udct.forward(x, structured=False)
-    with pytest.raises(TypeError, match="integer|int64"):
+    with pytest.raises(TypeError, match=r"integer|int64"):
         udct.forward(torch.ones(SHAPE, dtype=torch.int64))
 
 

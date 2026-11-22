@@ -208,7 +208,7 @@ Bug fixes
 - Backpropagation through ``UDCTModule`` failed on CUDA because of a device mismatch in ``struct()``, and ``.to()`` dropped the precomputed index maps so every later call recomputed them. (:pr:`82`)
 - A transform loaded onto another device (for example ``torch.load(..., map_location="cpu")`` of a transform that had run on CUDA) failed with a Triton error. The plan is now rebuilt for the new device, and pickling and ``torch.save`` are tested for both backends. (:pr:`109`)
 - A real input to the complex PyTorch transform failed in the adjoint path. It now receives the real part, following PyTorch's convention. (:pr:`104`)
-- Empty batches no longer crash the row-by-row batch loop. (:pr:`91`)
+- Empty batches no longer crash the row-by-row batch loop or fail in oneMKL FFT on CPU builds of PyTorch < 2.15. (:pr:`91`, :pr:`133`)
 - Doctest and docstring corrections in the monogenic transform. (:pr:`111`)
 - 2-D ``UDCT`` with ``wedges_per_direction >= 6`` reconstructed only to ``~5.6e-9`` instead of machine precision because the auto-selected ``window_overlap`` exceeded the aliasing-free decimation bound :math:`\frac{8}{9}(1 + 2\alpha) \le 1 \iff \alpha \le 1/16`. Auto-selected overlaps are now capped at ``1/16`` (0.0625) in both NumPy and PyTorch, and explicit overlaps that produce non-injective folds emit a warning. (:pr:`123`)
 - ``high_frequency_mode="wavelet"`` was not an exact adjoint or Parseval tight frame in NumPy or PyTorch, causing dot-product tests and PyTorch autograd ``gradcheck`` to fail across ``real``, ``complex``, and ``monogenic`` transforms even though round-trip reconstruction succeeded. Symmetric wavelet-scale scaling is now used across both backends, so ``backward`` is the exact adjoint of ``forward``. (:pr:`127`)
@@ -216,8 +216,9 @@ Bug fixes
 Security hardening
 ------------------
 
-- The PyPI release workflow pins actions to commit SHAs, installs build tools from a hash-locked file, builds without isolation, checks that the built files match the release tag and keeps a read-only token for the build job. (:pr:`100`)
-- ``CODECOV_TOKEN`` is no longer available to CI jobs that run third-party code. The test matrix only uploads coverage artifacts, and a separate job with no Python packages uploads them. Workflows use read-only permissions and do not persist credentials. (:pr:`99`)
+- The PyPI release workflow pins actions to commit SHAs, installs build tools from a hash-locked file, builds without isolation, checks that the built files match the release tag, attests SLSA build provenance and PyPI digital attestations, and keeps a read-only token for the build job. (:pr:`100`, :pr:`133`)
+- ``CODECOV_TOKEN`` is no longer available to CI jobs that run third-party code. The test matrix only uploads coverage artifacts, and a separate job with no Python packages uploads them. Workflows use read-only permissions, pin every GitHub Action to a commit SHA (with a 30-day Dependabot cooldown) and do not persist credentials. (:pr:`99`, :pr:`133`)
+- ``uv`` dependency resolution (used across CI, Format, Read the Docs and Nox via a pinned ``astral-sh/setup-uv`` and ``uv pip install --torch-backend=cpu``), the release build lock and all pre-commit hooks (frozen to commit SHAs) and their ``additional_dependencies`` enforce a 30-day minimum release age (``exclude-newer = "30 days"``) and exact version pins. (:pr:`133`)
 
 Upgrading from 1.2
 ------------------
@@ -234,6 +235,7 @@ Project
 
 - The CI test matrix is skipped for documentation-, docstring- and example-only changes, fails fast on pull requests and skips retesting up-to-date merges. (:pr:`102`, :pr:`110`, :pr:`112`, :pr:`115`)
 - The torch guide is organized around usage tips, and the public API carries ``versionadded`` and ``versionchanged`` notes for 1.3. (:pr:`101`, :pr:`105`)
+- The pre-commit hooks and their dependencies are updated and pinned (including ruff from 0.9.7 to 0.17.1), and ``docs/requirements.txt`` is replaced by ``uv pip install --torch-backend=cpu`` with dependency groups in ``pyproject.toml``. (:pr:`133`)
 - FDCT patent information added to the README. (:pr:`69`)
 
 .. _release-1-3-measured:

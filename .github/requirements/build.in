@@ -2,6 +2,7 @@
 # without isolation, so the build backend comes from this lock too.
 # Refresh the lock with:
 #   uv pip compile .github/requirements/build.in --generate-hashes \
+#     --exclude-newer "30 days" \
 #     --python-version 3.14 --python-platform x86_64-manylinux_2_28 \
 #     -o .github/requirements/build.txt
 build

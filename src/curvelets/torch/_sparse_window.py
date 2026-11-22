@@ -166,7 +166,8 @@ class SparseWindow:
         """
         if isinstance(decimation, torch.Tensor):
             self.decimation = (
-                decimation.clone()
+                decimation
+                .clone()
                 .detach()
                 .to(dtype=torch.long, device=self.device)
                 .flatten()
@@ -310,7 +311,8 @@ class SparseWindow:
             except RuntimeError as e:
                 if "vmap" in str(e) or "out-of-place" in str(e):
                     res = (
-                        folded.view(-1)
+                        folded
+                        .view(-1)
                         .index_add(0, folded_indices, vals)
                         .view(out_shape)
                     )

@@ -434,7 +434,7 @@ for digit in range(10):
         ax.set_title(f"Digit {digit}", fontsize=11)
     ax.axis("off")
 
-plt.suptitle("Worst Loss Misclassified Examples by Digit Class", fontsize=14, y=1.02)
+plt.suptitle("Worst Loss Misclassified Examples by Digit Class", fontsize=14)
 plt.tight_layout()
 plt.show()
 

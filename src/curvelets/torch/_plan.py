@@ -386,6 +386,9 @@ class UDCTPlan:
             Flattened coefficients.
         """
         batch = image.shape[: image.ndim - self.ndim]
+        if image.numel() == 0:
+            cdtype = torch.promote_types(image.dtype, torch.complex64)
+            return torch.empty(*batch, self.ncoef, dtype=cdtype, device=image.device)
         if isinstance(self.fwd_map, CsrFold):
             images = image.reshape(-1, *self.shape)
             return self._csr_forward(images).reshape(*batch, self.ncoef)
@@ -564,6 +567,13 @@ class UDCTPlan:
             transform, complex for the complex transform.
         """
         batch = vector.shape[:-1]
+        if vector.numel() == 0:
+            dtype = (
+                torch.promote_types(vector.dtype, torch.complex64)
+                if self.complex_output
+                else vector.real.dtype
+            )
+            return torch.empty(*batch, *self.shape, dtype=dtype, device=vector.device)
         flat = vector.reshape(-1, self.ncoef)
         # Same as ``dtype.to_complex()``, which TorchDynamo cannot trace.
         cdtype = torch.promote_types(flat.dtype, torch.complex64)

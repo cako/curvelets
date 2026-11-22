@@ -57,12 +57,12 @@ jobs:
       code: ${{ steps.gate.outputs.code }}
       tested-run: ${{ steps.tested.outputs.run-id }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.14"
 
@@ -115,15 +115,19 @@ jobs:
           ${{ github.event_name == 'push' && fromJSON('[]') || fromJSON('[{"python-version": "pypy-3.11", "runs-on": "ubuntu-latest"}]') }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
+
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
 
       - name: Install system dependencies
         if: runner.os == 'Linux'
@@ -134,14 +138,12 @@ jobs:
       - name: Install package (PyPy)
         if: startsWith(matrix.python-version, 'pypy')
         run: |
-          python -m pip install . --no-deps
-          python -m pip install "numpy<2.5" typing_extensions pytest pytest-cov coverage matplotlib
+          uv pip install --system --no-deps .
+          uv pip install --system "numpy<2.5" typing_extensions pytest pytest-cov coverage matplotlib
 
       - name: Install package (CPython)
         if: "!startsWith(matrix.python-version, 'pypy')"
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install .
+        run: uv pip install --system .
 
       # Before the test dependencies are installed: they pull in packages (e.g.
       # typing_extensions via torch) that a plain `pip install curvelets` lacks.
@@ -151,9 +153,7 @@ jobs:
 
       - name: Install test dependencies (CPython)
         if: "!startsWith(matrix.python-version, 'pypy')"
-        run: |
-          python -m pip install -r docs/requirements.txt
-          python -m pip install --group test
+        run: uv pip install --system --torch-backend=cpu --group test
 
       - name: Test package (PyPy)
         if: startsWith(matrix.python-version, 'pypy')
@@ -166,7 +166,7 @@ jobs:
       # The Codecov token is not exposed to this job, which runs third-party
       # code; the report is uploaded by the coverage job below.
       - name: Save coverage report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-${{ matrix.python-version }}-${{ matrix.runs-on }}
           path: coverage.xml
@@ -183,13 +183,13 @@ jobs:
       actions: read
     # Installs and runs no Python packages: only this job sees CODECOV_TOKEN.
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Download this run's coverage reports
         if: needs.changes.outputs.tested-run == ''
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-*
           path: coverage-reports
@@ -198,7 +198,7 @@ jobs:
       # merge commit.
       - name: Download the pull request run's coverage reports
         if: needs.changes.outputs.tested-run != ''
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-*
           path: coverage-reports
@@ -206,7 +206,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v7.1.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: coverage-reports

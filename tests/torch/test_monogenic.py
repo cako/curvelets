@@ -235,11 +235,16 @@ def test_compile_matches_eager() -> None:
     vec = udct.forward(x, structured=False)  # builds the plan, layout and Riesz filters
     recon = udct.backward(vec)
     torch._dynamo.reset()  # pylint: disable=protected-access
-    forward = torch.compile(
-        lambda t: udct.forward(t, structured=False),
-        backend="aot_eager",
-        fullgraph=True,
-    )
+    try:
+        forward = torch.compile(
+            lambda t: udct.forward(t, structured=False),
+            backend="aot_eager",
+            fullgraph=True,
+        )
+    except RuntimeError as exc:
+        if "not supported on Python" in str(exc):
+            pytest.skip(str(exc))
+        raise
     backward = torch.compile(udct.backward, backend="aot_eager", fullgraph=True)
     torch.testing.assert_close(forward(x), vec)
     torch.testing.assert_close(backward(vec), recon)

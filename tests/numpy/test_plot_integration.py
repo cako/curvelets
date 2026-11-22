@@ -15,22 +15,22 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # Re-enable deprecation warnings for our code
 warnings.filterwarnings("error", category=DeprecationWarning, module="curvelets")
 
-import matplotlib as mpl  # noqa: E402
+import matplotlib as mpl
 
 mpl.use("Agg")  # Non-interactive backend for CI
 
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
+import matplotlib.pyplot as plt
+import numpy as np
 
-from curvelets.numpy import UDCT  # noqa: E402
-from curvelets.plot import (  # noqa: E402
+from curvelets.numpy import UDCT
+from curvelets.plot import (
     create_colorbar,
     create_inset_axes_grid,
     despine,
     overlay_arrows,
     overlay_disk,
 )
-from curvelets.utils import normal_vector_field  # noqa: E402
+from curvelets.utils import normal_vector_field
 
 
 def test_overlay_disk(rng):

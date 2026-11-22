@@ -104,7 +104,7 @@ Drop ``-march=native`` and ``--enable-avx512`` if the library must also run on o
 Intel CPUs
 ==========
 
-Try Intel MKL: ``pip install curvelets[mkl]``. ``"auto"`` compares it with SciPy and uses the faster one. If you are using a NumPy/SciPy that is built with MKL (e.g. Conda, Intel oneAPI), you can just set ``fft_engine="numpy"``/``fft_engine="scipy"``, which will use the MKL FFT. 
+Try Intel MKL: ``pip install curvelets[mkl]``. ``"auto"`` compares it with SciPy and uses the faster one. If you are using a NumPy/SciPy that is built with MKL (e.g. Conda, Intel oneAPI), you can just set ``fft_engine="numpy"``/``fft_engine="scipy"``, which will use the MKL FFT.
 
 Reference speedups
 ==================

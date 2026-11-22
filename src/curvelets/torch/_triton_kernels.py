@@ -1,7 +1,7 @@
 """Triton kernels for :mod:`curvelets.torch._triton_fold` (imported only with Triton)."""
 
 # mypy: disable-error-code="misc, no-untyped-def"
-# ruff: noqa: N803  (Triton constexpr parameters are upper case by convention)
+
 # pylint: disable=invalid-name
 from __future__ import annotations
 

@@ -85,7 +85,8 @@ def test_numpy_monogenic_wavelet_scalar_matches_real(num_scales: int) -> None:
         for dir_r, dir_m in zip(scale_r, scale_m, strict=True):
             for wedge_r, wedge_m in zip(dir_r, dir_m, strict=True):
                 scalar = (
-                    np.ascontiguousarray(wedge_m[..., :2])
+                    np
+                    .ascontiguousarray(wedge_m[..., :2])
                     .view(np.complex128)
                     .squeeze(-1)
                 )
