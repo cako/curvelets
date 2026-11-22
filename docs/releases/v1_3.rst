@@ -208,6 +208,7 @@ Bug fixes
 - A real input to the complex PyTorch transform failed in the adjoint path. It now receives the real part, following PyTorch's convention. (:pr:`104`)
 - Empty batches no longer crash the row-by-row batch loop. (:pr:`91`)
 - Doctest and docstring corrections in the monogenic transform. (:pr:`111`)
+- 2-D ``UDCT`` with ``wedges_per_direction >= 6`` reconstructed only to ``~5.6e-9`` instead of machine precision because the auto-selected ``window_overlap`` exceeded the aliasing-free decimation bound :math:`\frac{8}{9}(1 + 2\alpha) \le 1 \iff \alpha \le 1/16`. Auto-selected overlaps are now capped at ``1/16`` (0.0625) in both NumPy and PyTorch, and explicit overlaps that produce non-injective folds emit a warning. (:pr:`123`)
 
 Security hardening
 ------------------
@@ -222,6 +223,7 @@ Upgrading from 1.2
 - **The PyTorch transform has a fixed precision.** ``UDCT`` is created with ``float32`` unless ``dtype`` says otherwise, and an input of another precision raises a ``TypeError`` that names the fix. Pass ``dtype=torch.float64`` or call ``.double()`` to transform float64 data. (:pr:`87`)
 - **Use** ``UDCT`` **instead of** ``UDCTModule``. ``UDCTModule`` still works and emits a ``DeprecationWarning``. ``UDCT(..., transform_kind=k)`` replaces it, and ``forward_vect`` and ``backward_vect`` give the flat layout. (:pr:`104`)
 - **Torch window values differ from 1.2 by at most 1.5e-5** (indices are unchanged), because torch now builds its windows in float64 like NumPy. (:pr:`107`)
+- **Default** ``window_overlap`` **for** ``wedges_per_direction >= 6`` **is now capped at** ``1/16`` (0.0625) instead of ``0.09`` (for 6) or ``0.16`` (for 12), so default coefficients for ``wedges_per_direction >= 6`` differ from 1.2; ``wedges_per_direction=3`` is unchanged. (:pr:`123`)
 
 Project
 -------

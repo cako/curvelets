@@ -30,7 +30,7 @@ class TestComputeOptimalWindowOverlap:
         """
         Test optimal window_overlap computation for wedges_per_direction=6.
 
-        The computed value should be approximately 0.09 (10% of theoretical max).
+        The computed value should be capped at 1/16.
         """
         num_scales = 3
         wedges_per_scale: npt.NDArray[np.int_] = (
@@ -38,14 +38,14 @@ class TestComputeOptimalWindowOverlap:
         ).astype(int)
         alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
 
-        # Expected value around 0.09 based on formula
-        assert 0.08 < alpha < 0.10
+        # 10% of the theoretical max is 0.09, capped for aliasing-free decimation
+        assert alpha == 1 / 16
 
     def test_basic_computation_wpd12(self):
         """
         Test optimal window_overlap computation for wedges_per_direction=12.
 
-        The computed value should be approximately 0.16 (10% of theoretical max).
+        The computed value should be capped at 1/16.
         """
         num_scales = 3
         wedges_per_scale: npt.NDArray[np.int_] = (
@@ -53,8 +53,8 @@ class TestComputeOptimalWindowOverlap:
         ).astype(int)
         alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
 
-        # Expected value around 0.16 based on formula
-        assert 0.15 < alpha < 0.18
+        # 10% of the theoretical max is 0.16, capped for aliasing-free decimation
+        assert alpha == 1 / 16
 
     def test_satisfies_constraint(self):
         """
@@ -93,10 +93,10 @@ class TestComputeOptimalWindowOverlap:
             alpha = UDCT._compute_optimal_window_overlap(wedges_per_scale)
             alphas.append(alpha)
 
-        # Verify alpha is monotonically increasing
+        # Verify alpha is monotonically non-decreasing (it saturates at the cap)
         for i in range(len(alphas) - 1):
-            assert alphas[i] < alphas[i + 1], (
-                f"Alpha should increase: {alphas[i]:.4f} >= {alphas[i + 1]:.4f}"
+            assert alphas[i] <= alphas[i + 1], (
+                f"Alpha should not decrease: {alphas[i]:.4f} >= {alphas[i + 1]:.4f}"
             )
 
     def test_alpha_positive(self):

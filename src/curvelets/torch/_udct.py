@@ -27,6 +27,16 @@ from ._udct_windows import UDCTWindow
 from ._utils import ParamUDCT
 from .typing import UDCTCoefficients, UDCTWindows
 
+# Largest ``window_overlap`` whose wedges still fit their decimated grids.
+# A wedge at scale s (N_s wedges, radial outer edge 4*pi/3 / 2**(S-1-s) with the
+# default radial parameters) spans (2/N_s)(1+2a) of its outer radius along the
+# transverse axis, i.e. 8/9 (1+2a) decimated bins (d = 2 N_s 2**(S-1-s) / 3).
+# That is at most one bin, so the periodized fold is injective, iff a <= 1/16,
+# independent of shape, scales and wedge count. Beyond it tail samples alias and
+# the round trip loses precision (~1e-9 for ``wedges_per_direction=6`` at the
+# former default of 0.09).
+_MAX_ALIASING_FREE_OVERLAP = 1 / 16
+
 
 class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
     """
@@ -78,9 +88,20 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         The number of wedges doubles at each finer scale. Must be >= 3.
         Used when angular_wedges_config is not provided. Default is 3.
     window_overlap : float, optional
-        Window overlap parameter controlling the smoothness of window transitions.
-        If None and using num_scales/wedges_per_direction, automatically chosen
-        based on wedges_per_direction. Default is None (auto) or 0.15.
+        Window overlap parameter :math:`\\alpha` controlling the smoothness of
+        window transitions. If None, automatically chosen as 10% of the
+        Nguyen & Chauris (2010) upper bound, capped at :math:`1/16` (0.0625).
+        With the default ``radial_frequency_params``, a wedge at scale
+        :math:`s` spans :math:`\\frac{8}{9}(1 + 2\\alpha)` decimated bins along
+        the transverse axis, so its periodized fold stays injective
+        (aliasing-free) iff :math:`\\alpha \\le 1/16`, independent of shape,
+        scales, and wedge count. Passing a larger value logs a warning when
+        aliasing occurs. Default is None (auto).
+
+        .. versionchanged:: 1.3
+           Auto-selected ``window_overlap`` is now capped at :math:`1/16` so
+           ``wedges_per_direction >= 6`` reconstructs to machine precision, and
+           explicit overlaps that alias log a warning.
     radial_frequency_params : tuple[float, float, float, float], optional
         Radial frequency parameters defining the frequency bands.
         Default is (:math:`\\pi/3`, :math:`2\\pi/3`, :math:`2\\pi/3`, :math:`4\\pi/3`).
@@ -300,6 +321,13 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
         The 10% factor was empirically determined to give better reconstruction
         quality than both the theoretical maximum and previous hardcoded defaults.
+        The result is capped at ``_MAX_ALIASING_FREE_OVERLAP`` (:math:`1/16`):
+        with the default ``radial_frequency_params``, a wedge spans
+        :math:`\\frac{8}{9}(1 + 2\\alpha)` decimated bins along its transverse
+        axis, which fits within one bin (keeping the periodized fold injective)
+        iff :math:`\\alpha \\le 1/16`, independent of shape, scales, and wedge
+        count. Above :math:`1/16`, tail samples alias and the transform stops
+        reconstructing to machine precision.
 
         Parameters
         ----------
@@ -309,7 +337,8 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         Returns
         -------
         float
-            Optimal window_overlap value (10% of theoretical maximum).
+            Optimal window_overlap value (10% of theoretical maximum, capped
+            at ``_MAX_ALIASING_FREE_OVERLAP``).
 
         References
         ----------
@@ -337,8 +366,10 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
             a_max = (-3 + sqrt(discriminant)) / 4
             min_overlap = min(min_overlap, a_max)
 
-        # Use 10% of theoretical max for optimal reconstruction quality
-        return 0.1 * min_overlap
+        # Use 10% of theoretical max for optimal reconstruction quality, but
+        # never beyond the point where wedge supports outgrow their decimated
+        # grids (see _MAX_ALIASING_FREE_OVERLAP)
+        return min(0.1 * min_overlap, _MAX_ALIASING_FREE_OVERLAP)
 
     @staticmethod
     def _compute_from_angular_wedges_config(

@@ -10,7 +10,7 @@ The heatmap displays:
 - X-axis: window_overlap values
 - Y-axis: wedges_per_direction
 - Color: reconstruction error
-- Blue dashed line: default alpha (10% of theoretical max)
+- Blue dashed line: default alpha (10% of theoretical max, capped at :math:`1/16`)
 - Green solid line: optimal alpha (minimum reconstruction error)
 
 The default window_overlap is computed using the constraint of :cite:t:`Nguyen2010`:
@@ -22,8 +22,18 @@ The default window_overlap is computed using the constraint of :cite:t:`Nguyen20
 where :math:`s` is the scale index, :math:`N` is the number of wedges, and
 :math:`\\alpha` is the window_overlap parameter.
 
-The default uses 10% of the theoretical maximum, while the optimal is
-determined empirically from the reconstruction error.
+To prevent aliasing during periodized decimation, each wedge's transverse
+support must also fit within one decimated bin. With the default radial
+frequency parameters, a wedge spans :math:`\\frac{8}{9}(1 + 2\\alpha)` decimated
+bins, giving the aliasing-free bound:
+
+.. math::
+
+    \\frac{8}{9}(1 + 2\\alpha) \\le 1 \\iff \\alpha \\le \\frac{1}{16} = 0.0625
+
+The default uses 10% of the Nguyen & Chauris theoretical maximum, capped at
+:math:`1/16`, while the optimal is determined empirically from the
+reconstruction error.
 """
 
 from __future__ import annotations
@@ -76,7 +86,7 @@ def compute_theoretical_max(num_scales: int, wedges_per_direction: int) -> float
 
 def compute_default_alpha(num_scales: int, wedges_per_direction: int) -> float:
     """
-    Compute default window_overlap (10% of theoretical maximum).
+    Compute default window_overlap (10% of theoretical maximum, capped at 1/16).
 
     Parameters
     ----------
@@ -88,9 +98,9 @@ def compute_default_alpha(num_scales: int, wedges_per_direction: int) -> float:
     Returns
     -------
     float
-        Default window_overlap value (10% of theoretical maximum).
+        Default window_overlap value (capped at 1/16 for aliasing-free folds).
     """
-    return 0.1 * compute_theoretical_max(num_scales, wedges_per_direction)
+    return min(0.1 * compute_theoretical_max(num_scales, wedges_per_direction), 1 / 16)
 
 
 # %%
@@ -100,7 +110,7 @@ def compute_default_alpha(num_scales: int, wedges_per_direction: int) -> float:
 # Create a heatmap showing reconstruction error as a function of
 # window_overlap for a 64x64 image.
 #
-# - Blue dashed lines mark the default alpha (10% of theoretical max)
+# - Blue dashed lines mark the default alpha (10% of theoretical max, capped at 1/16)
 # - Green solid lines mark the optimal alpha (minimum error)
 #
 # Only alpha values below the theoretical maximum are tested to ensure
@@ -225,14 +235,16 @@ plt.show()
 # 2. **Red/Yellow regions** (high error) indicate poor reconstruction.
 #    These typically occur at higher window_overlap values.
 #
-# 3. **Blue dashed lines** mark the default alpha values
-#    using 10% of the theoretical maximum of :cite:t:`Nguyen2010`.
+# 3. **Blue dashed lines** mark the default alpha values: 10% of the
+#    theoretical maximum of :cite:t:`Nguyen2010`, capped at :math:`1/16`
+#    (0.0625) so that wedge folds remain injective.
 #
 # 4. **Green solid lines** mark the optimal alpha values that give
 #    the minimum reconstruction error for each configuration.
 #
-# 5. The optimal alpha **increases with wedges_per_direction** because
-#    more wedges provide a looser constraint on the window overlap.
+# 5. For ``wedges_per_direction >= 6``, 10% of the Nguyen & Chauris bound
+#    exceeds :math:`1/16`, so capping at :math:`1/16` keeps the round trip
+#    at machine precision rather than losing accuracy to fold aliasing.
 
 # %%
 # References

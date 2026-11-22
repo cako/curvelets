@@ -616,3 +616,43 @@ def test_compatible_shape_does_not_warn(caplog, shape, num_scales):
     with caplog.at_level("WARNING"):
         UDCT(shape=shape, num_scales=num_scales, window_overlap=0.05)
     assert not any("will not reconstruct" in r.message for r in caplog.records)
+
+
+@pytest.mark.round_trip
+@pytest.mark.parametrize(
+    ("shape", "num_scales", "wedges_per_direction"),
+    [
+        ((256, 256), 3, 3),
+        ((256, 256), 3, 6),
+        ((256, 256), 3, 12),
+        ((256, 256), 4, 6),
+        ((64, 64, 64), 3, 6),
+    ],
+)
+def test_round_trip_machine_precision_default_overlap(
+    rng, shape, num_scales, wedges_per_direction
+):
+    """
+    The default window overlap reconstructs to machine precision.
+
+    Regression test: for ``wedges_per_direction >= 6`` the automatic overlap used
+    to exceed the point where a wedge's support fits its decimated grid, so a few
+    samples aliased and the 2-D round trip only reached ~5e-9.
+    """
+    transform = UDCT(
+        shape=shape, num_scales=num_scales, wedges_per_direction=wedges_per_direction
+    )
+    data = rng.standard_normal(shape)
+    recon = transform.backward(transform.forward(data))
+    rel_err = np.linalg.norm(recon - data) / np.linalg.norm(data)
+    assert rel_err < 1e-13
+
+
+@pytest.mark.parametrize(("overlap", "warns"), [(0.09, True), (1 / 16, False)])
+def test_aliasing_overlap_warns(caplog, overlap, warns):
+    """An overlap that makes wedges outgrow their decimated grid is reported."""
+    with caplog.at_level("WARNING"):
+        UDCT(
+            shape=(64, 64), num_scales=3, wedges_per_direction=3, window_overlap=overlap
+        )
+    assert any("aliases" in r.message for r in caplog.records) is warns

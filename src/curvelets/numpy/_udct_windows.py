@@ -13,6 +13,7 @@ import numpy as np
 import numpy.typing as npt
 
 from ._fft import _usable_cpu_count
+from ._periodized_fft import compute_folded_indices
 from ._sparse_window import SparseWindow
 from ._utils import ParamUDCT, circular_shift, meyer_window
 from .typing import _F, UDCTWindows, _IntegerNDArray, _IntpNDArray
@@ -1736,6 +1737,7 @@ class UDCTWindow:
         )
 
         self._check_shape_compatible(decimation_ratios)
+        self._warn_if_aliased(windows, decimation_ratios)
 
         return windows, decimation_ratios, indices
 
@@ -1768,3 +1770,38 @@ class UDCTWindow:
                     max(below, divisor),
                     below + divisor,
                 )
+
+    def _warn_if_aliased(
+        self,
+        windows: UDCTWindows[np.floating],
+        decimation_ratios: list[_IntegerNDArray],
+    ) -> None:
+        """
+        Warn when a wedge folds non-injectively onto its decimated grid.
+
+        With the default radial parameters every wedge fits its decimated grid
+        for ``window_overlap <= 1/16``, so the (costlier) exact check only runs
+        beyond that or for custom radial parameters.
+        """
+        default_radial = np.array([1.0, 2.0, 2.0, 4.0]) * np.pi / 3
+        if self.window_overlap <= 1 / 16 and np.allclose(
+            self.radial_frequency_params, default_radial
+        ):
+            return
+        aliased = 0
+        for scale_idx, scale_windows in enumerate(windows):
+            ratios = decimation_ratios[scale_idx]
+            for direction_idx, direction_windows in enumerate(scale_windows):
+                dec = ratios[min(direction_idx, ratios.shape[0] - 1)]
+                for window in direction_windows:
+                    folded = compute_folded_indices(window.indices, window.shape, dec)
+                    aliased += np.unique(folded).size != folded.size
+        if aliased:
+            logging.warning(
+                "window_overlap=%.4g makes %d wedge(s) wider than their decimated "
+                "grid; their periodized fold aliases and the transform will not "
+                "reconstruct to machine precision. Use window_overlap <= 1/16 "
+                "(with the default radial_frequency_params).",
+                self.window_overlap,
+                aliased,
+            )
