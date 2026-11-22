@@ -99,7 +99,7 @@ Features
 Credits
 #######
 The original MATLAB implementation was developed by one of the authors of the UDCT, Truong T. Nguyen.
-The Python implementation was developed by Carlos Alberto da Costa Filho and Duy Nguyen.
+For a full list of authors, see `AUTHORS <https://github.com/cako/curvelets/blob/main/AUTHORS.md>`_.
 
 References
 ##########
