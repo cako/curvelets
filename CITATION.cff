@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+title: Curvelets
+message: If you use this software, please cite it using the metadata from this file.
+type: software
+authors:
+  - given-names: Carlos Alberto
+    family-names: da Costa Filho
+    email: c.dacostaf@gmail.com
+repository-code: https://github.com/cako/curvelets
+url: https://curvelets.readthedocs.io/
+abstract: >-
+  Open-source implementation of the Uniform Discrete Curvelet Transform (UDCT)
+  in Python for N-dimensional signals, with NumPy and PyTorch backends.
+keywords:
+  - curvelets
+  - uniform discrete curvelet transform
+  - udct
+  - signal processing
+  - image processing
+  - python
+  - numpy
+  - pytorch
+license: MIT
