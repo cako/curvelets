@@ -151,7 +151,7 @@ def test_gradcheck() -> None:
 
     assert torch.autograd.gradcheck(nested, (x,), fast_mode=True)
     assert torch.autograd.gradcheck(
-        (lambda t: udct.forward(t, structured=False)), (x,), fast_mode=True
+        lambda t: udct.forward(t, structured=False), (x,), fast_mode=True
     )
     v = udct.forward(x.detach(), structured=False).requires_grad_(True)
     assert torch.autograd.gradcheck(udct.backward, (v,), fast_mode=True)
@@ -198,7 +198,7 @@ def test_second_derivatives() -> None:
     udct = _small()
     x = torch.randn(16, 18, dtype=torch.float64, requires_grad=True)
     assert torch.autograd.gradgradcheck(
-        (lambda t: udct.forward(t, structured=False)), (x,), fast_mode=True
+        lambda t: udct.forward(t, structured=False), (x,), fast_mode=True
     )
     v = udct.forward(x.detach(), structured=False).requires_grad_(True)
     assert torch.autograd.gradgradcheck(udct.backward, (v,), fast_mode=True)
@@ -210,7 +210,7 @@ def test_vmap_and_func_grad() -> None:
     x = torch.randn(3, 16, 18, dtype=torch.float64)
     vec = udct.forward(x, structured=False)
     torch.testing.assert_close(
-        torch.vmap((lambda t: udct.forward(t, structured=False)))(x), vec
+        torch.vmap(lambda t: udct.forward(t, structured=False))(x), vec
     )
     torch.testing.assert_close(
         torch.vmap(udct.backward)(vec), udct.backward(vec).movedim(1, 0)
@@ -236,7 +236,7 @@ def test_compile_matches_eager() -> None:
     recon = udct.backward(vec)
     torch._dynamo.reset()  # pylint: disable=protected-access
     forward = torch.compile(
-        (lambda t: udct.forward(t, structured=False)),
+        lambda t: udct.forward(t, structured=False),
         backend="aot_eager",
         fullgraph=True,
     )
@@ -245,7 +245,7 @@ def test_compile_matches_eager() -> None:
     torch.testing.assert_close(backward(vec), recon)
 
     for fn, compiled, inp in (
-        ((lambda t: udct.forward(t, structured=False)), forward, x),
+        (lambda t: udct.forward(t, structured=False), forward, x),
         (udct.backward, backward, vec),
     ):
         leaf_c = inp.clone().requires_grad_(True)

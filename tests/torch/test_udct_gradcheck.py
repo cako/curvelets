@@ -68,7 +68,7 @@ def test_udct_gradcheck(dim: int, transform_type: str) -> None:
     # Run gradcheck with timeout protection via pytest-timeout
     # UDCT involves FFT operations which can have numerical precision issues
     result = torch.autograd.gradcheck(
-        (lambda t: udct.forward(t, structured=False)),
+        lambda t: udct.forward(t, structured=False),
         input_tensor,
         fast_mode=True,
         check_undefined_grad=False,

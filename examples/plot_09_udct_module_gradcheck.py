@@ -70,7 +70,7 @@ assert torch.allclose(x.detach(), reconstructed, atol=1e-4)
 # finite differences.
 x.grad = None
 assert torch.autograd.gradcheck(
-    (lambda t: udct.forward(t, structured=False)),
+    lambda t: udct.forward(t, structured=False),
     x,
     fast_mode=True,
     atol=1e-4,

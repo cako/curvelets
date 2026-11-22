@@ -218,7 +218,9 @@ def test_gradients_match_plain_autograd(kind: Kind, device: str) -> None:
         return grad
 
     torch.testing.assert_close(image_grad(graphed), image_grad(plain))
-    assert len(graphed._graphs) == 2  # forward, and backward as its gradient  # pylint: disable=protected-access
+    assert (
+        len(graphed._graphs) == 2
+    )  # forward, and backward as its gradient  # pylint: disable=protected-access
 
     coeffs = plain.forward(x, structured=False)
 
@@ -259,7 +261,7 @@ def test_module_gradcheck_with_graphs(device: str) -> None:
     ).to(device)
     x = torch.randn(16, 16, dtype=torch.float64, device=device, requires_grad=True)
     assert torch.autograd.gradcheck(
-        (lambda t: module.forward(t, structured=False)), (x,), fast_mode=True
+        lambda t: module.forward(t, structured=False), (x,), fast_mode=True
     )
 
 
@@ -268,7 +270,7 @@ def test_vmap_runs_without_graphs(device: str) -> None:
     udct = _udct(cuda_graphs=True, device=device)
     x = _image("real", (3,), device=device)
     expected = _udct(device=device).forward(x, structured=False)
-    batched = torch.vmap((lambda t: udct.forward(t, structured=False)))(x)
+    batched = torch.vmap(lambda t: udct.forward(t, structured=False))(x)
     torch.testing.assert_close(batched, expected)
 
 

@@ -125,7 +125,7 @@ def test_torch_wavelet_gradcheck(transform_kind: AllKind) -> None:
     x = _randn_like_kind((8, 8), is_complex=transform_kind == "complex", gen=gen)
     x.requires_grad_(True)
     assert torch.autograd.gradcheck(
-        (lambda t: udct.forward(t, structured=False)), (x,), fast_mode=False
+        lambda t: udct.forward(t, structured=False), (x,), fast_mode=False
     )
 
     template = udct.forward(x.detach(), structured=False)
@@ -149,9 +149,7 @@ def test_torch_wavelet_multiscale_directional_grad(transform_kind: AllKind) -> N
     )
     x = _randn_like_kind((16, 16), is_complex=transform_kind == "complex", gen=gen)
     assert (
-        _directional_grad_error(
-            (lambda t: udct.forward(t, structured=False)), x, gen=gen
-        )
+        _directional_grad_error(lambda t: udct.forward(t, structured=False), x, gen=gen)
         < 1e-7
     )
 
