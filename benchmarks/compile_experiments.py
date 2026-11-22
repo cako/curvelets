@@ -229,7 +229,7 @@ def main() -> None:
                     cuda_graphs=True,
                 )
                 graphed_udct.apply_to_tensors(lambda t: t.to(dev))
-                fwd_g = lambda t: graphed_udct.forward(t, structured=False)
+                fwd_g = partial(graphed_udct.forward, structured=False)
                 bwd_g = graphed_udct.backward
                 report(
                     cfg,

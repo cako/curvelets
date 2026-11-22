@@ -170,7 +170,10 @@ def _build_curvelets(
     )
     udct.apply_to_tensors(lambda t: t.to(dev))
     x = torch.randn(shape, device=dev, dtype=torch.float32)
-    forward = lambda t: udct.forward(t, structured=False)
+
+    def forward(t: torch.Tensor) -> torch.Tensor:
+        return udct.forward(t, structured=False)
+
     backward = udct.backward
     v = forward(x)
     return Transform(
