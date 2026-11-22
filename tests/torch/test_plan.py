@@ -13,7 +13,7 @@ from torch.profiler import ProfilerActivity, profile
 
 from curvelets.torch import UDCT
 from curvelets.torch._backward_transform import _apply_backward_transform
-from curvelets.torch._foldmap import MAX_LEVELS, GatherFold, ScatterFold
+from curvelets.torch._foldmap import CsrFold, ScatterFold
 from curvelets.torch._forward_transform import (
     _apply_forward_transform_complex,
     _apply_forward_transform_real,
@@ -55,7 +55,7 @@ def _input(kind: Kind, shape: tuple[int, ...], seed: int = 0) -> torch.Tensor:
 @pytest.mark.parametrize(("shape", "num_scales", "wpd"), CONFIGS)  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("mode", ["curvelet", "wavelet"])  # type: ignore[untyped-decorator]
-@pytest.mark.parametrize("strategy", ["scatter", "gather"])  # type: ignore[untyped-decorator]
+@pytest.mark.parametrize("strategy", ["scatter", "csr"])  # type: ignore[untyped-decorator]
 def test_plan_matches_per_wedge_reference(
     shape: tuple[int, ...],
     num_scales: int,
@@ -140,27 +140,25 @@ def test_forward_vect_vmap_matches_loop() -> None:
 def test_launch_count_does_not_grow_with_wedges(
     shape: tuple[int, ...], wpd: int
 ) -> None:
-    """GPU strategy: gathers per transform are bounded by fold levels, not wedges."""
+    """GPU strategy: CSR folds use one gather per transform on CPU fallback."""
     udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=wpd)
-    plan = _use_strategy(udct, "gather")
-    assert isinstance(plan.fwd_map, GatherFold)
-    assert isinstance(plan.bwd_map, GatherFold)
-    assert len(plan.fwd_map.levels) <= MAX_LEVELS + 1
-    assert len(plan.bwd_map.levels) <= MAX_LEVELS + 1
+    plan = _use_strategy(udct, "csr")
+    assert isinstance(plan.fwd_map, CsrFold)
+    assert isinstance(plan.bwd_map, CsrFold)
     x = _input("real", shape)
     coeffs = udct.forward(x)
     with profile(activities=[ProfilerActivity.CPU]) as prof:
         udct.forward(x)
     names = [event.name for event in prof.events()]
-    assert names.count("aten::index_select") == 1 + len(plan.fwd_map.levels)
+    assert names.count("aten::index_select") == 1
     with profile(activities=[ProfilerActivity.CPU]) as prof:
         udct.backward(coeffs)
     names = [event.name for event in prof.events()]
-    assert names.count("aten::index_select") == 1 + len(plan.bwd_map.levels)
+    assert names.count("aten::index_select") == 1
 
 
 def test_cpu_defaults_to_scatter_folds() -> None:
-    """CPU plans use scatter folds (blocked backward); other devices get gather folds."""
+    """CPU plans use scatter folds (blocked backward); other devices get CSR folds."""
     plan = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)._get_plan()  # pylint: disable=protected-access
     assert isinstance(plan.fwd_map, ScatterFold)
     assert plan.bwd_map is None
@@ -171,10 +169,10 @@ def test_cpu_defaults_to_scatter_folds() -> None:
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-def test_small_cpu_chunks_match_gather(
+def test_small_cpu_chunks_match_csr(
     kind: Kind, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Splitting groups into many CPU chunks gives the same result as one gather fold."""
+    """Splitting groups into many CPU chunks gives the same result as one CSR fold."""
     import curvelets.torch._plan as plan_module
 
     monkeypatch.setattr(plan_module, "CPU_CHUNK_ELEMENTS", 64)
@@ -187,25 +185,23 @@ def test_small_cpu_chunks_match_gather(
     assert len(plan.cpu_chunks) > len(plan.groups)
     blocked = udct.forward_vect(x)
     blocked_back = udct.backward_vect(blocked)
-    _use_strategy(udct, "gather")
+    _use_strategy(udct, "csr")
     torch.testing.assert_close(blocked, udct.forward_vect(x))
     torch.testing.assert_close(blocked_back, udct.backward_vect(blocked))
 
 
-@pytest.mark.parametrize("fold_cls", [GatherFold, ScatterFold])  # type: ignore[untyped-decorator]
+@pytest.mark.parametrize("fold_cls", [CsrFold, ScatterFold])  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("batch", [1, 3])  # type: ignore[untyped-decorator]
 def test_fold_matches_dense_scatter(
-    fold_cls: type[GatherFold | ScatterFold], batch: int
+    fold_cls: type[CsrFold | ScatterFold], batch: int
 ) -> None:
-    """Both folds equal a plain scatter-add (GatherFold: incl. the padded tail)."""
+    """Both folds equal a plain scatter-add."""
     gen = torch.Generator().manual_seed(3)
     num_targets, num_sources, n = 50, 40, 600  # ~12 contributions per target
     targets = torch.randint(0, num_targets, (n,), generator=gen)
     sources = torch.randint(0, num_sources, (n,), generator=gen)
     weights = torch.rand(n, generator=gen, dtype=torch.float64)
     fold = fold_cls.build(targets, sources, weights, num_targets, num_sources)
-    if isinstance(fold, GatherFold):
-        assert any(level.width > 1 for level in fold.levels)
 
     src = torch.randn(batch, num_sources, dtype=torch.complex128, generator=gen)
     expected = torch.zeros(batch, num_targets, dtype=torch.complex128).index_add(
@@ -215,7 +211,7 @@ def test_fold_matches_dense_scatter(
 
 
 @pytest.mark.parametrize("batch", [1, 3])  # type: ignore[untyped-decorator]
-def test_gather_fold_weight_pairs_scale_real_and_imaginary_parts(batch: int) -> None:
+def test_csr_fold_weight_pairs_scale_real_and_imaginary_parts(batch: int) -> None:
     """Weight pairs (a, b) give a * Re(src) + i * b * Im(src); (w, -w) is w * conj."""
     gen = torch.Generator().manual_seed(4)
     num_targets, num_sources, n = 50, 40, 600
@@ -223,8 +219,7 @@ def test_gather_fold_weight_pairs_scale_real_and_imaginary_parts(batch: int) -> 
     sources = torch.randint(0, num_sources, (n,), generator=gen)
     pairs = torch.rand(n, 2, generator=gen, dtype=torch.float64)
     pairs[::3, 1] = -pairs[::3, 0]  # some conjugated terms
-    fold = GatherFold.build(targets, sources, pairs, num_targets, num_sources)
-    assert any(level.width > 1 for level in fold.levels)
+    fold = CsrFold.build(targets, sources, pairs, num_targets, num_sources)
 
     src = torch.randn(batch, num_sources, dtype=torch.complex128, generator=gen)
     terms = torch.complex(
@@ -237,25 +232,25 @@ def test_gather_fold_weight_pairs_scale_real_and_imaginary_parts(batch: int) -> 
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-def test_gather_plan_has_one_backward_fold_and_reads_the_half_spectrum(
+def test_csr_plan_has_one_backward_fold_and_reads_the_half_spectrum(
     kind: Kind,
 ) -> None:
     """Conjugated terms use weight pairs: no [F, conj F] input, one backward fold."""
     shape = (32, 32)
     udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind)
-    plan = _use_strategy(udct, "gather")
-    assert isinstance(plan.fwd_map, GatherFold)
-    assert isinstance(plan.bwd_map, GatherFold)
+    plan = _use_strategy(udct, "csr")
+    assert isinstance(plan.fwd_map, CsrFold)
+    assert isinstance(plan.bwd_map, CsrFold)
     num_spectrum = 32 * (32 // 2 + 1) if kind == "real" else 32 * 32
     assert plan.fwd_map.num_sources == num_spectrum
     assert plan.bwd_map.num_targets == num_spectrum
     weight_dims = 2 if kind == "real" else 1
-    assert plan.fwd_map.w0.ndim == weight_dims
-    assert plan.bwd_map.w0.ndim == weight_dims
+    assert plan.fwd_map.weights.ndim == weight_dims
+    assert plan.bwd_map.weights.ndim == weight_dims
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-def test_gather_plan_gradcheck_and_vmap(kind: Kind) -> None:
+def test_csr_plan_gradcheck_and_vmap(kind: Kind) -> None:
     """The weight-pair folds are differentiable and work under ``torch.vmap``."""
     shape = (16, 16)
     udct = UDCT(
@@ -265,7 +260,7 @@ def test_gather_plan_gradcheck_and_vmap(kind: Kind) -> None:
         transform_kind=kind,
         dtype=torch.float64,
     )
-    plan = _use_strategy(udct, "gather")
+    plan = _use_strategy(udct, "csr")
     x = _input(kind, shape).unsqueeze(0).requires_grad_(True)
     assert torch.autograd.gradcheck(plan.forward_flat, (x,))
     coeffs = plan.forward_flat(x.detach()).requires_grad_(True)
@@ -296,11 +291,11 @@ def test_traced_code_takes_the_functional_paths(
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
+def test_csr_plan_compiles_to_one_graph(kind: Kind) -> None:
     """The accelerator path traces without graph breaks and matches eager."""
     shape = (32, 32)
     udct = UDCT(shape=shape, num_scales=3, wedges_per_direction=3, transform_kind=kind)
-    plan = _use_strategy(udct, "gather")
+    plan = _use_strategy(udct, "csr")
     plan.batch_chunk_bytes = 1  # one row per chunk: the loop is unrolled
     x = _input(kind, shape).unsqueeze(0).repeat(2, 1, 1)
     coeffs = plan.forward_flat(x)
@@ -312,10 +307,10 @@ def test_gather_plan_compiles_to_one_graph(kind: Kind) -> None:
 
 
 @pytest.mark.parametrize("budget", [None, 1])  # type: ignore[untyped-decorator]
-def test_gather_empty_batch(budget: int | None) -> None:
+def test_csr_empty_batch(budget: int | None) -> None:
     """A batch of zero rows gives empty results, whole-batch or row by row."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    plan = _use_strategy(udct, "gather")
+    plan = _use_strategy(udct, "csr")
     plan.batch_chunk_bytes = budget
     coeffs = plan.forward_flat(torch.zeros(0, 32, 32))
     assert coeffs.shape == (0, plan.ncoef)
@@ -323,7 +318,7 @@ def test_gather_empty_batch(budget: int | None) -> None:
 
 
 @pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
-def test_gather_batch_chunks_match_one_batch(kind: Kind) -> None:
+def test_csr_batch_chunks_match_one_batch(kind: Kind) -> None:
     """Row-by-row processing gives the same result, with and without autograd."""
     shape = (32, 32)
     udct = UDCT(
@@ -333,7 +328,7 @@ def test_gather_batch_chunks_match_one_batch(kind: Kind) -> None:
         transform_kind=kind,
         dtype=torch.float64,
     )
-    plan = _use_strategy(udct, "gather")
+    plan = _use_strategy(udct, "csr")
     x = torch.stack([_input(kind, shape, seed) for seed in range(5)])
     plan.batch_chunk_bytes = None
     coeffs = plan.forward_flat(x)
@@ -359,7 +354,7 @@ def test_gather_batch_chunks_match_one_batch(kind: Kind) -> None:
 def test_rows_per_chunk_follows_the_budget() -> None:
     """Rows larger than the budget run one at a time; otherwise the batch is whole."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    plan = _use_strategy(udct, "gather")
+    plan = _use_strategy(udct, "csr")
     per_row = (2 * plan.ncoef + 32 * 17) * 8
     plan.batch_chunk_bytes = None
     assert plan._rows_per_chunk(7, 8) == 7  # pylint: disable=protected-access
@@ -372,7 +367,7 @@ def test_rows_per_chunk_follows_the_budget() -> None:
 def test_cpu_plans_have_no_batch_chunk_budget() -> None:
     """Only accelerators with a known L2 size chunk batches."""
     udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    assert _use_strategy(udct, "gather").batch_chunk_bytes is None
+    assert _use_strategy(udct, "csr").batch_chunk_bytes is None
     assert _use_strategy(udct, "scatter").batch_chunk_bytes is None
 
 

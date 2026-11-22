@@ -8,7 +8,7 @@ import pytest
 import torch
 
 from curvelets.torch import UDCT
-from curvelets.torch._foldmap import GatherFold, ScatterFold
+from curvelets.torch._foldmap import CsrFold, ScatterFold
 from curvelets.torch._plan import UDCTPlan
 
 SHAPE = (32, 32)
@@ -25,16 +25,10 @@ def _udct(dtype: torch.dtype | None = None, kind: str = "real") -> UDCT:
 
 
 def _fold_weights(plan: UDCTPlan) -> list[torch.Tensor]:
-    folds: list[GatherFold | ScatterFold] = [plan.fwd_map]
+    folds: list[CsrFold | ScatterFold] = [plan.fwd_map]
     folds += [plan.bwd_map] if plan.bwd_map is not None else []
     folds += [f for chunk in plan.cpu_chunks or [] for f in chunk.bwd]
-    weights: list[torch.Tensor] = []
-    for fold in folds:
-        if isinstance(fold, GatherFold):
-            weights += [fold.w0, *(level.weights for level in fold.levels)]
-        else:
-            weights.append(fold.weights)
-    return weights
+    return [fold.weights for fold in folds]
 
 
 def test_default_follows_torch_default_dtype() -> None:

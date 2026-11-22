@@ -1,7 +1,7 @@
 """Sparse reductions ("folds") used by the fused UDCT plan, one per device class.
 
 A fold evaluates ``out[t] = sum_j w_j * src[s_j]`` with real weights for a fixed
-list of contributions ``(t_j, s_j, w_j)``. :class:`GatherFold` also accepts a
+list of contributions ``(t_j, s_j, w_j)``. :class:`CsrFold` also accepts a
 weight *pair* ``(a_j, b_j)`` per contribution, which scales the real and
 imaginary parts separately: ``a_j * Re(src[s_j]) + i * b_j * Im(src[s_j])``. With
 ``b_j = -a_j`` that is ``a_j * conj(src[s_j])``, so conjugated terms need no
@@ -12,26 +12,11 @@ hardware, so there are two implementations:
   target, so writes walk memory in order, applied one row at a time. It does no
   redundant arithmetic, which is what matters on a CPU. The plan builds one per
   cache-sized chunk of wedges (see ``UDCTPlan``).
-- :class:`GatherFold` (GPUs and other accelerators): trades extra arithmetic for
-  fewer launches and no atomics, as described below. It works on real views of
-  the complex data (``view_as_real``), so every step is a real gather, multiply
-  or sum: TorchInductor can fuse them, and the slow complex-by-real multiply
-  kernel is avoided.
-
-GatherFold: instead of a scatter-add (``index_add`` over every contribution, which needs
-atomics on GPU, a zero-filled output, and gives run-to-run differences in
-floating-point summation order), the contributions are split into *levels*:
-level ``l`` holds the ``l``-th contribution of every target, so each level has
-unique targets.
-
-- Level 0 is stored densely over all targets: one gather writes the whole
-  output (empty targets read element 0 with weight 0), so there is no zero fill.
-- Higher levels are sparse and usually small. Their targets are unique, so the
-  ``index_add`` that applies them never collides and is deterministic.
-- 3D windows overlap more, so a target can have a dozen or more contributions
-  with a long thin tail. After :data:`MAX_LEVELS` explicit levels, the remaining
-  contributions are packed into one zero-padded ``(targets, width)`` block that
-  is reduced with a single ``sum``; it keeps the launch count bounded.
+- :class:`CsrFold` (GPUs and other accelerators): compressed sparse rows by
+  target, evaluated by one fused Triton kernel launch per direction (no atomics,
+  deterministic). Outside Triton or under functorch transforms (``vmap``), it
+  falls back to PyTorch indexing. Automatic differentiation uses the transpose
+  CSR fold as the adjoint.
 """
 
 from __future__ import annotations
@@ -41,278 +26,9 @@ from dataclasses import dataclass
 
 import torch
 
-from ._triton_fold import CsrFold, triton_device
+from ._triton_fold import CsrFold, _functorch_wrapped, _index_dtype
 
-MAX_LEVELS = 3  # explicit sparse levels before the padded tail block
-
-
-def _index_dtype(size: int) -> torch.dtype:
-    """int32 indices halve index traffic; fall back to int64 for huge grids."""
-    return torch.int32 if size < 2**31 - 1 else torch.int64
-
-
-def _functorch_wrapped(tensor: torch.Tensor) -> bool:
-    """Whether ``tensor`` is wrapped by a functorch transform (vmap, grad, ...).
-
-    Always ``False`` while TorchDynamo traces (``torch.compile``): the check is an
-    opaque builtin that would break the graph, and traced code takes the
-    functional paths anyway.
-    """
-    if torch.compiler.is_compiling():
-        return False
-    is_wrapped = getattr(torch._C._functorch, "is_functorch_wrapped_tensor", None)  # pylint: disable=protected-access
-    return is_wrapped is not None and bool(is_wrapped(tensor))
-
-
-def _kernel_ok(src: torch.Tensor) -> bool:
-    """Whether the fused kernel may run on ``src``.
-
-    It has no autograd or functorch rules, so differentiable calls and
-    ``vmap``/``grad`` transforms take the torch implementation. (Gradients of the
-    UDCT are the adjoint transform evaluated without autograd, so they still
-    use the kernel.)
-    """
-    if src.requires_grad and torch.is_grad_enabled():
-        return False
-    return not _functorch_wrapped(src)
-
-
-def _ranks(targets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    """Stable sort order of ``targets`` and each element's rank among equals."""
-    order = torch.argsort(targets, stable=True)
-    sorted_t = targets[order]
-    n = sorted_t.numel()
-    is_start = torch.ones(n, dtype=torch.bool, device=targets.device)
-    if n > 1:
-        is_start[1:] = sorted_t[1:] != sorted_t[:-1]
-    positions = torch.arange(n, device=targets.device)
-    run_start = torch.where(is_start, positions, torch.zeros_like(positions))
-    run_start = torch.cummax(run_start, dim=0).values
-    return order, positions - run_start
-
-
-@dataclass
-class _Level:
-    """Unique ``targets``; each gathers ``width`` sources (zero-padded) and sums."""
-
-    targets: torch.Tensor
-    sources: torch.Tensor  # (len(targets) * width,)
-    weights: torch.Tensor
-    width: int = 1
-
-
-@dataclass
-class _Tables:
-    """Level tables of the torch implementation (see the module docstring)."""
-
-    src0: torch.Tensor
-    w0: torch.Tensor
-    levels: list[_Level]
-
-    @classmethod
-    def from_sorted(  # pylint: disable=too-many-locals
-        cls,
-        t_sorted: torch.Tensor,
-        s_sorted: torch.Tensor,
-        w_sorted: torch.Tensor,
-        rank: torch.Tensor,
-        num_targets: int,
-        num_sources: int,
-    ) -> _Tables:
-        """Build from int64 contributions sorted by target, with ranks among equals."""
-        device = t_sorted.device
-        idx_t = _index_dtype(num_targets)
-        idx_s = _index_dtype(num_sources)
-        first = rank == 0
-        src0 = torch.zeros(num_targets, dtype=idx_s, device=device)
-        pair = tuple(w_sorted.shape[1:])
-        w0 = torch.zeros((num_targets, *pair), dtype=w_sorted.dtype, device=device)
-        src0[t_sorted[first]] = s_sorted[first].to(idx_s)
-        w0[t_sorted[first]] = w_sorted[first]
-
-        levels = []
-        num_levels = int(rank.max().item()) + 1 if rank.numel() else 1
-        explicit = min(num_levels - 1, MAX_LEVELS)
-        for level in range(1, explicit + 1):
-            sel = rank == level
-            levels.append(
-                _Level(
-                    targets=t_sorted[sel].to(idx_t),
-                    sources=s_sorted[sel].to(idx_s),
-                    weights=w_sorted[sel],
-                )
-            )
-        if num_levels - 1 > explicit:
-            first_tail = explicit + 1
-            tail_targets = t_sorted[rank == first_tail]  # sorted, unique
-            sel = rank >= first_tail
-            width = num_levels - first_tail
-            rows = torch.searchsorted(tail_targets, t_sorted[sel])
-            flat = rows * width + (rank[sel] - first_tail)
-            size = tail_targets.numel() * width
-            tail_src = torch.zeros(size, dtype=idx_s, device=device)
-            tail_w = torch.zeros((size, *pair), dtype=w_sorted.dtype, device=device)
-            tail_src[flat] = s_sorted[sel].to(idx_s)
-            tail_w[flat] = w_sorted[sel]
-            levels.append(
-                _Level(
-                    targets=tail_targets.to(idx_t),
-                    sources=tail_src,
-                    weights=tail_w,
-                    width=width,
-                )
-            )
-        return cls(src0=src0, w0=w0, levels=levels)
-
-    @classmethod
-    def from_csr(cls, csr: CsrFold) -> _Tables:
-        """Rebuild from CSR maps, which keep the contributions in target order."""
-        row_ptr = csr.row_ptr.to(torch.int64)
-        counts = row_ptr[1:] - row_ptr[:-1]
-        targets = torch.arange(csr.num_targets, device=row_ptr.device)
-        t_sorted = torch.repeat_interleave(targets, counts)
-        rank = torch.arange(t_sorted.numel(), device=row_ptr.device) - row_ptr[t_sorted]
-        return cls.from_sorted(
-            t_sorted,
-            csr.col.to(torch.int64),
-            csr.weights,
-            rank,
-            csr.num_targets,
-            csr.num_sources,
-        )
-
-
-@dataclass
-class GatherFold:
-    """
-    Gather-only fold for accelerators: ``(batch, num_sources) -> (batch, num_targets)``.
-
-    Build it with :meth:`build`; apply it with :meth:`apply`.
-
-    Where the fused Triton kernel is available (CUDA), the map holds only its
-    CSR form, and the torch implementation's level tables are built from it on
-    first use: by differentiable or ``vmap``/``grad`` calls, which the kernel
-    does not support. Plain calls never need them, so the tables are not kept
-    twice.
-    """
-
-    num_targets: int
-    num_sources: int
-    # Level tables for the torch implementation; None until first needed when
-    # ``csr`` is set.
-    tables: _Tables | None
-    # The same contributions in CSR form, for the fused Triton kernel. Built on
-    # devices that can run it (CUDA with Triton installed); None elsewhere.
-    csr: CsrFold | None = None
-
-    @classmethod
-    def build(
-        cls,
-        targets: torch.Tensor,
-        sources: torch.Tensor,
-        weights: torch.Tensor,
-        num_targets: int,
-        num_sources: int,
-    ) -> GatherFold:
-        """
-        Build the map from contribution lists.
-
-        Parameters
-        ----------
-        targets, sources : torch.Tensor
-            Integer tensors of equal length: contribution ``j`` adds
-            ``weights[j] * src[sources[j]]`` to ``out[targets[j]]``.
-        weights : torch.Tensor
-            Real weights, shape ``(n,)``, or weight pairs, shape ``(n, 2)``, for
-            the real and imaginary parts of each source.
-        num_targets, num_sources : int
-            Output and input lengths.
-
-        Returns
-        -------
-        GatherFold
-            The map, on the device of ``targets``.
-        """
-        order, rank = _ranks(targets.to(torch.int64))
-        t_sorted = targets.to(torch.int64)[order]
-        s_sorted = sources.to(torch.int64)[order]
-        w_sorted = weights[order]
-        if triton_device(targets.device):
-            csr = CsrFold.from_sorted(
-                t_sorted,
-                s_sorted,
-                w_sorted,
-                num_targets,
-                num_sources,
-                _index_dtype(num_sources),
-            )
-            return cls(num_targets, num_sources, tables=None, csr=csr)
-        tables = _Tables.from_sorted(
-            t_sorted, s_sorted, w_sorted, rank, num_targets, num_sources
-        )
-        return cls(num_targets, num_sources, tables=tables)
-
-    def torch_tables(self) -> _Tables:
-        """The level tables, built from the CSR maps on first use."""
-        if self.tables is None:
-            self._build_tables()
-        assert self.tables is not None
-        return self.tables
-
-    @torch.compiler.disable  # type: ignore[untyped-decorator]
-    def _build_tables(self) -> None:
-        """One-off build with data-dependent sizes: kept out of compiled graphs."""
-        assert self.csr is not None
-        self.tables = _Tables.from_csr(self.csr)
-
-    @property
-    def src0(self) -> torch.Tensor:
-        """Level 0 sources, one per target (builds the tables if needed)."""
-        return self.torch_tables().src0
-
-    @property
-    def w0(self) -> torch.Tensor:
-        """Level 0 weights (builds the tables if needed)."""
-        return self.torch_tables().w0
-
-    @property
-    def levels(self) -> list[_Level]:
-        """Sparse levels and the padded tail (builds the tables if needed)."""
-        return self.torch_tables().levels
-
-    def apply(self, src: torch.Tensor) -> torch.Tensor:
-        """
-        Apply the map to ``src`` of shape ``(batch, num_sources)``.
-
-        Parameters
-        ----------
-        src : torch.Tensor
-            Complex input.
-
-        Returns
-        -------
-        torch.Tensor
-            Complex output of shape ``(batch, num_targets)``.
-        """
-        if self.csr is not None and _kernel_ok(src):
-            return self.csr.apply(src)
-        parts = torch.view_as_real(src)  # (batch, num_sources, 2)
-
-        def weighted(index: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-            if weights.ndim == 1:
-                weights = weights.unsqueeze(-1)
-            return parts.index_select(1, index) * weights
-
-        tables = self.torch_tables()
-        out = weighted(tables.src0, tables.w0)
-        for lvl in tables.levels:
-            term = weighted(lvl.sources, lvl.weights)
-            if lvl.width > 1:
-                term = term.unflatten(1, (-1, lvl.width)).sum(2)
-            # ``out`` is a fresh tensor owned by this call, so the level is added
-            # in place (an out-of-place index_add would copy the whole output).
-            out.index_add_(1, lvl.targets, term)
-        return torch.view_as_complex(out)
+__all__ = ["CsrFold", "ScatterFold", "_functorch_wrapped", "_index_dtype"]
 
 
 @dataclass
@@ -340,7 +56,7 @@ class ScatterFold:
         num_sources: int,
     ) -> ScatterFold:
         """
-        Build the map from contribution lists (same contract as GatherFold.build).
+        Build the map from contribution lists (same contract as CsrFold.build).
 
         Parameters
         ----------

@@ -75,7 +75,7 @@ assert torch.autograd.gradcheck(
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames

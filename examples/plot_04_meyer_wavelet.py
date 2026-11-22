@@ -241,7 +241,7 @@ print(f"RMSE: {np.sqrt(np.mean(error**2)):.2e}")
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames

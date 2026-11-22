@@ -306,7 +306,7 @@ plot_disk(C, ax2, cmaps_dir=cmaps, color_low=color_low, color_bg=color_bg)
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames

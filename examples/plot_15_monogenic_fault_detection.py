@@ -18,7 +18,7 @@ known position, first as a sharp fault and then as a fault zone with a gap, and
 reports where it holds and where it does not.
 
 What the experiment measures
-----------------------------
+############################
 
 Faults show up as discontinuities in otherwise laterally continuous reflections.
 Plane-wave destruction filters detect them as the residual left after predicting
@@ -732,7 +732,7 @@ plt.tight_layout()
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames

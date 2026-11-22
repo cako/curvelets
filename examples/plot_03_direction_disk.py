@@ -81,7 +81,7 @@ ax.set(xlabel="Position [samples]", ylabel="Depth [samples]", title="Data")
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames

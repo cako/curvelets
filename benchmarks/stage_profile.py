@@ -30,13 +30,13 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import torch
 from torch.profiler import ProfilerActivity, profile
 
 from curvelets.torch import UDCT
-from curvelets.torch._foldmap import GatherFold
+from curvelets.torch._foldmap import CsrFold
 
 CONFIGS = {
     "mnist_28": ((28, 28), 2, 3),
@@ -89,39 +89,25 @@ class Timeline:
         ]
 
 
-def fold_bytes(fold: GatherFold, csize: int, rows: int) -> dict[str, float]:
-    """Minimum traffic per fold level: index + weight(s) + gathered source + output."""
-    wsize = (csize // 2) * (2 if fold.w0.ndim == 2 else 1)
-    out: dict[str, float] = {"L0": fold.num_targets * (4 + wsize + rows * 2 * csize)}
-    for i, lvl in enumerate(fold.levels, start=1):
-        n = lvl.sources.numel()
-        t = lvl.targets.numel()
-        out[f"L{i}"] = n * (4 + wsize + rows * csize) + t * (4 + rows * 2 * csize)
-    return out
+def fold_bytes(fold: CsrFold, csize: int, rows: int) -> float:
+    """Minimum traffic: index + weight(s) + gathered source + output."""
+    wsize = (csize // 2) * (2 if fold.weights.ndim == 2 else 1)
+    nnz = fold.col.numel()
+    return float(
+        (fold.num_targets + 1) * 4
+        + nnz * (4 + wsize + rows * csize)
+        + fold.num_targets * rows * csize
+    )
 
 
 def timed_fold(
-    tl: Timeline, fold: GatherFold, src: torch.Tensor, tag: str
+    tl: Timeline, fold: CsrFold, src: torch.Tensor, tag: str
 ) -> torch.Tensor:
-    """GatherFold.apply, one marker per level (gather*weight, then index_add)."""
-    parts = torch.view_as_real(src)
+    """CsrFold.apply, one kernel launch."""
     nb = fold_bytes(fold, CSIZE[src.dtype], src.shape[0])
-
-    def weighted(index: torch.Tensor, weights: torch.Tensor) -> torch.Tensor:
-        if weights.ndim == 1:
-            weights = weights.unsqueeze(-1)
-        return parts.index_select(1, index) * weights
-
-    out = weighted(fold.src0, fold.w0)
-    tl.mark(f"{tag} L0 gather (dense {fold.num_targets:,})", nb["L0"])
-    for slot, lvl in enumerate(fold.levels, start=1):
-        term = weighted(lvl.sources, lvl.weights)
-        if lvl.width > 1:
-            term = term.unflatten(1, (-1, lvl.width)).sum(2)
-        out.index_add_(1, lvl.targets, term)
-        kind = f"tail w={lvl.width}" if lvl.width > 1 else "sparse"
-        tl.mark(f"{tag} L{slot} {kind} ({lvl.targets.numel():,} tgt)", nb[f"L{slot}"])
-    return torch.view_as_complex(out)
+    out = fold.apply(src)
+    tl.mark(f"{tag} csr fold ({fold.num_targets:,} tgt)", nb)
+    return out
 
 
 def staged_forward(plan, image: torch.Tensor, tl: Timeline) -> torch.Tensor:
@@ -312,11 +298,8 @@ def run(
         f"  init {init_s:.2f}s, plan build {plan_s:.2f}s, replay err fwd {err_f:.1e} bwd {err_b:.1e}"
     )
     fm = plan.fwd_map
-    assert isinstance(fm, GatherFold)  # CUDA plans use gather folds
-    print(
-        f"  fwd fold: {fm.num_targets:,} targets, levels "
-        f"{[(lv.targets.numel(), lv.width) for lv in fm.levels]}"
-    )
+    assert isinstance(fm, CsrFold)  # CUDA plans use CSR folds
+    print(f"  fwd fold: {fm.num_targets:,} targets, {fm.col.numel():,} nnz")
     print(
         f"  kernels/call: fwd {kernel_count(lambda: udct.forward_vect(x))}, "
         f"bwd {kernel_count(lambda: udct.backward_vect(vec))}"
@@ -373,7 +356,9 @@ def main() -> None:
     results = []
     for name in args.configs.split(","):
         for b in (int(v) for v in args.batch.split(",")):
-            kind = cast(Literal["real", "complex"], args.kind)
+            kind: Literal["real", "complex"] = (
+                "real" if args.kind == "real" else "complex"
+            )
             results.append(run(name, b, dtype, kind, args.iters))
             torch.cuda.empty_cache()
     if args.json:

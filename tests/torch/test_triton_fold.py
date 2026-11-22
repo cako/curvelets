@@ -16,7 +16,7 @@ import torch
 
 from curvelets.torch import UDCT
 from curvelets.torch import _triton_fold as tf
-from curvelets.torch._foldmap import GatherFold
+from curvelets.torch._foldmap import CsrFold
 from curvelets.torch._plan import UDCTPlan
 
 pytestmark = pytest.mark.skipif(
@@ -57,31 +57,23 @@ def _udct(
 
 
 def _plan(udct: UDCT) -> UDCTPlan:
-    """Build a gather plan (with the current environment) and install it on ``udct``."""
+    """Build a CSR plan (with the current environment) and install it on ``udct``."""
     plan = UDCTPlan.build(
         udct._params,  # pylint: disable=protected-access
         udct.windows,
         udct._decimation_ratios_cpu,  # pylint: disable=protected-access
         complex_mode=udct._transform_kind == "complex",  # pylint: disable=protected-access
-        fold_strategy="gather",
+        fold_strategy="csr",
     )
     udct._plan = plan  # pylint: disable=protected-access
     return plan
 
 
-def _csr(plan: UDCTPlan) -> tuple[tf.CsrFold | None, tf.CsrFold | None]:
-    assert isinstance(plan.fwd_map, GatherFold)
+def _csr(plan: UDCTPlan) -> tuple[tf.CsrFold, tf.CsrFold]:
+    assert isinstance(plan.fwd_map, CsrFold)
     assert plan.bwd_map is not None
-    return plan.fwd_map.csr, plan.bwd_map.csr
-
-
-def _set_csr(plan: UDCTPlan, csr: tuple[tf.CsrFold | None, tf.CsrFold | None]) -> None:
-    """Swap the CSR maps; the torch tables are built first (from the CSR maps)."""
-    assert isinstance(plan.fwd_map, GatherFold)
-    assert plan.bwd_map is not None
-    plan.fwd_map.torch_tables()
-    plan.bwd_map.torch_tables()
-    plan.fwd_map.csr, plan.bwd_map.csr = csr
+    assert isinstance(plan.bwd_map, CsrFold)
+    return plan.fwd_map, plan.bwd_map
 
 
 def _input(kind: Kind, shape: tuple[int, ...], dtype: torch.dtype) -> torch.Tensor:
@@ -107,6 +99,7 @@ def _assert_close(
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])  # type: ignore[untyped-decorator]
 @pytest.mark.parametrize("batch", [(), (3,), (2, 9)])  # type: ignore[untyped-decorator]
 def test_kernel_matches_torch_fold(
+    monkeypatch: pytest.MonkeyPatch,
     shape: tuple[int, ...],
     ns: int,
     wpd: int,
@@ -120,13 +113,10 @@ def test_kernel_matches_torch_fold(
     """
     udct = _udct(shape, ns, wpd, kind, dtype)
     plan = _plan(udct)
-    csr = _csr(plan)
-    assert csr[0] is not None
-    assert csr[1] is not None
     x = _input(kind, (*batch, *shape), dtype)
     coeffs = plan.forward_flat(x)
     recon = plan.backward_flat(coeffs)
-    _set_csr(plan, (None, None))
+    monkeypatch.setattr(tf, "triton_device", lambda _device: False)
     _assert_close(coeffs, plan.forward_flat(x), dtype)
     _assert_close(recon, plan.backward_flat(coeffs), dtype)
 
@@ -140,9 +130,8 @@ def test_csr_layout_and_weights(pair: bool) -> None:
         [0.5, -1.0, 2.0, 1.5, 3.0, -0.25, 1.0], dtype=torch.float64, device=DEVICE
     )
     weights = torch.stack([w, -2 * w], dim=-1) if pair else w
-    fold = GatherFold.build(targets, sources, weights, num_targets=6, num_sources=6)
-    assert fold.csr is not None
-    assert fold.csr.row_ptr.tolist() == [0, 2, 2, 4, 4, 7, 7]
+    fold = CsrFold.build(targets, sources, weights, num_targets=6, num_sources=6)
+    assert fold.row_ptr.tolist() == [0, 2, 2, 4, 4, 7, 7]
     gen = torch.Generator().manual_seed(1)
     src = torch.randn(5, 6, generator=gen, dtype=torch.complex128).to(DEVICE)
     expected = torch.zeros(5, 6, dtype=torch.complex128, device=DEVICE)
@@ -150,20 +139,21 @@ def test_csr_layout_and_weights(pair: bool) -> None:
         im = -2 * wj if pair else wj
         expected[:, t] += wj * src[:, s].real + 1j * im * src[:, s].imag
     torch.testing.assert_close(fold.apply(src), expected)
+    torch.testing.assert_close(fold._apply_torch(src), expected)  # pylint: disable=protected-access
 
 
-def test_kernel_is_used_and_falls_back_for_autograd_and_vmap(
+def test_kernel_is_used_and_falls_back_for_vmap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Plain calls use the kernel; differentiable and vmapped calls use torch ops."""
+    """Plain and differentiable calls use the kernel; vmapped calls use torch ops."""
     calls = []
-    real_apply = tf.CsrFold.apply
+    real_triton = tf.CsrFold._apply_triton  # pylint: disable=protected-access
 
     def counting(self: tf.CsrFold, src: torch.Tensor) -> torch.Tensor:
         calls.append(src.shape)
-        return real_apply(self, src)
+        return real_triton(self, src)
 
-    monkeypatch.setattr(tf.CsrFold, "apply", counting)
+    monkeypatch.setattr(tf.CsrFold, "_apply_triton", counting)
     udct = _udct((32, 32), 3, 3, "real", torch.float64)
     plan = _plan(udct)
     x = _input("real", (2, 32, 32), torch.float64)
@@ -174,12 +164,12 @@ def test_kernel_is_used_and_falls_back_for_autograd_and_vmap(
     calls.clear()
     xg = x.clone().requires_grad_(True)
     plan.backward_flat(plan.forward_flat(xg)).sum().backward()
-    assert not calls
+    assert len(calls) == 4
     assert xg.grad is not None
 
     with torch.no_grad():
         plan.forward_flat(xg)
-    assert len(calls) == 1
+    assert len(calls) == 5
 
     calls.clear()
     vmapped = torch.vmap(plan.forward_flat)(x)
@@ -190,9 +180,7 @@ def test_kernel_is_used_and_falls_back_for_autograd_and_vmap(
 def test_registered_op_and_compile_branch(monkeypatch: pytest.MonkeyPatch) -> None:
     """The ``torch.library`` op (used under ``torch.compile``) matches the eager launch."""
     plan = _plan(_udct((32, 32), 3, 3, "real", torch.float32))
-    fwd_csr, bwd_csr = _csr(plan)
-    assert fwd_csr is not None
-    assert bwd_csr is not None
+    fwd_csr, _ = _csr(plan)
     assert sum(t.numel() for t in fwd_csr.tensors()) > 0
     src = plan._spectrum(_input("real", (2, 32, 32), torch.float32))  # pylint: disable=protected-access
     eager = fwd_csr.apply(src)
@@ -208,48 +196,50 @@ def test_registered_op_and_compile_branch(monkeypatch: pytest.MonkeyPatch) -> No
     assert tf._OP_REGISTERED  # pylint: disable=protected-access
 
 
-def test_torch_tables_are_built_lazily_from_csr(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Kernel plans keep only CSR maps until a differentiable call needs the tables.
-
-    The rebuilt tables equal the ones built directly from the contributions.
-    """
+def test_autograd_matches_torch_gradient(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Differentiable calls through the kernel match the torch fallback gradient."""
     udct = _udct((16, 16, 16), 3, 3, "real", torch.float64)
     plan = _plan(udct)
-    folds = [plan.fwd_map, plan.bwd_map]
-    assert all(isinstance(f, GatherFold) and f.tables is None for f in folds)
     x = _input("real", (2, 16, 16, 16), torch.float64)
-    plan.backward_flat(plan.forward_flat(x))
-    assert all(f.tables is None for f in folds)  # type: ignore[union-attr]
 
-    xg = x.clone().requires_grad_(True)
-    plan.backward_flat(plan.forward_flat(xg)).sum().backward()
-    assert all(f.tables is not None for f in folds)  # type: ignore[union-attr]
+    xg1 = x.clone().requires_grad_(True)
+    plan.backward_flat(plan.forward_flat(xg1)).sum().backward()
 
-    monkeypatch.setenv("CURVELETS_TRITON", "0")
-    eager = _plan(udct)
-    for lazy, direct in zip(folds, [eager.fwd_map, eager.bwd_map], strict=True):
-        assert isinstance(lazy, GatherFold)
-        assert isinstance(direct, GatherFold)
-        assert direct.csr is None
-        assert direct.tables is not None
-        torch.testing.assert_close(lazy.src0, direct.src0, rtol=0, atol=0)
-        torch.testing.assert_close(lazy.w0, direct.w0, rtol=0, atol=0)
-        assert len(lazy.levels) == len(direct.levels)
-        for a, b in zip(lazy.levels, direct.levels, strict=True):
-            assert a.width == b.width
-            for name in ("targets", "sources", "weights"):
-                torch.testing.assert_close(
-                    getattr(a, name), getattr(b, name), rtol=0, atol=0
-                )
+    monkeypatch.setattr(tf, "triton_device", lambda _device: False)
+    plan_torch = _plan(_udct((16, 16, 16), 3, 3, "real", torch.float64))
+    xg2 = x.clone().requires_grad_(True)
+    plan_torch.backward_flat(plan_torch.forward_flat(xg2)).sum().backward()
+
+    assert xg1.grad is not None
+    assert xg2.grad is not None
+    torch.testing.assert_close(xg1.grad, xg2.grad, rtol=1e-10, atol=1e-10)
+
+
+def test_transpose_csr() -> None:
+    """The transpose fold is the adjoint of the forward fold."""
+    targets = torch.tensor([0, 0, 1, 2, 2], dtype=torch.int64, device=DEVICE)
+    sources = torch.tensor([0, 1, 2, 1, 3], dtype=torch.int64, device=DEVICE)
+    weights = torch.tensor(
+        [[1.5, -1.5], [2.0, 3.0], [0.5, -0.5], [1.0, 1.0], [-2.0, 2.0]],
+        dtype=torch.float64,
+        device=DEVICE,
+    )
+    csr = tf.CsrFold.from_sorted(targets, sources, weights, 3, 4, torch.int64)
+    t = csr.transpose()
+    assert t.num_targets == 4
+    assert t.num_sources == 3
 
 
 def test_disabled_by_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``CURVELETS_TRITON=0`` builds no CSR maps."""
+    """``CURVELETS_TRITON=0`` runs the PyTorch CSR fallback."""
     monkeypatch.setenv("CURVELETS_TRITON", "0")
+    assert not tf.triton_available()
+    assert not tf.triton_device(torch.device("cuda"))
     plan = _plan(_udct((32, 32), 3, 3, "real", torch.float32))
-    assert _csr(plan) == (None, None)
+    assert isinstance(plan.fwd_map, CsrFold)
+    x = _input("real", (2, 32, 32), torch.float32)
+    coeffs = plan.forward_flat(x)
+    assert coeffs.shape == (2, plan.ncoef)
 
 
 def test_device_rules(monkeypatch: pytest.MonkeyPatch) -> None:
