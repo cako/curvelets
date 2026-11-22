@@ -29,7 +29,7 @@ def pylint(session: nox.Session) -> None:
     # This needs to be installed into the package environment, and is slower
     # than a pre-commit check
     session.install("-e", ".")
-    session.run("uv", "pip", "install", "--torch-backend=cpu", "--group", "docs")
+    session.run("uv", "pip", "install", "--torch-backend=cpu", "--group", "test")
     session.install("pylint")
     session.run("pylint", "curvelets", *session.posargs)
 

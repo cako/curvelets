@@ -216,9 +216,9 @@ Bug fixes
 Security hardening
 ------------------
 
-- The PyPI release workflow pins actions to commit SHAs, installs build tools from a hash-locked file, builds without isolation, checks that the built files match the release tag and keeps a read-only token for the build job. (:pr:`100`)
-- ``CODECOV_TOKEN`` is no longer available to CI jobs that run third-party code. The test matrix only uploads coverage artifacts, and a separate job with no Python packages uploads them. Workflows use read-only permissions and do not persist credentials. (:pr:`99`)
-- ``uv`` dependency resolution (used across CI, Read the Docs and Nox via ``uv pip install --torch-backend=cpu``), the release build lock and all pre-commit hooks and their ``additional_dependencies`` enforce a 30-day minimum release age (``exclude-newer = "30 days"``) and exact version pins. (:pr:`133`)
+- The PyPI release workflow pins actions to commit SHAs, installs build tools from a hash-locked file, builds without isolation, checks that the built files match the release tag, attests SLSA build provenance and PyPI digital attestations, and keeps a read-only token for the build job. (:pr:`100`, :pr:`133`)
+- ``CODECOV_TOKEN`` is no longer available to CI jobs that run third-party code. The test matrix only uploads coverage artifacts, and a separate job with no Python packages uploads them. Workflows use read-only permissions, pin every GitHub Action to a commit SHA (with a 30-day Dependabot cooldown) and do not persist credentials. (:pr:`99`, :pr:`133`)
+- ``uv`` dependency resolution (used across CI, Format, Read the Docs and Nox via a pinned ``astral-sh/setup-uv`` and ``uv pip install --torch-backend=cpu``), the release build lock and all pre-commit hooks (frozen to commit SHAs) and their ``additional_dependencies`` enforce a 30-day minimum release age (``exclude-newer = "30 days"``) and exact version pins. (:pr:`133`)
 
 Upgrading from 1.2
 ------------------

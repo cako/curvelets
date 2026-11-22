@@ -83,6 +83,7 @@ jobs:
     environment: pypi
     permissions:
       id-token: write
+      attestations: write
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
 
@@ -92,8 +93,15 @@ jobs:
           name: Packages
           path: dist
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: "dist/*"
+
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
         if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          attestations: true
         # with:
         #   # Remember to tell (test-)pypi about this repo before publishing
         #   # Remove this line to publish to PyPI
