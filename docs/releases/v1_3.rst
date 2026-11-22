@@ -234,7 +234,7 @@ Project
 
 - The CI test matrix is skipped for documentation-, docstring- and example-only changes, fails fast on pull requests and skips retesting up-to-date merges. (:pr:`102`, :pr:`110`, :pr:`112`, :pr:`115`)
 - The torch guide is organized around usage tips, and the public API carries ``versionadded`` and ``versionchanged`` notes for 1.3. (:pr:`101`, :pr:`105`)
-- The pre-commit ruff hook is updated from 0.9.7 to 0.17.6. (:pr:`133`)
+- The pre-commit hooks are updated, including ruff from 0.9.7 to 0.17.6. (:pr:`133`)
 - FDCT patent information added to the README. (:pr:`69`)
 
 .. _release-1-3-measured:
