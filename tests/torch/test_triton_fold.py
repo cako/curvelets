@@ -255,6 +255,10 @@ def test_device_rules(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_empty_batch() -> None:
     """Zero rows give empty results."""
     plan = _plan(_udct((32, 32), 3, 3, "real", torch.float32))
+    fwd_csr, _ = _csr(plan)
+    assert fwd_csr.apply(
+        torch.zeros(0, fwd_csr.num_sources, dtype=torch.complex64, device=DEVICE)
+    ).shape == (0, plan.ncoef)
     out = plan.forward_flat(torch.zeros(0, 32, 32, device=DEVICE))
     assert out.shape == (0, plan.ncoef)
     assert plan.backward_flat(out).shape == (0, 32, 32)

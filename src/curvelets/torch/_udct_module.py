@@ -43,6 +43,6 @@ class UDCTModule(UDCT):
         kwargs["transform_kind"] = transform_type
         super().__init__(*args, **kwargs)
 
-    def forward(self, image: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def forward(self, image: torch.Tensor) -> torch.Tensor:  # type: ignore[override]  # pylint: disable=arguments-differ
         """Flattened coefficients of shape ``(*batch, ncoef)``."""
         return UDCT.forward(self, image, structured=False)

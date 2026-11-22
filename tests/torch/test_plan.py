@@ -309,9 +309,12 @@ def test_csr_plan_compiles_to_one_graph(kind: Kind) -> None:
 
 
 @pytest.mark.parametrize("budget", [None, 1])  # type: ignore[untyped-decorator]
-def test_csr_empty_batch(budget: int | None) -> None:
+@pytest.mark.parametrize("kind", ["real", "complex"])  # type: ignore[untyped-decorator]
+def test_csr_empty_batch(budget: int | None, kind: Kind) -> None:
     """A batch of zero rows gives empty results, whole-batch or row by row."""
-    udct = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
+    udct = UDCT(
+        shape=(32, 32), num_scales=3, wedges_per_direction=3, transform_kind=kind
+    )
     plan = _use_strategy(udct, "csr")
     plan.batch_chunk_bytes = budget
     coeffs = plan.forward_flat(torch.zeros(0, 32, 32))
