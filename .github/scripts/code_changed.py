@@ -8,7 +8,7 @@ also written there as the ``code`` step output.
 
 A change counts as code unless every changed file is either
 
-* matched by one of ``IGNORED_PATTERNS`` (and not in ``NEVER_IGNORED``), or
+* matched by one of ``IGNORED_PATTERNS``, or
 * a regular ``.py`` file, modified in place, whose syntax tree with docstrings
   removed is the same before and after (only docstrings, comments or layout
   changed).
@@ -31,8 +31,7 @@ import re
 import subprocess
 import sys
 
-# Changes the tests cannot see. The test job installs docs/requirements.txt,
-# so it always counts.
+# Changes the tests cannot see.
 IGNORED_PATTERNS = (
     "docs/**",
     "examples/**",
@@ -43,7 +42,6 @@ IGNORED_PATTERNS = (
     ".github/requirements/**",
     ".github/dependabot.yml",
 )
-NEVER_IGNORED = frozenset({"docs/requirements.txt"})
 
 # Only plain files can be compared as Python source; symlinks and submodules
 # count as code.
@@ -82,8 +80,6 @@ _IGNORED = tuple(_glob_to_regex(p) for p in IGNORED_PATTERNS)
 
 
 def is_ignored(path: str) -> bool:
-    if path in NEVER_IGNORED:
-        return False
     return any(regex.match(path) for regex in _IGNORED)
 
 
