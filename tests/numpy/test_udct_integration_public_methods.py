@@ -332,9 +332,10 @@ class TestComplexEdgeCases:
         assert len(coeffs_recon) == len(coeffs_orig)
         assert len(coeffs_recon) == 4
 
-        # Verify highest scale has 2*ndim directions (for complex transform)
+        # Intermediate curvelet scales have 2*ndim directions; wavelet highest scale has 1
+        assert len(coeffs_recon[1]) == 2 * transform.parameters.ndim
         highest_scale_idx = 3
-        assert len(coeffs_recon[highest_scale_idx]) == 2 * transform.parameters.ndim
+        assert len(coeffs_recon[highest_scale_idx]) == 1
 
         for scale_idx in range(len(coeffs_orig)):
             for direction_idx in range(len(coeffs_orig[scale_idx])):

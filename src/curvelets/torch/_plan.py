@@ -109,7 +109,7 @@ class _Entry:
     window: SparseWindow
     flip: bool
     fwd_scale: float
-    bwd_scale: float  # 0.0: coefficient is not used by the backward transform
+    bwd_scale: float
     position: tuple[int, int, int]  # (scale, direction, wedge) in the output
 
 
@@ -203,7 +203,6 @@ class UDCTPlan:
         gidx: list[torch.Tensor] = []
         fwd_w: list[torch.Tensor] = []
         bwd_w: list[torch.Tensor] = []
-        used: list[torch.Tensor] = []
         offset = 0
         for entry in entries:
             window = entry.window
@@ -232,25 +231,13 @@ class UDCTPlan:
             # the coefficients in each direction.
             fwd_w.append(window.values * entry.fwd_scale)
             bwd_w.append(window.values * entry.bwd_scale)
-            used.append(
-                torch.full(
-                    (indices.numel(),),
-                    entry.bwd_scale != 0.0,
-                    dtype=torch.bool,
-                    device=indices.device,
-                )
-            )
             offset += math.prod(out_shape)
 
         fwd_idx = torch.cat(idx)
         fwd_gidx = torch.cat(gidx)
         fwd_vals = torch.cat(fwd_w)
         bwd_vals = torch.cat(bwd_w)
-        if all(entry.bwd_scale != 0.0 for entry in entries):
-            bwd_idx, bwd_gidx = fwd_idx, fwd_gidx
-        else:
-            mask = torch.cat(used)
-            bwd_idx, bwd_gidx, bwd_vals = fwd_idx[mask], fwd_gidx[mask], bwd_vals[mask]
+        bwd_idx, bwd_gidx = fwd_idx, fwd_gidx
 
         shape = tuple(parameters.shape)
         numel = math.prod(shape)
@@ -282,7 +269,9 @@ class UDCTPlan:
             raise ValueError(msg)
 
         num_directions = [1] + [
-            2 * parameters.ndim if complex_mode else len(windows[scale_idx])
+            2 * parameters.ndim
+            if complex_mode and len(windows[scale_idx]) > 1
+            else len(windows[scale_idx])
             for scale_idx in range(1, parameters.num_scales)
         ]
         return cls(
@@ -814,8 +803,6 @@ def _plan_entries(
     """Wedges in ``vect`` order with their forward/backward scale factors."""
     ndim = parameters.ndim
     num_scales = parameters.num_scales
-    highest = num_scales - 1
-    wavelet_highest = len(windows[highest]) == 1
     half = math.sqrt(0.5) if complex_mode else 1.0
 
     def dec_prod(scale_idx: int, dir_idx: int) -> float:
@@ -829,29 +816,36 @@ def _plan_entries(
         _Entry(windows[0][0][0], False, scale_norm / pd0, math.sqrt(pd0), (0, 0, 0))
     ]
 
-    def add(scale_idx: int, dir_idx: int, out_dir: int, flip: bool, used: bool) -> None:
-        win_dir = min(dir_idx, len(windows[scale_idx]) - 1)
-        pd = dec_prod(scale_idx, win_dir)
-        fwd = math.sqrt(2.0 * pd) / pd * half
-        # Wavelet mode: the backward weighs the other scales by 2 and the
-        # ring-shaped highest scale by 1.
-        factor = 1.0 if (wavelet_highest and scale_idx == highest) else 2.0
-        bwd = math.sqrt(pd / 2.0) * half * factor if used else 0.0
-        for wedge_idx, window in enumerate(windows[scale_idx][win_dir]):
+    def add(
+        scale_idx: int,
+        dir_idx: int,
+        out_dir: int,
+        flip: bool,
+        *,
+        symmetric: bool = False,
+    ) -> None:
+        pd = dec_prod(scale_idx, dir_idx)
+        if symmetric:
+            fwd = 1.0 / math.sqrt(pd)
+            bwd = math.sqrt(pd)
+        else:
+            fwd = math.sqrt(2.0 * pd) / pd * half
+            bwd = math.sqrt(pd / 2.0) * half * 2.0
+        for wedge_idx, window in enumerate(windows[scale_idx][dir_idx]):
             entries.append(
                 _Entry(window, flip, fwd, bwd, (scale_idx, out_dir, wedge_idx))
             )
 
     for scale_idx in range(1, num_scales):
+        if len(windows[scale_idx]) == 1:
+            add(scale_idx, 0, 0, False, symmetric=True)
+            continue
         if not complex_mode:
             for dir_idx in range(len(windows[scale_idx])):
-                add(scale_idx, dir_idx, dir_idx, False, True)
+                add(scale_idx, dir_idx, dir_idx, False)
             continue
         for flip in (False, True):
             for dir_idx in range(ndim):
-                # Wavelet mode repeats the single ring window over the ndim
-                # directions; the backward only uses direction 0.
-                used = not (wavelet_highest and scale_idx == highest and dir_idx != 0)
                 out_dir = dir_idx + ndim if flip else dir_idx
-                add(scale_idx, dir_idx, out_dir, flip, used)
+                add(scale_idx, dir_idx, out_dir, flip)
     return entries

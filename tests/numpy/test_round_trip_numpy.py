@@ -276,11 +276,17 @@ def test_numpy_round_trip_complex_wavelet_mode(dim, rng):
     # Verify structure: should have 3 scales
     assert len(coeffs) == 3, f"Expected 3 scales, got {len(coeffs)}"
 
-    # Verify highest scale has 2*ndim directions (ndim for positive, ndim for negative)
+    # Intermediate curvelet scales keep 2*ndim directions; wavelet highest scale has 1
+    assert len(coeffs[1]) == 2 * transform.parameters.ndim, (
+        f"Expected {2 * transform.parameters.ndim} directions at curvelet scale 1, "
+        f"got {len(coeffs[1])}"
+    )
     highest_scale_idx = 2
-    assert len(coeffs[highest_scale_idx]) == 2 * transform.parameters.ndim, (
-        f"Expected {2 * transform.parameters.ndim} directions at highest scale, "
-        f"got {len(coeffs[highest_scale_idx])}"
+    assert len(coeffs[highest_scale_idx]) == 1, (
+        f"Expected 1 direction at highest scale, got {len(coeffs[highest_scale_idx])}"
+    )
+    assert len(coeffs[highest_scale_idx][0]) == 1, (
+        f"Expected 1 wedge at highest scale, got {len(coeffs[highest_scale_idx][0])}"
     )
 
     # Verify windows structure: should have 1 direction at highest scale

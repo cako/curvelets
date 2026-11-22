@@ -23,9 +23,12 @@ def _wedge_analyze_scale(
     decimation_ratio: npt.NDArray[np.int_],
     *,
     complex_mode: bool = False,
+    symmetric: bool = False,
 ) -> float:
-    """Scale for periodized forward wedge (optional complex √0.5)."""
+    """Scale for periodized forward band (1/√D if symmetric, else √(2/D), optional complex √0.5)."""
     prod_d = float(np.prod(decimation_ratio))
+    if symmetric:
+        return float(1.0 / np.sqrt(prod_d))
     scale = float(np.sqrt(2.0 * prod_d) / prod_d)
     if complex_mode:
         scale *= float(np.sqrt(0.5))
@@ -37,6 +40,8 @@ def _process_wedge_real(
     decimation_ratio: npt.NDArray[np.int_],
     image_frequency: npt.NDArray[np.complexfloating],
     fft: FFTBackend | None = None,
+    *,
+    symmetric: bool = False,
 ) -> npt.NDArray[np.complexfloating]:
     """
     Process a single wedge for real transform mode.
@@ -55,6 +60,9 @@ def _process_wedge_real(
         its ``rfftn``).
     fft : FFTBackend, optional
         FFT implementation; defaults to ``numpy.fft``.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``1 / sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Returns
     -------
@@ -71,7 +79,7 @@ def _process_wedge_real(
     """
     return window.analyze(
         image_frequency,
-        _wedge_analyze_scale(decimation_ratio),
+        _wedge_analyze_scale(decimation_ratio, symmetric=symmetric),
         decimation=decimation_ratio,
         half=True,
         fft=fft,
@@ -84,6 +92,8 @@ def _process_wedge_complex(
     image_frequency: npt.NDArray[np.complexfloating],
     flip_window: bool = False,
     fft: FFTBackend | None = None,
+    *,
+    symmetric: bool = False,
 ) -> npt.NDArray[np.complexfloating]:
     """
     Process a single wedge for complex transform mode.
@@ -104,6 +114,9 @@ def _process_wedge_complex(
         Default is False.
     fft : FFTBackend, optional
         FFT implementation; defaults to ``numpy.fft``.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``1 / sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Returns
     -------
@@ -118,7 +131,7 @@ def _process_wedge_complex(
     """
     return window.analyze(
         image_frequency,
-        _wedge_analyze_scale(decimation_ratio, complex_mode=True),
+        _wedge_analyze_scale(decimation_ratio, complex_mode=True, symmetric=symmetric),
         flip=flip_window,
         decimation=decimation_ratio,
         fft=fft,
@@ -230,6 +243,7 @@ def _apply_forward_transform_real(
                     else decimation_ratios[scale_idx][direction_idx, :],
                     image_frequency,
                     fft,
+                    symmetric=len(windows[scale_idx]) == 1,
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
@@ -252,7 +266,8 @@ def _apply_forward_transform_complex(
 
     This function decomposes an input image or volume into complex-valued curvelet
     coefficients by applying frequency-domain windows and downsampling. Positive
-    and negative frequency bands are separated into different directions.
+    and negative frequency bands are separated into different directions (except
+    the symmetric wavelet-mode highest scale, which has 1 direction).
 
     Parameters
     ----------
@@ -282,7 +297,8 @@ def _apply_forward_transform_complex(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per
+          curvelet scale; 1 direction at the wavelet-mode highest scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
         Each coefficient array has shape determined by decimation ratios.
@@ -291,9 +307,9 @@ def _apply_forward_transform_complex(
     Notes
     -----
     The complex transform separates positive and negative frequencies into
-    different directions. Each band is scaled by :math:`\\sqrt{0.5}` to maintain energy
-    preservation. The negative frequency windows are obtained by flipping indices
-    via ``flip_fft_indices`` (equivalent to ``flip_fft_all_axes``).
+    different directions. Each curvelet band is scaled by :math:`\\sqrt{0.5}` to
+    maintain energy preservation. The negative frequency windows are obtained by
+    flipping indices via ``flip_fft_indices`` (equivalent to ``flip_fft_all_axes``).
 
     This mode is required for complex-valued inputs and provides full frequency
     information.
@@ -318,60 +334,38 @@ def _apply_forward_transform_complex(
     )
 
     coefficients: UDCTCoefficients[np.complexfloating] = [[[low_freq_coeff]]]
-
-    return coefficients + [
-        [
+    for scale_idx in range(1, parameters.num_scales):
+        if len(windows[scale_idx]) == 1:
+            decimation_ratio = decimation_ratios[scale_idx][0, :]
+            coefficients.append([
+                [
+                    _process_wedge_complex(
+                        window,
+                        decimation_ratio,
+                        image_frequency,
+                        flip_window=False,
+                        fft=fft,
+                        symmetric=True,
+                    )
+                    for window in windows[scale_idx][0]
+                ]
+            ])
+            continue
+        coefficients.append([
             [
                 _process_wedge_complex(
-                    windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)][
-                        wedge_idx
-                    ],
-                    decimation_ratios[scale_idx][0, :]
-                    if decimation_ratios[scale_idx].shape[0] == 1
-                    else decimation_ratios[scale_idx][
-                        min(direction_idx, len(windows[scale_idx]) - 1), :
-                    ],
+                    window,
+                    decimation_ratios[scale_idx][direction_idx, :],
                     image_frequency,
-                    flip_window=False,
+                    flip_window=flip_window,
                     fft=fft,
                 )
-                for wedge_idx in range(
-                    len(
-                        windows[scale_idx][
-                            min(direction_idx, len(windows[scale_idx]) - 1)
-                        ]
-                    )
-                )
+                for window in windows[scale_idx][direction_idx]
             ]
+            for flip_window in (False, True)
             for direction_idx in range(parameters.ndim)
-        ]
-        + [
-            [
-                _process_wedge_complex(
-                    windows[scale_idx][min(direction_idx, len(windows[scale_idx]) - 1)][
-                        wedge_idx
-                    ],
-                    decimation_ratios[scale_idx][0, :]
-                    if decimation_ratios[scale_idx].shape[0] == 1
-                    else decimation_ratios[scale_idx][
-                        min(direction_idx, len(windows[scale_idx]) - 1), :
-                    ],
-                    image_frequency,
-                    flip_window=True,
-                    fft=fft,
-                )
-                for wedge_idx in range(
-                    len(
-                        windows[scale_idx][
-                            min(direction_idx, len(windows[scale_idx]) - 1)
-                        ]
-                    )
-                )
-            ]
-            for direction_idx in range(parameters.ndim)
-        ]
-        for scale_idx in range(1, parameters.num_scales)
-    ]
+        ])
+    return coefficients
 
 
 def _monogenic_channels(
@@ -410,6 +404,7 @@ def _process_wedge_monogenic(
     fft: FFTBackend | None = None,
     *,
     half: bool = False,
+    symmetric: bool = False,
 ) -> npt.NDArray[np.floating]:
     """
     Process a single wedge for monogenic transform.
@@ -433,6 +428,9 @@ def _process_wedge_monogenic(
         FFT implementation; defaults to ``numpy.fft``.
     half : bool, optional
         If True, ``image_frequency`` is a half-spectrum source.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``1 / sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Returns
     -------
@@ -458,7 +456,7 @@ def _process_wedge_monogenic(
         decimation_ratio,
         image_frequency,
         riesz_filters_list,
-        _wedge_analyze_scale(decimation_ratio),
+        _wedge_analyze_scale(decimation_ratio, symmetric=symmetric),
         half=half,
         fft=fft,
     )
@@ -603,6 +601,7 @@ def _apply_forward_transform_monogenic(
                     riesz_filters_list,
                     fft,
                     half=True,
+                    symmetric=len(windows[scale_idx]) == 1,
                 )
                 for wedge_idx in range(len(windows[scale_idx][direction_idx]))
             ]
@@ -690,8 +689,8 @@ def _apply_forward_transform(
         coefficients[scale][direction][wedge] = np.ndarray
         - scale 0: Low-frequency band (1 direction, 1 wedge)
         - scale 1..(num_scales-1): High-frequency bands
-          * Real mode: dim directions per scale
-          * Complex mode: 2*dim directions per scale
+          * Real mode: dim directions per curvelet scale (1 in wavelet mode)
+          * Complex mode: 2*dim directions per curvelet scale (1 in wavelet mode)
         Each coefficient array has shape determined by decimation ratios.
         Coefficients have complex dtype matching the input:
         - np.float32 input -> np.complex64 coefficients

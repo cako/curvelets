@@ -17,9 +17,12 @@ def _wedge_analyze_scale(
     decimation_ratio: torch.Tensor,
     *,
     complex_mode: bool = False,
+    symmetric: bool = False,
 ) -> float:
-    """Scale for periodized forward wedge (optional complex √0.5)."""
+    """Scale for periodized forward band (1/√D if symmetric, else √(2/D), optional complex √0.5)."""
     prod_d = float(torch.prod(decimation_ratio.float()).item())
+    if symmetric:
+        return float(1.0 / math.sqrt(prod_d))
     scale = float(math.sqrt(2.0 * prod_d) / prod_d)
     if complex_mode:
         scale *= float(math.sqrt(0.5))
@@ -38,6 +41,8 @@ def _process_wedge_real(
     window: SparseWindow,
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
+    *,
+    symmetric: bool = False,
 ) -> torch.Tensor:
     """
     Process a single wedge for real transform mode.
@@ -53,6 +58,9 @@ def _process_wedge_real(
         Decimation ratio for this wedge (1D array with length equal to dimensions).
     image_frequency : torch.Tensor
         Input image in frequency domain (from FFT).
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``1 / sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Returns
     -------
@@ -69,7 +77,7 @@ def _process_wedge_real(
     """
     return window.analyze(
         image_frequency,
-        _wedge_analyze_scale(decimation_ratio),
+        _wedge_analyze_scale(decimation_ratio, symmetric=symmetric),
         decimation=decimation_ratio,
     )
 
@@ -79,6 +87,8 @@ def _process_wedge_complex(
     decimation_ratio: torch.Tensor,
     image_frequency: torch.Tensor,
     flip_window: bool = False,
+    *,
+    symmetric: bool = False,
 ) -> torch.Tensor:
     """
     Process a single wedge for complex transform mode.
@@ -97,6 +107,9 @@ def _process_wedge_complex(
     flip_window : bool, optional
         If True, flip the window for negative frequency processing.
         Default is False.
+    symmetric : bool, optional
+        If True, use symmetric-band scaling ``1 / sqrt(prod(d))`` (wavelet
+        highest scale) instead of directional wedge scaling. Default is False.
 
     Returns
     -------
@@ -111,7 +124,7 @@ def _process_wedge_complex(
     """
     return window.analyze(
         image_frequency,
-        _wedge_analyze_scale(decimation_ratio, complex_mode=True),
+        _wedge_analyze_scale(decimation_ratio, complex_mode=True, symmetric=symmetric),
         flip=flip_window,
         decimation=decimation_ratio,
     )
@@ -198,6 +211,7 @@ def _apply_forward_transform_real(
     coefficients: UDCTCoefficients = [[[low_freq_coeff]]]
 
     for scale_idx in range(1, parameters.num_scales):
+        symmetric = len(windows[scale_idx]) == 1
         scale_coeffs = []
         for direction_idx in range(len(windows[scale_idx])):
             direction_coeffs = []
@@ -212,6 +226,7 @@ def _apply_forward_transform_real(
                     window,
                     decimation_ratio,
                     image_frequency,
+                    symmetric=symmetric,
                 )
                 direction_coeffs.append(coeff)
             scale_coeffs.append(direction_coeffs)
@@ -231,7 +246,8 @@ def _apply_forward_transform_complex(
 
     This function decomposes an input image or volume into complex-valued curvelet
     coefficients by applying frequency-domain windows and downsampling. Positive
-    and negative frequency bands are separated into different directions.
+    and negative frequency bands are separated into different directions (except
+    the symmetric wavelet-mode highest scale, which has 1 direction).
 
     Parameters
     ----------
@@ -261,7 +277,8 @@ def _apply_forward_transform_complex(
         Curvelet coefficients as nested list structure:
         coefficients[scale][direction][wedge] = torch.Tensor
         - scale 0: Low-frequency band (1 direction, 1 wedge)
-        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per scale)
+        - scale 1..(num_scales-1): High-frequency bands (2*ndim directions per
+          curvelet scale; 1 direction at the wavelet-mode highest scale)
           * Directions 0..dim-1 are positive frequencies
           * Directions dim..2*dim-1 are negative frequencies
         Each coefficient array has shape determined by decimation ratios.
@@ -270,9 +287,9 @@ def _apply_forward_transform_complex(
     Notes
     -----
     The complex transform separates positive and negative frequencies into
-    different directions. Each band is scaled by :math:`\\sqrt{0.5}` to maintain energy
-    preservation. The negative frequency windows are obtained by flipping the
-    positive frequency windows using `flip_fft_all_axes`.
+    different directions. Each curvelet band is scaled by :math:`\\sqrt{0.5}` to
+    maintain energy preservation. The negative frequency windows are obtained by
+    flipping the positive frequency windows using `flip_fft_all_axes`.
 
     This mode is required for complex-valued inputs and provides full frequency
     information.
@@ -290,49 +307,36 @@ def _apply_forward_transform_complex(
     coefficients: UDCTCoefficients = [[[low_freq_coeff]]]
 
     for scale_idx in range(1, parameters.num_scales):
+        if len(windows[scale_idx]) == 1:
+            decimation_ratio = decimation_ratios[scale_idx][0, :]
+            coefficients.append([
+                [
+                    _process_wedge_complex(
+                        window,
+                        decimation_ratio,
+                        image_frequency,
+                        flip_window=False,
+                        symmetric=True,
+                    )
+                    for window in windows[scale_idx][0]
+                ]
+            ])
+            continue
+
         scale_coeffs = []
-
-        # Positive frequency bands (directions 0..dim-1)
-        for direction_idx in range(parameters.ndim):
-            direction_coeffs = []
-            window_direction_idx = min(direction_idx, len(windows[scale_idx]) - 1)
-            for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                if decimation_ratios[scale_idx].shape[0] == 1:
-                    decimation_ratio = decimation_ratios[scale_idx][0, :]
-                else:
-                    decimation_ratio = decimation_ratios[scale_idx][
-                        window_direction_idx, :
-                    ]
-
-                coeff = _process_wedge_complex(
-                    windows[scale_idx][window_direction_idx][wedge_idx],
-                    decimation_ratio,
-                    image_frequency,
-                    flip_window=False,
-                )
-                direction_coeffs.append(coeff)
-            scale_coeffs.append(direction_coeffs)
-
-        # Negative frequency bands (directions dim..2*dim-1)
-        for direction_idx in range(parameters.ndim):
-            direction_coeffs = []
-            window_direction_idx = min(direction_idx, len(windows[scale_idx]) - 1)
-            for wedge_idx in range(len(windows[scale_idx][window_direction_idx])):
-                if decimation_ratios[scale_idx].shape[0] == 1:
-                    decimation_ratio = decimation_ratios[scale_idx][0, :]
-                else:
-                    decimation_ratio = decimation_ratios[scale_idx][
-                        window_direction_idx, :
-                    ]
-
-                coeff = _process_wedge_complex(
-                    windows[scale_idx][window_direction_idx][wedge_idx],
-                    decimation_ratio,
-                    image_frequency,
-                    flip_window=True,
-                )
-                direction_coeffs.append(coeff)
-            scale_coeffs.append(direction_coeffs)
+        for flip_window in (False, True):
+            for direction_idx in range(parameters.ndim):
+                decimation_ratio = decimation_ratios[scale_idx][direction_idx, :]
+                direction_coeffs = [
+                    _process_wedge_complex(
+                        window,
+                        decimation_ratio,
+                        image_frequency,
+                        flip_window=flip_window,
+                    )
+                    for window in windows[scale_idx][direction_idx]
+                ]
+                scale_coeffs.append(direction_coeffs)
 
         coefficients.append(scale_coeffs)
 
