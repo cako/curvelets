@@ -394,7 +394,7 @@ print("=" * 60)
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames

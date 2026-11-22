@@ -368,7 +368,7 @@ plt.show()
 
 # %%
 # References
-# ==========
+# ##########
 #
 # .. bibliography::
 #    :filter: docname in docnames
