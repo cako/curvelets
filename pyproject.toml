@@ -263,3 +263,7 @@ messages_control.disable = [
 [tool.codespell]
 # Author surnames in docs/references.bib
 ignore-words-list = "childs"
+
+
+[tool.uv]
+exclude-newer = "30 days"
