@@ -83,16 +83,16 @@ d_gray = 0.299 * d[..., 0] + 0.587 * d[..., 1] + 0.114 * d[..., 2]
 
 # Compute threshold indices from grayscale image
 perc = 0.04
-cwt_gray = Cop.vect(Cop.forward(d_gray))
+cwt_gray = Cop.forward(d_gray, structured=False)
 thresh_idxs = udct_threshold_indices(cwt_gray, perc)
 
 # Apply the same threshold filter to each RGB channel
 d_cwts = []
 for i in range(3):
-    cwt = Cop.vect(Cop.forward(d[..., i]))
+    cwt = Cop.forward(d[..., i], structured=False)
     cwt_thresh = np.zeros_like(cwt)
     cwt_thresh[thresh_idxs] = cwt[thresh_idxs]
-    d_cwt_raw = Cop.backward(Cop.struct(cwt_thresh))
+    d_cwt_raw = Cop.backward(cwt_thresh)
     d_cwts.append(np.clip(d_cwt_raw, 0, 1))
 d_cwt = np.stack(d_cwts, axis=-1)
 

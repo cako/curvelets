@@ -7,7 +7,7 @@ The :mod:`curvelets.torch` package provides the same transform as :mod:`curvelet
 
 :class:`~curvelets.torch.UDCT` is the transform, and it is a :class:`torch.nn.Module` with no learnable parameters:
 
-* ``udct(x)`` (:meth:`~curvelets.torch.UDCT.forward`) returns the nested coefficient structure and :meth:`~curvelets.torch.UDCT.backward` inverts it, as in :mod:`curvelets.numpy`; ``vect`` flattens the nested structure to a single tensor and ``struct`` does the opposite;
+* ``udct(x)`` (:meth:`~curvelets.torch.UDCT.forward`) returns the nested coefficient structure and :meth:`~curvelets.torch.UDCT.backward` inverts it, as in :mod:`curvelets.numpy`; ``udct(x, structured=False)`` returns the flat tensor directly, and ``backward`` accepts either layout; ``vect`` flattens the nested structure to a single tensor and ``struct`` does the opposite;
 * ``forward(x, structured=False)`` returns the flat coefficient tensor directly, and :meth:`~curvelets.torch.UDCT.backward` accepts it, which is the convenient layout inside a network.
 
 .. _torch-gradients:
