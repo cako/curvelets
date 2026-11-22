@@ -1,7 +1,7 @@
 1.3
 ===
 
-*In development.* A performance release. The PyTorch transform on a GPU is **18–75x faster** than 1.2 for a single image (forward plus backward), up to **~500x faster** for batches, and up to **~900x faster** (nearly **1,000x** forward) with CUDA graphs. Building a transform takes **up to ~13x less time** and uses up to 65% less memory on both backends. The NumPy transform is **1.5–2x faster** without any extra library and up to **7.6x faster** with SciPy installed.
+Released 2026-11-22. A performance release. The PyTorch transform on a GPU is **18–75x faster** than 1.2 for a single image (forward plus backward), up to **~500x faster** for batches, and up to **~900x faster** (nearly **1,000x** forward) with CUDA graphs. Building a transform takes **up to ~13x less time** and uses up to 65% less memory on both backends. The NumPy transform is **1.5–2x faster** without any extra library and up to **7.6x faster** with SciPy installed.
 
 The PyTorch ``UDCT`` is now an ``nn.Module``, the monogenic transform is available in PyTorch, and there are four new gallery examples. For the mechanisms behind the speedups, with diagrams, see :doc:`v1_3_under_the_hood`.
 

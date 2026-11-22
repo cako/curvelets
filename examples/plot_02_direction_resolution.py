@@ -30,7 +30,7 @@ from curvelets.numpy import UDCT, SparseWindow
 # %%
 # Symmetric and Asymmetric UDCTs
 # ##############################
-x = np.zeros((300, 200))
+x = np.zeros((296, 200))
 C_sym = UDCT(x.shape, num_scales=3, wedges_per_direction=3)
 C_asymh = UDCT(shape=x.shape, angular_wedges_config=np.array([[3, 6], [6, 12]]))
 C_asymv = UDCT(shape=x.shape, angular_wedges_config=np.array([[6, 3], [12, 6]]))
