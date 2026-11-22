@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 import pytest
 import torch
@@ -298,8 +300,10 @@ class TestCoefficientShapes:
         assert predicted_shapes == actual_shapes
 
 
-@pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])
-def test_forward_structured_false_matches_vect(transform_kind) -> None:
+@pytest.mark.parametrize("transform_kind", ["real", "complex", "monogenic"])  # type: ignore[untyped-decorator]
+def test_forward_structured_false_matches_vect(
+    transform_kind: Literal["real", "complex", "monogenic"],
+) -> None:
     """``forward(x, structured=False)`` equals ``vect(forward(x))`` and inverts."""
     udct = UDCT(shape=(32, 32), transform_kind=transform_kind)
     x = torch.randn(3, 32, 32)

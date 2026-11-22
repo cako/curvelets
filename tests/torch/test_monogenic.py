@@ -244,8 +244,11 @@ def test_compile_matches_eager() -> None:
     torch.testing.assert_close(forward(x), vec)
     torch.testing.assert_close(backward(vec), recon)
 
+    def flat_forward(t: torch.Tensor) -> torch.Tensor:
+        return udct.forward(t, structured=False)
+
     for fn, compiled, inp in (
-        (lambda t: udct.forward(t, structured=False), forward, x),
+        (flat_forward, forward, x),
         (udct.backward, backward, vec),
     ):
         leaf_c = inp.clone().requires_grad_(True)
