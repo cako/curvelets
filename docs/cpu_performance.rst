@@ -1,6 +1,7 @@
 .. _cpu-performance:
+.. _numpy-backend:
 
-Speed on CPUs
+NumPy backend
 #############
 
 The NumPy transform (:class:`curvelets.numpy.UDCT`) spends most of its time in FFTs. It uses SciPy's multithreaded FFT when SciPy is installed, and :mod:`numpy.fft`, which runs on one CPU core, otherwise. Other FFT libraries can be selected too. For GPUs, see the :ref:`PyTorch backend <torch-backend>`.
