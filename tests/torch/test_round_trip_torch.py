@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
-from curvelets.torch import SparseWindow
+from curvelets.torch import UDCT, SparseWindow
 
 from .conftest import setup_torch_transform
 
@@ -143,3 +143,29 @@ def test_torch_round_trip_wavelet_mode(rng, dim):
 
     # Allow some numerical error
     assert relative_error < 0.5, f"Relative error too large: {relative_error}"
+
+
+@pytest.mark.parametrize(
+    ("shape", "num_scales", "wedges_per_direction"),
+    [
+        ((256, 256), 3, 3),
+        ((256, 256), 3, 6),
+        ((256, 256), 3, 12),
+        ((64, 64, 64), 3, 6),
+    ],
+)
+def test_torch_round_trip_machine_precision_default_overlap(
+    rng, shape, num_scales, wedges_per_direction
+):
+    """Default overlap reconstructs to machine precision in PyTorch float64."""
+    transform = UDCT(
+        shape=shape,
+        num_scales=num_scales,
+        wedges_per_direction=wedges_per_direction,
+        dtype=torch.float64,
+    )
+    assert transform._params.window_overlap <= 1 / 16
+    data = torch.from_numpy(rng.standard_normal(shape))
+    recon = transform.backward(transform.forward(data))
+    rel_err = torch.linalg.norm(recon - data) / torch.linalg.norm(data)
+    assert rel_err < 1e-13

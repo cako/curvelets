@@ -57,7 +57,7 @@ class TestUDCTWindowOverlapWarnings:
                 shape=(64, 64),
                 num_scales=3,
                 wedges_per_direction=3,
-                window_overlap=0.15,  # Small overlap, should not trigger warning
+                window_overlap=0.05,  # Small overlap, should not trigger warning
             )
 
         # Check that no warnings were logged (or only unrelated warnings)
