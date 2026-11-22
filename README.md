@@ -216,7 +216,7 @@ The redundancy of a transform is the number of (real-valued) coefficients it ret
 
 ## Credits
 
-The original MATLAB implementation was developed by one of the authors of the UDCT, Truong T. Nguyen. The Python implementation was developed by Carlos Alberto da Costa Filho and Duy Nguyen.
+The original MATLAB implementation was developed by one of the authors of the UDCT, Truong T. Nguyen. For a full list of authors, see [AUTHORS](https://github.com/cako/curvelets/blob/main/AUTHORS.md).
 
 ## References
 ##### [1] Candès, E., L. Demanet, D. Donoho, and L. Ying, 2006, *Fast Discrete Curvelet Transforms*: Multiscale Modeling & Simulation, 5, 861–899.
