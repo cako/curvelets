@@ -208,7 +208,7 @@ Bug fixes
 - Backpropagation through ``UDCTModule`` failed on CUDA because of a device mismatch in ``struct()``, and ``.to()`` dropped the precomputed index maps so every later call recomputed them. (:pr:`82`)
 - A transform loaded onto another device (for example ``torch.load(..., map_location="cpu")`` of a transform that had run on CUDA) failed with a Triton error. The plan is now rebuilt for the new device, and pickling and ``torch.save`` are tested for both backends. (:pr:`109`)
 - A real input to the complex PyTorch transform failed in the adjoint path. It now receives the real part, following PyTorch's convention. (:pr:`104`)
-- Empty batches no longer crash the row-by-row batch loop. (:pr:`91`)
+- Empty batches no longer crash the row-by-row batch loop or fail in oneMKL FFT on CPU builds of PyTorch < 2.15. (:pr:`91`, :pr:`133`)
 - Doctest and docstring corrections in the monogenic transform. (:pr:`111`)
 - 2-D ``UDCT`` with ``wedges_per_direction >= 6`` reconstructed only to ``~5.6e-9`` instead of machine precision because the auto-selected ``window_overlap`` exceeded the aliasing-free decimation bound :math:`\frac{8}{9}(1 + 2\alpha) \le 1 \iff \alpha \le 1/16`. Auto-selected overlaps are now capped at ``1/16`` (0.0625) in both NumPy and PyTorch, and explicit overlaps that produce non-injective folds emit a warning. (:pr:`123`)
 - ``high_frequency_mode="wavelet"`` was not an exact adjoint or Parseval tight frame in NumPy or PyTorch, causing dot-product tests and PyTorch autograd ``gradcheck`` to fail across ``real``, ``complex``, and ``monogenic`` transforms even though round-trip reconstruction succeeded. Symmetric wavelet-scale scaling is now used across both backends, so ``backward`` is the exact adjoint of ``forward``. (:pr:`127`)
