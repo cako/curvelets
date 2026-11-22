@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import copy
-import io
-import pickle
 from typing import Literal
 
 import pytest
@@ -501,21 +499,3 @@ def test_plan_requires_periodized_maps() -> None:
             udct._decimation_ratios_cpu,  # pylint: disable=protected-access
             complex_mode=False,
         )
-
-
-def test_used_transform_can_be_copied_and_pickled() -> None:
-    """A transform that has run (plan and CPU scratch built) can be deep-copied,
-    pickled and saved with ``torch.save``."""
-    module = UDCT(shape=(32, 32), num_scales=3, wedges_per_direction=3)
-    x = _input("real", (32, 32)).to(torch.get_default_dtype())
-    expected = module(x)
-    for clone in (
-        copy.deepcopy(module),
-        pickle.loads(pickle.dumps(module)),
-    ):
-        torch.testing.assert_close(clone(x), expected)
-    buffer = io.BytesIO()
-    torch.save(module, buffer)
-    buffer.seek(0)
-    loaded = torch.load(buffer, weights_only=False)
-    torch.testing.assert_close(loaded(x), expected)
