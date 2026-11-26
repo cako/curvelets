@@ -225,22 +225,22 @@ void test_native_training(const fs::path& dir) {
                 first_loss, " -> ", last_loss);
 
     // Structured per-scale training loop
-    StructuredScaleNet smodel(plan_path.string());
-    torch::optim::Adam sopt(smodel->parameters(), torch::optim::AdamOptions(5e-2));
+    StructuredScaleNet s_model(plan_path.string());
+    torch::optim::Adam s_opt(s_model->parameters(), torch::optim::AdamOptions(5e-2));
     const torch::Tensor starget = 0.5 * x;
     double s_first = 0.0;
     double s_last = 0.0;
     for (int step = 0; step < 15; ++step) {
-        sopt.zero_grad();
-        const torch::Tensor spred = smodel->forward(x);
-        const torch::Tensor sloss = torch::mse_loss(spred, starget);
-        sloss.backward();
+        s_opt.zero_grad();
+        const torch::Tensor s_pred = s_model->forward(x);
+        const torch::Tensor s_loss = torch::mse_loss(s_pred, starget);
+        s_loss.backward();
         TORCH_CHECK(
-            smodel->scale_gains.grad().defined() &&
-                torch::isfinite(smodel->scale_gains.grad()).all().item<bool>(),
+            s_model->scale_gains.grad().defined() &&
+                torch::isfinite(s_model->scale_gains.grad()).all().item<bool>(),
             "Invalid scale_gains grad in structured training");
-        sopt.step();
-        const double l = sloss.item<double>();
+        s_opt.step();
+        const double l = s_loss.item<double>();
         if (step == 0) {
             s_first = l;
         }
