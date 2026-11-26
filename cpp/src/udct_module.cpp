@@ -2,6 +2,8 @@
 #include "udct_ops.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <optional>
@@ -9,6 +11,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -19,6 +22,10 @@ namespace curvelets {
 namespace {
 
 std::vector<char> read_file_bytes(const std::string& path) {
+    std::error_code ec;
+    TORCH_CHECK(
+        std::filesystem::is_regular_file(path, ec) && !ec,
+        "UDCT plan path is not a regular file: ", path);
     std::ifstream ifs(path, std::ios::binary | std::ios::ate);
     TORCH_CHECK(ifs.good(), "Failed to open UDCT plan file: ", path);
     const auto size = ifs.tellg();
@@ -70,19 +77,37 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
     TORCH_CHECK(meta[0] == 1, "Unsupported UDCT plan format version: ", meta[0]);
 
     plan_ncoef_ = meta[1];
+    TORCH_CHECK(plan_ncoef_ >= 0, "Invalid negative plan_ncoef in UDCT plan");
     complex_output_ = meta[2] != 0;
     transform_kind_ = kind_from_code(meta[3]);
 
     shape_ = to_int64_vec(get_tensor_field(dict, "shape"));
+    TORCH_CHECK(
+        !shape_.empty() && std::ranges::all_of(shape_, [](int64_t d) { return d > 0; }),
+        "UDCT plan shape must be non-empty with positive dimensions");
     group_offsets_ = to_int64_vec(get_tensor_field(dict, "group_offsets"));
     group_counts_ = to_int64_vec(get_tensor_field(dict, "group_counts"));
     group_shapes_ = to_int64_vec(get_tensor_field(dict, "group_shapes"));
     num_directions_ = to_int64_vec(get_tensor_field(dict, "num_directions"));
+    TORCH_CHECK(
+        std::ranges::all_of(num_directions_, [](int64_t d) { return d >= 0; }),
+        "UDCT plan num_directions must be non-negative");
     even_axes_ = to_int64_vec(get_tensor_field(dict, "even_axes"));
+
+    const int64_t n = ndim();
+    TORCH_CHECK(
+        std::ranges::all_of(even_axes_, [n](int64_t ax) { return ax >= 0 && ax < n; }),
+        "UDCT plan even_axes out of bounds");
+    auto sorted_axes = even_axes_;
+    std::ranges::sort(sorted_axes);
+    TORCH_CHECK(
+        std::ranges::adjacent_find(sorted_axes) == sorted_axes.end(),
+        "Duplicate axis in UDCT plan even_axes");
 
     const at::Tensor layout_t = get_tensor_field(dict, "layout").to(at::kCPU, at::kLong).contiguous();
     TORCH_CHECK(layout_t.dim() == 2 && layout_t.size(1) == 3, "Invalid UDCT plan layout shape");
     const int64_t num_entries = layout_t.size(0);
+    TORCH_CHECK(num_entries > 0, "UDCT plan layout must be non-empty");
     const auto* layout_ptr = layout_t.const_data_ptr<int64_t>();
     layout_.reserve(static_cast<size_t>(num_entries));
     std::ranges::transform(
@@ -93,10 +118,11 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
                 layout_ptr[3 * i], layout_ptr[3 * i + 1], layout_ptr[3 * i + 2]};
         });
 
-    const int64_t n = ndim();
     TORCH_CHECK(
         group_counts_.size() == group_offsets_.size() &&
-            group_shapes_.size() == group_offsets_.size() * static_cast<size_t>(n),
+            group_shapes_.size() ==
+                static_cast<size_t>(detail::checked_mul(
+                    static_cast<int64_t>(group_offsets_.size()), n, "group_shapes length")),
         "Invalid UDCT plan group metadata");
 
     wedge_counts_.reserve(num_directions_.size());
@@ -124,9 +150,18 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
     for (size_t g = 0; g < group_offsets_.size(); ++g) {
         const auto g_shape_span = std::span(group_shapes_).subspan(
             g * static_cast<size_t>(n), static_cast<size_t>(n));
+        TORCH_CHECK(
+            std::ranges::all_of(g_shape_span, [](int64_t d) { return d > 0; }),
+            "UDCT plan group_shapes must have positive dimensions");
         std::vector<int64_t> g_shape(g_shape_span.begin(), g_shape_span.end());
         const int64_t g_size = detail::product(g_shape_span);
         const int64_t count = group_counts_[g];
+        TORCH_CHECK(count >= 0, "UDCT plan group_counts must be non-negative");
+        const int64_t g_len = detail::checked_mul(count, g_size, "group length");
+        TORCH_CHECK(
+            group_offsets_[g] >= 0 &&
+                detail::checked_add(group_offsets_[g], g_len, "group span") <= plan_ncoef_,
+            "UDCT plan group span out of bounds");
         for (int64_t i = 0; i < count; ++i) {
             TORCH_CHECK(entry_idx < num_entries, "UDCT group count exceeds layout entries");
             const LayoutEntry& e = layout_[static_cast<size_t>(entry_idx)];
@@ -136,12 +171,37 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
                 "UDCT layout entry out of bounds");
             wedge_counts_[static_cast<size_t>(e.scale)][static_cast<size_t>(e.direction)] += 1;
             entry_shapes_.push_back(g_shape);
+            const int64_t wedge_start = detail::checked_add(
+                group_offsets_[g],
+                detail::checked_mul(i, g_size, "wedge offset"),
+                "wedge start");
             spans[static_cast<size_t>(e.scale)][static_cast<size_t>(e.direction)].push_back(
-                RawSpan{group_offsets_[g] + i * g_size, g_size, g_shape});
+                RawSpan{wedge_start, g_size, g_shape});
             ++entry_idx;
         }
     }
     TORCH_CHECK(entry_idx == num_entries, "UDCT layout entries do not match group counts");
+
+    std::vector<std::vector<std::vector<uint8_t>>> seen_wedges;
+    seen_wedges.reserve(wedge_counts_.size());
+    for (const auto& dir_counts : wedge_counts_) {
+        auto& scale_seen = seen_wedges.emplace_back();
+        scale_seen.reserve(dir_counts.size());
+        std::ranges::transform(
+            dir_counts,
+            std::back_inserter(scale_seen),
+            [](int64_t count) { return std::vector<uint8_t>(static_cast<size_t>(count), 0); });
+    }
+    for (const LayoutEntry& e : layout_) {
+        const auto s = static_cast<size_t>(e.scale);
+        const auto d = static_cast<size_t>(e.direction);
+        TORCH_CHECK(
+            e.wedge >= 0 && e.wedge < wedge_counts_[s][d],
+            "UDCT layout wedge index out of bounds");
+        const auto w = static_cast<size_t>(e.wedge);
+        TORCH_CHECK(!seen_wedges[s][d][w], "Duplicate UDCT layout wedge index");
+        seen_wedges[s][d][w] = 1;
+    }
 
     fwd_row_ptr_ = register_buffer("fwd_row_ptr", get_tensor_field(dict, "fwd_row_ptr"));
     fwd_col_ = register_buffer("fwd_col", get_tensor_field(dict, "fwd_col"));
@@ -149,6 +209,13 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
     bwd_row_ptr_ = register_buffer("bwd_row_ptr", get_tensor_field(dict, "bwd_row_ptr"));
     bwd_col_ = register_buffer("bwd_col", get_tensor_field(dict, "bwd_col"));
     bwd_weights_ = register_buffer("bwd_weights", get_tensor_field(dict, "bwd_weights"));
+
+    const int64_t num_spectrum = detail::product(detail::spectrum_shape_for(shape_, complex_output_));
+    detail::validate_csr_plan(fwd_row_ptr_, fwd_col_, fwd_weights_, num_spectrum, plan_ncoef_, "fwd");
+    detail::validate_csr_plan(bwd_row_ptr_, bwd_col_, bwd_weights_, plan_ncoef_, num_spectrum, "bwd");
+    TORCH_CHECK(
+        fwd_weights_.scalar_type() == bwd_weights_.scalar_type(),
+        "UDCT plan fwd_weights and bwd_weights dtypes must match");
 
     riesz_filters_ = register_buffer("riesz_filters", get_tensor_field(dict, "riesz_filters"));
     monogenic_perm_ = register_buffer("monogenic_perm", get_tensor_field(dict, "monogenic_perm"));
@@ -159,7 +226,40 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
         : plan_ncoef_;
 
     if (transform_kind_ == "monogenic") {
-        const int64_t num_channels = n + 2;
+        const int64_t num_channels = detail::checked_add(n, 2, "monogenic channels");
+        const int64_t expected_total = detail::checked_mul(
+            num_channels, plan_ncoef_, "monogenic total_ncoef");
+        TORCH_CHECK(
+            total_ncoef_ == expected_total,
+            "UDCT plan monogenic_perm length mismatch: expected ",
+            expected_total, ", got ", total_ncoef_);
+
+        auto check_perm = [expected_total](const at::Tensor& perm, const char* label) {
+            TORCH_CHECK(
+                perm.scalar_type() == at::kInt || perm.scalar_type() == at::kLong,
+                "UDCT plan ", label, " must be int32 or int64");
+            TORCH_CHECK(
+                perm.dim() == 1 && perm.size(0) == expected_total,
+                "UDCT plan ", label, " must be 1D with length ", expected_total);
+            const at::Tensor perm_cpu = perm.to(at::kCPU, at::kLong).contiguous();
+            const std::span<const int64_t> vals(
+                perm_cpu.const_data_ptr<int64_t>(), static_cast<size_t>(perm_cpu.numel()));
+            TORCH_CHECK(
+                std::ranges::all_of(
+                    vals, [expected_total](int64_t v) { return v >= 0 && v < expected_total; }),
+                "UDCT plan ", label, " contains out-of-bounds index");
+        };
+        check_perm(monogenic_perm_, "monogenic_perm");
+        check_perm(monogenic_inverse_, "monogenic_inverse");
+
+        TORCH_CHECK(
+            riesz_filters_.dim() == n + 2 && riesz_filters_.size(0) == n &&
+                riesz_filters_.size(-1) == 2 &&
+                riesz_filters_.scalar_type() == fwd_weights_.scalar_type() &&
+                std::ranges::equal(
+                    riesz_filters_.sizes().slice(1, static_cast<size_t>(n)), shape_),
+            "Invalid UDCT plan riesz_filters shape or dtype");
+
         mono_wedges_.reserve(spans.size());
         int64_t position = 0;
         for (const auto& scale_spans : spans) {
@@ -173,7 +273,10 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
                     std::back_inserter(dir_wedges),
                     [&position, num_channels](const RawSpan& sp) {
                         const WedgeSpan wedge{position, sp.shape};
-                        position += num_channels * sp.size;
+                        position = detail::checked_add(
+                            position,
+                            detail::checked_mul(num_channels, sp.size, "monogenic wedge size"),
+                            "monogenic position");
                         return wedge;
                     });
             }
@@ -243,7 +346,7 @@ torch::Tensor UDCTImpl::forward(const torch::Tensor& image) {
         [this, &coeffs, n](int64_t k) {
             torch::Tensor riesz_k = torch::real(coeffs.select(-2, 1 + k));
             if (const auto it = std::ranges::find(even_axes_, k); it != even_axes_.end()) {
-                const auto even_pos = std::distance(even_axes_.begin(), it);
+                const auto even_pos = static_cast<int64_t>(std::distance(even_axes_.begin(), it));
                 riesz_k = riesz_k - torch::imag(coeffs.select(-2, 1 + n + even_pos));
             }
             return riesz_k;
@@ -492,6 +595,9 @@ UDCTCoefficientShapes UDCTImpl::coefficient_shapes() const {
 }
 
 void UDCTImpl::to(torch::Dtype dtype, bool non_blocking) {
+    TORCH_CHECK(
+        dtype == torch::kFloat32 || dtype == torch::kFloat64,
+        "UDCT only supports float32 and float64 dtypes, got ", dtype);
     torch::NoGradGuard no_grad;
     for (auto& entry : named_buffers(/*recurse=*/false)) {
         if (entry.value().is_floating_point()) {

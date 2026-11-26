@@ -26,6 +26,25 @@ c10::Dict<c10::IValue, c10::IValue> load_dict(const fs::path& path) {
     return torch::jit::pickle_load(buf).toGenericDict();
 }
 
+void save_dict(const c10::Dict<c10::IValue, c10::IValue>& d, const fs::path& path) {
+    const std::vector<char> bytes = torch::jit::pickle_save(c10::IValue(d));
+    std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
+    TORCH_CHECK(ofs.good(), "Cannot open ", path.string(), " for writing");
+    ofs.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    TORCH_CHECK(ofs.good(), "Failed writing ", path.string());
+}
+
+template <typename Fn>
+void expect_throws(Fn&& fn, const std::string& label) {
+    bool threw = false;
+    try {
+        fn();
+    } catch (const std::exception&) {
+        threw = true;
+    }
+    TORCH_CHECK(threw, label, ": expected exception was not thrown");
+}
+
 torch::Tensor get_t(const c10::Dict<c10::IValue, c10::IValue>& d, const char* key) {
     return d.find(c10::IValue(key))->value().toTensor();
 }
@@ -298,8 +317,8 @@ void test_gradients(const fs::path& dir) {
     const torch::Tensor w_bwd = torch::randn({32, 32}, torch::kFloat64);
     torch::Tensor vg = v.clone().requires_grad_(true);
     (udct->backward(vg) * w_bwd).sum().backward();
-    for (int i = 0; i < 4; ++i) {
-        const int k = (i * 97) % udct->ncoef();
+    for (int64_t i = 0; i < 4; ++i) {
+        const int64_t k = (i * 97) % udct->ncoef();
         torch::Tensor vp = v.clone();
         torch::Tensor vm = v.clone();
         vp[k] += eps;
@@ -356,6 +375,105 @@ void test_gradients(const fs::path& dir) {
               << std::endl;
 }
 
+void test_malformed_plans(const fs::path& dir) {
+    using PlanDict = c10::Dict<c10::IValue, c10::IValue>;
+    const auto base = load_dict(dir / "real_2d_f32_plan.pt");
+    const auto check_bad = [&](const PlanDict& tmpl,
+                               const std::string& tag,
+                               auto&& mutator) {
+        PlanDict bad = tmpl.copy();
+        mutator(bad);
+        const fs::path bad_path = dir / ("bad_" + tag + ".pt");
+        save_dict(bad, bad_path);
+        expect_throws([&]() { curvelets::UDCT u(bad_path.string()); }, tag);
+    };
+
+    check_bad(base, "layout_wedge_neg", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "layout").clone();
+        t[0][2] = -1;
+        d.insert_or_assign(c10::IValue("layout"), t);
+    });
+    check_bad(base, "layout_wedge_oob", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "layout").clone();
+        t[0][2] = 999;
+        d.insert_or_assign(c10::IValue("layout"), t);
+    });
+    check_bad(base, "layout_wedge_dup", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "layout").clone();
+        bool patched = false;
+        for (int64_t i = 0; i < t.size(0) && !patched; ++i) {
+            for (int64_t j = i + 1; j < t.size(0); ++j) {
+                if (t[i][0].item<int64_t>() == t[j][0].item<int64_t>() &&
+                    t[i][1].item<int64_t>() == t[j][1].item<int64_t>()) {
+                    t[j][2] = t[i][2].item<int64_t>();
+                    patched = true;
+                    break;
+                }
+            }
+        }
+        TORCH_CHECK(patched, "Expected at least one direction with >= 2 wedges");
+        d.insert_or_assign(c10::IValue("layout"), t);
+    });
+    check_bad(base, "num_directions_neg", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "num_directions").clone();
+        t[0] = -1;
+        d.insert_or_assign(c10::IValue("num_directions"), t);
+    });
+    check_bad(base, "shape_zero", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "shape").clone();
+        t[0] = 0;
+        d.insert_or_assign(c10::IValue("shape"), t);
+    });
+    check_bad(base, "fwd_col_neg", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "fwd_col").clone();
+        t[0] = -1;
+        d.insert_or_assign(c10::IValue("fwd_col"), t);
+    });
+    check_bad(base, "fwd_col_oob", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "fwd_col").clone();
+        t[0] = 999999;
+        d.insert_or_assign(c10::IValue("fwd_col"), t);
+    });
+    check_bad(base, "fwd_row_ptr_nonmono", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "fwd_row_ptr").clone();
+        t[t.size(0) - 2] = t[t.size(0) - 1].item<int64_t>() + 1;
+        d.insert_or_assign(c10::IValue("fwd_row_ptr"), t);
+    });
+    check_bad(base, "fwd_row_ptr_oob", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "fwd_row_ptr").clone();
+        const int64_t nnz = get_t(d, "fwd_col").size(0);
+        t[t.size(0) - 1] = nnz + 1;
+        d.insert_or_assign(c10::IValue("fwd_row_ptr"), t);
+    });
+    check_bad(base, "fwd_weights_shape", [](PlanDict& d) {
+        const int64_t nnz = get_t(d, "fwd_col").size(0);
+        d.insert_or_assign(c10::IValue("fwd_weights"), torch::ones({nnz, 1}, torch::kFloat32));
+    });
+    check_bad(base, "group_offsets_oob", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "group_offsets").clone();
+        t[0] = get_t(d, "meta")[1].item<int64_t>();
+        d.insert_or_assign(c10::IValue("group_offsets"), t);
+    });
+
+    curvelets::UDCT valid((dir / "real_2d_f32_plan.pt").string());
+    expect_throws([&]() { valid->to(torch::kHalf); }, "to_unsupported_dtype");
+
+    const auto mono_base = load_dict(dir / "monogenic_2d_f64_plan.pt");
+    check_bad(mono_base, "mono_even_axes_oob", [](PlanDict& d) {
+        d.insert_or_assign(c10::IValue("even_axes"), torch::tensor({99}, torch::kLong));
+    });
+    check_bad(mono_base, "mono_even_axes_dup", [](PlanDict& d) {
+        d.insert_or_assign(c10::IValue("even_axes"), torch::tensor({0, 0}, torch::kLong));
+    });
+    check_bad(mono_base, "mono_perm_oob", [](PlanDict& d) {
+        torch::Tensor t = get_t(d, "monogenic_perm").clone();
+        t[0] = t.size(0);
+        d.insert_or_assign(c10::IValue("monogenic_perm"), t);
+    });
+
+    std::cout << "[PASS] malformed plan & API validation checks" << std::endl;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -374,6 +492,7 @@ int main(int argc, char** argv) {
     test_edge_cases(dir);
     test_native_training(dir);
     test_gradients(dir);
+    test_malformed_plans(dir);
     std::cout << "All C++ libtorch tests passed.\n";
     return 0;
 }

@@ -32,37 +32,37 @@ public:
     explicit UDCTImpl(const std::string& plan_path);
 
     /// Forward transform of ``(*batch, *shape)`` to flat ``(*batch, ncoef)`` coefficients.
-    torch::Tensor forward(const torch::Tensor& image);
+    [[nodiscard]] torch::Tensor forward(const torch::Tensor& image);
 
     /// Forward transform returning nested ``[scale][direction][wedge]`` coefficient views.
-    UDCTCoefficients forward_structured(const torch::Tensor& image);
+    [[nodiscard]] UDCTCoefficients forward_structured(const torch::Tensor& image);
 
     /// Backward transform of flat ``(*batch, ncoef)`` coefficients.
     /// Returns ``(*batch, *shape)`` (or ``(ndim + 1, *batch, *shape)`` for monogenic).
-    torch::Tensor backward(const torch::Tensor& vector);
+    [[nodiscard]] torch::Tensor backward(const torch::Tensor& vector);
 
     /// Backward transform of nested ``[scale][direction][wedge]`` coefficients.
-    torch::Tensor backward(const UDCTCoefficients& coefficients);
+    [[nodiscard]] torch::Tensor backward(const UDCTCoefficients& coefficients);
 
     /// Restructure a flat ``(*batch, ncoef)`` vector into nested coefficient views.
-    UDCTCoefficients structure(const torch::Tensor& vector) const;
+    [[nodiscard]] UDCTCoefficients structure(const torch::Tensor& vector) const;
 
     /// Flatten nested ``[scale][direction][wedge]`` coefficients into ``(*batch, ncoef)``.
-    torch::Tensor vect(const UDCTCoefficients& coefficients) const;
+    [[nodiscard]] torch::Tensor vect(const UDCTCoefficients& coefficients) const;
 
     /// Return the expected trailing shape of every coefficient wedge.
-    UDCTCoefficientShapes coefficient_shapes() const;
+    [[nodiscard]] UDCTCoefficientShapes coefficient_shapes() const;
 
     using torch::nn::Module::to;
     void to(torch::Dtype dtype, bool non_blocking = false) override;
     void to(torch::Device device, torch::Dtype dtype, bool non_blocking = false) override;
 
-    const std::vector<int64_t>& shape() const noexcept { return shape_; }
-    int64_t ndim() const noexcept { return static_cast<int64_t>(shape_.size()); }
-    int64_t num_scales() const noexcept { return static_cast<int64_t>(num_directions_.size()); }
-    int64_t ncoef() const noexcept { return total_ncoef_; }
-    const std::string& transform_kind() const noexcept { return transform_kind_; }
-    bool complex_output() const noexcept { return complex_output_; }
+    [[nodiscard]] const std::vector<int64_t>& shape() const noexcept { return shape_; }
+    [[nodiscard]] int64_t ndim() const noexcept { return static_cast<int64_t>(shape_.size()); }
+    [[nodiscard]] int64_t num_scales() const noexcept { return static_cast<int64_t>(num_directions_.size()); }
+    [[nodiscard]] int64_t ncoef() const noexcept { return total_ncoef_; }
+    [[nodiscard]] const std::string& transform_kind() const noexcept { return transform_kind_; }
+    [[nodiscard]] bool complex_output() const noexcept { return complex_output_; }
 
 private:
     struct LayoutEntry {
