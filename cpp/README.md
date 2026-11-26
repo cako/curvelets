@@ -17,7 +17,7 @@ udct.save_plan("udct_plan.pt")
 ```bash
 cmake -S cpp -B cpp/build \
   -DCMAKE_PREFIX_PATH="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
-cmake --build cpp/build -j
+cmake --build cpp/build --config Release -j
 ```
 
 ## 3. Use and train in pure C++ (`libtorch`)

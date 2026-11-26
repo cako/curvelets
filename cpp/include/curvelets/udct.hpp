@@ -6,10 +6,20 @@
 
 #include <torch/torch.h>
 
+#if defined(_WIN32)
+#if defined(CURVELETS_BUILD_DLL)
+#define CURVELETS_API __declspec(dllexport)
+#else
+#define CURVELETS_API __declspec(dllimport)
+#endif
+#else
+#define CURVELETS_API
+#endif
+
 namespace curvelets {
 
 /// Native libtorch module for running and training with an exported UDCT plan.
-class UDCTImpl : public torch::nn::Module {
+class CURVELETS_API UDCTImpl : public torch::nn::Module {
 public:
     /// Load a UDCT plan exported from Python via ``UDCT.save_plan``.
     explicit UDCTImpl(const std::string& plan_path);

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Literal
 
@@ -46,7 +47,7 @@ def cpp_build(tmp_path_factory: pytest.TempPathFactory) -> Path:
     cpp_dir = Path(__file__).resolve().parents[2] / "cpp"
     build_dir = tmp_path_factory.mktemp("cpp_build")
     cxx11_abi = int(bool(getattr(torch._C, "_GLIBCXX_USE_CXX11_ABI", True)))  # pylint: disable=protected-access
-    subprocess.run(
+    cfg_res = subprocess.run(
         [
             cmake_exe,
             "-S",
@@ -58,15 +59,21 @@ def cpp_build(tmp_path_factory: pytest.TempPathFactory) -> Path:
             "-DCURVELETS_BUILD_TESTS=ON",
             "-DCURVELETS_BUILD_EXAMPLES=ON",
         ],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
-    subprocess.run(
-        [cmake_exe, "--build", str(build_dir), "--parallel"],
-        check=True,
+    assert cfg_res.returncode == 0, (
+        f"CMake configure failed:\n{cfg_res.stdout}\n{cfg_res.stderr}"
+    )
+    build_res = subprocess.run(
+        [cmake_exe, "--build", str(build_dir), "--config", "Release", "--parallel"],
+        check=False,
         capture_output=True,
         text=True,
+    )
+    assert build_res.returncode == 0, (
+        f"CMake build failed:\n{build_res.stdout}\n{build_res.stderr}"
     )
     return Path(build_dir)
 
@@ -143,6 +150,13 @@ def test_cpp_standalone_suite(cpp_build: Path, tmp_path: Path) -> None:
         if k not in {"PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"}
     }
     test_exe = _find_exe(cpp_build, "test_udct_cpp")
+    if sys.platform == "win32":
+        torch_lib = str(Path(torch.__file__).resolve().parent / "lib")
+        exe_dir = str(test_exe.parent)
+        existing_path = clean_env.get("PATH", "")
+        clean_env["PATH"] = os.pathsep.join(
+            p for p in (exe_dir, torch_lib, existing_path) if p
+        )
     res = subprocess.run(
         [str(test_exe), str(tmp_path)],
         env=clean_env,

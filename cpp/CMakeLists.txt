@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.18)
 project(curvelets_torch LANGUAGES CXX)
 
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -39,6 +43,7 @@ find_program(_CURVELETS_NVCC nvcc
     PATH_SUFFIXES bin
 )
 
+set(_APPLY_FALLBACK_TORCH_FLAGS OFF)
 if(NOT _NEEDS_CUDA_TOOLKIT OR _CURVELETS_NVCC OR NOT _TORCH_ROOT)
     find_package(Torch REQUIRED)
     set(_TORCH_RPATH "")
@@ -64,6 +69,7 @@ else()
     )
     if(NOT MSVC)
         set(TORCH_CXX_FLAGS "-D_GLIBCXX_USE_CXX11_ABI=${CURVELETS_TORCH_CXX11_ABI}")
+        set(_APPLY_FALLBACK_TORCH_FLAGS ON)
     endif()
     set(_TORCH_RPATH "${_TORCH_ROOT}/lib")
 endif()
@@ -79,7 +85,12 @@ add_library(curvelets_torch SHARED
 set_target_properties(curvelets_torch PROPERTIES
     POSITION_INDEPENDENT_CODE ON
 )
-if(_TORCH_RPATH)
+target_compile_definitions(curvelets_torch PRIVATE CURVELETS_BUILD_DLL)
+if(MSVC)
+    target_compile_definitions(curvelets_torch PUBLIC NOMINMAX)
+endif()
+
+if(NOT WIN32 AND _TORCH_RPATH)
     set_target_properties(curvelets_torch PROPERTIES
         BUILD_RPATH "${_TORCH_RPATH}"
         INSTALL_RPATH "${_TORCH_RPATH}"
@@ -95,25 +106,29 @@ target_include_directories(curvelets_torch
 
 target_link_libraries(curvelets_torch PUBLIC ${TORCH_LIBRARIES})
 
-if(TORCH_CXX_FLAGS)
-    separate_arguments(TORCH_CXX_FLAGS_LIST UNIX_COMMAND "${TORCH_CXX_FLAGS}")
+if(_APPLY_FALLBACK_TORCH_FLAGS AND TORCH_CXX_FLAGS)
+    separate_arguments(TORCH_CXX_FLAGS_LIST NATIVE_COMMAND "${TORCH_CXX_FLAGS}")
     target_compile_options(curvelets_torch PUBLIC ${TORCH_CXX_FLAGS_LIST})
 endif()
 
 if(CURVELETS_BUILD_TESTS)
     add_executable(test_udct_cpp tests/test_udct_cpp.cpp)
     target_link_libraries(test_udct_cpp PRIVATE curvelets_torch)
-    set_target_properties(test_udct_cpp PROPERTIES
-        BUILD_RPATH "$<TARGET_FILE_DIR:curvelets_torch>;${_TORCH_RPATH}"
-    )
+    if(NOT WIN32)
+        set_target_properties(test_udct_cpp PROPERTIES
+            BUILD_RPATH "$<TARGET_FILE_DIR:curvelets_torch>;${_TORCH_RPATH}"
+        )
+    endif()
 endif()
 
 if(CURVELETS_BUILD_EXAMPLES)
     add_executable(train_model examples/train_model.cpp)
     target_link_libraries(train_model PRIVATE curvelets_torch)
-    set_target_properties(train_model PROPERTIES
-        BUILD_RPATH "$<TARGET_FILE_DIR:curvelets_torch>;${_TORCH_RPATH}"
-    )
+    if(NOT WIN32)
+        set_target_properties(train_model PROPERTIES
+            BUILD_RPATH "$<TARGET_FILE_DIR:curvelets_torch>;${_TORCH_RPATH}"
+        )
+    endif()
 endif()
 
 include(GNUInstallDirs)
