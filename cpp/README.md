@@ -31,7 +31,7 @@ include(FetchContent)
 FetchContent_Declare(
     curvelets
     GIT_REPOSITORY https://github.com/cako/curvelets.git
-    GIT_TAG main
+    GIT_TAG v1.4  # or another release tag / commit
     SOURCE_SUBDIR cpp
 )
 FetchContent_MakeAvailable(curvelets)
