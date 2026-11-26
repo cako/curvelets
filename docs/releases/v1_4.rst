@@ -1,0 +1,26 @@
+1.4
+===
+
+Released 2026-11-25. A Python-free C++ (``libtorch``) runtime for :class:`~curvelets.torch.UDCT`, allowing models built with Curvelets to run inference and training directly in C++ applications on Linux, macOS, and Windows without a Python runtime. See :ref:`torch-cpp` for build instructions and examples.
+
+C++ (libtorch) runtime
+----------------------
+
+- Plan export via :meth:`~curvelets.torch.UDCT.save_plan` (``src/curvelets/torch/_export.py``), writing a self-contained ``.pt`` tensor dictionary (CSR fold tables, group metadata, Riesz filters, and monogenic permutations) while keeping ``UDCT.state_dict()`` empty and pure-Python ``pip install curvelets`` unchanged. (:pr:`136`, :pr:`137`)
+- Standalone CMake C++20 library ``curvelets_torch`` (``curvelets::torch``) under ``cpp/``, consumable directly via CMake ``FetchContent`` (``SOURCE_SUBDIR cpp``), supporting Linux (GCC/Clang), macOS (AppleClang), and Windows (MSVC). (:pr:`136`)
+- Native ``curvelets::UDCT`` (``torch::nn::Module``) supporting N-D real, complex, and monogenic transforms, ``curvelet`` and ``wavelet`` high-frequency modes, parallel CPU CSR folding with an ATen fallback for other devices, ``.to(device)`` / ``.to(dtype)``, and 1st- and 2nd-order adjoint autograd. (:pr:`136`)
+- Structured coefficient support via ``curvelets::UDCTCoefficients`` and ``curvelets::UDCTCoefficientShapes``: ``forward_structured``, ``backward(const UDCTCoefficients&)``, ``structure``, ``vect``, ``coefficient_shapes``, and ``num_scales``, mirroring Python's ``[scale][direction][wedge]`` API while keeping ``udct(x)`` flat-tensor module call syntax. (:pr:`137`)
+- Standalone C++ test suite (``cpp/tests/test_udct_cpp.cpp``) and training example (``cpp/examples/train_model.cpp``), verified against Python references in ``tests/torch/test_cpp_libtorch.py``. (:pr:`136`, :pr:`137`)
+
+Safety and C++20 hardening
+--------------------------
+
+- Modernized the C++20 runtime with standard library algorithms and utilities (``std::reduce``, ``std::iota``, ``std::transform_reduce``, ``std::ranges::transform``, ``std::ranges::find``, ``std::ranges::equal``, ``std::span``, ``std::optional``, and ``noexcept`` getters), removing duplicated helpers and per-group temporary vector allocations in ``structure()``. (:pr:`138`)
+- Hardened plan loading and execution against malformed ``.pt`` files and out-of-bounds accesses: overflow-checked integer arithmetic, full load-time validation of shapes, group spans, layout wedge bijections, CSR tables (``row_ptr``, ``col``, ``weights``), monogenic permutations, and Riesz filters, plus runtime bounds checks in ``csr_fold_cpu_kernel``, ``to(dtype)`` validation, ``[[nodiscard]]`` attributes, and malformed-plan negative tests. (:pr:`139`)
+- Added CMake hardening options: STL bounds-checking assertions enabled by default (``CURVELETS_ENABLE_HARDENING``: ``_GLIBCXX_ASSERTIONS``, ``_LIBCPP_HARDENING_MODE_FAST``, ``_MSVC_STL_HARDENING=1``), strict compiler warnings (``CURVELETS_ENABLE_WARNINGS``), and optional ASan/UBSan support (``CURVELETS_ENABLE_SANITIZERS``). (:pr:`139`)
+
+Project
+-------
+
+- Added the Zenodo DOI badge to the README and documented the C++ runtime and ``FetchContent`` usage in :ref:`torch-cpp` and ``cpp/README.md``. (:pr:`136`)
+- Ignored NumPy's PyPy ``cython.collection_type`` ``RuntimeWarning`` in the pytest configuration. (:pr:`136`)

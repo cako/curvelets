@@ -13,6 +13,9 @@ What changed in each version of **Curvelets**. The newest version is first. Each
    * - Version
      - Date
      - Highlights
+   * - :doc:`1.4 <v1_4>`
+     - 2026-11-25
+     - Standalone C++20 (``libtorch``) ``UDCT`` runtime with flat and structured coefficients, adjoint autograd, ``UDCT.save_plan``, CMake ``FetchContent``, and hardened plan/bounds validation.
    * - :doc:`1.3 <v1_3>`
      - 2026-11-22
      - Much faster NumPy and PyTorch transforms, CUDA graphs and a Triton kernel, FFT engines for NumPy, monogenic transform in PyTorch, ``UDCT`` as an ``nn.Module``. See also :doc:`v1_3_under_the_hood`.
@@ -33,6 +36,7 @@ What changed in each version of **Curvelets**. The newest version is first. Each
    :maxdepth: 1
    :hidden:
 
+   v1_4
    v1_3
    v1_2
    v1_1
