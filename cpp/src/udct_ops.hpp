@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <functional>
+#include <limits>
 #include <numeric>
 #include <span>
 #include <vector>
@@ -11,11 +11,31 @@
 
 namespace curvelets::detail {
 
+inline int64_t checked_add(int64_t a, int64_t b, const char* what = "addition") {
+    TORCH_CHECK(a >= 0 && b >= 0, "Expected non-negative operands in ", what);
+    TORCH_CHECK(a <= std::numeric_limits<int64_t>::max() - b, "Integer overflow in ", what);
+    return a + b;
+}
+
+inline int64_t checked_mul(int64_t a, int64_t b, const char* what = "multiplication") {
+    TORCH_CHECK(a >= 0 && b >= 0, "Expected non-negative operands in ", what);
+    if (a == 0 || b == 0) {
+        return 0;
+    }
+    TORCH_CHECK(a <= std::numeric_limits<int64_t>::max() / b, "Integer overflow in ", what);
+    return a * b;
+}
+
 inline int64_t product(std::span<const int64_t> values) {
-    return std::reduce(values.begin(), values.end(), int64_t{1}, std::multiplies<>{});
+    return std::accumulate(
+        values.begin(),
+        values.end(),
+        int64_t{1},
+        [](int64_t a, int64_t b) { return checked_mul(a, b, "shape product"); });
 }
 
 inline std::vector<int64_t> fft_dims(int64_t ndim) {
+    TORCH_CHECK(ndim >= 0, "ndim must be non-negative, got ", ndim);
     std::vector<int64_t> dims(static_cast<size_t>(ndim));
     std::iota(dims.begin(), dims.end(), -ndim);
     return dims;
@@ -34,6 +54,24 @@ inline void check_trailing_shape(
         std::ranges::equal(trailing, expected),
         "Trailing shape mismatch in ", what);
 }
+
+inline std::vector<int64_t> spectrum_shape_for(
+    std::span<const int64_t> shape,
+    bool complex_output) {
+    std::vector<int64_t> out(shape.begin(), shape.end());
+    if (!complex_output && !out.empty()) {
+        out.back() = out.back() / 2 + 1;
+    }
+    return out;
+}
+
+void validate_csr_plan(
+    const at::Tensor& row_ptr,
+    const at::Tensor& col,
+    const at::Tensor& weights,
+    int64_t num_sources,
+    int64_t num_targets,
+    const char* label);
 
 at::Tensor udct_forward(
     const at::Tensor& image,

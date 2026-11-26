@@ -84,6 +84,35 @@ endif()
 option(CURVELETS_BUILD_TESTS "Build standalone C++ tests" ${_CURVELETS_IS_TOP_LEVEL})
 option(CURVELETS_BUILD_EXAMPLES "Build C++ examples" ${_CURVELETS_IS_TOP_LEVEL})
 option(CURVELETS_INSTALL "Generate install rules" ${_CURVELETS_IS_TOP_LEVEL})
+option(CURVELETS_ENABLE_HARDENING "Enable C++ standard library bounds-checking assertions" ON)
+option(CURVELETS_ENABLE_WARNINGS "Enable strict compiler warnings" ${_CURVELETS_IS_TOP_LEVEL})
+option(CURVELETS_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+
+function(_curvelets_apply_hardening target)
+    if(CURVELETS_ENABLE_HARDENING)
+        if(MSVC)
+            target_compile_definitions(${target} PRIVATE _MSVC_STL_HARDENING=1)
+        else()
+            target_compile_definitions(${target} PRIVATE
+                _GLIBCXX_ASSERTIONS
+                _LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_FAST
+            )
+        endif()
+    endif()
+    if(CURVELETS_ENABLE_WARNINGS)
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /W4)
+        else()
+            target_compile_options(${target} PRIVATE
+                -Wall -Wextra -Wconversion -Wsign-conversion -Wshadow -Wnon-virtual-dtor
+            )
+        endif()
+    endif()
+    if(CURVELETS_ENABLE_SANITIZERS AND NOT MSVC)
+        target_compile_options(${target} PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+        target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+    endif()
+endfunction()
 
 add_library(curvelets_torch SHARED
     src/udct_ops.cpp
@@ -97,6 +126,7 @@ set_target_properties(curvelets_torch PROPERTIES
 )
 target_compile_features(curvelets_torch PUBLIC cxx_std_20)
 target_compile_definitions(curvelets_torch PRIVATE CURVELETS_BUILD_DLL)
+_curvelets_apply_hardening(curvelets_torch)
 if(MSVC)
     target_compile_definitions(curvelets_torch PUBLIC NOMINMAX)
 endif()
@@ -112,6 +142,9 @@ target_include_directories(curvelets_torch
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+)
+target_include_directories(curvelets_torch
+    SYSTEM PUBLIC
         ${TORCH_INCLUDE_DIRS}
 )
 
@@ -125,6 +158,7 @@ endif()
 if(CURVELETS_BUILD_TESTS)
     add_executable(test_udct_cpp tests/test_udct_cpp.cpp)
     target_link_libraries(test_udct_cpp PRIVATE curvelets::torch)
+    _curvelets_apply_hardening(test_udct_cpp)
     if(NOT WIN32)
         set_target_properties(test_udct_cpp PROPERTIES
             BUILD_RPATH "$<TARGET_FILE_DIR:curvelets_torch>;${_TORCH_RPATH}"
@@ -135,6 +169,7 @@ endif()
 if(CURVELETS_BUILD_EXAMPLES)
     add_executable(train_model examples/train_model.cpp)
     target_link_libraries(train_model PRIVATE curvelets::torch)
+    _curvelets_apply_hardening(train_model)
     if(NOT WIN32)
         set_target_properties(train_model PROPERTIES
             BUILD_RPATH "$<TARGET_FILE_DIR:curvelets_torch>;${_TORCH_RPATH}"

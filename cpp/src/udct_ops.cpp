@@ -1,5 +1,6 @@
 #include "udct_ops.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <numeric>
 #include <span>
@@ -12,14 +13,6 @@ namespace curvelets::detail {
 
 namespace {
 
-std::vector<int64_t> spectrum_shape_for(c10::IntArrayRef shape, bool complex_output) {
-    std::vector<int64_t> out(shape.begin(), shape.end());
-    if (!complex_output && !out.empty()) {
-        out.back() = out.back() / 2 + 1;
-    }
-    return out;
-}
-
 template <typename scalar_t, typename row_t, typename col_t>
 void csr_fold_cpu_kernel(
     const at::Tensor& src,
@@ -30,6 +23,8 @@ void csr_fold_cpu_kernel(
     int64_t num_targets) {
     const int64_t rows = src.size(0);
     const int64_t num_sources = src.size(1);
+    const int64_t nnz = col.size(0);
+    const int64_t total_work = checked_mul(rows, num_targets, "csr_fold work size");
     const bool pair = weights.dim() == 2;
 
     const auto* src_ptr = src.const_data_ptr<c10::complex<scalar_t>>();
@@ -38,19 +33,29 @@ void csr_fold_cpu_kernel(
     const auto* col_ptr = col.const_data_ptr<col_t>();
     const auto* w_ptr = weights.const_data_ptr<scalar_t>();
 
-    at::parallel_for(0, rows * num_targets, 1024, [&](int64_t begin, int64_t end) {
+    at::parallel_for(0, total_work, 1024, [&](int64_t begin, int64_t end) {
         if (pair) {
             for (int64_t idx = begin; idx < end; ++idx) {
                 const int64_t r = idx / num_targets;
                 const int64_t t = idx % num_targets;
                 const int64_t start = static_cast<int64_t>(rp_ptr[t]);
                 const int64_t stop = static_cast<int64_t>(rp_ptr[t + 1]);
+                if (start < 0 || start > stop || stop > nnz) [[unlikely]] {
+                    TORCH_CHECK(
+                        false,
+                        "csr_fold row_ptr range out of bounds: [", start, ", ", stop, ") for nnz=", nnz);
+                }
                 const auto* row_src = src_ptr + r * num_sources;
 
                 scalar_t acc_re = 0;
                 scalar_t acc_im = 0;
                 for (int64_t j = start; j < stop; ++j) {
                     const int64_t s = static_cast<int64_t>(col_ptr[j]);
+                    if (s < 0 || s >= num_sources) [[unlikely]] {
+                        TORCH_CHECK(
+                            false,
+                            "csr_fold column index out of bounds: ", s, " for num_sources=", num_sources);
+                    }
                     const c10::complex<scalar_t> v = row_src[s];
                     const scalar_t w_re = w_ptr[2 * j];
                     const scalar_t w_im = w_ptr[2 * j + 1];
@@ -65,6 +70,11 @@ void csr_fold_cpu_kernel(
                 const int64_t t = idx % num_targets;
                 const int64_t start = static_cast<int64_t>(rp_ptr[t]);
                 const int64_t stop = static_cast<int64_t>(rp_ptr[t + 1]);
+                if (start < 0 || start > stop || stop > nnz) [[unlikely]] {
+                    TORCH_CHECK(
+                        false,
+                        "csr_fold row_ptr range out of bounds: [", start, ", ", stop, ") for nnz=", nnz);
+                }
                 const auto* row_src = src_ptr + r * num_sources;
 
                 out_ptr[idx] = std::transform_reduce(
@@ -73,8 +83,14 @@ void csr_fold_cpu_kernel(
                     w_ptr + start,
                     c10::complex<scalar_t>(0, 0),
                     std::plus<>{},
-                    [row_src](col_t c, scalar_t w) {
-                        const c10::complex<scalar_t> v = row_src[static_cast<int64_t>(c)];
+                    [row_src, num_sources](col_t c, scalar_t w) {
+                        const int64_t s = static_cast<int64_t>(c);
+                        if (s < 0 || s >= num_sources) [[unlikely]] {
+                            TORCH_CHECK(
+                                false,
+                                "csr_fold column index out of bounds: ", s, " for num_sources=", num_sources);
+                        }
+                        const c10::complex<scalar_t> v = row_src[s];
                         return c10::complex<scalar_t>(w * v.real(), w * v.imag());
                     });
             }
@@ -122,8 +138,22 @@ at::Tensor csr_fold_cpu(
     const at::Tensor& col_in,
     const at::Tensor& weights_in,
     int64_t num_targets) {
+    TORCH_CHECK(src_in.dim() == 2, "csr_fold expected 2D src tensor, got ", src_in.dim(), "D");
+    TORCH_CHECK(num_targets >= 0, "csr_fold num_targets must be non-negative, got ", num_targets);
+    TORCH_CHECK(
+        row_ptr_in.dim() == 1 &&
+            row_ptr_in.size(0) == checked_add(num_targets, 1, "csr_fold row_ptr length"),
+        "csr_fold row_ptr must be 1D with length num_targets + 1");
+    TORCH_CHECK(col_in.dim() == 1, "csr_fold col must be 1D, got ", col_in.dim(), "D");
+    const int64_t nnz = col_in.size(0);
+    TORCH_CHECK(
+        (weights_in.dim() == 1 && weights_in.size(0) == nnz) ||
+            (weights_in.dim() == 2 && weights_in.size(0) == nnz && weights_in.size(1) == 2),
+        "csr_fold weights shape mismatch");
+
     const at::Tensor src = src_in.contiguous();
     const int64_t rows = src.size(0);
+    [[maybe_unused]] const int64_t total_work = checked_mul(rows, num_targets, "csr_fold work size");
     at::Tensor out = at::empty({rows, num_targets}, src.options());
     if (rows == 0 || num_targets == 0) {
         return out;
@@ -183,11 +213,13 @@ void validate_group_metadata(
     c10::IntArrayRef group_offsets,
     c10::IntArrayRef group_counts,
     c10::IntArrayRef group_shapes) {
-    const int64_t num_groups = group_offsets.size();
+    TORCH_CHECK(ndim >= 1, "ndim must be >= 1, got ", ndim);
+    const auto num_groups = static_cast<int64_t>(group_offsets.size());
     TORCH_CHECK(group_counts.size() == static_cast<size_t>(num_groups),
                 "group_counts length must match group_offsets");
-    TORCH_CHECK(group_shapes.size() == static_cast<size_t>(num_groups * ndim),
-                "group_shapes length must equal num_groups * ndim");
+    TORCH_CHECK(
+        group_shapes.size() == static_cast<size_t>(checked_mul(num_groups, ndim, "group_shapes length")),
+        "group_shapes length must equal num_groups * ndim");
 }
 
 void check_precision(const at::Tensor& tensor, const at::Tensor& weights, const char* what) {
@@ -257,13 +289,17 @@ at::Tensor udct_forward_impl(
         const int64_t offset = group_offsets[static_cast<size_t>(g)];
         const int64_t count = group_counts[static_cast<size_t>(g)];
         const auto g_shape = std::span(group_shapes).subspan(
-            static_cast<size_t>(g * ndim), static_cast<size_t>(ndim));
+            static_cast<size_t>(checked_mul(g, ndim, "group shape offset")),
+            static_cast<size_t>(ndim));
         std::vector<int64_t> chunk_shape;
         chunk_shape.reserve(static_cast<size_t>(ndim + 2));
         chunk_shape.push_back(rows);
         chunk_shape.push_back(count);
         chunk_shape.insert(chunk_shape.end(), g_shape.begin(), g_shape.end());
-        const int64_t g_len = count * product(g_shape);
+        const int64_t g_len = checked_mul(count, product(g_shape), "group length");
+        TORCH_CHECK(
+            offset >= 0 && checked_add(offset, g_len, "group span") <= ncoef,
+            "Forward group span out of bounds");
         const at::Tensor chunk = folded.narrow(1, offset, g_len).view(chunk_shape);
         // 1/g_size normalization is folded into fwd_weights.
         const at::Tensor ifft = at::fft_ifftn(chunk, std::nullopt, dims, "forward");
@@ -313,13 +349,17 @@ at::Tensor udct_backward_impl(
         const int64_t offset = group_offsets[static_cast<size_t>(g)];
         const int64_t count = group_counts[static_cast<size_t>(g)];
         const auto g_shape = std::span(group_shapes).subspan(
-            static_cast<size_t>(g * ndim), static_cast<size_t>(ndim));
+            static_cast<size_t>(checked_mul(g, ndim, "group shape offset")),
+            static_cast<size_t>(ndim));
         std::vector<int64_t> chunk_shape;
         chunk_shape.reserve(static_cast<size_t>(ndim + 2));
         chunk_shape.push_back(rows);
         chunk_shape.push_back(count);
         chunk_shape.insert(chunk_shape.end(), g_shape.begin(), g_shape.end());
-        const int64_t g_len = count * product(g_shape);
+        const int64_t g_len = checked_mul(count, product(g_shape), "group length");
+        TORCH_CHECK(
+            offset >= 0 && checked_add(offset, g_len, "group span") <= ncoef,
+            "Backward group span out of bounds");
         const at::Tensor chunk = flat.narrow(1, offset, g_len).view(chunk_shape);
         const at::Tensor fft = at::fft_fftn(chunk, std::nullopt, dims);
         small.narrow(1, offset, g_len).copy_(fft.reshape({rows, g_len}));
@@ -388,7 +428,11 @@ public:
     static torch::autograd::variable_list backward(
         torch::autograd::AutogradContext* ctx,
         torch::autograd::variable_list grad_outputs) {
+        TORCH_CHECK(
+            grad_outputs.size() == 1 && grad_outputs.at(0).defined(),
+            "Expected 1 defined grad_output in UdctForwardAutograd");
         const auto saved = ctx->get_saved_variables();
+        TORCH_CHECK(saved.size() == 6, "Expected 6 saved tensors in UdctForwardAutograd");
         const auto shape = ctx->saved_data["shape"].toIntVector();
         const auto group_offsets = ctx->saved_data["group_offsets"].toIntVector();
         const auto group_counts = ctx->saved_data["group_counts"].toIntVector();
@@ -398,13 +442,13 @@ public:
         const bool real_input = ctx->saved_data["real_input"].toBool();
 
         at::Tensor grad = udct_backward(
-            grad_outputs[0],
-            saved[0],
-            saved[1],
-            saved[2],
-            saved[3],
-            saved[4],
-            saved[5],
+            grad_outputs.at(0),
+            saved.at(0),
+            saved.at(1),
+            saved.at(2),
+            saved.at(3),
+            saved.at(4),
+            saved.at(5),
             shape,
             group_offsets,
             group_counts,
@@ -464,7 +508,11 @@ public:
     static torch::autograd::variable_list backward(
         torch::autograd::AutogradContext* ctx,
         torch::autograd::variable_list grad_outputs) {
+        TORCH_CHECK(
+            grad_outputs.size() == 1 && grad_outputs.at(0).defined(),
+            "Expected 1 defined grad_output in UdctBackwardAutograd");
         const auto saved = ctx->get_saved_variables();
+        TORCH_CHECK(saved.size() == 6, "Expected 6 saved tensors in UdctBackwardAutograd");
         const auto shape = ctx->saved_data["shape"].toIntVector();
         const auto group_offsets = ctx->saved_data["group_offsets"].toIntVector();
         const auto group_counts = ctx->saved_data["group_counts"].toIntVector();
@@ -474,13 +522,13 @@ public:
         const bool real_input = ctx->saved_data["real_input"].toBool();
 
         at::Tensor grad = udct_forward(
-            grad_outputs[0],
-            saved[0],
-            saved[1],
-            saved[2],
-            saved[3],
-            saved[4],
-            saved[5],
+            grad_outputs.at(0),
+            saved.at(0),
+            saved.at(1),
+            saved.at(2),
+            saved.at(3),
+            saved.at(4),
+            saved.at(5),
             shape,
             group_offsets,
             group_counts,
@@ -497,6 +545,52 @@ public:
 };
 
 } // namespace
+
+void validate_csr_plan(
+    const at::Tensor& row_ptr,
+    const at::Tensor& col,
+    const at::Tensor& weights,
+    int64_t num_sources,
+    int64_t num_targets,
+    const char* label) {
+    TORCH_CHECK(
+        num_sources >= 0 && num_targets >= 0,
+        "UDCT ", label, " CSR dimensions must be non-negative");
+    TORCH_CHECK(
+        row_ptr.scalar_type() == at::kInt || row_ptr.scalar_type() == at::kLong,
+        "UDCT ", label, " row_ptr must be int32 or int64, got ", row_ptr.scalar_type());
+    TORCH_CHECK(
+        row_ptr.dim() == 1 &&
+            row_ptr.size(0) == checked_add(num_targets, 1, "CSR row_ptr length"),
+        "UDCT ", label, " row_ptr must be 1D with length ", num_targets + 1);
+    TORCH_CHECK(
+        col.scalar_type() == at::kInt || col.scalar_type() == at::kLong,
+        "UDCT ", label, " col must be int32 or int64, got ", col.scalar_type());
+    TORCH_CHECK(col.dim() == 1, "UDCT ", label, " col must be 1D");
+    const int64_t nnz = col.size(0);
+    TORCH_CHECK(
+        weights.scalar_type() == at::kFloat || weights.scalar_type() == at::kDouble,
+        "UDCT ", label, " weights must be float32 or float64, got ", weights.scalar_type());
+    TORCH_CHECK(
+        (weights.dim() == 1 && weights.size(0) == nnz) ||
+            (weights.dim() == 2 && weights.size(0) == nnz && weights.size(1) == 2),
+        "UDCT ", label, " weights shape does not match col length ", nnz);
+
+    const at::Tensor rp_cpu = row_ptr.to(at::kCPU, at::kLong).contiguous();
+    const std::span<const int64_t> rp(
+        rp_cpu.const_data_ptr<int64_t>(), static_cast<size_t>(rp_cpu.numel()));
+    TORCH_CHECK(
+        !rp.empty() && rp.front() >= 0 && rp.back() <= nnz && std::ranges::is_sorted(rp),
+        "UDCT ", label, " row_ptr is not monotonic within [0, ", nnz, "]");
+
+    const at::Tensor col_cpu = col.to(at::kCPU, at::kLong).contiguous();
+    const std::span<const int64_t> cols(
+        col_cpu.const_data_ptr<int64_t>(), static_cast<size_t>(col_cpu.numel()));
+    TORCH_CHECK(
+        std::ranges::all_of(
+            cols, [num_sources](int64_t c) { return c >= 0 && c < num_sources; }),
+        "UDCT ", label, " col contains out-of-bounds index for num_sources=", num_sources);
+}
 
 at::Tensor udct_forward(
     const at::Tensor& image,
