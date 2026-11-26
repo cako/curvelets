@@ -170,3 +170,58 @@ For small and medium inputs on a GPU (up to about :math:`1024 \times 1024`), Pyt
 It works with every forward and backward entry point, :meth:`~curvelets.torch.UDCT.filter` and autograd, and has no effect on CPU tensors. Each recorded graph keeps some GPU memory; :meth:`~curvelets.torch.UDCT.clear_cuda_graphs` frees it.
 
 Use it for small inputs (on an RTX 4090, a :math:`512 \times 512` forward goes from 0.37 to 0.065 ms). For large inputs it can be slightly slower, so measure on your own sizes.
+
+.. _torch-cpp:
+
+C++ (libtorch) runtime
+======================
+
+.. versionadded:: 1.4
+
+Models using :class:`~curvelets.torch.UDCT` can be run and trained inside a Python-free C++ application via ``libtorch`` on Linux (GCC/Clang), macOS (AppleClang), and Windows (MSVC). The C++ ``curvelets::UDCT`` module supports N-D real, complex, and monogenic transforms, ``.to(device)`` / ``.to(dtype)``, and 1st- and 2nd-order adjoint autograd.
+
+Export a plan once from Python with :meth:`~curvelets.torch.UDCT.save_plan`:
+
+.. code-block:: python
+
+    import torch
+    from curvelets.torch import UDCT
+
+    udct = UDCT(shape=(64, 64), num_scales=3, wedges_per_direction=3, dtype=torch.float32)
+    udct.save_plan("udct_plan.pt")
+
+Then build ``cpp/`` from source with CMake (requires CMake >= 3.18, a C++20 compiler, and ``libtorch``, either standalone or from a PyTorch installation) — or pull it into an existing CMake project via ``FetchContent`` (link ``curvelets::torch``):
+
+.. code-block:: cmake
+
+    include(FetchContent)
+    FetchContent_Declare(
+        curvelets
+        GIT_REPOSITORY https://github.com/cako/curvelets.git
+        GIT_TAG v1.4  # or another release tag / commit
+        SOURCE_SUBDIR cpp
+    )
+    FetchContent_MakeAvailable(curvelets)
+
+    target_link_libraries(my_app PRIVATE curvelets::torch)
+
+Load and use the exported plan in C++:
+
+.. code-block:: cpp
+
+    #include "curvelets/udct.hpp"
+
+    curvelets::UDCT udct("udct_plan.pt");
+    torch::Tensor x = torch::randn({4, 64, 64}, torch::requires_grad());
+    torch::Tensor coeffs = udct->forward(x);    // flat (*batch, ncoef) layout
+    torch::Tensor recon = udct->backward(coeffs);  // (*batch, *shape) or (ndim + 1, *batch, *shape) for monogenic
+    recon.sum().backward();
+
+``udct->forward(x)`` returns the flat ``(*batch, ncoef)`` coefficient layout (matching ``forward(x, structured=False)`` in Python), and ``udct->backward(coeffs)`` returns ``(*batch, *shape)`` (or ``(ndim + 1, *batch, *shape)`` for monogenic transforms).
+
+See `cpp/README.md <https://github.com/cako/curvelets/blob/main/cpp/README.md>`_ and `cpp/examples/train_model.cpp <https://github.com/cako/curvelets/blob/main/cpp/examples/train_model.cpp>`_ for CMake build instructions and a full training example.
+
+**Current limitations:**
+
+* Plans are generated once in Python per transform configuration (``shape``, ``num_scales`` / ``angular_wedges_config``, ``high_frequency_mode``, ``transform_kind``, etc.) and loaded from ``.pt`` files in C++.
+* C++ consumers build ``cpp/`` from source with CMake (no prebuilt C++ binaries are distributed yet).

@@ -8,6 +8,7 @@ import logging
 import warnings
 from collections.abc import Callable
 from math import sqrt
+from pathlib import Path
 from typing import Any, Literal, Self, overload
 
 import numpy as np
@@ -1217,3 +1218,26 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
         # Apply to decimation_ratios (list of tensors)
         for i, ratio in enumerate(self._decimation_ratios):
             self._decimation_ratios[i] = fn(ratio)
+
+    def save_plan(self, path: str | Path) -> Path:
+        """
+        Save this transform's execution plan for Python-free C++ ``libtorch``.
+
+        The saved ``.pt`` file can be loaded directly with ``curvelets::UDCT``
+        in C++ without requiring Python.
+
+        .. versionadded:: 1.4
+
+        Parameters
+        ----------
+        path : str | Path
+            Destination path for the serialized plan (``.pt``).
+
+        Returns
+        -------
+        Path
+            Resolved path to the written plan file.
+        """
+        from ._export import save_udct_plan  # pylint: disable=import-outside-toplevel
+
+        return Path(save_udct_plan(self, path))
