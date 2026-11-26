@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     CurveletDenoiser model(argv[1]);
     torch::optim::Adam optimizer(model->parameters(), torch::optim::AdamOptions(1e-2));
 
-    const auto shape = model->udct->shape();
+    const auto& shape = model->udct->shape();
     std::vector<int64_t> input_shape = {4};
     input_shape.insert(input_shape.end(), shape.begin(), shape.end());
 

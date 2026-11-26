@@ -1,5 +1,9 @@
 #include "udct_ops.hpp"
 
+#include <functional>
+#include <numeric>
+#include <span>
+#include <utility>
 #include <vector>
 
 #include <ATen/Parallel.h>
@@ -8,28 +12,12 @@ namespace curvelets::detail {
 
 namespace {
 
-int64_t prod_vec(const std::vector<int64_t>& values) {
-    int64_t result = 1;
-    for (int64_t v : values) {
-        result *= v;
-    }
-    return result;
-}
-
 std::vector<int64_t> spectrum_shape_for(c10::IntArrayRef shape, bool complex_output) {
     std::vector<int64_t> out(shape.begin(), shape.end());
     if (!complex_output && !out.empty()) {
         out.back() = out.back() / 2 + 1;
     }
     return out;
-}
-
-std::vector<int64_t> fft_dims(int64_t ndim) {
-    std::vector<int64_t> dims(static_cast<size_t>(ndim));
-    for (int64_t i = 0; i < ndim; ++i) {
-        dims[static_cast<size_t>(i)] = -ndim + i;
-    }
-    return dims;
 }
 
 template <typename scalar_t, typename row_t, typename col_t>
@@ -51,16 +39,16 @@ void csr_fold_cpu_kernel(
     const auto* w_ptr = weights.const_data_ptr<scalar_t>();
 
     at::parallel_for(0, rows * num_targets, 1024, [&](int64_t begin, int64_t end) {
-        for (int64_t idx = begin; idx < end; ++idx) {
-            const int64_t r = idx / num_targets;
-            const int64_t t = idx % num_targets;
-            const int64_t start = static_cast<int64_t>(rp_ptr[t]);
-            const int64_t stop = static_cast<int64_t>(rp_ptr[t + 1]);
-            const auto* row_src = src_ptr + r * num_sources;
+        if (pair) {
+            for (int64_t idx = begin; idx < end; ++idx) {
+                const int64_t r = idx / num_targets;
+                const int64_t t = idx % num_targets;
+                const int64_t start = static_cast<int64_t>(rp_ptr[t]);
+                const int64_t stop = static_cast<int64_t>(rp_ptr[t + 1]);
+                const auto* row_src = src_ptr + r * num_sources;
 
-            scalar_t acc_re = 0;
-            scalar_t acc_im = 0;
-            if (pair) {
+                scalar_t acc_re = 0;
+                scalar_t acc_im = 0;
                 for (int64_t j = start; j < stop; ++j) {
                     const int64_t s = static_cast<int64_t>(col_ptr[j]);
                     const c10::complex<scalar_t> v = row_src[s];
@@ -69,16 +57,27 @@ void csr_fold_cpu_kernel(
                     acc_re += w_re * v.real();
                     acc_im += w_im * v.imag();
                 }
-            } else {
-                for (int64_t j = start; j < stop; ++j) {
-                    const int64_t s = static_cast<int64_t>(col_ptr[j]);
-                    const c10::complex<scalar_t> v = row_src[s];
-                    const scalar_t w = w_ptr[j];
-                    acc_re += w * v.real();
-                    acc_im += w * v.imag();
-                }
+                out_ptr[idx] = c10::complex<scalar_t>(acc_re, acc_im);
             }
-            out_ptr[idx] = c10::complex<scalar_t>(acc_re, acc_im);
+        } else {
+            for (int64_t idx = begin; idx < end; ++idx) {
+                const int64_t r = idx / num_targets;
+                const int64_t t = idx % num_targets;
+                const int64_t start = static_cast<int64_t>(rp_ptr[t]);
+                const int64_t stop = static_cast<int64_t>(rp_ptr[t + 1]);
+                const auto* row_src = src_ptr + r * num_sources;
+
+                out_ptr[idx] = std::transform_reduce(
+                    col_ptr + start,
+                    col_ptr + stop,
+                    w_ptr + start,
+                    c10::complex<scalar_t>(0, 0),
+                    std::plus<>{},
+                    [row_src](col_t c, scalar_t w) {
+                        const c10::complex<scalar_t> v = row_src[static_cast<int64_t>(c)];
+                        return c10::complex<scalar_t>(w * v.real(), w * v.imag());
+                    });
+            }
         }
     });
 }
@@ -217,12 +216,7 @@ at::Tensor udct_forward_impl(
     TORCH_CHECK(ndim >= 1, "shape must be non-empty");
     validate_group_metadata(ndim, group_offsets, group_counts, group_shapes);
 
-    TORCH_CHECK(image.dim() >= ndim, "Expected input with at least ", ndim, " dims, got ", image.dim());
-    for (int64_t i = 0; i < ndim; ++i) {
-        TORCH_CHECK(
-            image.size(image.dim() - ndim + i) == shape[static_cast<size_t>(i)],
-            "Input trailing shape does not match UDCT shape");
-    }
+    check_trailing_shape(image, shape, "input");
     if (!complex_output) {
         TORCH_CHECK(!image.is_complex(), "Real UDCT requires real-valued input");
     }
@@ -249,7 +243,7 @@ at::Tensor udct_forward_impl(
         ? at::fft_fftn(images, std::nullopt, dims)
         : at::fft_rfftn(images, std::nullopt, dims);
     const auto spec_shape = spectrum_shape_for(shape, complex_output);
-    const int64_t num_spectrum = prod_vec(spec_shape);
+    const int64_t num_spectrum = product(spec_shape);
     const at::Tensor folded = csr_fold_device(
         spectrum.reshape({rows, num_spectrum}),
         fwd_row_ptr,
@@ -262,14 +256,14 @@ at::Tensor udct_forward_impl(
     for (int64_t g = 0; g < num_groups; ++g) {
         const int64_t offset = group_offsets[static_cast<size_t>(g)];
         const int64_t count = group_counts[static_cast<size_t>(g)];
-        std::vector<int64_t> chunk_shape = {rows, count};
-        int64_t g_size = 1;
-        for (int64_t d = 0; d < ndim; ++d) {
-            const int64_t s = group_shapes[static_cast<size_t>(g * ndim + d)];
-            chunk_shape.push_back(s);
-            g_size *= s;
-        }
-        const int64_t g_len = count * g_size;
+        const auto g_shape = std::span(group_shapes).subspan(
+            static_cast<size_t>(g * ndim), static_cast<size_t>(ndim));
+        std::vector<int64_t> chunk_shape;
+        chunk_shape.reserve(static_cast<size_t>(ndim + 2));
+        chunk_shape.push_back(rows);
+        chunk_shape.push_back(count);
+        chunk_shape.insert(chunk_shape.end(), g_shape.begin(), g_shape.end());
+        const int64_t g_len = count * product(g_shape);
         const at::Tensor chunk = folded.narrow(1, offset, g_len).view(chunk_shape);
         // 1/g_size normalization is folded into fwd_weights.
         const at::Tensor ifft = at::fft_ifftn(chunk, std::nullopt, dims, "forward");
@@ -318,21 +312,21 @@ at::Tensor udct_backward_impl(
     for (int64_t g = 0; g < num_groups; ++g) {
         const int64_t offset = group_offsets[static_cast<size_t>(g)];
         const int64_t count = group_counts[static_cast<size_t>(g)];
-        std::vector<int64_t> chunk_shape = {rows, count};
-        int64_t g_size = 1;
-        for (int64_t d = 0; d < ndim; ++d) {
-            const int64_t s = group_shapes[static_cast<size_t>(g * ndim + d)];
-            chunk_shape.push_back(s);
-            g_size *= s;
-        }
-        const int64_t g_len = count * g_size;
+        const auto g_shape = std::span(group_shapes).subspan(
+            static_cast<size_t>(g * ndim), static_cast<size_t>(ndim));
+        std::vector<int64_t> chunk_shape;
+        chunk_shape.reserve(static_cast<size_t>(ndim + 2));
+        chunk_shape.push_back(rows);
+        chunk_shape.push_back(count);
+        chunk_shape.insert(chunk_shape.end(), g_shape.begin(), g_shape.end());
+        const int64_t g_len = count * product(g_shape);
         const at::Tensor chunk = flat.narrow(1, offset, g_len).view(chunk_shape);
         const at::Tensor fft = at::fft_fftn(chunk, std::nullopt, dims);
         small.narrow(1, offset, g_len).copy_(fft.reshape({rows, g_len}));
     }
 
     const auto spec_shape = spectrum_shape_for(shape, complex_output);
-    const int64_t num_spectrum = prod_vec(spec_shape);
+    const int64_t num_spectrum = product(spec_shape);
     const at::Tensor spectrum_flat = csr_fold_device(
         small,
         bwd_row_ptr,
@@ -420,21 +414,9 @@ public:
         if (real_input && grad.is_complex()) {
             grad = at::real(grad);
         }
-        return {
-            grad,
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-        };
+        torch::autograd::variable_list grads(13);
+        grads[0] = std::move(grad);
+        return grads;
     }
 };
 
@@ -508,21 +490,9 @@ public:
         if (real_input && grad.is_complex()) {
             grad = at::real(grad);
         }
-        return {
-            grad,
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-            at::Tensor(),
-        };
+        torch::autograd::variable_list grads(13);
+        grads[0] = std::move(grad);
+        return grads;
     }
 };
 

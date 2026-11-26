@@ -1,9 +1,15 @@
 #include "curvelets/udct.hpp"
 #include "udct_ops.hpp"
 
+#include <algorithm>
 #include <fstream>
+#include <iterator>
+#include <optional>
+#include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <torch/csrc/jit/serialization/pickle.h>
@@ -38,14 +44,6 @@ std::vector<int64_t> to_int64_vec(const at::Tensor& t) {
     return std::vector<int64_t>(ptr, ptr + cpu.numel());
 }
 
-int64_t prod_vec(const std::vector<int64_t>& values) {
-    int64_t result = 1;
-    for (int64_t v : values) {
-        result *= v;
-    }
-    return result;
-}
-
 std::string kind_from_code(int64_t code) {
     switch (code) {
         case 0:
@@ -56,21 +54,6 @@ std::string kind_from_code(int64_t code) {
             return "monogenic";
         default:
             TORCH_CHECK(false, "Unknown UDCT transform_kind code in plan: ", code);
-    }
-}
-
-void check_trailing_shape(
-    const torch::Tensor& tensor,
-    const std::vector<int64_t>& expected,
-    const char* what) {
-    const int64_t n = static_cast<int64_t>(expected.size());
-    TORCH_CHECK(
-        tensor.dim() >= n,
-        "Expected ", what, " with at least ", n, " dims, got ", tensor.dim());
-    for (int64_t i = 0; i < n; ++i) {
-        TORCH_CHECK(
-            tensor.size(tensor.dim() - n + i) == expected[static_cast<size_t>(i)],
-            "Trailing shape mismatch in ", what);
     }
 }
 
@@ -102,9 +85,13 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
     const int64_t num_entries = layout_t.size(0);
     const auto* layout_ptr = layout_t.const_data_ptr<int64_t>();
     layout_.reserve(static_cast<size_t>(num_entries));
-    for (int64_t i = 0; i < num_entries; ++i) {
-        layout_.push_back(LayoutEntry{layout_ptr[3 * i], layout_ptr[3 * i + 1], layout_ptr[3 * i + 2]});
-    }
+    std::ranges::transform(
+        std::views::iota(int64_t{0}, num_entries),
+        std::back_inserter(layout_),
+        [layout_ptr](int64_t i) {
+            return LayoutEntry{
+                layout_ptr[3 * i], layout_ptr[3 * i + 1], layout_ptr[3 * i + 2]};
+        });
 
     const int64_t n = ndim();
     TORCH_CHECK(
@@ -112,28 +99,33 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
             group_shapes_.size() == group_offsets_.size() * static_cast<size_t>(n),
         "Invalid UDCT plan group metadata");
 
-    wedge_counts_.resize(num_directions_.size());
-    for (size_t s = 0; s < num_directions_.size(); ++s) {
-        wedge_counts_[s].assign(static_cast<size_t>(num_directions_[s]), 0);
-    }
+    wedge_counts_.reserve(num_directions_.size());
+    std::ranges::transform(
+        num_directions_,
+        std::back_inserter(wedge_counts_),
+        [](int64_t count) { return std::vector<int64_t>(static_cast<size_t>(count), 0); });
 
     struct RawSpan {
         int64_t start;
         int64_t size;
         std::vector<int64_t> shape;
     };
-    std::vector<std::vector<std::vector<RawSpan>>> spans(num_directions_.size());
-    for (size_t s = 0; s < num_directions_.size(); ++s) {
-        spans[s].resize(static_cast<size_t>(num_directions_[s]));
-    }
+    std::vector<std::vector<std::vector<RawSpan>>> spans;
+    spans.reserve(num_directions_.size());
+    std::ranges::transform(
+        num_directions_,
+        std::back_inserter(spans),
+        [](int64_t count) {
+            return std::vector<std::vector<RawSpan>>(static_cast<size_t>(count));
+        });
 
     entry_shapes_.reserve(static_cast<size_t>(num_entries));
     int64_t entry_idx = 0;
     for (size_t g = 0; g < group_offsets_.size(); ++g) {
-        std::vector<int64_t> g_shape(
-            group_shapes_.begin() + static_cast<std::ptrdiff_t>(g * static_cast<size_t>(n)),
-            group_shapes_.begin() + static_cast<std::ptrdiff_t>((g + 1) * static_cast<size_t>(n)));
-        const int64_t g_size = prod_vec(g_shape);
+        const auto g_shape_span = std::span(group_shapes_).subspan(
+            g * static_cast<size_t>(n), static_cast<size_t>(n));
+        std::vector<int64_t> g_shape(g_shape_span.begin(), g_shape_span.end());
+        const int64_t g_size = detail::product(g_shape_span);
         const int64_t count = group_counts_[g];
         for (int64_t i = 0; i < count; ++i) {
             TORCH_CHECK(entry_idx < num_entries, "UDCT group count exceeds layout entries");
@@ -168,16 +160,22 @@ UDCTImpl::UDCTImpl(const std::string& plan_path) {
 
     if (transform_kind_ == "monogenic") {
         const int64_t num_channels = n + 2;
-        mono_wedges_.resize(spans.size());
+        mono_wedges_.reserve(spans.size());
         int64_t position = 0;
-        for (size_t s = 0; s < spans.size(); ++s) {
-            mono_wedges_[s].resize(spans[s].size());
-            for (size_t d = 0; d < spans[s].size(); ++d) {
-                mono_wedges_[s][d].reserve(spans[s][d].size());
-                for (const RawSpan& sp : spans[s][d]) {
-                    mono_wedges_[s][d].push_back(WedgeSpan{position, sp.shape});
-                    position += num_channels * sp.size;
-                }
+        for (const auto& scale_spans : spans) {
+            auto& scale_wedges = mono_wedges_.emplace_back();
+            scale_wedges.reserve(scale_spans.size());
+            for (const auto& dir_spans : scale_spans) {
+                auto& dir_wedges = scale_wedges.emplace_back();
+                dir_wedges.reserve(dir_spans.size());
+                std::ranges::transform(
+                    dir_spans,
+                    std::back_inserter(dir_wedges),
+                    [&position, num_channels](const RawSpan& sp) {
+                        const WedgeSpan wedge{position, sp.shape};
+                        position += num_channels * sp.size;
+                        return wedge;
+                    });
             }
         }
         TORCH_CHECK(position == total_ncoef_, "Monogenic layout size mismatch in plan");
@@ -204,17 +202,9 @@ torch::Tensor UDCTImpl::forward(const torch::Tensor& image) {
 
     TORCH_CHECK(!image.is_complex(), "Monogenic transform requires real-valued input");
     const int64_t n = ndim();
-    TORCH_CHECK(image.dim() >= n, "Expected input with at least ", n, " dims");
-    for (int64_t i = 0; i < n; ++i) {
-        TORCH_CHECK(
-            image.size(image.dim() - n + i) == shape_[static_cast<size_t>(i)],
-            "Input trailing shape does not match UDCT shape");
-    }
+    detail::check_trailing_shape(image, shape_, "input");
 
-    std::vector<int64_t> dims(static_cast<size_t>(n));
-    for (int64_t i = 0; i < n; ++i) {
-        dims[static_cast<size_t>(i)] = -n + i;
-    }
+    const auto dims = detail::fft_dims(n);
 
     const torch::Tensor filters = torch::view_as_complex(riesz_filters_);
     const torch::Tensor spectrum = torch::fft::fftn(image, std::nullopt, dims);
@@ -246,20 +236,18 @@ torch::Tensor UDCTImpl::forward(const torch::Tensor& image) {
 
     const torch::Tensor scalar = coeffs.select(-2, 0);
     std::vector<torch::Tensor> channels = {torch::real(scalar), torch::imag(scalar)};
-    for (int64_t k = 0; k < n; ++k) {
-        torch::Tensor riesz_k = torch::real(coeffs.select(-2, 1 + k));
-        int64_t even_pos = -1;
-        for (size_t idx = 0; idx < even_axes_.size(); ++idx) {
-            if (even_axes_[idx] == k) {
-                even_pos = static_cast<int64_t>(idx);
-                break;
+    channels.reserve(static_cast<size_t>(n + 2));
+    std::ranges::transform(
+        std::views::iota(int64_t{0}, n),
+        std::back_inserter(channels),
+        [this, &coeffs, n](int64_t k) {
+            torch::Tensor riesz_k = torch::real(coeffs.select(-2, 1 + k));
+            if (const auto it = std::ranges::find(even_axes_, k); it != even_axes_.end()) {
+                const auto even_pos = std::distance(even_axes_.begin(), it);
+                riesz_k = riesz_k - torch::imag(coeffs.select(-2, 1 + n + even_pos));
             }
-        }
-        if (even_pos >= 0) {
-            riesz_k = riesz_k - torch::imag(coeffs.select(-2, 1 + n + even_pos));
-        }
-        channels.push_back(riesz_k);
-    }
+            return riesz_k;
+        });
     const torch::Tensor stacked = torch::stack(channels, -2);
     return stacked.flatten(-2).index_select(-1, monogenic_perm_);
 }
@@ -331,10 +319,14 @@ UDCTCoefficients UDCTImpl::structure(const torch::Tensor& vector) const {
         "Expected flat coefficients with trailing dim ", total_ncoef_,
         ", got ", vector.sizes());
 
-    UDCTCoefficients coeffs(num_directions_.size());
-    for (size_t s = 0; s < num_directions_.size(); ++s) {
-        coeffs[s].resize(static_cast<size_t>(num_directions_[s]));
-    }
+    UDCTCoefficients coeffs;
+    coeffs.reserve(num_directions_.size());
+    std::ranges::transform(
+        num_directions_,
+        std::back_inserter(coeffs),
+        [](int64_t count) {
+            return std::vector<std::vector<torch::Tensor>>(static_cast<size_t>(count));
+        });
 
     if (transform_kind_ == "monogenic") {
         const int64_t batch_ndim = vector.dim() - 1;
@@ -344,14 +336,18 @@ UDCTCoefficients UDCTImpl::structure(const torch::Tensor& vector) const {
         for (size_t s = 0; s < mono_wedges_.size(); ++s) {
             for (size_t d = 0; d < mono_wedges_[s].size(); ++d) {
                 coeffs[s][d].reserve(mono_wedges_[s][d].size());
-                for (const WedgeSpan& w : mono_wedges_[s][d]) {
-                    const int64_t len = num_channels * prod_vec(w.shape);
-                    std::vector<int64_t> reshape_dims = batch_dims;
-                    reshape_dims.push_back(num_channels);
-                    reshape_dims.insert(reshape_dims.end(), w.shape.begin(), w.shape.end());
-                    const torch::Tensor block = vector.narrow(-1, w.start, len).reshape(reshape_dims);
-                    coeffs[s][d].push_back(block.movedim(batch_ndim, -1));
-                }
+                std::ranges::transform(
+                    mono_wedges_[s][d],
+                    std::back_inserter(coeffs[s][d]),
+                    [&vector, &batch_dims, batch_ndim, num_channels](const WedgeSpan& w) {
+                        const int64_t len = num_channels * detail::product(w.shape);
+                        std::vector<int64_t> reshape_dims = batch_dims;
+                        reshape_dims.push_back(num_channels);
+                        reshape_dims.insert(reshape_dims.end(), w.shape.begin(), w.shape.end());
+                        const torch::Tensor block =
+                            vector.narrow(-1, w.start, len).reshape(reshape_dims);
+                        return block.movedim(batch_ndim, -1);
+                    });
             }
         }
         return coeffs;
@@ -360,16 +356,16 @@ UDCTCoefficients UDCTImpl::structure(const torch::Tensor& vector) const {
     const int64_t n = ndim();
     size_t entry_idx = 0;
     for (size_t g = 0; g < group_offsets_.size(); ++g) {
-        std::vector<int64_t> g_shape(
-            group_shapes_.begin() + static_cast<std::ptrdiff_t>(g * static_cast<size_t>(n)),
-            group_shapes_.begin() + static_cast<std::ptrdiff_t>((g + 1) * static_cast<size_t>(n)));
-        const int64_t g_size = prod_vec(g_shape);
+        const auto g_shape = std::span(group_shapes_).subspan(
+            g * static_cast<size_t>(n), static_cast<size_t>(n));
+        const int64_t g_size = detail::product(g_shape);
+        const c10::IntArrayRef g_shape_ref(g_shape.data(), g_shape.size());
         const int64_t count = group_counts_[g];
         for (int64_t i = 0; i < count; ++i) {
             const int64_t start = group_offsets_[g] + i * g_size;
             const LayoutEntry& e = layout_[entry_idx++];
             coeffs[static_cast<size_t>(e.scale)][static_cast<size_t>(e.direction)].push_back(
-                vector.narrow(-1, start, g_size).unflatten(-1, g_shape));
+                vector.narrow(-1, start, g_size).unflatten(-1, g_shape_ref));
         }
     }
     return coeffs;
@@ -393,8 +389,7 @@ torch::Tensor UDCTImpl::vect(const UDCTCoefficients& coefficients) const {
     }
 
     std::vector<torch::Tensor> parts;
-    bool has_batch = false;
-    std::vector<int64_t> expected_batch;
+    std::optional<std::vector<int64_t>> expected_batch;
 
     if (transform_kind_ == "monogenic") {
         const int64_t num_channels = ndim() + 2;
@@ -405,20 +400,19 @@ torch::Tensor UDCTImpl::vect(const UDCTCoefficients& coefficients) const {
                     const torch::Tensor& coeff = coefficients[s][d][w];
                     std::vector<int64_t> expected_shape = mono_wedges_[s][d][w].shape;
                     expected_shape.push_back(num_channels);
-                    check_trailing_shape(coeff, expected_shape, "monogenic coefficients");
+                    detail::check_trailing_shape(coeff, expected_shape, "monogenic coefficients");
                     const int64_t batch_ndim = coeff.dim() - trailing_ndim;
                     const std::vector<int64_t> batch_dims(
                         coeff.sizes().begin(), coeff.sizes().begin() + batch_ndim);
-                    if (!has_batch) {
+                    if (!expected_batch) {
                         expected_batch = batch_dims;
-                        has_batch = true;
                     } else {
                         TORCH_CHECK(
-                            batch_dims == expected_batch,
+                            batch_dims == *expected_batch,
                             "Inconsistent batch dimensions across coefficient wedges");
                     }
                     std::vector<int64_t> flat_shape = batch_dims;
-                    flat_shape.push_back(prod_vec(expected_shape));
+                    flat_shape.push_back(detail::product(expected_shape));
                     parts.push_back(coeff.movedim(-1, batch_ndim).reshape(flat_shape));
                 }
             }
@@ -433,46 +427,59 @@ torch::Tensor UDCTImpl::vect(const UDCTCoefficients& coefficients) const {
         const torch::Tensor& coeff = coefficients[static_cast<size_t>(e.scale)]
                                                  [static_cast<size_t>(e.direction)]
                                                  [static_cast<size_t>(e.wedge)];
-        check_trailing_shape(coeff, entry_shapes_[i], "coefficients");
+        detail::check_trailing_shape(coeff, entry_shapes_[i], "coefficients");
         const int64_t batch_ndim = coeff.dim() - n;
         const std::vector<int64_t> batch_dims(
             coeff.sizes().begin(), coeff.sizes().begin() + batch_ndim);
-        if (!has_batch) {
+        if (!expected_batch) {
             expected_batch = batch_dims;
-            has_batch = true;
         } else {
             TORCH_CHECK(
-                batch_dims == expected_batch,
+                batch_dims == *expected_batch,
                 "Inconsistent batch dimensions across coefficient wedges");
         }
         std::vector<int64_t> flat_shape = batch_dims;
-        flat_shape.push_back(prod_vec(entry_shapes_[i]));
+        flat_shape.push_back(detail::product(entry_shapes_[i]));
         parts.push_back(coeff.reshape(flat_shape));
     }
     return torch::cat(parts, -1);
 }
 
 UDCTCoefficientShapes UDCTImpl::coefficient_shapes() const {
-    UDCTCoefficientShapes shapes(num_directions_.size());
-    for (size_t s = 0; s < num_directions_.size(); ++s) {
-        shapes[s].resize(static_cast<size_t>(num_directions_[s]));
-        for (size_t d = 0; d < shapes[s].size(); ++d) {
-            shapes[s][d].resize(static_cast<size_t>(wedge_counts_[s][d]));
-        }
-    }
-
     if (transform_kind_ == "monogenic") {
         const int64_t num_channels = ndim() + 2;
-        for (size_t s = 0; s < mono_wedges_.size(); ++s) {
-            for (size_t d = 0; d < mono_wedges_[s].size(); ++d) {
-                for (size_t w = 0; w < mono_wedges_[s][d].size(); ++w) {
-                    std::vector<int64_t> ws = mono_wedges_[s][d][w].shape;
-                    ws.push_back(num_channels);
-                    shapes[s][d][w] = std::move(ws);
-                }
+        UDCTCoefficientShapes shapes;
+        shapes.reserve(mono_wedges_.size());
+        for (const auto& scale_wedges : mono_wedges_) {
+            auto& scale_shapes = shapes.emplace_back();
+            scale_shapes.reserve(scale_wedges.size());
+            for (const auto& dir_wedges : scale_wedges) {
+                auto& dir_shapes = scale_shapes.emplace_back();
+                dir_shapes.reserve(dir_wedges.size());
+                std::ranges::transform(
+                    dir_wedges,
+                    std::back_inserter(dir_shapes),
+                    [num_channels](const WedgeSpan& w) {
+                        std::vector<int64_t> ws = w.shape;
+                        ws.push_back(num_channels);
+                        return ws;
+                    });
             }
         }
         return shapes;
+    }
+
+    UDCTCoefficientShapes shapes;
+    shapes.reserve(wedge_counts_.size());
+    for (const auto& dir_counts : wedge_counts_) {
+        auto& scale_shapes = shapes.emplace_back();
+        scale_shapes.reserve(dir_counts.size());
+        std::ranges::transform(
+            dir_counts,
+            std::back_inserter(scale_shapes),
+            [](int64_t count) {
+                return std::vector<std::vector<int64_t>>(static_cast<size_t>(count));
+            });
     }
 
     for (size_t i = 0; i < layout_.size(); ++i) {
