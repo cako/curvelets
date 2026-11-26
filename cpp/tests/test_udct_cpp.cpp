@@ -60,6 +60,7 @@ void test_plan_parity(const fs::path& dir, const std::string& name, double atol,
     torch::Tensor x = x_ref.clone().detach().requires_grad_(true);
     const torch::Tensor y = udct->forward(x);
     assert_close(y, y_ref, atol, rtol, name + ".forward");
+    assert_close(udct(x_ref), y_ref, atol, rtol, name + ".holder_call");
 
     const torch::Tensor recon = udct->backward(y);
     assert_close(recon, recon_ref, atol, rtol, name + ".backward");
@@ -68,7 +69,60 @@ void test_plan_parity(const fs::path& dir, const std::string& name, double atol,
     loss.backward();
     TORCH_CHECK(x.grad().defined(), name, ": missing gradient");
     assert_close(x.grad(), grad_ref, atol, rtol, name + ".grad");
-    std::cout << "[PASS] plan parity: " << name << std::endl;
+
+    // Structured forward, backward, structure, vect, and coefficient_shapes parity
+    torch::Tensor xs = x_ref.clone().detach().requires_grad_(true);
+    const curvelets::UDCTCoefficients coeffs = udct->forward_structured(xs);
+    const curvelets::UDCTCoefficients coeffs_from_vec = udct->structure(y_ref);
+    const curvelets::UDCTCoefficientShapes expected_shapes = udct->coefficient_shapes();
+    TORCH_CHECK(
+        static_cast<int64_t>(coeffs.size()) == udct->num_scales(),
+        name, ": num_scales mismatch");
+
+    const int64_t expected_wedges = get_t(ref, "struct_num_wedges").item<int64_t>();
+    int64_t wedge_idx = 0;
+    torch::Tensor struct_loss = torch::zeros({}, x_ref.options().dtype(torch::real(y_ref).dtype()));
+    const int64_t trailing_ndim =
+        (udct->transform_kind() == "monogenic") ? (udct->ndim() + 1) : udct->ndim();
+
+    for (size_t s = 0; s < coeffs.size(); ++s) {
+        TORCH_CHECK(coeffs[s].size() == expected_shapes[s].size(), name, ": dir count mismatch");
+        for (size_t d = 0; d < coeffs[s].size(); ++d) {
+            TORCH_CHECK(
+                coeffs[s][d].size() == expected_shapes[s][d].size(),
+                name, ": wedge count mismatch");
+            for (size_t w = 0; w < coeffs[s][d].size(); ++w) {
+                const std::string key = "struct_w_" + std::to_string(wedge_idx++);
+                const torch::Tensor w_ref = get_t(ref, key.c_str());
+                const torch::Tensor& c = coeffs[s][d][w];
+                assert_close(c, w_ref, atol, rtol, name + "." + key);
+                assert_close(coeffs_from_vec[s][d][w], w_ref, atol, rtol, name + ".struct." + key);
+
+                const auto& exp_w_shape = expected_shapes[s][d][w];
+                TORCH_CHECK(c.dim() >= trailing_ndim, name, ": wedge dim too small");
+                std::vector<int64_t> actual_trailing(
+                    c.sizes().end() - trailing_ndim, c.sizes().end());
+                TORCH_CHECK(
+                    actual_trailing == exp_w_shape,
+                    name, ": coefficient_shapes mismatch at ", key);
+
+                struct_loss = struct_loss + c.abs().pow(2).sum();
+            }
+        }
+    }
+    TORCH_CHECK(wedge_idx == expected_wedges, name, ": total wedge count mismatch");
+
+    const torch::Tensor re_flat = udct->vect(coeffs);
+    assert_close(re_flat, y_ref, atol, rtol, name + ".vect");
+
+    const torch::Tensor struct_recon = udct->backward(coeffs);
+    assert_close(struct_recon, recon_ref, atol, rtol, name + ".struct_backward");
+
+    (struct_loss + struct_recon.abs().sum()).backward();
+    TORCH_CHECK(xs.grad().defined(), name, ": missing structured gradient");
+    assert_close(xs.grad(), get_t(ref, "struct_grad"), atol, rtol, name + ".struct_grad");
+
+    std::cout << "[PASS] plan parity (flat + structured): " << name << std::endl;
 }
 
 void test_edge_cases(const fs::path& dir) {
@@ -79,6 +133,11 @@ void test_edge_cases(const fs::path& dir) {
     const torch::Tensor empty_recon = real_udct->backward(empty_y);
     TORCH_CHECK(empty_recon.sizes() == c10::IntArrayRef({0, 32, 32}));
 
+    const curvelets::UDCTCoefficients empty_struct =
+        real_udct->forward_structured(empty_x);
+    const torch::Tensor empty_struct_recon = real_udct->backward(empty_struct);
+    TORCH_CHECK(empty_struct_recon.sizes() == c10::IntArrayRef({0, 32, 32}));
+
     // Real input into complex transform and real coefficients into backward transform.
     curvelets::UDCT cplx_udct((dir / "complex_2d_f64_plan.pt").string());
     torch::manual_seed(3);
@@ -87,7 +146,7 @@ void test_edge_cases(const fs::path& dir) {
     TORCH_CHECK(yc.is_complex() && yc.size(0) == 2 && yc.size(1) == cplx_udct->ncoef());
     const torch::Tensor recon_from_real = cplx_udct->backward(torch::real(yc));
     TORCH_CHECK(recon_from_real.is_complex() && recon_from_real.sizes() == xr.sizes());
-    std::cout << "[PASS] edge cases (empty batch, real-in-complex, real-coeffs-bwd)"
+    std::cout << "[PASS] edge cases (empty batch flat/structured, real-in-complex, real-coeffs-bwd)"
               << std::endl;
 }
 
@@ -108,6 +167,30 @@ struct CurveletFilterNetImpl : public torch::nn::Module {
     torch::Tensor gain;
 };
 TORCH_MODULE(CurveletFilterNet);
+
+struct StructuredScaleNetImpl : public torch::nn::Module {
+    explicit StructuredScaleNetImpl(const std::string& plan_path)
+        : udct(register_module("udct", curvelets::UDCT(plan_path))),
+          scale_gains(register_parameter(
+              "scale_gains", torch::ones({udct->num_scales()}, torch::kFloat32))) {}
+
+    torch::Tensor forward(const torch::Tensor& x) {
+        curvelets::UDCTCoefficients coeffs = udct->forward_structured(x);
+        for (size_t s = 0; s < coeffs.size(); ++s) {
+            const torch::Tensor g = scale_gains[static_cast<int64_t>(s)];
+            for (auto& dir : coeffs[s]) {
+                for (auto& wedge : dir) {
+                    wedge = wedge * g;
+                }
+            }
+        }
+        return udct->backward(coeffs);
+    }
+
+    curvelets::UDCT udct{nullptr};
+    torch::Tensor scale_gains;
+};
+TORCH_MODULE(StructuredScaleNet);
 
 void test_native_training(const fs::path& dir) {
     const fs::path plan_path = dir / "real_2d_f32_plan.pt";
@@ -141,6 +224,31 @@ void test_native_training(const fs::path& dir) {
                 "Expected native C++ training loss to drop significantly: ",
                 first_loss, " -> ", last_loss);
 
+    // Structured per-scale training loop
+    StructuredScaleNet s_model(plan_path.string());
+    torch::optim::Adam s_opt(s_model->parameters(), torch::optim::AdamOptions(5e-2));
+    const torch::Tensor starget = 0.5 * x;
+    double s_first = 0.0;
+    double s_last = 0.0;
+    for (int step = 0; step < 15; ++step) {
+        s_opt.zero_grad();
+        const torch::Tensor s_pred = s_model->forward(x);
+        const torch::Tensor s_loss = torch::mse_loss(s_pred, starget);
+        s_loss.backward();
+        TORCH_CHECK(
+            s_model->scale_gains.grad().defined() &&
+                torch::isfinite(s_model->scale_gains.grad()).all().item<bool>(),
+            "Invalid scale_gains grad in structured training");
+        s_opt.step();
+        const double l = s_loss.item<double>();
+        if (step == 0) {
+            s_first = l;
+        }
+        s_last = l;
+    }
+    TORCH_CHECK(s_last < 0.25 * s_first,
+                "Expected structured C++ training loss to drop: ", s_first, " -> ", s_last);
+
     // Verify precision conversion in C++ (weights were originally float32, so
     // tight-frame reconstruction holds to float32 precision ~1e-6).
     probe->to(torch::kFloat64);
@@ -156,8 +264,8 @@ void test_native_training(const fs::path& dir) {
     const torch::Tensor rm32 = mono_probe->backward(ym32);
     assert_close(rm32[0], xm32, 1e-4, 1e-4, "mono_cast_f32_roundtrip");
 
-    std::cout << "[PASS] native C++ training (" << first_loss << " -> " << last_loss << ")"
-              << std::endl;
+    std::cout << "[PASS] native C++ training (flat: " << first_loss << " -> " << last_loss
+              << ", structured: " << s_first << " -> " << s_last << ")" << std::endl;
 }
 
 void test_gradients(const fs::path& dir) {
@@ -202,7 +310,33 @@ void test_gradients(const fs::path& dir) {
         TORCH_CHECK(std::abs(fd - ad) < 1e-6, "Backward finite diff mismatch: ", fd, " vs ", ad);
     }
 
-    // Second-order gradients via create_graph=true (tight frame: grad^2(0.5 * ||C x||^2) == 1)
+    // Individual wedge gradients through structured backward
+    curvelets::UDCTCoefficients leaf_coeffs = udct->forward_structured(x);
+    for (auto& scale : leaf_coeffs) {
+        for (auto& dir_vec : scale) {
+            for (auto& wedge : dir_vec) {
+                wedge = wedge.detach().clone().requires_grad_(true);
+            }
+        }
+    }
+    const torch::Tensor recon_leaf = udct->backward(leaf_coeffs);
+    (recon_leaf * w_bwd).sum().backward();
+    const curvelets::UDCTCoefficients expected_w_grads = udct->forward_structured(w_bwd);
+    for (size_t s = 0; s < leaf_coeffs.size(); ++s) {
+        for (size_t d = 0; d < leaf_coeffs[s].size(); ++d) {
+            for (size_t w = 0; w < leaf_coeffs[s][d].size(); ++w) {
+                TORCH_CHECK(leaf_coeffs[s][d][w].grad().defined(), "Missing wedge grad");
+                assert_close(
+                    leaf_coeffs[s][d][w].grad(),
+                    expected_w_grads[s][d][w],
+                    1e-10,
+                    1e-10,
+                    "structured_wedge_grad");
+            }
+        }
+    }
+
+    // Second-order gradients via create_graph=true (flat and structured round-trip)
     torch::Tensor x2 = x.clone().requires_grad_(true);
     const torch::Tensor e_fwd = udct->forward(x2).abs().pow(2).sum();
     const auto g1 = torch::autograd::grad({e_fwd}, {x2}, {}, /*retain_graph=*/true, /*create_graph=*/true);
@@ -210,7 +344,15 @@ void test_gradients(const fs::path& dir) {
     const auto g2 = torch::autograd::grad({g1[0].pow(2).sum()}, {x2});
     assert_close(g2[0], 8.0 * x, 1e-8, 1e-8, "second_order_grad");
 
-    std::cout << "[PASS] C++ 1st-order finite-diff & 2nd-order autograd checks" << std::endl;
+    torch::Tensor x3 = x.clone().requires_grad_(true);
+    const torch::Tensor recon_3 = udct->backward(udct->forward_structured(x3));
+    const auto gs1 = torch::autograd::grad(
+        {recon_3.pow(2).sum()}, {x3}, {}, /*retain_graph=*/true, /*create_graph=*/true);
+    const auto gs2 = torch::autograd::grad({gs1[0].pow(2).sum()}, {x3});
+    assert_close(gs2[0], 8.0 * x, 1e-8, 1e-8, "structured_second_order_grad");
+
+    std::cout << "[PASS] C++ 1st-order finite-diff, wedge-grad & 2nd-order autograd checks"
+              << std::endl;
 }
 
 } // namespace

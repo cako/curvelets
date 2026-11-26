@@ -18,6 +18,13 @@
 
 namespace curvelets {
 
+/// Nested curvelet coefficients indexed as ``coeffs[scale][direction][wedge]``.
+using UDCTCoefficients = std::vector<std::vector<std::vector<torch::Tensor>>>;
+
+/// Nested wedge shapes indexed as ``shapes[scale][direction][wedge]``.
+using UDCTCoefficientShapes =
+    std::vector<std::vector<std::vector<std::vector<int64_t>>>>;
+
 /// Native libtorch module for running and training with an exported UDCT plan.
 class CURVELETS_API UDCTImpl : public torch::nn::Module {
 public:
@@ -27,9 +34,24 @@ public:
     /// Forward transform of ``(*batch, *shape)`` to flat ``(*batch, ncoef)`` coefficients.
     torch::Tensor forward(const torch::Tensor& image);
 
+    /// Forward transform returning nested ``[scale][direction][wedge]`` coefficient views.
+    UDCTCoefficients forward_structured(const torch::Tensor& image);
+
     /// Backward transform of flat ``(*batch, ncoef)`` coefficients.
     /// Returns ``(*batch, *shape)`` (or ``(ndim + 1, *batch, *shape)`` for monogenic).
     torch::Tensor backward(const torch::Tensor& vector);
+
+    /// Backward transform of nested ``[scale][direction][wedge]`` coefficients.
+    torch::Tensor backward(const UDCTCoefficients& coefficients);
+
+    /// Restructure a flat ``(*batch, ncoef)`` vector into nested coefficient views.
+    UDCTCoefficients structure(const torch::Tensor& vector) const;
+
+    /// Flatten nested ``[scale][direction][wedge]`` coefficients into ``(*batch, ncoef)``.
+    torch::Tensor vect(const UDCTCoefficients& coefficients) const;
+
+    /// Return the expected trailing shape of every coefficient wedge.
+    UDCTCoefficientShapes coefficient_shapes() const;
 
     using torch::nn::Module::to;
     void to(torch::Dtype dtype, bool non_blocking = false) override;
@@ -37,15 +59,32 @@ public:
 
     const std::vector<int64_t>& shape() const { return shape_; }
     int64_t ndim() const { return static_cast<int64_t>(shape_.size()); }
+    int64_t num_scales() const { return static_cast<int64_t>(num_directions_.size()); }
     int64_t ncoef() const { return total_ncoef_; }
     const std::string& transform_kind() const { return transform_kind_; }
     bool complex_output() const { return complex_output_; }
 
 private:
+    struct LayoutEntry {
+        int64_t scale;
+        int64_t direction;
+        int64_t wedge;
+    };
+
+    struct WedgeSpan {
+        int64_t start;
+        std::vector<int64_t> shape;
+    };
+
     std::vector<int64_t> shape_;
     std::vector<int64_t> group_offsets_;
     std::vector<int64_t> group_counts_;
     std::vector<int64_t> group_shapes_;
+    std::vector<int64_t> num_directions_;
+    std::vector<LayoutEntry> layout_;
+    std::vector<std::vector<int64_t>> entry_shapes_;
+    std::vector<std::vector<int64_t>> wedge_counts_;
+    std::vector<std::vector<std::vector<WedgeSpan>>> mono_wedges_;
     std::vector<int64_t> even_axes_;
     int64_t plan_ncoef_ = 0;
     int64_t total_ncoef_ = 0;
