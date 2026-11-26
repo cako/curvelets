@@ -40,9 +40,8 @@ def export_udct_plan_dict(udct: UDCT) -> dict[str, torch.Tensor]:
         complex_mode=kind == "complex",
         fold_strategy="csr",
     )
-    if not isinstance(plan.fwd_map, CsrFold) or plan.bwd_map is None:
-        msg = "Expected CSR forward and backward maps when exporting UDCT plan."
-        raise RuntimeError(msg)
+    assert isinstance(plan.fwd_map, CsrFold)
+    assert plan.bwd_map is not None
 
     group_offsets = [g.offset for g in plan.groups]
     group_counts = [g.count for g in plan.groups]
