@@ -57,12 +57,12 @@ public:
     void to(torch::Dtype dtype, bool non_blocking = false) override;
     void to(torch::Device device, torch::Dtype dtype, bool non_blocking = false) override;
 
-    const std::vector<int64_t>& shape() const { return shape_; }
-    int64_t ndim() const { return static_cast<int64_t>(shape_.size()); }
-    int64_t num_scales() const { return static_cast<int64_t>(num_directions_.size()); }
-    int64_t ncoef() const { return total_ncoef_; }
-    const std::string& transform_kind() const { return transform_kind_; }
-    bool complex_output() const { return complex_output_; }
+    const std::vector<int64_t>& shape() const noexcept { return shape_; }
+    int64_t ndim() const noexcept { return static_cast<int64_t>(shape_.size()); }
+    int64_t num_scales() const noexcept { return static_cast<int64_t>(num_directions_.size()); }
+    int64_t ncoef() const noexcept { return total_ncoef_; }
+    const std::string& transform_kind() const noexcept { return transform_kind_; }
+    bool complex_output() const noexcept { return complex_output_; }
 
 private:
     struct LayoutEntry {

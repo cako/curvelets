@@ -1,5 +1,6 @@
 #include "curvelets/udct.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -100,10 +101,10 @@ void test_plan_parity(const fs::path& dir, const std::string& name, double atol,
 
                 const auto& exp_w_shape = expected_shapes[s][d][w];
                 TORCH_CHECK(c.dim() >= trailing_ndim, name, ": wedge dim too small");
-                std::vector<int64_t> actual_trailing(
-                    c.sizes().end() - trailing_ndim, c.sizes().end());
                 TORCH_CHECK(
-                    actual_trailing == exp_w_shape,
+                    std::ranges::equal(
+                        c.sizes().slice(static_cast<size_t>(c.dim() - trailing_ndim)),
+                        exp_w_shape),
                     name, ": coefficient_shapes mismatch at ", key);
 
                 struct_loss = struct_loss + c.abs().pow(2).sum();
