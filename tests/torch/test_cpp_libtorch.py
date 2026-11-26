@@ -134,15 +134,28 @@ def test_cpp_standalone_suite(cpp_build: Path, tmp_path: Path) -> None:
         recon = udct.backward(y)
         (y.abs().pow(2).sum() + recon.abs().sum()).backward()
         assert x.grad is not None
-        torch.save(
-            {
-                "x": x.detach(),
-                "y": y.detach(),
-                "recon": recon.detach(),
-                "grad": x.grad.detach(),
-            },
-            tmp_path / f"{name}_ref.pt",
+
+        xs = x.detach().clone().requires_grad_(True)
+        coeffs_ref = udct.forward(xs, structured=True)
+        loss_struct = (
+            sum(c.abs().pow(2).sum() for s in coeffs_ref for d in s for c in d)
+            + udct.backward(coeffs_ref).abs().sum()
         )
+        loss_struct.backward()
+        assert xs.grad is not None
+
+        flat_wedges = [c.detach() for s in coeffs_ref for d in s for c in d]
+        ref_dict: dict[str, torch.Tensor] = {
+            "x": x.detach(),
+            "y": y.detach(),
+            "recon": recon.detach(),
+            "grad": x.grad.detach(),
+            "struct_num_wedges": torch.tensor(len(flat_wedges), dtype=torch.int64),
+            "struct_grad": xs.grad.detach(),
+        }
+        for idx, wedge in enumerate(flat_wedges):
+            ref_dict[f"struct_w_{idx}"] = wedge
+        torch.save(ref_dict, tmp_path / f"{name}_ref.pt")
 
     clean_env = {
         k: v

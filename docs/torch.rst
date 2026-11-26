@@ -217,7 +217,11 @@ Load and use the exported plan in C++:
     torch::Tensor recon = udct->backward(coeffs);  // (*batch, *shape) or (ndim + 1, *batch, *shape) for monogenic
     recon.sum().backward();
 
-``udct->forward(x)`` returns the flat ``(*batch, ncoef)`` coefficient layout (matching ``forward(x, structured=False)`` in Python), and ``udct->backward(coeffs)`` returns ``(*batch, *shape)`` (or ``(ndim + 1, *batch, *shape)`` for monogenic transforms).
+    // Or nested [scale][direction][wedge] coefficients (structured=True):
+    auto nested = udct->forward_structured(x);
+    torch::Tensor recon_nested = udct->backward(nested);
+
+``udct->forward(x)`` returns the flat ``(*batch, ncoef)`` coefficient layout (matching ``forward(x, structured=False)`` in Python), while ``udct->forward_structured(x)`` returns nested ``curvelets::UDCTCoefficients`` (``coeffs[scale][direction][wedge]``) views. ``udct->backward(...)`` accepts either representation and returns ``(*batch, *shape)`` (or ``(ndim + 1, *batch, *shape)`` for monogenic transforms). ``udct->structure(vec)``, ``udct->vect(coeffs)``, and ``udct->coefficient_shapes()`` mirror Python's ``struct``, ``vect``, and ``coefficient_shapes``.
 
 See `cpp/README.md <https://github.com/cako/curvelets/blob/main/cpp/README.md>`_ and `cpp/examples/train_model.cpp <https://github.com/cako/curvelets/blob/main/cpp/examples/train_model.cpp>`_ for CMake build instructions and a full training example.
 

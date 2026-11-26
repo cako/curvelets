@@ -43,7 +43,7 @@ When consumed via `FetchContent`, tests, examples, and install rules are disable
 
 ## 3. Use and train in pure C++ (`libtorch`)
 
-`udct->forward(x)` returns the flat `(*batch, ncoef)` coefficient layout (matching `forward(x, structured=False)` in Python), and `udct->backward(coeffs)` returns `(*batch, *shape)` (or `(ndim + 1, *batch, *shape)` for monogenic transforms).
+`udct->forward(x)` returns the flat `(*batch, ncoef)` coefficient layout (matching `forward(x, structured=False)` in Python), while `udct->forward_structured(x)` returns nested `curvelets::UDCTCoefficients` (`coeffs[scale][direction][wedge]`) views into that flat buffer. `udct->backward(...)` accepts either the flat tensor or `curvelets::UDCTCoefficients`, returning `(*batch, *shape)` (or `(ndim + 1, *batch, *shape)` for monogenic transforms). `udct->structure(vec)`, `udct->vect(coeffs)`, and `udct->coefficient_shapes()` mirror Python's `struct`, `vect`, and `coefficient_shapes`.
 
 ```cpp
 #include "curvelets/udct.hpp"
@@ -55,6 +55,10 @@ int main() {
     torch::Tensor coeffs = udct->forward(x);
     torch::Tensor recon = udct->backward(coeffs);
     recon.sum().backward();
+
+    // Or with nested [scale][direction][wedge] coefficients:
+    auto nested = udct->forward_structured(x);
+    torch::Tensor recon_nested = udct->backward(nested);
 }
 ```
 

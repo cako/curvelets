@@ -72,6 +72,8 @@ def export_udct_plan_dict(udct: UDCT) -> dict[str, torch.Tensor]:
         "group_offsets": torch.tensor(group_offsets, dtype=torch.int64),
         "group_counts": torch.tensor(group_counts, dtype=torch.int64),
         "group_shapes": torch.tensor(group_shapes, dtype=torch.int64),
+        "num_directions": torch.tensor(plan.num_directions, dtype=torch.int64),
+        "layout": torch.tensor(plan.layout, dtype=torch.int64),
         "even_axes": torch.tensor(even_axes, dtype=torch.int64),
         "fwd_row_ptr": plan.fwd_map.row_ptr.detach().contiguous(),
         "fwd_col": plan.fwd_map.col.detach().contiguous(),
