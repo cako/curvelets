@@ -119,6 +119,8 @@ filterwarnings = [
   "ignore:The global interpreter lock \\(GIL\\) has been enabled to load module 'triton:RuntimeWarning",
   # ... and to load markupsafe's speedups (torch.compile imports jinja2)
   "ignore:The global interpreter lock \\(GIL\\) has been enabled to load module 'markupsafe:RuntimeWarning",
+  # NumPy's prebuilt PyPy wheel emits this on numpy.random._generator
+  "ignore:cython\\.collection_type only works on PyPy:RuntimeWarning",
 ]
 log_cli_level = "INFO"
 testpaths = ["tests"]
