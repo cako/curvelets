@@ -1225,7 +1225,19 @@ class UDCT(CudaGraphsMixin, nn.Module):  # type: ignore[misc]
 
         The saved ``.pt`` file can be loaded directly with ``curvelets::UDCT``
         in C++ without requiring Python.
+
+        .. versionadded:: 1.4
+
+        Parameters
+        ----------
+        path : str | Path
+            Destination path for the serialized plan (``.pt``).
+
+        Returns
+        -------
+        Path
+            Resolved path to the written plan file.
         """
         from ._export import save_udct_plan  # pylint: disable=import-outside-toplevel
 
-        return save_udct_plan(self, path)
+        return Path(save_udct_plan(self, path))
